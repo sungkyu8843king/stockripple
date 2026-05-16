@@ -1,0 +1,35 @@
+name: Market Hours News Fetch
+
+on:
+  schedule:
+    # KST 09:00~16:00 = UTC 00:00~07:00, 30분마다
+    - cron: '0,30 0,1,2,3,4,5,6,7 * * 1-5'   # 평일만
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  fetch-and-analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Fetch RSS News
+        run: |
+          RESPONSE=$(curl -s -o /tmp/rss_resp.json -w "%{http_code}" \
+            -X POST "${{ secrets.VERCEL_URL }}/api/fetch-rss" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            -H "Content-Type: application/json")
+          echo "RSS fetch status: $RESPONSE"
+          cat /tmp/rss_resp.json
+
+      - name: Fetch NewsAPI
+        run: |
+          curl -s -X POST "${{ secrets.VERCEL_URL }}/api/fetch-news" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            -H "Content-Type: application/json" | jq '.saved // "done"'
+
+      - name: AI Analyze (미분석 최대 3건)
+        run: |
+          curl -s -X POST "${{ secrets.VERCEL_URL }}/api/analyze" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"limit": 3}' | jq '.analyzed // "done"'

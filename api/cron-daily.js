@@ -15,8 +15,12 @@ export default async function handler(req, res) {
   };
 
   try {
-    const newsRes = await fetch(`${base}/api/fetch-news`, { method: 'POST', headers });
+    const [newsRes, rssRes] = await Promise.all([
+      fetch(`${base}/api/fetch-news`, { method: 'POST', headers }),
+      fetch(`${base}/api/fetch-rss`, { method: 'POST', headers }),
+    ]);
     const newsData = await newsRes.json();
+    const rssData = await rssRes.json();
 
     await new Promise(r => setTimeout(r, 2000));
 
@@ -35,6 +39,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       news: newsData,
+      rss: rssData,
       analysis: analyzeData,
       accuracy: accuracyData,
       timestamp: new Date().toISOString(),
