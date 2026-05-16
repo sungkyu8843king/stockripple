@@ -197,12 +197,8 @@ tr:hover td { background: var(--bg3); }
     </button>
     <div class="nav-section">데이터 관리</div>
     <button class="nav-item" data-panel="news">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 0-2 2Z"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M4 10h16"/></svg>
-      뉴스 수집
-    </button>
-    <button class="nav-item" data-panel="analyze">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-      AI 분석
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.61"/></svg>
+      수집 + 분석
     </button>
     <button class="nav-item" data-panel="issues">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -250,47 +246,42 @@ tr:hover td { background: var(--bg3); }
         <div class="stat-card"><div class="stat-label">등록 기업</div><div class="stat-value blue" id="ds-companies">—</div></div>
       </div>
       <div class="card">
-        <div class="card-title">빠른 작업</div>
+        <div class="card-title">전체 파이프라인 실행</div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">수집(뉴스+RSS+이벤트) → AI 분석 → 정확도 체크까지 한 번에 자동 실행</p>
         <div class="action-row">
-          <button class="btn btn-success" onclick="runFetchNews()">뉴스 수집 실행</button>
-          <button class="btn btn-primary" onclick="runAnalyze(null, 5)">미분석 AI 분석 (최대 5건)</button>
+          <button class="btn btn-success" style="font-size:14px;padding:10px 24px" onclick="runPipeline()">
+            ▶ 수집 + 분석 한번에 실행
+          </button>
           <button class="btn btn-ghost" onclick="showPanel('issues')">이슈 목록 보기</button>
+        </div>
+        <div id="pipelineLog" class="log-box" style="display:none"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">개별 실행</div>
+        <div class="action-row">
+          <button class="btn btn-ghost" onclick="runFetchOnly()">뉴스만 수집</button>
+          <button class="btn btn-ghost" onclick="runAnalyze(null, 20)">분석만 실행 (최대 20건)</button>
         </div>
         <div id="quickLog" class="log-box" style="display:none"></div>
       </div>
     </div>
 
-    <!-- News -->
+    <!-- News (수집 메뉴는 파이프라인으로 통합됨) -->
     <div class="panel-section" id="panel-news">
       <div class="section-header">
-        <h2>뉴스 수집</h2>
-        <p>NewsAPI를 통해 최신 이슈를 자동으로 수집합니다.</p>
+        <h2>수집 + AI 분석</h2>
+        <p>뉴스/RSS/이벤트 수집 후 Claude AI 분석까지 한번에 실행합니다.</p>
       </div>
       <div class="card">
-        <div class="card-title">수집 실행</div>
+        <div class="card-title">전체 파이프라인</div>
         <div class="action-row">
-          <button class="btn btn-success" onclick="runFetchNews()">
+          <button class="btn btn-success" onclick="runPipeline('newsLog')">
             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.61"/></svg>
-            뉴스 수집 실행
+            수집 + 분석 한번에 실행
           </button>
+          <button class="btn btn-ghost" onclick="runFetchOnly('newsLog')">뉴스만 수집</button>
         </div>
         <div class="log-box" id="newsLog">대기 중...</div>
-      </div>
-    </div>
-
-    <!-- Analyze -->
-    <div class="panel-section" id="panel-analyze">
-      <div class="section-header">
-        <h2>AI 분석</h2>
-        <p>Claude AI로 이슈의 파급효과와 수혜 기업을 분석합니다.</p>
-      </div>
-      <div class="card">
-        <div class="card-title">일괄 분석</div>
-        <div class="action-row">
-          <button class="btn btn-primary" onclick="runAnalyze(null, 3)">미분석 3건 분석</button>
-          <button class="btn btn-primary" onclick="runAnalyze(null, 10)">미분석 10건 분석</button>
-        </div>
-        <div class="log-box" id="analyzeLog">대기 중...</div>
       </div>
       <div class="card">
         <div class="card-title">개별 이슈 분석</div>
@@ -299,8 +290,12 @@ tr:hover td { background: var(--bg3); }
           <input type="text" id="singleIssueId" class="form-input" placeholder="이슈 UUID를 입력하세요">
         </div>
         <button class="btn btn-primary" onclick="runAnalyzeSingle()">이 이슈 분석</button>
+        <div class="log-box" id="analyzeLog" style="margin-top:12px">대기 중...</div>
       </div>
     </div>
+
+    <!-- Analyze 메뉴 제거 (news 패널에 통합) -->
+    <div class="panel-section" id="panel-analyze" style="display:none"></div>
 
     <!-- Issues -->
     <div class="panel-section" id="panel-issues">
@@ -508,16 +503,15 @@ function log(elId, msg, type = '') {
   el.scrollTop = el.scrollHeight;
 }
 
-async function callApi(path, body, logId) {
+async function callApi(path, body, logId, authMode = 'ADMIN') {
   const secret = getAdminSecret();
   if (!secret) { showToast('ADMIN_SECRET을 설정 탭에서 먼저 설정해주세요', 'error'); return null; }
 
-  log(logId, `POST ${path} ...`, 'info');
   try {
     const res = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${secret}` },
-      body: body ? JSON.stringify(body) : undefined,
+      body: body && Object.keys(body).length ? JSON.stringify(body) : undefined,
     });
     const data = await res.json();
     if (!res.ok) { log(logId, `오류: ${data.error || res.status}`, 'err'); return null; }
@@ -525,18 +519,68 @@ async function callApi(path, body, logId) {
   } catch(e) { log(logId, `네트워크 오류: ${e.message}`, 'err'); return null; }
 }
 
-async function runFetchNews(logId = 'newsLog') {
+// ── 전체 파이프라인 (수집 + 분석 한번에) ───────────────────────────────────
+async function runPipeline(logId = 'pipelineLog') {
   const el = document.getElementById(logId);
-  if (el) el.innerHTML = '';
-  log(logId, '뉴스 수집 시작...', 'info');
+  if (el) { el.style.display = 'block'; el.innerHTML = ''; }
+  log(logId, '🚀 전체 파이프라인 시작...', 'info');
+  log(logId, '① 뉴스·RSS·이벤트 수집 중...', 'info');
 
-  const data = await callApi('/api/fetch-news', {}, logId);
+  const data = await callApi('/api/cron-daily', {}, logId, 'CRON_ADMIN');
   if (!data) return;
 
-  log(logId, `수집: ${data.fetched}건, 저장: ${data.saved}건`, 'ok');
-  if (data.errors?.length) data.errors.forEach(e => log(logId, e, 'warn'));
-  showToast(`뉴스 ${data.saved}건 저장`, 'success');
+  if (data.news) {
+    const n = data.news;
+    log(logId, `뉴스 수집: ${n.fetched ?? 0}건 확인, ${n.saved ?? 0}건 신규 저장`, 'ok');
+    if (n.errors?.length) n.errors.forEach(e => log(logId, `뉴스 오류: ${e}`, 'warn'));
+  }
+  if (data.rss) {
+    const r = data.rss;
+    log(logId, `RSS 수집: ${r.fetched ?? 0}건 확인, ${r.saved ?? 0}건 신규 저장`, 'ok');
+  }
+  if (data.events) {
+    const ev = data.events;
+    const total = (ev.trump ?? 0) + (ev.economic ?? 0) + (ev.earnings ?? 0);
+    log(logId, `이벤트 수집: 트럼프 ${ev.trump ?? 0} / 경제지표 ${ev.economic ?? 0} / 실적 ${ev.earnings ?? 0}건`, total > 0 ? 'ok' : 'info');
+    if (ev.analyzed > 0) log(logId, `이벤트 즉시 분석: ${ev.analyzed}건`, 'ok');
+  }
+  if (data.analyze) {
+    const a = data.analyze;
+    log(logId, `② AI 분석 완료: ${a.analyzed ?? 0}건`, 'ok');
+    if (a.errors?.length) a.errors.slice(0, 3).forEach(e => log(logId, `분석 오류: ${e}`, 'warn'));
+  }
+  if (data.accuracy) {
+    log(logId, `③ 정확도 체크 완료`, 'ok');
+  }
+  log(logId, '✅ 파이프라인 완료', 'ok');
+  showToast('수집 + 분석 완료!', 'success');
+  await loadDashStats();
 }
+
+// ── 뉴스만 수집 (분석 없음) ─────────────────────────────────────────────────
+async function runFetchOnly(logId = 'newsLog') {
+  const el = document.getElementById(logId);
+  if (el) { el.style.display = 'block'; el.innerHTML = ''; }
+  log(logId, '뉴스 수집 시작...', 'info');
+
+  const [newsData, rssData] = await Promise.all([
+    callApi('/api/fetch-news', {}, logId),
+    callApi('/api/fetch-rss', {}, logId),
+  ]);
+
+  if (newsData) {
+    log(logId, `NewsAPI: ${newsData.fetched ?? 0}건 확인, ${newsData.saved ?? 0}건 저장`, 'ok');
+    if (newsData.errors?.length) newsData.errors.forEach(e => log(logId, e, 'warn'));
+  }
+  if (rssData) {
+    log(logId, `RSS: ${rssData.fetched ?? 0}건 확인, ${rssData.saved ?? 0}건 저장`, 'ok');
+    if (rssData.errors?.length) rssData.errors.forEach(e => log(logId, e, 'warn'));
+  }
+  showToast('수집 완료', 'success');
+}
+
+// (하위 호환용 alias)
+async function runFetchNews(logId = 'newsLog') { return runFetchOnly(logId); }
 
 async function runAnalyze(issueId = null, limit = 3, logId = 'analyzeLog') {
   const el = document.getElementById(logId);
