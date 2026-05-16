@@ -1444,7 +1444,7 @@ async function loadAnalystRatings() {
 
   let items = [];
   try {
-    const r = await fetch('/api/analyst');
+    const r = await fetch('/api/earnings?type=analyst');
     if (r.ok) { const j = await r.json(); if (j.ok && j.items?.length) items = j.items; }
   } catch {}
 
@@ -1585,7 +1585,7 @@ async function loadEconomicCalendar() {
   if (!el) return;
 
   try {
-    const r = await fetch('/api/economic');
+    const r = await fetch('/api/market-pulse?type=economic');
     if (!r.ok) throw new Error('API error');
     const j = await r.json();
 
@@ -1669,7 +1669,7 @@ async function loadTrumpPosts() {
   if (!el) return;
 
   try {
-    const r = await fetch('/api/trump');
+    const r = await fetch('/api/market-pulse?type=trump');
     if (!r.ok) throw new Error();
     const j = await r.json();
 

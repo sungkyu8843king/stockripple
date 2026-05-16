@@ -1,4 +1,74 @@
+/**
+ * market-pulse.js — Trump Truth Social + ForexFactory 경제지표
+ * GET ?type=trump   → Truth Social RSS 최신 글
+ * GET ?type=economic (default) → ForexFactory 이번주/다음주 캘린더
+ */
 export default async function handler(req, res) {
+  const type = req.query?.type || 'economic';
+  if (type === 'trump') return handleTrump(req, res);
+  return handleEconomic(req, res);
+}
+
+// ─── Trump Truth Social ────────────────────────────────────────────────────
+async function handleTrump(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
+
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Cache-Control': 'no-cache',
+  };
+
+  try {
+    const r = await fetch('https://truthsocial.com/@realDonaldTrump.rss', {
+      headers,
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) return res.status(200).json({ ok: false, error: `HTTP ${r.status}`, items: [] });
+    const xml = await r.text();
+    const items = parseRss(xml, 5);
+    return res.status(200).json({ ok: true, items, ts: Date.now() });
+  } catch (err) {
+    return res.status(200).json({ ok: false, error: err.message, items: [] });
+  }
+}
+
+function parseRss(xml, max = 5) {
+  const items = [];
+  const re = /<item>([\s\S]*?)<\/item>/g;
+  let m;
+  while ((m = re.exec(xml)) !== null && items.length < max) {
+    const block = m[1];
+    const desc    = getTag(block, 'description') || getTag(block, 'content:encoded');
+    const link    = getTag(block, 'link') || getTag(block, 'guid');
+    const pubDate = getTag(block, 'pubDate');
+    const text = (desc || '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+    if (text.length > 5) {
+      items.push({
+        text,
+        link: link || 'https://truthsocial.com/@realDonaldTrump',
+        publishedAt: pubDate ? new Date(pubDate).toISOString() : null,
+      });
+    }
+  }
+  return items;
+}
+
+function getTag(xml, tag) {
+  const re = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/${tag}>`, 'i');
+  const m = xml.match(re);
+  return m ? (m[1] ?? m[2] ?? '').trim() : '';
+}
+
+// ─── ForexFactory 경제지표 ─────────────────────────────────────────────────
+async function handleEconomic(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
 
@@ -8,7 +78,6 @@ export default async function handler(req, res) {
     'Accept': 'application/json, */*',
   };
 
-  // 한국어 지표명 매핑
   const NAME_KO = {
     'CPI m/m': '소비자물가 (MoM)', 'Core CPI m/m': '근원 CPI (MoM)',
     'CPI y/y': '소비자물가 (YoY)', 'Core CPI y/y': '근원 CPI (YoY)',
@@ -44,7 +113,6 @@ export default async function handler(req, res) {
     'Chicago PMI': '시카고 PMI', 'Challenger Job Cuts y/y': '챌린저 감원 (YoY)',
   };
 
-  // 낮을수록 긍정적인 지표 (beat = actual < forecast)
   const LOWER_IS_BETTER = new Set([
     'Unemployment Rate', 'Initial Jobless Claims', 'Continuing Jobless Claims',
     'Core CPI m/m', 'CPI m/m', 'CPI y/y', 'Core CPI y/y',
@@ -54,7 +122,6 @@ export default async function handler(req, res) {
   ]);
 
   try {
-    // ForexFactory는 이번 주 + 다음 주 제공 (날짜 형식: ISO 8601 with timezone)
     const [tw, nw] = await Promise.allSettled([
       fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
         headers, signal: AbortSignal.timeout(8000),
@@ -73,36 +140,32 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: false, error: 'ForexFactory returned empty', items: [] });
     }
 
-    // 주요 통화 + 중요도 필터
     raw = raw.filter(e =>
       (e.country === 'USD' || e.country === 'EUR' || e.country === 'JPY') &&
       (e.impact === 'High' || e.impact === 'Medium')
     );
 
     const now = Date.now();
-    // 과거 7일 ~ 미래 14일 윈도우 (이번 주 지표 actual 포함)
     const windowStart = now - 7 * 86400000;
     const windowEnd   = now + 14 * 86400000;
 
     const items = raw
       .map(e => {
-        // ForexFactory 날짜: ISO 8601 ("2026-05-12T08:30:00-04:00") → 직접 파싱
         let dateIso = null;
         try {
           const d = new Date(e.date);
           if (!isNaN(d)) dateIso = d.toISOString();
         } catch {}
-
         return {
-          title:        e.title || '',
-          titleKo:      NAME_KO[e.title] || e.title || '',
-          country:      e.country || 'USD',
-          impact:       e.impact  || 'Medium',
-          date:         dateIso,
-          dateRaw:      e.date || '',
-          forecast:     e.forecast || null,
-          previous:     e.previous || null,
-          actual:       e.actual   || null,
+          title:         e.title || '',
+          titleKo:       NAME_KO[e.title] || e.title || '',
+          country:       e.country || 'USD',
+          impact:        e.impact  || 'Medium',
+          date:          dateIso,
+          dateRaw:       e.date || '',
+          forecast:      e.forecast || null,
+          previous:      e.previous || null,
+          actual:        e.actual   || null,
           lowerIsBetter: LOWER_IS_BETTER.has(e.title),
         };
       })
