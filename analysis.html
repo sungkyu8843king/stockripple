@@ -105,8 +105,18 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .companies-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 .company-card {
   background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
-  padding: 16px; transition: all 0.2s; cursor: pointer;
+  padding: 16px; transition: all 0.2s; cursor: pointer; position: relative;
 }
+.card-star {
+  position: absolute; top: 12px; right: 12px;
+  background: none; border: none; cursor: pointer; font-size: 16px;
+  color: var(--text3); line-height: 1; padding: 2px; z-index: 2;
+  transition: all 0.15s;
+}
+.card-star.active { color: #f0b429; }
+.card-star:hover { transform: scale(1.2); }
+.company-ticker-link { text-decoration: none; }
+.company-ticker-link:hover .company-ticker { opacity: 0.8; }
 .company-card:hover { border-color: var(--blue); box-shadow: 0 4px 20px rgba(47,129,247,0.1); transform: translateY(-1px); }
 
 /* Chart Modal */
@@ -289,8 +299,9 @@ function renderPage(issue, analysis, companies) {
 
     return `
       <div class="company-card" data-chart-ticker="${escHtml(co.ticker)}" data-chart-name="${escHtml(co.name_ko||co.name_en||co.ticker)}" data-chart-kr="${isKr}" onclick="openChart(this.dataset.chartTicker,this.dataset.chartName,this.dataset.chartKr==='true')">
+        <button class="card-star${isAnalysisWatched(co.ticker)?' active':''}" data-wl-ticker="${escHtml(co.ticker)}" data-wl-name="${escHtml(co.name_ko||co.name_en||co.ticker)}" data-wl-market="${isKr?'KR':'US'}" onclick="toggleAnalysisWatch(event,this)" title="관심종목">${isAnalysisWatched(co.ticker)?'★':'☆'}</button>
         <div class="company-top">
-          <span class="company-ticker ${isKr ? 'kr' : 'us'}">${escHtml(co.ticker)}</span>
+          <a href="/company.html?ticker=${encodeURIComponent(co.ticker)}" class="company-ticker-link" onclick="event.stopPropagation()"><span class="company-ticker ${isKr ? 'kr' : 'us'}">${escHtml(co.ticker)}</span></a>
           <div class="company-info">
             <div class="company-name">${escHtml(co.name_ko || co.name_en || co.ticker)}</div>
             <div class="company-market">${isKr ? '한국 상장' : '미국 상장'} · ${escHtml(co.sector || c.ripple_sector || '')}</div>
@@ -453,6 +464,25 @@ async function init() {
 }
 
 init();
+
+/* ── Watchlist (shared with index.html) ── */
+function getWatchlist() {
+  try { return JSON.parse(localStorage.getItem('sr_watchlist') || '[]'); } catch { return []; }
+}
+function saveWatchlist(list) { localStorage.setItem('sr_watchlist', JSON.stringify(list)); }
+function isAnalysisWatched(ticker) { return getWatchlist().some(w => w.ticker === ticker); }
+function toggleAnalysisWatch(e, btn) {
+  e.stopPropagation();
+  const { wlTicker: ticker, wlName: name, wlMarket: market } = btn.dataset;
+  const list = getWatchlist();
+  const idx = list.findIndex(w => w.ticker === ticker);
+  if (idx >= 0) { list.splice(idx, 1); }
+  else { list.push({ ticker, name, market, addedAt: new Date().toISOString() }); }
+  saveWatchlist(list);
+  const w = isAnalysisWatched(ticker);
+  btn.classList.toggle('active', w);
+  btn.textContent = w ? '★' : '☆';
+}
 
 /* ── Stock Chart Modal ── */
 let _chartInstance = null;

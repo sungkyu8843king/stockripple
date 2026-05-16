@@ -46,6 +46,8 @@ export default async function handler(req, res) {
     const price = meta.regularMarketPrice || meta.previousClose;
     const marketCap = meta.marketCap || null;
     const currency = meta.currency || 'USD';
+    const changePercent = meta.regularMarketChangePercent ?? null;
+    const change = meta.regularMarketChange ?? null;
 
     await supabase.from('companies').update({
       current_price: price,
@@ -54,7 +56,7 @@ export default async function handler(req, res) {
       price_updated_at: new Date().toISOString(),
     }).eq('ticker', ticker);
 
-    return res.status(200).json({ ticker, price, marketCap, currency, source: 'yahoo' });
+    return res.status(200).json({ ticker, price, marketCap, currency, changePercent, change, source: 'yahoo' });
   } catch (err) {
     if (cached?.current_price) {
       return res.status(200).json({

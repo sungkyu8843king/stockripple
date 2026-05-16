@@ -210,10 +210,53 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .page-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* Accuracy Badge */
+.accuracy-badge {
+  font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
+  background: var(--green-dim); color: var(--green);
+}
+.accuracy-badge.low { background: var(--red-dim); color: var(--red); }
+
+/* Star / Watchlist */
+.star-btn {
+  background: none; border: none; cursor: pointer; font-size: 15px;
+  padding: 0 2px; line-height: 1; color: var(--text3); transition: all 0.15s;
+  flex-shrink: 0;
+}
+.star-btn.active { color: #f0b429; }
+.star-btn:hover { transform: scale(1.2); }
+
+/* Watchlist View */
+.watchlist-view { display: none; }
+.watchlist-empty { text-align: center; padding: 80px 24px; }
+.watchlist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.watchlist-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.wl-top { display: flex; align-items: center; gap: 8px; }
+.wl-ticker {
+  font-size: 12px; font-weight: 700; font-family: 'SF Mono', monospace;
+  padding: 3px 8px; border-radius: 5px;
+}
+.wl-ticker.kr { background: #1f3540; color: #64c8ea; }
+.wl-ticker.us { background: #1f2d4a; color: #79c0ff; }
+.wl-name { font-size: 13px; font-weight: 600; flex: 1; }
+.wl-remove { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 16px; line-height: 1; }
+.wl-remove:hover { color: var(--red); }
+.wl-price-row { display: flex; align-items: baseline; gap: 8px; }
+.wl-price { font-size: 20px; font-weight: 700; }
+.wl-chg { font-size: 13px; font-weight: 600; }
+.wl-chg.up { color: var(--green); }
+.wl-chg.dn { color: var(--red); }
+.wl-link { font-size: 12px; color: var(--blue); text-decoration: none; font-weight: 500; }
+.wl-link:hover { text-decoration: underline; }
+
 @media (max-width: 600px) {
   .header-inner { padding: 0; }
   .hero-title { font-size: 22px; }
   .issues-grid { grid-template-columns: 1fr; }
+  .watchlist-grid { grid-template-columns: 1fr; }
   .stats-bar { gap: 12px; }
   .stat-sep { display: none; }
   .search-box input { width: 120px; }
@@ -232,7 +275,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       </div>
     </a>
     <nav class="header-nav">
-      <a href="/" class="nav-btn active">피드</a>
+      <button class="nav-btn active" id="tabFeed" onclick="switchTab('feed')">피드</button>
+      <button class="nav-btn" id="tabWatchlist" onclick="switchTab('watchlist')">관심종목<span id="wlCount"></span></button>
       <a href="/admin/" class="nav-btn">관리</a>
     </nav>
   </div>
@@ -257,6 +301,11 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
     <div class="stat-item">
       <span class="stat-label">평균 예상 상승률</span>
       <span class="stat-value green" id="statUpside">—</span>
+    </div>
+    <div class="stat-sep"></div>
+    <div class="stat-item">
+      <span class="stat-label">AI 1일 정확도</span>
+      <span class="stat-value green" id="statAccuracy">—</span>
     </div>
     <div class="stat-sep"></div>
     <div class="stat-item">
@@ -292,6 +341,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
   </div>
 
   <div class="pagination" id="pagination"></div>
+
+  <div class="watchlist-view" id="watchlistView"></div>
 </main>
 
 <div class="toast" id="toast"></div>
@@ -335,10 +386,11 @@ function formatNum(n) {
 }
 
 async function loadStats() {
-  const [issuesRes, companiesRes, upsideRes] = await Promise.all([
+  const [issuesRes, companiesRes, upsideRes, accRes] = await Promise.all([
     sb.from('analyses').select('*', { count: 'exact', head: true }),
     sb.from('companies').select('*', { count: 'exact', head: true }),
     sb.from('analysis_companies').select('upside_pct'),
+    sb.from('analysis_companies').select('is_accurate_1d').not('is_accurate_1d', 'is', null),
   ]);
 
   document.getElementById('statIssues').textContent = issuesRes.count ?? 0;
@@ -350,10 +402,45 @@ async function loadStats() {
     document.getElementById('statUpside').textContent = `+${avg.toFixed(1)}%`;
   }
 
+  const accRows = accRes.data || [];
+  if (accRows.length) {
+    const accurate = accRows.filter(r => r.is_accurate_1d).length;
+    const rate = Math.round(accurate / accRows.length * 100);
+    document.getElementById('statAccuracy').textContent = `${rate}% (${accRows.length}건)`;
+  }
+
   const { data: latest } = await sb.from('issues')
     .select('published_at').eq('is_analyzed', true)
     .order('published_at', { ascending: false }).limit(1);
   if (latest?.[0]) document.getElementById('statUpdated').textContent = timeAgo(latest[0].published_at);
+}
+
+async function loadSectors() {
+  const { data } = await sb.from('issues').select('sectors').eq('is_analyzed', true).limit(300);
+  if (!data?.length) return;
+  const counts = {};
+  data.forEach(r => (r.sectors || []).forEach(s => { counts[s] = (counts[s] || 0) + 1; }));
+  const existing = new Set(['all', 'AI', '반도체', '전기차', '바이오', '에너지', '핀테크', '클라우드']);
+  const newSectors = Object.entries(counts)
+    .filter(([s, c]) => c >= 2 && !existing.has(s))
+    .sort((a, b) => b[1] - a[1])
+    .map(([s]) => s);
+  const container = document.querySelector('.filters');
+  const sep = container.querySelector('.filter-sep');
+  newSectors.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-chip';
+    btn.dataset.sector = s;
+    btn.textContent = s;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-sector]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentSector = s;
+      currentPage = 1;
+      loadIssues();
+    });
+    container.insertBefore(btn, sep);
+  });
 }
 
 async function loadIssues() {
@@ -364,7 +451,7 @@ async function loadIssues() {
     .select(`
       id, title, summary, source_name, published_at, sectors, is_analyzed,
       analyses!inner(id, confidence_score, ripple_effects, ai_summary,
-        analysis_companies(upside_pct, ripple_sector,
+        analysis_companies(upside_pct, ripple_sector, is_accurate_1d, actual_return_1d,
           companies(ticker, name_ko, name_en, market)
         )
       )
@@ -405,6 +492,12 @@ function renderIssueCard(issue) {
   const avgUpside = upside.length ? (upside.reduce((a, b) => a + b, 0) / upside.length).toFixed(1) : null;
   const confidence = analysis?.confidence_score || 0;
 
+  const verified = companies.filter(c => c.is_accurate_1d !== null && c.is_accurate_1d !== undefined);
+  const accurate = verified.filter(c => c.is_accurate_1d === true);
+  const accBadge = verified.length > 0
+    ? `<span class="accuracy-badge ${Math.round(accurate.length/verified.length*100) < 60 ? 'low' : ''}">✓ 1일 ${Math.round(accurate.length/verified.length*100)}%</span>`
+    : '';
+
   const sectors = (issue.sectors || []).slice(0, 4);
   const sectorTags = sectors.map(s => `<span class="sector-tag ${getSectorClass(s)}">${s}</span>`).join('');
 
@@ -414,10 +507,12 @@ function renderIssueCard(issue) {
     const upPct = c.upside_pct;
     const cls = upPct >= 0 ? 'up' : 'dn';
     const sign = upPct >= 0 ? '+' : '';
+    const isWL = isWatched(co.ticker);
     return `<div class="mini-company">
       <span class="mini-ticker">${co.ticker}</span>
-      <span class="mini-name">${co.name_ko || co.name_en || ''}</span>
+      <span class="mini-name">${escHtml(co.name_ko || co.name_en || '')}</span>
       ${upPct != null ? `<span class="mini-upside ${cls}">${sign}${upPct}%</span>` : ''}
+      <button class="star-btn${isWL ? ' active' : ''}" data-wl-ticker="${escHtml(co.ticker)}" data-wl-name="${escHtml(co.name_ko||co.name_en||co.ticker)}" data-wl-market="${co.market||'US'}" onclick="toggleWatch(event,this)" title="관심종목 ${isWL?'제거':'추가'}">${isWL ? '★' : '☆'}</button>
     </div>`;
   }).join('');
 
@@ -425,7 +520,7 @@ function renderIssueCard(issue) {
     <a href="/analysis.html?id=${issue.id}" class="issue-card">
       <div class="card-header">
         <span class="card-source">
-          <span class="source-dot"></span>${issue.source_name || '뉴스'}
+          <span class="source-dot"></span>${escHtml(issue.source_name || '뉴스')}
         </span>
         <span class="card-date">${timeAgo(issue.published_at)}</span>
       </div>
@@ -441,6 +536,7 @@ function renderIssueCard(issue) {
           <span class="val blue">${companies.length}</span>개 기업
         </div>
         ${avgUpside != null ? `<div class="footer-stat"><span class="val green">+${avgUpside}%</span> 평균 예상</div>` : ''}
+        ${accBadge}
         <div class="confidence-bar" title="분석 신뢰도 ${confidence}%">
           <div class="confidence-fill" style="width:${confidence}%"></div>
         </div>
@@ -481,6 +577,104 @@ function showToast(msg, type = 'info') {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
+/* ── Watchlist ── */
+function getWatchlist() {
+  try { return JSON.parse(localStorage.getItem('sr_watchlist') || '[]'); } catch { return []; }
+}
+function saveWatchlist(list) { localStorage.setItem('sr_watchlist', JSON.stringify(list)); }
+function isWatched(ticker) { return getWatchlist().some(w => w.ticker === ticker); }
+
+function toggleWatch(e, btn) {
+  e.preventDefault(); e.stopPropagation();
+  const { wlTicker: ticker, wlName: name, wlMarket: market } = btn.dataset;
+  const list = getWatchlist();
+  const idx = list.findIndex(w => w.ticker === ticker);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+    showToast(`${name} 관심종목 제거`, 'info');
+  } else {
+    list.push({ ticker, name, market, addedAt: new Date().toISOString() });
+    showToast(`${name} ★ 관심종목 추가`, 'success');
+  }
+  saveWatchlist(list);
+  updateWlCount();
+  document.querySelectorAll('[data-wl-ticker]').forEach(b => {
+    if (b.dataset.wlTicker === ticker) {
+      const w = isWatched(ticker);
+      b.classList.toggle('active', w);
+      b.textContent = w ? '★' : '☆';
+      b.title = w ? '관심종목 제거' : '관심종목 추가';
+    }
+  });
+}
+
+function updateWlCount() {
+  const n = getWatchlist().length;
+  const el = document.getElementById('wlCount');
+  if (el) el.textContent = n > 0 ? ` (${n})` : '';
+}
+
+async function renderWatchlistView() {
+  const list = getWatchlist();
+  const container = document.getElementById('watchlistView');
+  if (!list.length) {
+    container.innerHTML = `<div class="watchlist-empty"><div style="font-size:48px;margin-bottom:16px">⭐</div><p style="font-size:20px;font-weight:600;margin-bottom:8px">관심종목이 없습니다</p><p style="font-size:14px;color:var(--text2)">피드에서 기업 옆의 ☆ 버튼을 눌러 추가하세요.</p></div>`;
+    return;
+  }
+  container.innerHTML = `<div class="watchlist-grid">${list.map(w => `
+    <div class="watchlist-card">
+      <div class="wl-top">
+        <span class="wl-ticker ${w.market === 'KR' ? 'kr' : 'us'}">${escHtml(w.ticker)}</span>
+        <span class="wl-name">${escHtml(w.name)}</span>
+        <button class="wl-remove" onclick="removeWL('${escHtml(w.ticker)}')" title="제거">✕</button>
+      </div>
+      <div class="wl-price-row">
+        <span class="wl-price" id="wlp_${w.ticker}">—</span>
+        <span class="wl-chg" id="wlc_${w.ticker}"></span>
+      </div>
+      <a href="/company.html?ticker=${encodeURIComponent(w.ticker)}" class="wl-link">종목 상세 보기 →</a>
+    </div>`).join('')}</div>`;
+  list.forEach(w => loadWLPrice(w.ticker));
+}
+
+async function loadWLPrice(ticker) {
+  try {
+    const res = await fetch(`/api/stock-price?ticker=${encodeURIComponent(ticker)}`);
+    const data = await res.json();
+    if (!data.price) return;
+    const cur = data.currency || 'USD';
+    const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, maximumFractionDigits: cur === 'KRW' ? 0 : 2 });
+    const priceEl = document.getElementById(`wlp_${ticker}`);
+    if (priceEl) priceEl.textContent = fmt.format(data.price);
+    if (data.changePercent != null) {
+      const chgEl = document.getElementById(`wlc_${ticker}`);
+      if (chgEl) {
+        const up = data.changePercent >= 0;
+        chgEl.textContent = `${up ? '+' : ''}${data.changePercent.toFixed(2)}%`;
+        chgEl.className = 'wl-chg ' + (up ? 'up' : 'dn');
+      }
+    }
+  } catch {}
+}
+
+function removeWL(ticker) {
+  saveWatchlist(getWatchlist().filter(w => w.ticker !== ticker));
+  updateWlCount();
+  renderWatchlistView();
+}
+
+function switchTab(tab) {
+  const isFeed = tab === 'feed';
+  document.getElementById('tabFeed').classList.toggle('active', isFeed);
+  document.getElementById('tabWatchlist').classList.toggle('active', !isFeed);
+  document.querySelector('.filters').style.display = isFeed ? '' : 'none';
+  document.getElementById('issuesContainer').style.display = isFeed ? '' : 'none';
+  document.getElementById('pagination').style.display = isFeed ? '' : 'none';
+  const wv = document.getElementById('watchlistView');
+  wv.style.display = isFeed ? 'none' : 'block';
+  if (!isFeed) renderWatchlistView();
+}
+
 document.querySelectorAll('[data-sector]').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('[data-sector]').forEach(b => b.classList.remove('active'));
@@ -501,6 +695,8 @@ document.getElementById('searchInput').addEventListener('input', e => {
   }, 400);
 });
 
+updateWlCount();
+
 if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   document.getElementById('issuesContainer').innerHTML = `
     <div class="empty-state">
@@ -511,6 +707,7 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
 } else {
   loadStats();
   loadIssues();
+  loadSectors();
 }
 </script>
 </body>

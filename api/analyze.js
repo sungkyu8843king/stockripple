@@ -70,6 +70,17 @@ export default async function handler(req, res) {
       await supabase.from('issues').update({ is_analyzed: true }).eq('id', issue.id);
       results.analyzed++;
 
+      const tickers = (analysis.rippleEffects || [])
+        .flatMap(r => r.companies || [])
+        .filter(c => c.ticker)
+        .map(c => `${c.ticker}(${c.upside_pct > 0 ? '+' : ''}${c.upside_pct}%)`)
+        .slice(0, 5)
+        .join(', ');
+      await sendNotify(
+        `📊 <b>StockRipple 새 분석</b>\n${issue.title}\n\n수혜 기업: ${tickers || '—'}\n신뢰도: ${analysis.confidence_score || 50}%`,
+        req
+      ).catch(() => {});
+
       await new Promise(r => setTimeout(r, 500));
     } catch (err) {
       results.errors.push(`Issue "${issue.title?.slice(0, 50)}": ${err.message}`);
@@ -77,6 +88,21 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json(results);
+}
+
+async function sendNotify(message, req) {
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : `https://${req.headers.host}`;
+  await fetch(`${base}/api/notify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.ADMIN_SECRET}`,
+    },
+    body: JSON.stringify({ message }),
+    signal: AbortSignal.timeout(10000),
+  });
 }
 
 async function analyzeIssue(issue) {
