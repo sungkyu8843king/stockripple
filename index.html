@@ -459,6 +459,34 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .eco-prev      { color: var(--text3); }
 .eco-section-label { font-size: 10px; color: var(--text3); font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 6px 0 2px; }
 .eco-section-label:first-child { padding-top: 0; }
+.eco-item-done { opacity: .75; }
+.eco-result-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:2px; }
+.eco-meta-row  { display:flex; gap:6px; font-size:10px; color:var(--text3); flex-wrap:wrap; }
+
+/* Calendar Modal */
+.cal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:9999; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s ease; }
+.cal-modal { background:var(--bg2); border-radius:12px; width:min(960px,96vw); max-height:90vh; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border); }
+.cal-modal-head { padding:14px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.cal-modal-head h2 { font-size:15px; font-weight:700; margin:0; }
+.cal-close-btn { background:none; border:none; color:var(--text3); font-size:22px; cursor:pointer; line-height:1; padding:0 2px; }
+.cal-close-btn:hover { color:var(--text1); }
+.cal-tabs { display:flex; gap:0; padding:0 20px; border-bottom:1px solid var(--border); }
+.cal-tab { padding:9px 18px; font-size:13px; font-weight:600; color:var(--text3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color .15s; }
+.cal-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
+.cal-tab:hover:not(.active) { color:var(--text2); }
+.cal-body { flex:1; overflow-y:auto; padding:0 8px 16px; }
+.cal-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+.cal-tbl th { padding:8px 10px; text-align:left; color:var(--text3); font-size:11px; font-weight:600; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg2); z-index:1; white-space:nowrap; }
+.cal-tbl td { padding:7px 10px; border-bottom:1px solid rgba(255,255,255,.04); vertical-align:middle; }
+.cal-tbl tr:hover td { background:rgba(255,255,255,.02); }
+.cal-day-hd { background:var(--bg3) !important; }
+.cal-day-hd td { font-size:11px; font-weight:700; color:var(--text3); letter-spacing:.5px; padding:5px 10px; text-transform:uppercase; }
+.cal-beat { color:var(--green); font-weight:700; }
+.cal-miss { color:var(--red);   font-weight:700; }
+.cal-meet { color:var(--text2); font-weight:700; }
+.cal-pend { color:var(--yellow); }
+.cal-hi   { color:var(--red);    font-size:10px; font-weight:700; }
+.cal-med  { color:var(--yellow); font-size:10px; }
 
 /* Trump / Truth Social */
 .trump-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
@@ -676,7 +704,10 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
     <div class="sidebar-card">
       <div class="sidebar-card-header">
         <span class="sidebar-card-title">📈 경제지표 일정</span>
-        <span class="live-dot" style="background:var(--yellow);animation:pulse 2s infinite"></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span onclick="openCalendarModal('eco')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
+          <span class="live-dot" style="background:var(--yellow);animation:pulse 2s infinite"></span>
+        </div>
       </div>
       <div style="padding:12px 16px" id="economicCalendar">
         <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
@@ -687,7 +718,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
     <div class="sidebar-card">
       <div class="sidebar-card-header">
         <span class="sidebar-card-title">📊 실적발표 캘린더</span>
-        <span style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
+        <span onclick="openCalendarModal('earnings')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
       </div>
       <div style="padding:12px 16px" id="earningsCalendar">
         <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
@@ -1638,20 +1669,26 @@ async function loadEconomicCalendar() {
         const result = beatMiss(item);
         const flag   = countryFlag[item.country] || item.country;
         const isPast = item.actual != null;
-        html += `<div class="eco-item">
+        html += `<div class="eco-item${isPast ? ' eco-item-done' : ''}">
           <div class="eco-header">
             <div class="eco-dot-${item.impact === 'High' ? 'high' : 'medium'}"></div>
             <span class="eco-title">${escHtml(item.titleKo || item.title)}</span>
             <span class="eco-flag">${flag}</span>
           </div>
           <div class="eco-time">${fmtTime(item.date)} KST</div>
-          <div class="eco-values">
-            ${isPast
-              ? `<span class="eco-actual ${result}">${escHtml(item.actual)} ${resultLabel[result]}</span>`
-              : (item.forecast ? `<span class="eco-actual pending">예상 ${escHtml(item.forecast)}</span>` : '')}
-            ${item.forecast && isPast ? `<span class="eco-consensus">컨센 ${escHtml(item.forecast)}</span>` : ''}
-            ${item.previous ? `<span class="eco-prev">이전 ${escHtml(item.previous)}</span>` : ''}
-          </div>
+          ${isPast
+            ? `<div class="eco-result-row">
+                <span class="eco-actual ${result}">결과 ${escHtml(item.actual)}${result === 'beat' ? ' ▲' : result === 'miss' ? ' ▼' : ''}</span>
+               </div>
+               <div class="eco-meta-row">
+                 ${item.forecast ? `<span>예상 ${escHtml(item.forecast)}</span>` : ''}
+                 ${item.previous ? `<span>이전 ${escHtml(item.previous)}</span>` : ''}
+               </div>`
+            : `<div class="eco-values">
+                 ${item.forecast ? `<span class="eco-actual pending">예상 ${escHtml(item.forecast)}</span>` : ''}
+                 ${item.previous ? `<span class="eco-prev">이전 ${escHtml(item.previous)}</span>` : ''}
+               </div>`
+          }
         </div>`;
         total++;
       }
@@ -1713,6 +1750,216 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   setInterval(loadIndices, 30000);
   setInterval(loadEconomicCalendar, 120000);  // 2분마다 (실제 발표 시 actual 업데이트)
   setInterval(loadTrumpPosts, 120000);        // 2분마다 신글 감지
+}
+
+// ── Calendar Modal ────────────────────────────────────────────────────────
+let _calCache = { eco: null, earnings: null };
+let _curCalTab = 'eco';
+
+async function openCalendarModal(tab = 'eco') {
+  _curCalTab = tab;
+  let el = document.getElementById('calendarModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'calendarModal';
+    el.className = 'cal-overlay';
+    el.innerHTML = `
+      <div class="cal-modal" onclick="event.stopPropagation()">
+        <div class="cal-modal-head">
+          <h2>📅 전체 캘린더</h2>
+          <button class="cal-close-btn" onclick="closeCalendarModal()">✕</button>
+        </div>
+        <div class="cal-tabs">
+          <div class="cal-tab" id="calTabEco"      onclick="switchCalTab('eco')">📈 경제지표</div>
+          <div class="cal-tab" id="calTabEarnings" onclick="switchCalTab('earnings')">📊 실적발표</div>
+        </div>
+        <div class="cal-body" id="calBody">
+          <div style="text-align:center;padding:40px;color:var(--text3)">로딩 중...</div>
+        </div>
+      </div>`;
+    el.addEventListener('click', e => { if (e.target === el) closeCalendarModal(); });
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+  document.getElementById('calTabEco').classList.toggle('active', tab === 'eco');
+  document.getElementById('calTabEarnings').classList.toggle('active', tab === 'earnings');
+  await renderCalModal();
+}
+
+function closeCalendarModal() {
+  const el = document.getElementById('calendarModal');
+  if (el) el.style.display = 'none';
+}
+
+async function switchCalTab(tab) {
+  _curCalTab = tab;
+  document.getElementById('calTabEco').classList.toggle('active', tab === 'eco');
+  document.getElementById('calTabEarnings').classList.toggle('active', tab === 'earnings');
+  await renderCalModal();
+}
+
+async function renderCalModal() {
+  const body = document.getElementById('calBody');
+  if (!body) return;
+
+  if (!_calCache[_curCalTab]) {
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">로딩 중...</div>';
+    try {
+      if (_curCalTab === 'eco') {
+        const r = await fetch('/api/market-pulse?type=economic');
+        const j = await r.json();
+        _calCache.eco = j.ok ? j.items : [];
+      } else {
+        const r = await fetch('/api/earnings');
+        const j = await r.json();
+        _calCache.earnings = j.ok ? j.items : [];
+      }
+    } catch { _calCache[_curCalTab] = []; }
+  }
+
+  if (_curCalTab === 'eco') renderEcoCalTable(_calCache.eco);
+  else renderEarningsCalTable(_calCache.earnings);
+}
+
+function renderEcoCalTable(items) {
+  const body = document.getElementById('calBody');
+  if (!items?.length) {
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">데이터 없음</div>';
+    return;
+  }
+
+  const fmtTime = iso => new Date(iso).toLocaleTimeString('ko-KR', { timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit', hour12:false });
+  const fmtDay  = iso => new Date(iso).toLocaleDateString('ko-KR', { timeZone:'Asia/Seoul', month:'long', day:'numeric', weekday:'short' });
+  const flag = { USD:'🇺🇸', EUR:'🇪🇺', JPY:'🇯🇵' };
+
+  const getBeatMiss = (item) => {
+    if (!item.actual) return 'pending';
+    if (!item.forecast) return 'meet';
+    const a = parseFloat(item.actual.replace(/[^0-9.\-]/g, ''));
+    const f = parseFloat(item.forecast.replace(/[^0-9.\-]/g, ''));
+    if (isNaN(a) || isNaN(f)) return 'meet';
+    const diff = a - f;
+    if (Math.abs(diff) < 0.001) return 'meet';
+    return (item.lowerIsBetter ? diff < 0 : diff > 0) ? 'beat' : 'miss';
+  };
+
+  const groups = new Map();
+  items.forEach(it => {
+    const dayKey = new Date(it.date).toLocaleDateString('ko-KR', { timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit' });
+    if (!groups.has(dayKey)) groups.set(dayKey, { label: fmtDay(it.date), rows: [] });
+    groups.get(dayKey).rows.push(it);
+  });
+
+  let html = `<table class="cal-tbl">
+    <thead><tr>
+      <th style="width:80px">시간 KST</th>
+      <th>지표명</th>
+      <th style="width:45px">국가</th>
+      <th style="width:42px">중요도</th>
+      <th style="width:90px">결과</th>
+      <th style="width:70px">예상치</th>
+      <th style="width:70px">이전값</th>
+    </tr></thead><tbody>`;
+
+  for (const [, { label, rows }] of groups) {
+    html += `<tr class="cal-day-hd"><td colspan="7">${label}</td></tr>`;
+    for (const item of rows) {
+      const bm = getBeatMiss(item);
+      const actualHtml = item.actual
+        ? `<span class="${bm === 'beat' ? 'cal-beat' : bm === 'miss' ? 'cal-miss' : 'cal-meet'}">${escHtml(item.actual)}</span>${bm === 'beat' ? ' ▲상회' : bm === 'miss' ? ' ▼하회' : ' =부합'}`
+        : '<span style="color:var(--text3)">미발표</span>';
+      const impHtml = item.impact === 'High'
+        ? '<span class="cal-hi">●고</span>'
+        : '<span class="cal-med">●중</span>';
+
+      html += `<tr>
+        <td style="font-family:'SF Mono',monospace;color:var(--text3)">${fmtTime(item.date)}</td>
+        <td style="font-weight:600">${escHtml(item.titleKo || item.title)}</td>
+        <td style="font-size:12px">${flag[item.country] || item.country}</td>
+        <td>${impHtml}</td>
+        <td>${actualHtml}</td>
+        <td style="color:var(--text3)">${item.forecast ? escHtml(item.forecast) : '—'}</td>
+        <td style="color:var(--text3)">${item.previous ? escHtml(item.previous) : '—'}</td>
+      </tr>`;
+    }
+  }
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+
+function renderEarningsCalTable(items) {
+  const body = document.getElementById('calBody');
+  if (!items?.length) {
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">데이터 없음</div>';
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const fmtNum = v => v != null ? `$${Number(v).toFixed(2)}` : '—';
+  const fmtRev = v => {
+    if (v == null) return '—';
+    if (v >= 1e12) return `$${(v/1e12).toFixed(2)}T`;
+    if (v >= 1e9)  return `$${(v/1e9).toFixed(1)}B`;
+    if (v >= 1e6)  return `$${(v/1e6).toFixed(0)}M`;
+    return `$${Number(v).toFixed(0)}`;
+  };
+  const fmtDay = d => {
+    try { return new Date(d + 'T12:00:00Z').toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' }); }
+    catch { return d; }
+  };
+
+  const groups = new Map();
+  items.forEach(it => {
+    const k = it.date || 'TBD';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(it);
+  });
+  const sorted = [...groups.entries()].sort(([a],[b]) => a.localeCompare(b));
+
+  let html = `<table class="cal-tbl">
+    <thead><tr>
+      <th style="width:65px">종목</th>
+      <th>기업명</th>
+      <th style="width:38px">발표</th>
+      <th style="width:80px">EPS 예상</th>
+      <th style="width:90px">EPS 실적</th>
+      <th style="width:80px">매출 예상</th>
+      <th style="width:50px">IV</th>
+      <th style="width:70px">목표주가</th>
+    </tr></thead><tbody>`;
+
+  for (const [date, rows] of sorted) {
+    const dayLabel = date === 'TBD' ? '일정 미확정' : fmtDay(date);
+    html += `<tr class="cal-day-hd"><td colspan="8">${dayLabel}</td></tr>`;
+    for (const item of rows) {
+      const isToday = item.date === today;
+      const consensus = item.epsConsensus ?? item.epsEstimate ?? null;
+      const hasPast = item.epsActual != null;
+      let epsActualHtml = '<span style="color:var(--text3)">미발표</span>';
+      if (hasPast) {
+        const beat = consensus != null ? item.epsActual >= consensus : null;
+        const cls = beat === true ? 'cal-beat' : beat === false ? 'cal-miss' : 'cal-meet';
+        const icon = beat === true ? ' ▲' : beat === false ? ' ▼' : '';
+        epsActualHtml = `<span class="${cls}">${fmtNum(item.epsActual)}${icon}</span>`;
+      }
+      const timing = item.callTime === 'BMO' ? '<span style="color:#60a5fa;font-size:10px">장전</span>'
+                   : item.callTime === 'AMC' ? '<span style="color:#a78bfa;font-size:10px">장후</span>'
+                   : '<span style="color:var(--text3);font-size:10px">—</span>';
+
+      html += `<tr style="${isToday ? 'background:rgba(59,130,246,.1)' : ''}">
+        <td style="font-weight:700;color:var(--yellow)">${escHtml(item.ticker || '')}</td>
+        <td style="font-size:11px;color:var(--text2)">${escHtml(item.company || '')}</td>
+        <td>${timing}</td>
+        <td style="color:var(--text3)">${fmtNum(consensus)}</td>
+        <td>${epsActualHtml}</td>
+        <td style="color:var(--text3)">${fmtRev(item.revEstimate)}</td>
+        <td style="color:var(--text2)">${item.iv != null ? item.iv.toFixed(1) + '%' : '—'}</td>
+        <td style="color:var(--text3)">${fmtNum(item.priceTarget)}</td>
+      </tr>`;
+    }
+  }
+  html += '</tbody></table>';
+  body.innerHTML = html;
 }
 </script>
 </body>
