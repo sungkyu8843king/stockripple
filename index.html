@@ -768,6 +768,18 @@ async function loadIssues() {
   if (currentSector !== 'all') query = query.contains('sectors', [currentSector]);
   if (searchQuery) query = query.ilike('title', `%${searchQuery}%`);
 
+  // 카테고리 탭 필터
+  const catFilters = {
+    earnings: 'title.ilike.%실적%,title.ilike.%어닝%,title.ilike.%earnings%,title.ilike.%EPS%,title.ilike.%revenue%,sectors.cs.{실적발표}',
+    politics: 'title.ilike.%관세%,title.ilike.%무역%,title.ilike.%외교%,title.ilike.%제재%,title.ilike.%tariff%,title.ilike.%trade%,title.ilike.%geopolit%,title.ilike.%정치%,sectors.cs.{정치},sectors.cs.{외교},sectors.cs.{정세}',
+    economy:  'title.ilike.%금리%,title.ilike.%Fed%,title.ilike.%FOMC%,title.ilike.%물가%,title.ilike.%GDP%,title.ilike.%고용%,title.ilike.%인플레%,sectors.cs.{경제},sectors.cs.{금리},sectors.cs.{물가}',
+    tech:     'sectors.cs.{AI},sectors.cs.{반도체},sectors.cs.{클라우드},sectors.cs.{IT},sectors.cs.{로봇}',
+    bio:      'sectors.cs.{바이오},sectors.cs.{제약},sectors.cs.{헬스케어}',
+  };
+  if (currentCategory !== 'all' && catFilters[currentCategory]) {
+    query = query.or(catFilters[currentCategory]);
+  }
+
   const { data, error, count } = await query
     .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
 
@@ -1196,34 +1208,70 @@ async function loadIndices() {
   if (el) el.textContent = now + ' 기준';
 }
 
-// 실적발표 사이드바
+// 실적발표 캘린더 (API + Supabase 이슈 병합)
 async function loadEarningsCalendar() {
   const el = document.getElementById('earningsCalendar');
   if (!el) return;
+
+  // 1) Yahoo Finance earnings calendar API
+  let apiItems = [];
+  try {
+    const r = await fetch('/api/earnings');
+    if (r.ok) { const j = await r.json(); if (j.ok && j.items?.length) apiItems = j.items; }
+  } catch {}
+
+  // 2) Supabase 실적 관련 이슈
+  let issueItems = [];
   try {
     const { data } = await sb.from('issues')
-      .select('id, title, published_at, sectors')
-      .or('sectors.cs.{"실적발표"},sectors.cs.{"어닝"},title.ilike.%실적%,title.ilike.%어닝%,title.ilike.%earnings%,title.ilike.%EPS%')
+      .select('id, title, published_at')
+      .or('title.ilike.%실적%,title.ilike.%어닝%,title.ilike.%earnings%,title.ilike.%EPS%,title.ilike.%revenue%,title.ilike.%분기%')
       .eq('is_analyzed', true)
       .order('published_at', { ascending: false })
-      .limit(6);
+      .limit(5);
+    issueItems = data || [];
+  } catch {}
 
-    if (!data?.length) {
-      el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">실적발표 데이터 없음</div>`;
-      return;
-    }
+  let html = '';
+  const today = new Date().toISOString().split('T')[0];
 
-    el.innerHTML = data.map(issue => `
-      <div class="earnings-item">
+  if (apiItems.length > 0) {
+    html += apiItems.slice(0, 8).map(item => {
+      const isToday  = item.date === today;
+      const isFuture = item.date > today;
+      const callLabel = item.callTime === 'AMC' ? '장후' : item.callTime === 'BMO' ? '장전' : '';
+      let epsHtml = '';
+      if (item.epsActual != null && item.epsEstimate != null) {
+        const beat = item.epsActual >= item.epsEstimate;
+        epsHtml = `<span class="${beat ? 'earnings-beat' : 'earnings-miss'}">EPS ${beat?'▲':'▼'} $${Number(item.epsActual).toFixed(2)}</span>`;
+      } else if (item.epsEstimate != null) {
+        epsHtml = `<span class="earnings-upcoming">EPS 예상 $${Number(item.epsEstimate).toFixed(2)}</span>`;
+      }
+      const dateLabel = isToday ? '🔴 오늘' : isFuture ? `📅 ${item.date}` : item.date || '';
+      return `<div class="earnings-item">
         <div class="earnings-header">
-          <span class="earnings-date">${timeAgo(issue.published_at).split(' · ')[0]}</span>
+          <span class="earnings-ticker">${item.ticker||''}</span>
+          <span class="earnings-company">${item.company||''}</span>
+          ${callLabel ? `<span style="font-size:10px;color:var(--text3)">${callLabel}</span>` : ''}
         </div>
-        <a href="/analysis.html?id=${issue.id}" style="font-size:12px;color:var(--text);text-decoration:none;line-height:1.4;display:block" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text)'">${escHtml(issue.title)}</a>
-      </div>
-    `).join('');
-  } catch (e) {
-    el.innerHTML = `<div style="color:var(--text3);font-size:12px">로드 실패</div>`;
+        <div class="earnings-meta"><span class="earnings-date">${dateLabel}</span>${epsHtml}</div>
+      </div>`;
+    }).join('');
   }
+
+  if (issueItems.length > 0) {
+    if (html) html += `<div style="margin:8px 0 4px;font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.5px">관련 분석 이슈</div>`;
+    html += issueItems.map(issue => `
+      <div class="earnings-item">
+        <a href="/analysis.html?id=${issue.id}" style="font-size:12px;color:var(--text);text-decoration:none;line-height:1.4;display:block;padding:2px 0"
+          onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text)'">
+          ${escHtml(issue.title.slice(0,60))}${issue.title.length>60?'…':''}
+        </a>
+        <span style="font-size:10px;color:var(--text3)">${timeAgo(issue.published_at).split(' · ')[0]}</span>
+      </div>`).join('');
+  }
+
+  el.innerHTML = html || `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">이번 주 실적발표 없음</div>`;
 }
 
 // 속보 (최근 이슈)

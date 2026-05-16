@@ -3,61 +3,58 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
 
   const SYMBOLS = [
-    { id: 'sp500',  symbol: '^GSPC' },
-    { id: 'nasdaq', symbol: '^IXIC' },
-    { id: 'dow',    symbol: '^DJI'  },
-    { id: 'kospi',  symbol: '^KS11' },
-    { id: 'kosdaq', symbol: '^KQ11' },
-    { id: 'btc',    symbol: 'BTC-USD' },
+    { id: 'sp500',  symbol: '^GSPC'  },
+    { id: 'nasdaq', symbol: '^IXIC'  },
+    { id: 'dow',    symbol: '^DJI'   },
+    { id: 'kospi',  symbol: '^KS11'  },
+    { id: 'kosdaq', symbol: '^KQ11'  },
+    { id: 'btc',    symbol: 'BTC-USD'},
     { id: 'gold',   symbol: 'GC=F'   },
     { id: 'oil',    symbol: 'CL=F'   },
     { id: 'usdkrw', symbol: 'KRW=X'  },
     { id: 'vix',    symbol: '^VIX'   },
   ];
 
-  try {
-    const tickerStr = SYMBOLS.map(s => encodeURIComponent(s.symbol)).join('%2C');
-    const url = `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${tickerStr}&range=1d&interval=1d`;
-    const r = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StockRipple/1.0)' },
-      signal: AbortSignal.timeout(8000),
-    });
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'application/json',
+  };
 
-    if (!r.ok) throw new Error(`spark HTTP ${r.status}`);
-    const spark = await r.json();
+  const fetchOne = async ({ id, symbol }) => {
+    try {
+      const encoded = encodeURIComponent(symbol);
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=2d`;
+      const r = await fetch(url, { headers, signal: AbortSignal.timeout(6000) });
+      if (!r.ok) return { id, price: null, changePercent: null, change: null };
+      const json = await r.json();
+      const meta = json.chart?.result?.[0]?.meta;
+      if (!meta) return { id, price: null, changePercent: null, change: null };
 
-    // fallback: use quote API if spark fails
-    const quoteUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${tickerStr}&fields=regularMarketPrice,regularMarketChangePercent,regularMarketChange,previousClose`;
-    const qr = await fetch(quoteUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StockRipple/1.0)' },
-      signal: AbortSignal.timeout(8000),
-    });
+      const price = meta.regularMarketPrice ?? meta.previousClose ?? null;
+      const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? null;
+      let changePercent = meta.regularMarketChangePercent ?? null;
+      let change = meta.regularMarketChange ?? null;
 
-    let quoteMap = {};
-    if (qr.ok) {
-      const qData = await qr.json();
-      (qData.quoteResponse?.result || []).forEach(q => {
-        quoteMap[q.symbol] = q;
-      });
-    }
-
-    const result = {};
-    for (const { id, symbol } of SYMBOLS) {
-      const q = quoteMap[symbol];
-      if (q) {
-        result[id] = {
-          price: q.regularMarketPrice,
-          changePercent: q.regularMarketChangePercent ?? null,
-          change: q.regularMarketChange ?? null,
-          prevClose: q.regularMarketPreviousClose ?? q.previousClose ?? null,
-        };
-      } else {
-        result[id] = { price: null, changePercent: null, change: null };
+      // fallback: calculate from previous close if not provided
+      if (changePercent == null && price != null && prevClose != null && prevClose !== 0) {
+        change = price - prevClose;
+        changePercent = (change / prevClose) * 100;
       }
-    }
 
-    return res.status(200).json({ ok: true, data: result, ts: Date.now() });
-  } catch (err) {
-    return res.status(500).json({ ok: false, error: err.message });
-  }
+      return { id, price, changePercent, change, prevClose, currency: meta.currency };
+    } catch {
+      return { id, price: null, changePercent: null, change: null };
+    }
+  };
+
+  const results = await Promise.allSettled(SYMBOLS.map(fetchOne));
+  const data = {};
+  results.forEach(r => {
+    if (r.status === 'fulfilled' && r.value) {
+      const { id, ...rest } = r.value;
+      data[id] = rest;
+    }
+  });
+
+  return res.status(200).json({ ok: true, data, ts: Date.now() });
 }
