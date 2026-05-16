@@ -70,7 +70,7 @@ function getTag(xml, tag) {
 // ─── ForexFactory 경제지표 ─────────────────────────────────────────────────
 async function handleEconomic(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+  res.setHeader('Cache-Control', 'no-store'); // ForexFactory actual값이 실시간 업데이트되므로 캐시 금지
 
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -122,16 +122,20 @@ async function handleEconomic(req, res) {
   ]);
 
   try {
-    const [tw, nw] = await Promise.allSettled([
+    const [tw, nw, lw] = await Promise.allSettled([
       fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
         headers, signal: AbortSignal.timeout(8000),
       }).then(r => r.ok ? r.json() : []),
       fetch('https://nfs.faireconomy.media/ff_calendar_nextweek.json', {
         headers, signal: AbortSignal.timeout(8000),
       }).then(r => r.ok ? r.json() : []),
+      fetch('https://nfs.faireconomy.media/ff_calendar_lastweek.json', {
+        headers, signal: AbortSignal.timeout(8000),
+      }).then(r => r.ok ? r.json() : []),
     ]);
 
     let raw = [
+      ...(lw.status === 'fulfilled' && Array.isArray(lw.value) ? lw.value : []),
       ...(tw.status === 'fulfilled' && Array.isArray(tw.value) ? tw.value : []),
       ...(nw.status === 'fulfilled' && Array.isArray(nw.value) ? nw.value : []),
     ];
@@ -163,9 +167,9 @@ async function handleEconomic(req, res) {
           impact:        e.impact  || 'Medium',
           date:          dateIso,
           dateRaw:       e.date || '',
-          forecast:      e.forecast || null,
-          previous:      e.previous || null,
-          actual:        e.actual   || null,
+          forecast:      (e.forecast !== null && e.forecast !== undefined && e.forecast !== '') ? String(e.forecast) : null,
+          previous:      (e.previous !== null && e.previous !== undefined && e.previous !== '') ? String(e.previous) : null,
+          actual:        (e.actual   !== null && e.actual   !== undefined && e.actual   !== '') ? String(e.actual)   : null,
           lowerIsBetter: LOWER_IS_BETTER.has(e.title),
         };
       })

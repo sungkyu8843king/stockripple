@@ -1669,6 +1669,7 @@ async function loadEconomicCalendar() {
         const result = beatMiss(item);
         const flag   = countryFlag[item.country] || item.country;
         const isPast = item.actual != null;
+        const isAlreadyPast = !isPast && item.date && new Date(item.date) < new Date();
         html += `<div class="eco-item${isPast ? ' eco-item-done' : ''}">
           <div class="eco-header">
             <div class="eco-dot-${item.impact === 'High' ? 'high' : 'medium'}"></div>
@@ -1685,6 +1686,7 @@ async function loadEconomicCalendar() {
                  ${item.previous ? `<span>이전 ${escHtml(item.previous)}</span>` : ''}
                </div>`
             : `<div class="eco-values">
+                 ${isAlreadyPast ? `<span style="color:var(--text3);font-size:10px">미집계</span>` : ''}
                  ${item.forecast ? `<span class="eco-actual pending">예상 ${escHtml(item.forecast)}</span>` : ''}
                  ${item.previous ? `<span class="eco-prev">이전 ${escHtml(item.previous)}</span>` : ''}
                </div>`
@@ -1758,6 +1760,7 @@ let _curCalTab = 'eco';
 
 async function openCalendarModal(tab = 'eco') {
   _curCalTab = tab;
+  _calCache = { eco: null, earnings: null }; // 항상 최신 데이터 로드
   let el = document.getElementById('calendarModal');
   if (!el) {
     el = document.createElement('div');
@@ -1865,9 +1868,12 @@ function renderEcoCalTable(items) {
     html += `<tr class="cal-day-hd"><td colspan="7">${label}</td></tr>`;
     for (const item of rows) {
       const bm = getBeatMiss(item);
+      const isPastEvent = item.date && new Date(item.date) < new Date();
       const actualHtml = item.actual
         ? `<span class="${bm === 'beat' ? 'cal-beat' : bm === 'miss' ? 'cal-miss' : 'cal-meet'}">${escHtml(item.actual)}</span>${bm === 'beat' ? ' ▲상회' : bm === 'miss' ? ' ▼하회' : ' =부합'}`
-        : '<span style="color:var(--text3)">미발표</span>';
+        : isPastEvent
+          ? '<span style="color:var(--text3)">미집계</span>'
+          : '<span class="cal-pend">예정</span>';
       const impHtml = item.impact === 'High'
         ? '<span class="cal-hi">●고</span>'
         : '<span class="cal-med">●중</span>';
