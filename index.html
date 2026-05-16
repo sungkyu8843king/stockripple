@@ -1315,104 +1315,126 @@ async function loadEarningsCalendar() {
 
   const today = new Date().toISOString().split('T')[0];
 
-  const fmtNum = (v, digits = 2) => v != null ? Number(v).toFixed(digits) : null;
+  const fmtNum = (v, digits = 2) => v != null ? `$${Number(v).toFixed(digits)}` : null;
   const fmtRev = (v) => {
     if (v == null) return null;
-    if (v >= 1e12) return `$${(v/1e12).toFixed(1)}T`;
+    if (v >= 1e12) return `$${(v/1e12).toFixed(2)}T`;
     if (v >= 1e9)  return `$${(v/1e9).toFixed(1)}B`;
     if (v >= 1e6)  return `$${(v/1e6).toFixed(0)}M`;
-    return `$${v}`;
+    return `$${Number(v).toFixed(0)}`;
   };
-
   const recLabel = (key) => {
     const m = { strong_buy:'강매수', buy:'매수', hold:'중립', sell:'매도', strong_sell:'강매도' };
-    return m[key] || key || '';
+    return m[key] || '';
+  };
+  const recColor = (key) => {
+    if (!key) return '';
+    if (key.includes('buy'))  return 'color:#4ade80';
+    if (key === 'hold')       return 'color:#facc15';
+    return 'color:#f87171';
   };
 
-  let html = '';
+  if (!apiItems.length) {
+    el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">이번 주 실적발표 없음</div>`;
+    return;
+  }
 
-  if (apiItems.length > 0) {
-    html = apiItems.map(item => {
-      const isToday   = item.date === today;
-      const isFuture  = item.date > today;
-      const isPast    = item.date && item.date < today;
+  const html = apiItems.map(item => {
+    const isToday  = item.date === today;
+    const isFuture = item.date && item.date > today;
+    const isPast   = item.date && item.date < today;
 
-      const timingClass = item.callTime === 'BMO' ? 'bmo' : item.callTime === 'AMC' ? 'amc' : '';
-      const timingLabel = item.callTime === 'BMO' ? '장전' : item.callTime === 'AMC' ? '장후' : '';
+    const timingClass = item.callTime === 'BMO' ? 'bmo' : item.callTime === 'AMC' ? 'amc' : '';
+    const timingLabel = item.callTime === 'BMO' ? '장전' : item.callTime === 'AMC' ? '장후' : '';
 
-      const dateLabel = isToday
+    // 날짜 표시
+    const dateLabel = !item.date
+      ? `<span style="color:var(--text3)">일정 미확정</span>`
+      : isToday
         ? `<span class="ei-today">🔴 오늘 실적발표</span>`
         : isFuture
           ? `📅 ${item.date}`
-          : item.date || '';
+          : item.date;
 
-      // EPS metric (actual beat/miss OR consensus/whisper)
-      let m1Label, m1Val, m1Class = '';
-      if (isPast && item.epsActual != null && item.epsEstimate != null) {
-        const beat = item.epsActual >= item.epsEstimate;
-        m1Label = beat ? 'EPS 어닝서프라이즈' : 'EPS 어닝쇼크';
-        m1Val   = `${beat ? '▲' : '▼'} $${fmtNum(item.epsActual)}`;
+    // EPS 메트릭
+    let m1Label = 'EPS 컨센서스', m1Val = '예상치 없음', m1Class = '';
+    const consensus = item.epsConsensus ?? item.epsEstimate ?? null;
+    if (isPast && item.epsActual != null) {
+      const ref = item.epsEstimate ?? item.epsConsensus;
+      if (ref != null) {
+        const beat = item.epsActual >= ref;
+        m1Label = beat ? 'EPS ▲ 서프라이즈' : 'EPS ▼ 쇼크';
+        m1Val   = `${fmtNum(item.epsActual)} (예상 ${fmtNum(ref)})`;
         m1Class = beat ? 'beat' : 'miss';
       } else {
-        const consensus = item.epsConsensus ?? item.epsEstimate;
-        m1Label = 'EPS 컨센서스';
-        m1Val   = consensus != null ? `$${fmtNum(consensus)}` : '—';
+        m1Label = '발표 EPS'; m1Val = fmtNum(item.epsActual) || '—';
       }
+    } else if (consensus != null) {
+      m1Val = fmtNum(consensus);
+    }
 
-      // Whisper (고단 애널리스트 추정치)
-      const whisperVal = item.whisper != null
-        ? `$${fmtNum(item.whisper)}`
-        : (item.epsActual != null ? `$${fmtNum(item.epsActual)} (실적)` : '—');
-      const whisperLabel = item.epsActual != null && isPast ? '발표 EPS' : '위스퍼 (고단추정)';
+    // 위스퍼 (고단 애널리스트 추정)
+    const whisperLabel = (isPast && item.epsActual != null) ? '발표 실적' : '위스퍼 (고단추정)';
+    let whisperVal = '미발표';
+    if (isPast && item.epsActual != null) whisperVal = fmtNum(item.epsActual) || '—';
+    else if (item.whisper != null)        whisperVal = fmtNum(item.whisper);
+    else if (consensus != null)           whisperVal = `~${fmtNum(consensus)}`;
 
-      // Implied Volatility
-      const ivVal = item.iv != null ? `${item.iv.toFixed(1)}%` : '—';
+    // YoY 성장률
+    const growthStr = item.epsGrowth != null
+      ? `<div class="ei-growth" style="${item.epsGrowth >= 0 ? 'color:var(--green)' : 'color:var(--red)'}">`
+        + `${item.epsGrowth >= 0 ? '▲' : '▼'} YoY ${Math.abs(item.epsGrowth * 100).toFixed(1)}%</div>`
+      : '';
 
-      // Revenue estimate
-      const revVal = fmtRev(item.revEstimate) || '—';
+    // IV
+    const ivVal = item.iv != null ? `${item.iv.toFixed(1)}%` : '집계 중';
 
-      // Growth
-      const growthStr = item.epsGrowth != null
-        ? `<div class="ei-growth">${item.epsGrowth >= 0 ? '▲' : '▼'} YoY ${Math.abs(item.epsGrowth * 100).toFixed(0)}%</div>`
-        : '';
+    // 매출 예상
+    const revVal = fmtRev(item.revEstimate) || '미집계';
 
-      // Rec tag
-      const recStr = item.recKey
-        ? `<span style="font-size:10px;font-weight:600;color:var(--text3)">${recLabel(item.recKey)}</span>`
-        : '';
+    // 목표주가
+    const ptStr = item.priceTarget
+      ? `<span style="font-size:10px;color:var(--text3)">목표 ${fmtNum(item.priceTarget)}</span>`
+      : '';
 
-      return `<div class="earnings-item">
-        <div class="earnings-header">
-          <span class="earnings-ticker">${escHtml(item.ticker||'')}</span>
-          <span class="earnings-company">${escHtml(item.company||'')}</span>
-          ${timingClass ? `<span class="ei-timing-${timingClass}">${timingLabel}</span>` : ''}
-          ${recStr}
+    // 투자의견
+    const recStr = item.recKey
+      ? `<span style="font-size:10px;font-weight:700;${recColor(item.recKey)}">${recLabel(item.recKey)}</span>`
+      : '';
+
+    return `<div class="earnings-item">
+      <div class="earnings-header">
+        <span class="earnings-ticker">${escHtml(item.ticker||'')}</span>
+        <span class="earnings-company">${escHtml(item.company||item.ticker||'')}</span>
+        ${timingClass ? `<span class="ei-timing-${timingClass}">${timingLabel}</span>` : ''}
+      </div>
+      <div class="ei-date-row" style="display:flex;align-items:center;justify-content:space-between">
+        <span>${dateLabel}</span>
+        <span style="display:flex;gap:6px">${recStr}${ptStr}</span>
+      </div>
+      <div class="ei-metrics">
+        <div class="ei-metric">
+          <div class="ei-metric-label">${m1Label}</div>
+          <div class="ei-metric-val ${m1Class}">${m1Val}</div>
+          ${growthStr}
         </div>
-        <div class="ei-date-row">${dateLabel}</div>
-        <div class="ei-metrics">
-          <div class="ei-metric">
-            <div class="ei-metric-label">${m1Label}</div>
-            <div class="ei-metric-val ${m1Class}">${m1Val}</div>
-            ${growthStr}
-          </div>
-          <div class="ei-metric">
-            <div class="ei-metric-label">${whisperLabel}</div>
-            <div class="ei-metric-val whisper">${whisperVal}</div>
-          </div>
-          <div class="ei-metric">
-            <div class="ei-metric-label">내재변동성 (IV)</div>
-            <div class="ei-metric-val iv">${ivVal}</div>
-          </div>
-          <div class="ei-metric">
-            <div class="ei-metric-label">매출 예상</div>
-            <div class="ei-metric-val rev">${revVal}</div>
-          </div>
+        <div class="ei-metric">
+          <div class="ei-metric-label">${whisperLabel}</div>
+          <div class="ei-metric-val whisper">${whisperVal}</div>
         </div>
-      </div>`;
-    }).join('');
-  }
+        <div class="ei-metric">
+          <div class="ei-metric-label">내재변동성 (IV)</div>
+          <div class="ei-metric-val iv">${ivVal}</div>
+        </div>
+        <div class="ei-metric">
+          <div class="ei-metric-label">매출 예상</div>
+          <div class="ei-metric-val rev">${revVal}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 
-  el.innerHTML = html || `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">이번 주 실적발표 없음</div>`;
+  el.innerHTML = html;
 }
 
 // 투자의견 (애널리스트 레이팅)
