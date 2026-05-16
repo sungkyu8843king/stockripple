@@ -1549,6 +1549,13 @@ async function loadAnalystRatings() {
           </div>`).join('')}
       </div>` : '';
 
+    const insightHtml = (item.valuation || item.techDir || item.provider) ? `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px;margin-top:4px">
+        ${item.valuation ? `<span style="color:${item.valuation==='Overvalued'?'var(--red)':item.valuation==='Undervalued'?'var(--green)':'var(--text2)'}">${item.valuation==='Overvalued'?'고평가':item.valuation==='Undervalued'?'저평가':item.valuation}</span>` : ''}
+        ${item.techDir ? `<span style="color:${item.techDir==='Bullish'?'var(--green)':item.techDir==='Bearish'?'var(--red)':'var(--text2)'}">기술적 ${item.techDir==='Bullish'?'상승':item.techDir==='Bearish'?'하락':item.techDir}</span>` : ''}
+        ${item.provider ? `<span style="color:var(--text3)">${escHtml(item.provider)}</span>` : ''}
+      </div>` : '';
+
     return `<div class="analyst-item">
       <div class="analyst-header">
         <span class="analyst-ticker">${escHtml(item.ticker)}</span>
@@ -1557,6 +1564,7 @@ async function loadAnalystRatings() {
       </div>
       ${barHtml}
       ${ptHtml}
+      ${insightHtml}
       ${recentHtml}
     </div>`;
   }).join('');
@@ -1664,8 +1672,8 @@ async function loadEconomicCalendar() {
     let total = 0;
     for (const [label, items] of groups) {
       if (total >= 15) break;
-      // 과거 24h 이내 이벤트 or actual 있는 항목이 있는 섹션 표시
-      const hasFuture = items.some(it => new Date(it.date).getTime() > nowMs - 86400000 || it.actual != null);
+      // API가 반환한 항목은 이미 -7d ~ +14d 윈도우로 필터링됨
+      const hasFuture = true;
       if (!hasFuture) continue;
       html += `<div class="eco-section-label">${label}</div>`;
       for (const item of items) {
