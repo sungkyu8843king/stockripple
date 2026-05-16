@@ -5,83 +5,54 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+const PERIODS = [
+  { key: '1d',  days: 1  },
+  { key: '3d',  days: 3  },
+  { key: '7d',  days: 7  },
+  { key: '30d', days: 30 },
+];
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const auth = req.headers.authorization;
-  if (auth !== `Bearer ${process.env.ADMIN_SECRET}`) {
+  if (req.headers.authorization !== `Bearer ${process.env.ADMIN_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const now = new Date();
-  const results = { checked_7d: 0, checked_30d: 0, errors: [] };
+  const results = { checked_1d: 0, checked_3d: 0, checked_7d: 0, checked_30d: 0, errors: [] };
 
-  // 7일 체크: entry_date가 7일 이상 지났고 check_date_7d가 없는 것
-  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: due7d, error: e7 } = await supabase
-    .from('analysis_companies')
-    .select('id, company_id, entry_price, upside_pct, companies(ticker, currency)')
-    .not('entry_price', 'is', null)
-    .is('check_date_7d', null)
-    .lte('entry_date', sevenDaysAgo)
-    .limit(50);
+  for (const { key, days } of PERIODS) {
+    const cutoff = new Date(now - days * 24 * 60 * 60 * 1000).toISOString();
+    const { data: due, error } = await supabase
+      .from('analysis_companies')
+      .select('id, entry_price, upside_pct, companies(ticker)')
+      .not('entry_price', 'is', null)
+      .is(`check_date_${key}`, null)
+      .lte('entry_date', cutoff)
+      .limit(50);
 
-  if (e7) return res.status(500).json({ error: e7.message });
+    if (error) { results.errors.push(`${key} query: ${error.message}`); continue; }
 
-  for (const row of due7d || []) {
-    try {
-      const price = await fetchPrice(row.companies?.ticker);
-      if (!price) continue;
+    for (const row of due || []) {
+      try {
+        const price = await fetchPrice(row.companies?.ticker);
+        if (!price) continue;
 
-      const actualReturn = ((price - row.entry_price) / row.entry_price) * 100;
-      const isAccurate = row.upside_pct > 0
-        ? actualReturn > 0
-        : actualReturn < 0;
+        const actualReturn = Math.round(((price - row.entry_price) / row.entry_price) * 10000) / 100;
+        const isAccurate = row.upside_pct > 0 ? actualReturn > 0 : actualReturn < 0;
 
-      await supabase.from('analysis_companies').update({
-        check_price_7d: price,
-        check_date_7d: now.toISOString(),
-        actual_return_7d: Math.round(actualReturn * 100) / 100,
-        is_accurate_7d: isAccurate,
-      }).eq('id', row.id);
+        await supabase.from('analysis_companies').update({
+          [`check_price_${key}`]:   price,
+          [`check_date_${key}`]:    now.toISOString(),
+          [`actual_return_${key}`]: actualReturn,
+          [`is_accurate_${key}`]:   isAccurate,
+        }).eq('id', row.id);
 
-      results.checked_7d++;
-      await sleep(300);
-    } catch (err) {
-      results.errors.push(`7d ${row.companies?.ticker}: ${err.message}`);
-    }
-  }
-
-  // 30일 체크
-  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: due30d, error: e30 } = await supabase
-    .from('analysis_companies')
-    .select('id, company_id, entry_price, upside_pct, companies(ticker, currency)')
-    .not('entry_price', 'is', null)
-    .is('check_date_30d', null)
-    .lte('entry_date', thirtyDaysAgo)
-    .limit(50);
-
-  for (const row of due30d || []) {
-    try {
-      const price = await fetchPrice(row.companies?.ticker);
-      if (!price) continue;
-
-      const actualReturn = ((price - row.entry_price) / row.entry_price) * 100;
-      const isAccurate = row.upside_pct > 0
-        ? actualReturn > 0
-        : actualReturn < 0;
-
-      await supabase.from('analysis_companies').update({
-        check_price_30d: price,
-        check_date_30d: now.toISOString(),
-        actual_return_30d: Math.round(actualReturn * 100) / 100,
-        is_accurate_30d: isAccurate,
-      }).eq('id', row.id);
-
-      results.checked_30d++;
-      await sleep(300);
-    } catch (err) {
-      results.errors.push(`30d ${row.companies?.ticker}: ${err.message}`);
+        results[`checked_${key}`]++;
+        await sleep(300);
+      } catch (err) {
+        results.errors.push(`${key} ${row.companies?.ticker}: ${err.message}`);
+      }
     }
   }
 

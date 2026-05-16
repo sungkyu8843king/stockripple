@@ -372,10 +372,32 @@ tr:hover td { background: var(--bg3); }
         </button>
       </div>
       <div class="stats-grid" id="accuracyStats">
+        <div class="stat-card"><div class="stat-label">1일 체크 완료</div><div class="stat-value blue" id="acc-1d-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">1일 방향 정확도</div><div class="stat-value green" id="acc-1d-rate">—</div></div>
+        <div class="stat-card"><div class="stat-label">3일 체크 완료</div><div class="stat-value blue" id="acc-3d-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">3일 방향 정확도</div><div class="stat-value green" id="acc-3d-rate">—</div></div>
         <div class="stat-card"><div class="stat-label">7일 체크 완료</div><div class="stat-value blue" id="acc-7d-total">—</div></div>
         <div class="stat-card"><div class="stat-label">7일 방향 정확도</div><div class="stat-value green" id="acc-7d-rate">—</div></div>
         <div class="stat-card"><div class="stat-label">30일 체크 완료</div><div class="stat-value blue" id="acc-30d-total">—</div></div>
         <div class="stat-card"><div class="stat-label">30일 방향 정확도</div><div class="stat-value green" id="acc-30d-rate">—</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">1일 후 결과</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>티커</th><th>기업명</th><th>예측 상승률</th><th>진입가</th><th>1일 후 가격</th><th>실제 수익률</th><th>정확도</th></tr></thead>
+            <tbody id="accuracy1dTable"><tr><td colspan="7" class="loading-row">불러오는 중...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">3일 후 결과</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>티커</th><th>기업명</th><th>예측 상승률</th><th>진입가</th><th>3일 후 가격</th><th>실제 수익률</th><th>정확도</th></tr></thead>
+            <tbody id="accuracy3dTable"><tr><td colspan="7" class="loading-row">불러오는 중...</td></tr></tbody>
+          </table>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">7일 후 결과</div>
@@ -661,52 +683,45 @@ function escHtml(s) {
 }
 
 async function loadAccuracy() {
-  // Stats
-  const { data: d7 } = await sb.from('analysis_companies')
-    .select('is_accurate_7d').not('check_date_7d', 'is', null);
-  const { data: d30 } = await sb.from('analysis_companies')
-    .select('is_accurate_30d').not('check_date_30d', 'is', null);
+  const periods = ['1d', '3d', '7d', '30d'];
+  const rate = arr => arr?.length
+    ? Math.round(arr.filter(r => r[`is_accurate_${Object.keys(r)[0].split('_').pop()}`] === true).length / arr.length * 100) + '%'
+    : '—';
 
-  const rate = arr => arr?.length ? Math.round(arr.filter(r => r[Object.keys(r)[0]]).length / arr.length * 100) + '%' : '—';
-  document.getElementById('acc-7d-total').textContent = d7?.length ?? '—';
-  document.getElementById('acc-7d-rate').textContent = rate(d7?.map(r => ({v: r.is_accurate_7d})));
-  document.getElementById('acc-30d-total').textContent = d30?.length ?? '—';
-  document.getElementById('acc-30d-rate').textContent = rate(d30?.map(r => ({v: r.is_accurate_30d})));
+  for (const p of periods) {
+    const { data } = await sb.from('analysis_companies')
+      .select(`is_accurate_${p}`).not(`check_date_${p}`, 'is', null);
+    document.getElementById(`acc-${p}-total`).textContent = data?.length ?? '—';
+    const correct = data?.filter(r => r[`is_accurate_${p}`] === true).length ?? 0;
+    document.getElementById(`acc-${p}-rate`).textContent = data?.length
+      ? Math.round(correct / data.length * 100) + '%' : '—';
 
-  // 7일 테이블
-  const { data: rows7 } = await sb.from('analysis_companies')
-    .select('upside_pct, entry_price, check_price_7d, actual_return_7d, is_accurate_7d, companies(ticker, name_ko, currency)')
-    .not('check_date_7d', 'is', null)
-    .order('check_price_7d', { ascending: false }).limit(50);
-  renderAccTable('accuracy7dTable', rows7, '7d');
-
-  // 30일 테이블
-  const { data: rows30 } = await sb.from('analysis_companies')
-    .select('upside_pct, entry_price, check_price_30d, actual_return_30d, is_accurate_30d, companies(ticker, name_ko, currency)')
-    .not('check_date_30d', 'is', null)
-    .order('check_price_30d', { ascending: false }).limit(50);
-  renderAccTable('accuracy30dTable', rows30, '30d');
+    const { data: rows } = await sb.from('analysis_companies')
+      .select(`upside_pct, entry_price, check_price_${p}, actual_return_${p}, is_accurate_${p}, companies(ticker, name_ko, currency)`)
+      .not(`check_date_${p}`, 'is', null)
+      .order('entry_date', { ascending: false }).limit(50);
+    renderAccTable(`accuracy${p}Table`, rows, p);
+  }
 }
 
 function renderAccTable(tbodyId, rows, period) {
   const tbody = document.getElementById(tbodyId);
-  if (!rows?.length) { tbody.innerHTML = `<tr><td colspan="7" class="loading-row">아직 데이터 없음 (분석 후 ${period === '7d' ? '7일' : '30일'} 경과 시 자동 집계)</td></tr>`; return; }
+  const labelMap = { '1d': '1일', '3d': '3일', '7d': '7일', '30d': '30일' };
+  if (!rows?.length) { tbody.innerHTML = `<tr><td colspan="7" class="loading-row">아직 데이터 없음 (분석 후 ${labelMap[period]} 경과 시 자동 집계)</td></tr>`; return; }
   const sym = r => r.companies?.currency === 'KRW' ? '₩' : '$';
-  const retKey = period === '7d' ? 'actual_return_7d' : 'actual_return_30d';
-  const priceKey = period === '7d' ? 'check_price_7d' : 'check_price_30d';
-  const accKey = period === '7d' ? 'is_accurate_7d' : 'is_accurate_30d';
   tbody.innerHTML = rows.map(r => {
-    const ret = r[retKey];
+    const ret = r[`actual_return_${period}`];
     const retColor = ret > 0 ? 'var(--green)' : ret < 0 ? 'var(--red)' : 'var(--text2)';
-    const accBadge = r[accKey] == null ? '<span class="badge badge-gray">—</span>'
-      : r[accKey] ? '<span class="badge badge-green">✓ 적중</span>'
+    const acc = r[`is_accurate_${period}`];
+    const accBadge = acc == null ? '<span class="badge badge-gray">—</span>'
+      : acc ? '<span class="badge badge-green">✓ 적중</span>'
       : '<span class="badge badge-red">✗ 빗나감</span>';
     return `<tr>
       <td class="ticker-cell">${escHtml(r.companies?.ticker || '—')}</td>
       <td>${escHtml(r.companies?.name_ko || '—')}</td>
       <td style="color:var(--green)">+${r.upside_pct ?? '—'}%</td>
       <td style="color:var(--text2)">${r.entry_price ? sym(r) + Number(r.entry_price).toLocaleString() : '—'}</td>
-      <td style="color:var(--text2)">${r[priceKey] ? sym(r) + Number(r[priceKey]).toLocaleString() : '—'}</td>
+      <td style="color:var(--text2)">${r[`check_price_${period}`] ? sym(r) + Number(r[`check_price_${period}`]).toLocaleString() : '—'}</td>
       <td style="color:${retColor};font-weight:600">${ret != null ? (ret > 0 ? '+' : '') + ret + '%' : '—'}</td>
       <td>${accBadge}</td>
     </tr>`;
