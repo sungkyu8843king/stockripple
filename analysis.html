@@ -105,9 +105,42 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .companies-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 .company-card {
   background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
-  padding: 16px; transition: all 0.2s;
+  padding: 16px; transition: all 0.2s; cursor: pointer;
 }
-.company-card:hover { border-color: var(--blue); box-shadow: 0 4px 20px rgba(47,129,247,0.1); }
+.company-card:hover { border-color: var(--blue); box-shadow: 0 4px 20px rgba(47,129,247,0.1); transform: translateY(-1px); }
+
+/* Chart Modal */
+.chart-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  backdrop-filter: blur(4px);
+}
+.chart-modal {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 14px;
+  width: 100%; max-width: 720px; padding: 24px; position: relative;
+}
+.chart-modal-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
+.chart-modal-ticker { font-family: 'SF Mono', monospace; font-size: 13px; font-weight: 700; }
+.chart-modal-ticker.kr { background: #1f4d8a; color: #79c0ff; padding: 3px 8px; border-radius: 5px; }
+.chart-modal-ticker.us { background: var(--bg3); color: var(--text2); padding: 3px 8px; border-radius: 5px; }
+.chart-modal-name { font-size: 18px; font-weight: 700; margin: 6px 0 2px; }
+.chart-modal-price { font-size: 24px; font-weight: 700; }
+.chart-modal-change { font-size: 14px; font-weight: 600; margin-left: 8px; }
+.chart-modal-change.pos { color: var(--green); }
+.chart-modal-change.neg { color: var(--red); }
+.chart-close {
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  font-size: 20px; line-height: 1; padding: 4px; border-radius: 4px;
+}
+.chart-close:hover { background: var(--bg3); color: var(--text); }
+.chart-range-btns { display: flex; gap: 6px; margin: 14px 0 12px; }
+.range-btn {
+  padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; transition: all 0.15s;
+}
+.range-btn.active, .range-btn:hover { background: var(--blue); border-color: var(--blue); color: #fff; }
+.chart-canvas-wrap { position: relative; height: 260px; }
+.chart-loading { text-align: center; padding: 60px; color: var(--text3); font-size: 13px; }
 .company-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
 .company-ticker {
   font-size: 13px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
@@ -255,7 +288,7 @@ function renderPage(issue, analysis, companies) {
     const confColor = getConfColor(c.confidence || 50);
 
     return `
-      <div class="company-card">
+      <div class="company-card" data-chart-ticker="${escHtml(co.ticker)}" data-chart-name="${escHtml(co.name_ko||co.name_en||co.ticker)}" data-chart-kr="${isKr}" onclick="openChart(this.dataset.chartTicker,this.dataset.chartName,this.dataset.chartKr==='true')">
         <div class="company-top">
           <span class="company-ticker ${isKr ? 'kr' : 'us'}">${escHtml(co.ticker)}</span>
           <div class="company-info">
@@ -420,6 +453,160 @@ async function init() {
 }
 
 init();
+
+/* ── Stock Chart Modal ── */
+let _chartInstance = null;
+let _chartTicker = null;
+let _chartRange = '3mo';
+
+function openChart(ticker, name, isKr) {
+  _chartTicker = ticker;
+  _chartRange = '3mo';
+  const overlay = document.getElementById('chartOverlay');
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  document.getElementById('chartModalTicker').textContent = ticker;
+  document.getElementById('chartModalTicker').className = 'chart-modal-ticker ' + (isKr ? 'kr' : 'us');
+  document.getElementById('chartModalName').textContent = name;
+  document.getElementById('chartModalPrice').textContent = '';
+  document.getElementById('chartModalChange').textContent = '';
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.toggle('active', b.dataset.range === _chartRange));
+  loadChartData(ticker, _chartRange);
+}
+
+function closeChart() {
+  document.getElementById('chartOverlay').style.display = 'none';
+  document.body.style.overflow = '';
+  if (_chartInstance) { _chartInstance.destroy(); _chartInstance = null; }
+}
+
+async function loadChartData(ticker, range) {
+  const wrap = document.getElementById('chartCanvasWrap');
+  wrap.innerHTML = '<div class="chart-loading">차트 불러오는 중...</div>';
+  document.getElementById('chartModalPrice').textContent = '';
+  document.getElementById('chartModalChange').textContent = '';
+
+  try {
+    const res = await fetch(`/api/stock-chart?ticker=${encodeURIComponent(ticker)}&range=${range}`);
+    const data = await res.json();
+    if (!data.points || !data.points.length) throw new Error('데이터 없음');
+    renderLineChart(data);
+  } catch(e) {
+    wrap.innerHTML = `<div class="chart-loading" style="color:var(--red)">차트 로드 실패: ${e.message}</div>`;
+  }
+}
+
+function renderLineChart(data) {
+  const { points, currentPrice, currency } = data;
+  const wrap = document.getElementById('chartCanvasWrap');
+  wrap.innerHTML = '<canvas id="chartCanvas"></canvas>';
+  const ctx = document.getElementById('chartCanvas');
+
+  const labels = points.map(p => p.date);
+  const values = points.map(p => p.close);
+  const first = values[0];
+  const last = currentPrice || values[values.length - 1];
+  const isUp = last >= first;
+  const lineColor = isUp ? '#3fb950' : '#f85149';
+  const changeAbs = last - first;
+  const changePct = ((changeAbs / first) * 100).toFixed(2);
+
+  const fmt = new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: currency || 'USD', maximumFractionDigits: currency === 'KRW' ? 0 : 2
+  });
+  document.getElementById('chartModalPrice').textContent = fmt.format(last);
+  const changeEl = document.getElementById('chartModalChange');
+  changeEl.textContent = `${isUp ? '+' : ''}${changePct}%`;
+  changeEl.className = 'chart-modal-change ' + (isUp ? 'pos' : 'neg');
+
+  if (_chartInstance) _chartInstance.destroy();
+  _chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: lineColor,
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.2,
+        fill: true,
+        backgroundColor: (ctx2) => {
+          const g = ctx2.chart.ctx.createLinearGradient(0, 0, 0, ctx2.chart.height);
+          g.addColorStop(0, isUp ? 'rgba(63,185,80,0.25)' : 'rgba(248,81,73,0.25)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          return g;
+        },
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => {
+              const v = c.raw;
+              return ' ' + fmt.format(v);
+            }
+          },
+          backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1,
+          titleColor: '#8b949e', bodyColor: '#e6edf3',
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#8b949e', font: { size: 10 }, maxTicksLimit: 6,
+            callback(val, i, ticks) { return labels[i]?.slice(5); }
+          },
+          grid: { color: '#21262d' }
+        },
+        y: {
+          ticks: {
+            color: '#8b949e', font: { size: 10 },
+            callback: v => currency === 'KRW' ? v.toLocaleString('ko-KR') : v.toFixed(0)
+          },
+          grid: { color: '#21262d' }
+        }
+      }
+    }
+  });
+}
+</script>
+
+<!-- Chart Modal -->
+<div id="chartOverlay" class="chart-overlay" style="display:none" onclick="if(event.target===this)closeChart()">
+  <div class="chart-modal">
+    <div class="chart-modal-header">
+      <div>
+        <span id="chartModalTicker" class="chart-modal-ticker"></span>
+        <div id="chartModalName" class="chart-modal-name"></div>
+        <div>
+          <span id="chartModalPrice" class="chart-modal-price"></span>
+          <span id="chartModalChange" class="chart-modal-change"></span>
+        </div>
+      </div>
+      <button class="chart-close" onclick="closeChart()">✕</button>
+    </div>
+    <div class="chart-range-btns">
+      <button class="range-btn" data-range="1mo" onclick="selectRange('1mo')">1개월</button>
+      <button class="range-btn active" data-range="3mo" onclick="selectRange('3mo')">3개월</button>
+      <button class="range-btn" data-range="6mo" onclick="selectRange('6mo')">6개월</button>
+      <button class="range-btn" data-range="1y" onclick="selectRange('1y')">1년</button>
+    </div>
+    <div id="chartCanvasWrap" class="chart-canvas-wrap"></div>
+  </div>
+</div>
+
+<script>
+function selectRange(range) {
+  _chartRange = range;
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.toggle('active', b.dataset.range === range));
+  if (_chartTicker) loadChartData(_chartTicker, range);
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChart(); });
 </script>
 </body>
 </html>
