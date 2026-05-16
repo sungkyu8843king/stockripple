@@ -213,6 +213,9 @@ tr:hover td { background: var(--bg3); }
       기업 데이터
     </button>
     <div class="nav-section">설정</div>
+    <button class="nav-item" data-panel="accuracy">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      예측 정확도</button>
     <button class="nav-item" data-panel="settings">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
       API 키 설정
@@ -356,6 +359,44 @@ tr:hover td { background: var(--bg3); }
       </div>
     </div>
 
+    <!-- Accuracy -->
+    <div class="panel-section" id="panel-accuracy">
+      <div class="section-header">
+        <h2>예측 정확도</h2>
+        <p>AI 예측 후 실제 주가 변동과 비교한 정확도입니다.</p>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-ghost" onclick="runAccuracyCheck()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.61"/></svg>
+          정확도 체크 실행
+        </button>
+      </div>
+      <div class="stats-grid" id="accuracyStats">
+        <div class="stat-card"><div class="stat-label">7일 체크 완료</div><div class="stat-value blue" id="acc-7d-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">7일 방향 정확도</div><div class="stat-value green" id="acc-7d-rate">—</div></div>
+        <div class="stat-card"><div class="stat-label">30일 체크 완료</div><div class="stat-value blue" id="acc-30d-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">30일 방향 정확도</div><div class="stat-value green" id="acc-30d-rate">—</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">7일 후 결과</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>티커</th><th>기업명</th><th>예측 상승률</th><th>진입가</th><th>7일 후 가격</th><th>실제 수익률</th><th>정확도</th></tr></thead>
+            <tbody id="accuracy7dTable"><tr><td colspan="7" class="loading-row">불러오는 중...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">30일 후 결과</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>티커</th><th>기업명</th><th>예측 상승률</th><th>진입가</th><th>30일 후 가격</th><th>실제 수익률</th><th>정확도</th></tr></thead>
+            <tbody id="accuracy30dTable"><tr><td colspan="7" class="loading-row">불러오는 중...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- Settings -->
     <div class="panel-section" id="panel-settings">
       <div class="section-header">
@@ -401,6 +442,7 @@ function showPanel(name) {
   if (name === 'dashboard') loadDashStats();
   if (name === 'issues') loadIssuesTable();
   if (name === 'companies') loadCompaniesTable();
+  if (name === 'accuracy') loadAccuracy();
 }
 
 document.querySelectorAll('[data-panel]').forEach(btn => {
@@ -616,6 +658,68 @@ function showToast(msg, type = 'info') {
 
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function loadAccuracy() {
+  // Stats
+  const { data: d7 } = await sb.from('analysis_companies')
+    .select('is_accurate_7d').not('check_date_7d', 'is', null);
+  const { data: d30 } = await sb.from('analysis_companies')
+    .select('is_accurate_30d').not('check_date_30d', 'is', null);
+
+  const rate = arr => arr?.length ? Math.round(arr.filter(r => r[Object.keys(r)[0]]).length / arr.length * 100) + '%' : '—';
+  document.getElementById('acc-7d-total').textContent = d7?.length ?? '—';
+  document.getElementById('acc-7d-rate').textContent = rate(d7?.map(r => ({v: r.is_accurate_7d})));
+  document.getElementById('acc-30d-total').textContent = d30?.length ?? '—';
+  document.getElementById('acc-30d-rate').textContent = rate(d30?.map(r => ({v: r.is_accurate_30d})));
+
+  // 7일 테이블
+  const { data: rows7 } = await sb.from('analysis_companies')
+    .select('upside_pct, entry_price, check_price_7d, actual_return_7d, is_accurate_7d, companies(ticker, name_ko, currency)')
+    .not('check_date_7d', 'is', null)
+    .order('check_price_7d', { ascending: false }).limit(50);
+  renderAccTable('accuracy7dTable', rows7, '7d');
+
+  // 30일 테이블
+  const { data: rows30 } = await sb.from('analysis_companies')
+    .select('upside_pct, entry_price, check_price_30d, actual_return_30d, is_accurate_30d, companies(ticker, name_ko, currency)')
+    .not('check_date_30d', 'is', null)
+    .order('check_price_30d', { ascending: false }).limit(50);
+  renderAccTable('accuracy30dTable', rows30, '30d');
+}
+
+function renderAccTable(tbodyId, rows, period) {
+  const tbody = document.getElementById(tbodyId);
+  if (!rows?.length) { tbody.innerHTML = `<tr><td colspan="7" class="loading-row">아직 데이터 없음 (분석 후 ${period === '7d' ? '7일' : '30일'} 경과 시 자동 집계)</td></tr>`; return; }
+  const sym = r => r.companies?.currency === 'KRW' ? '₩' : '$';
+  const retKey = period === '7d' ? 'actual_return_7d' : 'actual_return_30d';
+  const priceKey = period === '7d' ? 'check_price_7d' : 'check_price_30d';
+  const accKey = period === '7d' ? 'is_accurate_7d' : 'is_accurate_30d';
+  tbody.innerHTML = rows.map(r => {
+    const ret = r[retKey];
+    const retColor = ret > 0 ? 'var(--green)' : ret < 0 ? 'var(--red)' : 'var(--text2)';
+    const accBadge = r[accKey] == null ? '<span class="badge badge-gray">—</span>'
+      : r[accKey] ? '<span class="badge badge-green">✓ 적중</span>'
+      : '<span class="badge badge-red">✗ 빗나감</span>';
+    return `<tr>
+      <td class="ticker-cell">${escHtml(r.companies?.ticker || '—')}</td>
+      <td>${escHtml(r.companies?.name_ko || '—')}</td>
+      <td style="color:var(--green)">+${r.upside_pct ?? '—'}%</td>
+      <td style="color:var(--text2)">${r.entry_price ? sym(r) + Number(r.entry_price).toLocaleString() : '—'}</td>
+      <td style="color:var(--text2)">${r[priceKey] ? sym(r) + Number(r[priceKey]).toLocaleString() : '—'}</td>
+      <td style="color:${retColor};font-weight:600">${ret != null ? (ret > 0 ? '+' : '') + ret + '%' : '—'}</td>
+      <td>${accBadge}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function runAccuracyCheck() {
+  showToast('정확도 체크 실행 중...', 'info');
+  const data = await callApi('/api/check-accuracy', {}, 'quickLog');
+  if (data) {
+    showToast(`7일: ${data.checked_7d}건, 30일: ${data.checked_30d}건 업데이트`, 'success');
+    loadAccuracy();
+  }
 }
 
 // Show login overlay if not authenticated

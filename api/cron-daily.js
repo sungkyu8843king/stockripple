@@ -27,10 +27,16 @@ export default async function handler(req, res) {
     });
     const analyzeData = await analyzeRes.json();
 
+    await new Promise(r => setTimeout(r, 2000));
+
+    const accuracyRes = await fetch(`${base}/api/check-accuracy`, { method: 'POST', headers });
+    const accuracyData = await accuracyRes.json();
+
     return res.status(200).json({
       success: true,
       news: newsData,
       analysis: analyzeData,
+      accuracy: accuracyData,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

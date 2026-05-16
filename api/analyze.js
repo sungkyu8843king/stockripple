@@ -61,6 +61,8 @@ export default async function handler(req, res) {
             rationale: co.rationale,
             upside_pct: co.upside_pct,
             confidence: co.confidence,
+            entry_price: valid.price,
+            entry_date: new Date().toISOString(),
           });
         }
       }
