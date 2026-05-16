@@ -113,7 +113,7 @@ async function analyzeIssue(issue) {
 
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 2000,
+    max_tokens: 4096,
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -121,7 +121,31 @@ async function analyzeIssue(issue) {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('JSON not found in response');
 
-  return JSON.parse(jsonMatch[0]);
+  return parseJsonSafe(jsonMatch[0]);
+}
+
+function parseJsonSafe(text) {
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    // Fix trailing commas before } or ]
+    let fixed = text
+      .replace(/,\s*([}\]])/g, '$1')
+      // Remove control characters in strings
+      .replace(/[\x00-\x1F\x7F]/g, ' ');
+    try {
+      return JSON.parse(fixed);
+    } catch (_) {
+      // Try to close unclosed JSON by finding last complete array/object
+      const lastBrace = fixed.lastIndexOf('}');
+      if (lastBrace > 0) {
+        fixed = fixed.slice(0, lastBrace + 1);
+        fixed = fixed.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(fixed);
+      }
+      throw new Error('Failed to parse AI response as JSON');
+    }
+  }
 }
 
 async function upsertCompany(co) {
