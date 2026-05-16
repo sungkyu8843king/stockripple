@@ -154,9 +154,35 @@ tr:hover td { background: var(--bg3); }
   .sidebar { display: none; }
   .main { margin-left: 0; }
 }
+
+/* Login overlay */
+.login-overlay {
+  position: fixed; inset: 0; background: var(--bg); z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+}
+.login-box {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 16px;
+  padding: 40px 36px; width: 360px; max-width: 90vw;
+}
+.login-logo { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.login-sub { font-size: 13px; color: var(--text3); margin-bottom: 28px; }
+.login-error { font-size: 12px; color: var(--red); margin-top: 10px; min-height: 18px; }
 </style>
 </head>
 <body>
+
+<div class="login-overlay" id="loginOverlay" style="display:none">
+  <div class="login-box">
+    <div class="login-logo">StockRipple</div>
+    <div class="login-sub">관리자 패널 — 비밀번호를 입력하세요</div>
+    <div class="form-group">
+      <input type="password" id="loginInput" class="form-input" placeholder="ADMIN_SECRET"
+        onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">로그인</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
 
 <nav class="sidebar">
   <div class="sidebar-logo">
@@ -384,11 +410,32 @@ document.querySelectorAll('[data-panel]').forEach(btn => {
   btn.addEventListener('click', () => showPanel(btn.dataset.panel));
 });
 
-function getAdminSecret() { return localStorage.getItem('sr_admin_secret') || ''; }
+function getAdminSecret() { return sessionStorage.getItem('sr_admin_secret') || ''; }
 function saveAdminSecret() {
   const val = document.getElementById('adminSecretInput').value.trim();
-  localStorage.setItem('sr_admin_secret', val);
+  sessionStorage.setItem('sr_admin_secret', val);
   showToast('저장되었습니다', 'success');
+}
+
+async function doLogin() {
+  const val = document.getElementById('loginInput').value.trim();
+  if (!val) return;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  try {
+    const res = await fetch('/api/admin-verify', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${val}` }
+    });
+    if (res.ok) {
+      sessionStorage.setItem('sr_admin_secret', val);
+      document.getElementById('loginOverlay').style.display = 'none';
+      loadDashStats();
+    } else {
+      errEl.textContent = '비밀번호가 올바르지 않습니다';
+      document.getElementById('loginInput').focus();
+    }
+  } catch(e) { errEl.textContent = '서버 연결 오류: ' + e.message; }
 }
 
 function log(elId, msg, type = '') {
@@ -552,10 +599,13 @@ function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-loadDashStats();
-
-const savedSecret = localStorage.getItem('sr_admin_secret');
-if (savedSecret) document.getElementById('adminSecretInput').value = savedSecret;
+// Show login overlay if not authenticated
+if (!sessionStorage.getItem('sr_admin_secret')) {
+  document.getElementById('loginOverlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('loginInput').focus(), 100);
+} else {
+  loadDashStats();
+}
 </script>
 </body>
 </html>
