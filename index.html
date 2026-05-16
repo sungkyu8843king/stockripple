@@ -440,6 +440,33 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .ei-metric-val.miss { color: var(--red); }
 .ei-growth { font-size: 10px; color: var(--text3); margin-top: 1px; }
 
+/* Economic Calendar */
+.eco-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.eco-item:last-child { border-bottom: none; }
+.eco-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.eco-dot-high   { width: 7px; height: 7px; border-radius: 50%; background: var(--red);    flex-shrink: 0; }
+.eco-dot-medium { width: 7px; height: 7px; border-radius: 50%; background: var(--yellow); flex-shrink: 0; }
+.eco-title  { font-size: 12px; font-weight: 600; flex: 1; line-height: 1.3; }
+.eco-flag   { font-size: 12px; flex-shrink: 0; }
+.eco-time   { font-size: 10px; color: var(--text3); font-family: 'SF Mono', monospace; margin-bottom: 3px; }
+.eco-values { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.eco-actual         { font-weight: 700; padding: 1px 5px; border-radius: 3px; }
+.eco-actual.beat    { color: var(--green); background: #0d2a15; }
+.eco-actual.miss    { color: var(--red);   background: #2a0d0d; }
+.eco-actual.meet    { color: var(--text2); background: var(--bg3); }
+.eco-actual.pending { color: var(--yellow); background: #2a2000; }
+.eco-consensus { color: var(--text3); }
+.eco-prev      { color: var(--text3); }
+.eco-section-label { font-size: 10px; color: var(--text3); font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 6px 0 2px; }
+.eco-section-label:first-child { padding-top: 0; }
+
+/* Trump / Truth Social */
+.trump-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.trump-item:last-child { border-bottom: none; }
+.trump-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; color: #f87171; background: #3a1010; padding: 2px 7px; border-radius: 3px; margin-bottom: 4px; }
+.trump-text  { font-size: 12px; line-height: 1.5; color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.trump-meta  { font-size: 10px; color: var(--text3); margin-top: 3px; font-family: 'SF Mono', monospace; }
+
 /* Analyst Ratings */
 .analyst-item { padding: 10px 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 5px; }
 .analyst-item:last-child { border-bottom: none; }
@@ -645,6 +672,17 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       </div>
     </div>
 
+    <!-- 경제지표 일정 -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">📈 경제지표 일정</span>
+        <span class="live-dot" style="background:var(--yellow);animation:pulse 2s infinite"></span>
+      </div>
+      <div style="padding:12px 16px" id="economicCalendar">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
+      </div>
+    </div>
+
     <!-- 실적발표 캘린더 -->
     <div class="sidebar-card">
       <div class="sidebar-card-header">
@@ -667,11 +705,14 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       </div>
     </div>
 
-    <!-- 속보 -->
+    <!-- 속보 + 트럼프 -->
     <div class="sidebar-card">
       <div class="sidebar-card-header">
         <span class="sidebar-card-title"><span class="live-dot" style="background:var(--red)"></span> 시장 속보</span>
       </div>
+      <!-- Trump Truth Social 글 -->
+      <div id="trumpPosts" style="padding:0 16px;display:none"></div>
+      <!-- 뉴스 속보 -->
       <div style="padding:12px 16px" id="breakingNews">
         <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
       </div>
@@ -1516,6 +1557,120 @@ async function loadBreakingNews() {
   }
 }
 
+// 경제지표 일정 (ForexFactory)
+async function loadEconomicCalendar() {
+  const el = document.getElementById('economicCalendar');
+  if (!el) return;
+
+  try {
+    const r = await fetch('/api/economic');
+    if (!r.ok) throw new Error('API error');
+    const j = await r.json();
+
+    if (!j.ok || !j.items?.length) {
+      el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">이번 주 발표 없음</div>`;
+      return;
+    }
+
+    const nowKST = new Date().toLocaleDateString('ko-KR', { timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit' });
+    const tomKST = new Date(Date.now()+86400000).toLocaleDateString('ko-KR', { timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit' });
+
+    const dayLabel = (isoStr) => {
+      const d = new Date(isoStr);
+      const ks = d.toLocaleDateString('ko-KR', { timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit' });
+      if (ks === nowKST) return '오늘';
+      if (ks === tomKST) return '내일';
+      return d.toLocaleDateString('ko-KR', { timeZone:'Asia/Seoul', month:'long', day:'numeric', weekday:'short' });
+    };
+    const fmtTime = (isoStr) =>
+      new Date(isoStr).toLocaleTimeString('ko-KR', { timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit', hour12:false });
+
+    const countryFlag = { USD:'🇺🇸', EUR:'🇪🇺', JPY:'🇯🇵', GBP:'🇬🇧', CNY:'🇨🇳' };
+
+    const beatMiss = (item) => {
+      if (!item.actual || !item.forecast) return 'pending';
+      const a = parseFloat(item.actual.replace(/[^0-9.\-]/g, ''));
+      const f = parseFloat(item.forecast.replace(/[^0-9.\-]/g, ''));
+      if (isNaN(a) || isNaN(f)) return 'meet';
+      const diff = a - f;
+      if (Math.abs(diff) < 0.001) return 'meet';
+      return (item.lowerIsBetter ? diff < 0 : diff > 0) ? 'beat' : 'miss';
+    };
+    const resultLabel = { beat:'상회▲', miss:'하회▼', meet:'부합=', pending:'예정' };
+
+    // Group by date
+    const groups = new Map();
+    j.items.forEach(item => {
+      const lbl = dayLabel(item.date);
+      if (!groups.has(lbl)) groups.set(lbl, []);
+      groups.get(lbl).push(item);
+    });
+
+    let html = '';
+    let total = 0;
+    for (const [label, items] of groups) {
+      if (total >= 15) break;
+      html += `<div class="eco-section-label">${label}</div>`;
+      for (const item of items) {
+        if (total >= 15) break;
+        const result = beatMiss(item);
+        const flag   = countryFlag[item.country] || item.country;
+        const isPast = item.actual != null;
+        html += `<div class="eco-item">
+          <div class="eco-header">
+            <div class="eco-dot-${item.impact === 'High' ? 'high' : 'medium'}"></div>
+            <span class="eco-title">${escHtml(item.titleKo || item.title)}</span>
+            <span class="eco-flag">${flag}</span>
+          </div>
+          <div class="eco-time">${fmtTime(item.date)} KST</div>
+          <div class="eco-values">
+            ${isPast
+              ? `<span class="eco-actual ${result}">${escHtml(item.actual)} ${resultLabel[result]}</span>`
+              : (item.forecast ? `<span class="eco-actual pending">예상 ${escHtml(item.forecast)}</span>` : '')}
+            ${item.forecast && isPast ? `<span class="eco-consensus">컨센 ${escHtml(item.forecast)}</span>` : ''}
+            ${item.previous ? `<span class="eco-prev">이전 ${escHtml(item.previous)}</span>` : ''}
+          </div>
+        </div>`;
+        total++;
+      }
+    }
+
+    el.innerHTML = html;
+  } catch {
+    el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">데이터 없음</div>`;
+  }
+}
+
+// 트럼프 Truth Social 글
+async function loadTrumpPosts() {
+  const el = document.getElementById('trumpPosts');
+  if (!el) return;
+
+  try {
+    const r = await fetch('/api/trump');
+    if (!r.ok) throw new Error();
+    const j = await r.json();
+
+    if (!j.ok || !j.items?.length) { el.style.display = 'none'; return; }
+
+    el.style.display = 'block';
+    el.innerHTML = j.items.slice(0, 3).map(post => {
+      const timeHtml = post.publishedAt ? timeAgoHtml(post.publishedAt) : '';
+      return `<div class="trump-item">
+        <div class="trump-badge">🇺🇸 Truth Social</div>
+        <div class="trump-text">${escHtml(post.text.slice(0, 220))}${post.text.length > 220 ? '…' : ''}</div>
+        <div class="trump-meta">${timeHtml}</div>
+      </div>`;
+    }).join('');
+
+    // Add separator to breaking news below
+    const bn = document.getElementById('breakingNews');
+    if (bn) bn.style.borderTop = '1px solid var(--border)';
+  } catch {
+    if (el) el.style.display = 'none';
+  }
+}
+
 if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   document.getElementById('issuesContainer').innerHTML = `
     <div class="empty-state">
@@ -1528,10 +1683,14 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   loadStats();
   loadIssues();
   loadIndices();
+  loadEconomicCalendar();
   loadEarningsCalendar();
   loadAnalystRatings();
+  loadTrumpPosts();
   loadBreakingNews();
   setInterval(loadIndices, 30000);
+  setInterval(loadEconomicCalendar, 120000);  // 2분마다 (실제 발표 시 actual 업데이트)
+  setInterval(loadTrumpPosts, 120000);        // 2분마다 신글 감지
 }
 </script>
 </body>
