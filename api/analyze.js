@@ -48,7 +48,12 @@ export default async function handler(req, res) {
 
       for (const ripple of analysis.rippleEffects || []) {
         for (const co of ripple.companies || []) {
-          const companyId = await upsertCompany(co);
+          const valid = await validateTicker(co.ticker);
+          if (!valid) {
+            results.errors.push(`Invalid ticker skipped: ${co.ticker} (${co.name_ko})`);
+            continue;
+          }
+          const companyId = await upsertCompany(co, valid);
           await supabase.from('analysis_companies').insert({
             analysis_id: savedAnalysis.id,
             company_id: companyId,
@@ -109,7 +114,10 @@ async function analyzeIssue(issue) {
 - 한국 기업(KR)과 미국 기업(US)을 균형있게 포함
 - upside_pct는 현실적으로 5-50% 범위
 - confidence는 0-100 (데이터 확실성 기반)
-- 반드시 실존하는 상장 기업의 실제 티커 사용`;
+- 반드시 Yahoo Finance에서 실제로 거래되는 종목만 사용
+- 한국 주식 티커: 반드시 6자리 숫자.KS 형식 (예: 005930.KS=삼성전자, 000660.KS=SK하이닉스, 035420.KS=NAVER, 051910.KS=LG화학)
+- 미국 주식: NYSE/NASDAQ 실제 상장 티커만 사용 (예: AAPL, MSFT, NVDA, TSLA)
+- 확실하지 않은 티커는 절대 추측하지 말고 제외할 것`;
 
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -122,6 +130,25 @@ async function analyzeIssue(issue) {
   if (!jsonMatch) throw new Error('JSON not found in response');
 
   return parseJsonSafe(jsonMatch[0]);
+}
+
+async function validateTicker(ticker) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const meta = data.chart?.result?.[0]?.meta;
+    if (!meta?.regularMarketPrice && !meta?.previousClose) return null;
+    return {
+      price: meta.regularMarketPrice || meta.previousClose,
+      marketCap: meta.marketCap || null,
+      currency: meta.currency || 'USD',
+      longName: meta.longName || meta.shortName || null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function parseJsonSafe(text) {
@@ -148,7 +175,7 @@ function parseJsonSafe(text) {
   }
 }
 
-async function upsertCompany(co) {
+async function upsertCompany(co, priceData = null) {
   const { data: existing } = await supabase
     .from('companies')
     .select('id')
@@ -157,14 +184,22 @@ async function upsertCompany(co) {
 
   if (existing) return existing.id;
 
+  const insertData = {
+    ticker: co.ticker,
+    name_ko: co.name_ko,
+    name_en: co.name_en || priceData?.longName || co.name_ko,
+    market: co.market,
+  };
+  if (priceData) {
+    insertData.current_price = priceData.price;
+    insertData.market_cap = priceData.marketCap;
+    insertData.currency = priceData.currency;
+    insertData.price_updated_at = new Date().toISOString();
+  }
+
   const { data: newCo } = await supabase
     .from('companies')
-    .insert({
-      ticker: co.ticker,
-      name_ko: co.name_ko,
-      name_en: co.name_en,
-      market: co.market,
-    })
+    .insert(insertData)
     .select()
     .single();
 
