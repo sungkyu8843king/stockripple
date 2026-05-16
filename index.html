@@ -127,7 +127,11 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .card-header { padding: 16px 16px 0; display: flex; align-items: flex-start; gap: 12px; }
 .card-source { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
 .source-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
-.card-date { font-size: 11px; color: var(--text3); margin-left: auto; white-space: nowrap; }
+.card-date { font-size: 10px; color: var(--text3); margin-left: auto; text-align: right; line-height: 1.6; flex-shrink: 0; }
+.card-date .rel { font-size: 11px; color: var(--text2); display: block; }
+.card-date .tz-row { display: flex; gap: 8px; justify-content: flex-end; }
+.card-date .tz-label { color: var(--text3); font-family: 'SF Mono', monospace; }
+.card-date .tz-val { color: var(--text3); font-family: 'SF Mono', monospace; }
 .card-body { padding: 10px 16px 14px; }
 .card-title { font-size: 15px; font-weight: 600; line-height: 1.45; margin-bottom: 8px; }
 .card-summary { font-size: 12px; color: var(--text2); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -672,13 +676,33 @@ const sectorColors = {
 
 function getSectorClass(s) { return sectorColors[s] || 'tag-default'; }
 
+function fmtTz(d, tz, showDate) {
+  const opts = { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+  if (showDate) { opts.month = '2-digit'; opts.day = '2-digit'; }
+  return d.toLocaleString('ko-KR', opts).replace(/\. /g, '/').replace(/\.$/, '');
+}
+
+function timeAgoHtml(dateStr) {
+  const d = new Date(dateStr);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  let rel;
+  if (diff < 60)          rel = '방금 전';
+  else if (diff < 3600)   rel = `${Math.floor(diff / 60)}분 전`;
+  else if (diff < 86400)  rel = `${Math.floor(diff / 3600)}시간 전`;
+  else if (diff < 86400 * 7) rel = `${Math.floor(diff / 86400)}일 전`;
+  else                    rel = d.toLocaleDateString('ko-KR', {month: 'short', day: 'numeric'});
+
+  const showDate = diff >= 3600;
+  const kst = fmtTz(d, 'Asia/Seoul', showDate);
+  const et  = fmtTz(d, 'America/New_York', showDate);
+
+  return `<span class="rel">${rel}</span><div class="tz-row"><span class="tz-label">KST</span><span class="tz-val">${kst}</span></div><div class="tz-row"><span class="tz-label">ET&nbsp;</span><span class="tz-val">${et}</span></div>`;
+}
+
 function timeAgo(dateStr) {
   const d = new Date(dateStr);
   const diff = (Date.now() - d.getTime()) / 1000;
-  const abs = d.toLocaleString('ko-KR', {
-    month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-  }).replace(/\. /g, '.').replace('.', '/');
+  const abs = fmtTz(d, 'Asia/Seoul', true);
   if (diff < 60) return `방금 전 · ${abs}`;
   if (diff < 3600) return `${Math.floor(diff / 60)}분 전 · ${abs}`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전 · ${abs}`;
@@ -804,7 +828,7 @@ function renderIssueCard(issue) {
         <span class="card-source">
           <span class="source-dot"></span>${escHtml(issue.source_name || '뉴스')}
         </span>
-        <span class="card-date">${timeAgo(issue.published_at)}</span>
+        <span class="card-date">${timeAgoHtml(issue.published_at)}</span>
       </div>
       <div class="card-body">
         <div class="card-title">${escHtml(issue.title)}</div>
