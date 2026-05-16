@@ -1,37 +1,44 @@
 /**
- * market-pulse.js — Trump Truth Social + ForexFactory 경제지표
- * GET ?type=trump   → Truth Social RSS 최신 글
- * GET ?type=economic (default) → ForexFactory 이번주/다음주 캘린더
+ * market-pulse.js — Vercel Edge Function
+ * Cloudflare IP로 실행되어 ForexFactory IP 차단 우회
+ * GET ?type=trump    → Truth Social RSS 최신 글
+ * GET ?type=economic → ForexFactory 이번주/다음주 캘린더
  */
-export default async function handler(req, res) {
-  const type = req.query?.type || 'economic';
-  if (type === 'trump') return handleTrump(req, res);
-  return handleEconomic(req, res);
+export const config = { runtime: 'edge' };
+
+export default async function handler(req) {
+  const { searchParams } = new URL(req.url);
+  const type = searchParams.get('type') || 'economic';
+  if (type === 'trump') return handleTrump();
+  return handleEconomic();
 }
 
 // ─── Trump Truth Social ────────────────────────────────────────────────────
-async function handleTrump(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
-
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Cache-Control': 'no-cache',
+async function handleTrump() {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Content-Type': 'application/json',
+    'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300',
   };
 
   try {
     const r = await fetch('https://truthsocial.com/@realDonaldTrump.rss', {
-      headers,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+      },
       signal: AbortSignal.timeout(10000),
     });
-    if (!r.ok) return res.status(200).json({ ok: false, error: `HTTP ${r.status}`, items: [] });
-    const xml = await r.text();
+    if (!r.ok) {
+      return new Response(JSON.stringify({ ok: false, error: `HTTP ${r.status}`, items: [] }), { headers: corsHeaders });
+    }
+    const xml   = await r.text();
     const items = parseRss(xml, 5);
-    return res.status(200).json({ ok: true, items, ts: Date.now() });
-  } catch (err) {
-    return res.status(200).json({ ok: false, error: err.message, items: [] });
+    return new Response(JSON.stringify({ ok: true, items, ts: Date.now() }), { headers: corsHeaders });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: e.message, items: [] }), { headers: corsHeaders });
   }
 }
 
@@ -40,7 +47,7 @@ function parseRss(xml, max = 5) {
   const re = /<item>([\s\S]*?)<\/item>/g;
   let m;
   while ((m = re.exec(xml)) !== null && items.length < max) {
-    const block = m[1];
+    const block   = m[1];
     const desc    = getTag(block, 'description') || getTag(block, 'content:encoded');
     const link    = getTag(block, 'link') || getTag(block, 'guid');
     const pubDate = getTag(block, 'pubDate');
@@ -63,14 +70,17 @@ function parseRss(xml, max = 5) {
 
 function getTag(xml, tag) {
   const re = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/${tag}>`, 'i');
-  const m = xml.match(re);
+  const m  = xml.match(re);
   return m ? (m[1] ?? m[2] ?? '').trim() : '';
 }
 
 // ─── ForexFactory 경제지표 ─────────────────────────────────────────────────
-async function handleEconomic(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'no-store'); // ForexFactory actual값이 실시간 업데이트되므로 캐시 금지
+async function handleEconomic() {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+  };
 
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -123,15 +133,9 @@ async function handleEconomic(req, res) {
 
   try {
     const [tw, nw, lw] = await Promise.allSettled([
-      fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
-        headers, signal: AbortSignal.timeout(8000),
-      }).then(r => r.ok ? r.json() : []),
-      fetch('https://nfs.faireconomy.media/ff_calendar_nextweek.json', {
-        headers, signal: AbortSignal.timeout(8000),
-      }).then(r => r.ok ? r.json() : []),
-      fetch('https://nfs.faireconomy.media/ff_calendar_lastweek.json', {
-        headers, signal: AbortSignal.timeout(8000),
-      }).then(r => r.ok ? r.json() : []),
+      fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
+      fetch('https://nfs.faireconomy.media/ff_calendar_nextweek.json', { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
+      fetch('https://nfs.faireconomy.media/ff_calendar_lastweek.json', { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
     ]);
 
     let raw = [
@@ -141,7 +145,7 @@ async function handleEconomic(req, res) {
     ];
 
     if (!raw.length) {
-      return res.status(200).json({ ok: false, error: 'ForexFactory returned empty', items: [] });
+      return new Response(JSON.stringify({ ok: false, error: 'ForexFactory returned empty', items: [] }), { headers: corsHeaders });
     }
 
     raw = raw.filter(e =>
@@ -149,27 +153,24 @@ async function handleEconomic(req, res) {
       (e.impact === 'High' || e.impact === 'Medium')
     );
 
-    const now = Date.now();
-    const windowStart = now - 7 * 86400000;
+    const now         = Date.now();
+    const windowStart = now - 7  * 86400000;
     const windowEnd   = now + 14 * 86400000;
 
     const items = raw
       .map(e => {
         let dateIso = null;
-        try {
-          const d = new Date(e.date);
-          if (!isNaN(d)) dateIso = d.toISOString();
-        } catch {}
+        try { const d = new Date(e.date); if (!isNaN(d)) dateIso = d.toISOString(); } catch {}
         return {
-          title:         e.title || '',
-          titleKo:       NAME_KO[e.title] || e.title || '',
-          country:       e.country || 'USD',
-          impact:        e.impact  || 'Medium',
-          date:          dateIso,
-          dateRaw:       e.date || '',
-          forecast:      (e.forecast !== null && e.forecast !== undefined && e.forecast !== '') ? String(e.forecast) : null,
-          previous:      (e.previous !== null && e.previous !== undefined && e.previous !== '') ? String(e.previous) : null,
-          actual:        (e.actual   !== null && e.actual   !== undefined && e.actual   !== '') ? String(e.actual)   : null,
+          title:        e.title || '',
+          titleKo:      NAME_KO[e.title] || e.title || '',
+          country:      e.country || 'USD',
+          impact:       e.impact  || 'Medium',
+          date:         dateIso,
+          dateRaw:      e.date || '',
+          forecast:     (e.forecast != null && e.forecast !== undefined && e.forecast !== '') ? String(e.forecast) : null,
+          previous:     (e.previous != null && e.previous !== undefined && e.previous !== '') ? String(e.previous) : null,
+          actual:       (e.actual   != null && e.actual   !== undefined && e.actual   !== '') ? String(e.actual)   : null,
           lowerIsBetter: LOWER_IS_BETTER.has(e.title),
         };
       })
@@ -181,8 +182,8 @@ async function handleEconomic(req, res) {
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, 30);
 
-    return res.status(200).json({ ok: true, items, ts: Date.now() });
-  } catch (err) {
-    return res.status(500).json({ ok: false, error: err.message, items: [] });
+    return new Response(JSON.stringify({ ok: true, items, ts: Date.now() }), { headers: corsHeaders });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: e.message, items: [] }), { status: 500, headers: corsHeaders });
   }
 }

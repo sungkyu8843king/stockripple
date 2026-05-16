@@ -1339,79 +1339,10 @@ async function loadEarningsCalendar() {
   if (!el) return;
 
   let apiItems = [];
-  // ── 클라이언트 직접 fetch (서버 IP 차단 우회) ──────────────────
-  {
-    const _eTickers = ['AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AMD','INTC','QCOM','NFLX','ORCL'];
-    const _eToday = new Date().toISOString().split('T')[0];
-    const _ePast = new Date(); _ePast.setDate(_ePast.getDate() - 10);
-    const _eFut  = new Date(); _eFut.setDate(_eFut.getDate() + 10);
-    const _ePastStr = _ePast.toISOString().split('T')[0];
-    const _eFutStr  = _eFut.toISOString().split('T')[0];
-
-    el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중…</div>`;
-
-    const _eQS = async (ticker, modules) => {
-      try {
-        const r = await fetch(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${encodeURIComponent(modules)}`, { signal: AbortSignal.timeout(8000) });
-        if (r.ok) { const j = await r.json(); const res = j.quoteSummary?.result?.[0]; if (res) return res; }
-      } catch {}
-      return null;
-    };
-
-    const _eEnrich = async (ticker) => {
-      try {
-        const qs = await _eQS(ticker, 'calendarEvents,earningsTrend,earningsHistory,financialData');
-        if (!qs) return null;
-        const ce = qs.calendarEvents, et = qs.earningsTrend?.trend, eh = qs.earningsHistory?.history || [], fd = qs.financialData;
-        let date = ce?.earningsDate?.[0]?.fmt || null, epsActual = null, epsEstimate = null;
-        const recentH = eh.filter(h => h.quarter?.fmt >= _ePastStr && h.quarter?.fmt <= _eToday)
-          .sort((a, b) => (b.quarter?.fmt || '').localeCompare(a.quarter?.fmt || ''));
-        if (recentH.length) {
-          const lt = recentH[0];
-          if (!date || date < _ePastStr) date = lt.quarter?.fmt || date;
-          epsActual = lt.epsActual?.raw ?? null; epsEstimate = lt.epsEstimate?.raw ?? null;
-        }
-        const cq = et?.find(t => t.period === '0q') || et?.[0];
-        let epsConsensus = epsEstimate, whisper = null, epsGrowth = null, revEstimate = null;
-        if (cq?.earningsEstimate) {
-          const est = cq.earningsEstimate;
-          if (epsConsensus == null) epsConsensus = est.avg?.raw ?? null;
-          whisper = est.high?.raw ?? null; epsGrowth = cq.growth?.raw ?? null;
-        }
-        if (cq?.revenueEstimate) revEstimate = cq.revenueEstimate.avg?.raw ?? null;
-        let iv = null;
-        try {
-          const optR = await fetch(`https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(ticker)}`, { signal: AbortSignal.timeout(5000) });
-          if (optR.ok) {
-            const optJ = await optR.json(); const opt = optJ.optionChain?.result?.[0];
-            if (opt) {
-              const price = opt.quote?.regularMarketPrice ?? fd?.currentPrice?.raw;
-              const calls = opt.options?.[0]?.calls || [];
-              if (calls.length && price) {
-                const atm = calls.reduce((b, c) => Math.abs(c.strike - price) < Math.abs(b.strike - price) ? c : b);
-                if (atm.impliedVolatility != null) iv = Math.round(atm.impliedVolatility * 1000) / 10;
-              }
-            }
-          }
-        } catch {}
-        let company = ticker;
-        try {
-          const cr = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`, { signal: AbortSignal.timeout(4000) });
-          if (cr.ok) { const cj = await cr.json(); const m = cj.chart?.result?.[0]?.meta; company = m?.shortName || m?.longName || ticker; }
-        } catch {}
-        return { ticker, company, date, epsConsensus, epsActual, whisper, epsGrowth, revEstimate,
-          priceTarget: fd?.targetMeanPrice?.raw ?? null, targetHigh: fd?.targetHighPrice?.raw ?? null,
-          targetLow: fd?.targetLowPrice?.raw ?? null, currentPrice: fd?.currentPrice?.raw ?? null,
-          recKey: fd?.recommendationKey ?? null, iv };
-      } catch { return null; }
-    };
-
-    const _eResults = await Promise.allSettled(_eTickers.map(t => _eEnrich(t)));
-    apiItems = _eResults.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value)
-      .filter(it => !it.date || (it.date >= _ePastStr && it.date <= _eFutStr))
-      .sort((a, b) => { if (!a.date && !b.date) return 0; if (!a.date) return 1; if (!b.date) return -1; return new Date(a.date) - new Date(b.date); });
-  }
-  // ──────────────────────────────────────────────────────────────
+  try {
+    const r = await fetch('/api/earnings');
+    if (r.ok) { const j = await r.json(); if (j.ok && j.items?.length) apiItems = j.items; }
+  } catch {}
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -1543,47 +1474,10 @@ async function loadAnalystRatings() {
   if (!el) return;
 
   let items = [];
-  // ── 클라이언트 직접 fetch (서버 IP 차단 우회) ──────────────────
-  {
-    const _aTickers = ['AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AMD','QCOM','NFLX'];
-    el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중…</div>`;
-
-    const _aQS = async (ticker, modules) => {
-      try {
-        const r = await fetch(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${encodeURIComponent(modules)}`, { signal: AbortSignal.timeout(8000) });
-        if (r.ok) { const j = await r.json(); const res = j.quoteSummary?.result?.[0]; if (res) return res; }
-      } catch {}
-      return null;
-    };
-
-    const _aFetch = async (ticker) => {
-      try {
-        const qs = await _aQS(ticker, 'financialData,recommendationTrend,upgradeDowngradeHistory');
-        if (!qs) return null;
-        const fd = qs.financialData, rt = qs.recommendationTrend?.trend?.[0], udh = qs.upgradeDowngradeHistory?.history?.slice(0, 5) || [];
-        let shortName = ticker;
-        try {
-          const cr = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`, { signal: AbortSignal.timeout(4000) });
-          if (cr.ok) { const cj = await cr.json(); const m = cj.chart?.result?.[0]?.meta; shortName = m?.shortName || m?.longName || ticker; }
-        } catch {}
-        const price = fd?.currentPrice?.raw ?? null, targetMean = fd?.targetMeanPrice?.raw ?? null, recKey = fd?.recommendationKey ?? null;
-        if (!price && !targetMean && !rt) return null;
-        return {
-          ticker, shortName, price, targetMean,
-          targetHigh: fd?.targetHighPrice?.raw ?? null, targetLow: fd?.targetLowPrice?.raw ?? null,
-          recKey, analystCount: fd?.numberOfAnalystOpinions?.raw ?? null,
-          dist: rt ? { strongBuy: rt.strongBuy ?? 0, buy: rt.buy ?? 0, hold: rt.hold ?? 0, sell: rt.sell ?? 0, strongSell: rt.strongSell ?? 0 } : null,
-          recent: udh.map(h => ({ firm: h.firm || '', toGrade: h.toGrade || '', fromGrade: h.fromGrade || '',
-            action: h.action || 'main',
-            date: h.epochGradeDate ? new Date(h.epochGradeDate * 1000).toISOString().split('T')[0] : null })),
-        };
-      } catch { return null; }
-    };
-
-    const _aResults = await Promise.allSettled(_aTickers.map(_aFetch));
-    items = _aResults.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
-  }
-  // ──────────────────────────────────────────────────────────────
+  try {
+    const r = await fetch('/api/earnings?type=analyst');
+    if (r.ok) { const j = await r.json(); if (j.ok && j.items?.length) items = j.items; }
+  } catch {}
 
   if (!items.length) {
     el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">데이터 없음</div>`;
@@ -1721,96 +1615,12 @@ async function loadEconomicCalendar() {
   const el = document.getElementById('economicCalendar');
   if (!el) return;
 
-  // ── 클라이언트 직접 fetch (서버 IP 차단 우회) ──────────────────
-  const NAME_KO = {
-    'CPI m/m':'소비자물가 (MoM)','Core CPI m/m':'근원 CPI (MoM)','CPI y/y':'소비자물가 (YoY)','Core CPI y/y':'근원 CPI (YoY)',
-    'Non-Farm Employment Change':'비농업 신규고용 (NFP)','Unemployment Rate':'실업률',
-    'GDP q/q':'GDP (QoQ)','Prelim GDP q/q':'GDP 예비치 (QoQ)',
-    'Federal Funds Rate':'FOMC 기준금리','FOMC Statement':'FOMC 성명서',
-    'FOMC Meeting Minutes':'FOMC 의사록','FOMC Press Conference':'FOMC 기자회견',
-    'Retail Sales m/m':'소매판매 (MoM)','Core Retail Sales m/m':'근원 소매판매 (MoM)',
-    'PPI m/m':'생산자물가 (MoM)','Core PPI m/m':'근원 PPI (MoM)',
-    'PPI y/y':'생산자물가 (YoY)','Core PPI y/y':'근원 PPI (YoY)',
-    'ISM Manufacturing PMI':'ISM 제조업 PMI','ISM Services PMI':'ISM 서비스업 PMI',
-    'ISM Non-Manufacturing PMI':'ISM 비제조업 PMI',
-    'Flash Manufacturing PMI':'제조업 PMI (예비)','Flash Services PMI':'서비스업 PMI (예비)',
-    'Trade Balance':'무역수지','Building Permits':'건축허가',
-    'Housing Starts':'신규주택착공','Existing Home Sales':'기존주택판매',
-    'New Home Sales':'신규주택판매','Pending Home Sales m/m':'주택판매계약 (MoM)',
-    'Durable Goods Orders m/m':'내구재주문 (MoM)','Core Durable Goods Orders m/m':'근원 내구재주문 (MoM)',
-    'Consumer Confidence':'소비자신뢰지수 (CB)','Michigan Consumer Sentiment':'미시간대 소비자심리',
-    'Prelim UoM Consumer Sentiment':'미시간대 소비자심리 (예비)','UoM Consumer Sentiment':'미시간대 소비자심리',
-    'Initial Jobless Claims':'신규실업급여 청구','Continuing Jobless Claims':'계속실업급여 청구',
-    'ADP Non-Farm Employment Change':'ADP 비농업 고용','JOLTS Job Openings':'JOLTS 채용공고',
-    'PCE Price Index m/m':'PCE 물가 (MoM)','Core PCE Price Index m/m':'근원 PCE 물가 (MoM)',
-    'PCE Price Index y/y':'PCE 물가 (YoY)','Core PCE Price Index y/y':'근원 PCE 물가 (YoY)',
-    'Fed Chair Powell Speaks':'파월 Fed 의장 발언','Fed Speaks':'Fed 위원 발언',
-    'Treasury Sec. Speaks':'재무장관 발언','Treasury Secretary Speaks':'재무장관 발언',
-    'Empire State Manufacturing Index':'뉴욕 제조업 지수',
-    'Philly Fed Manufacturing Index':'필라델피아 Fed 제조업',
-    'Industrial Production m/m':'산업생산 (MoM)','Capacity Utilization Rate':'설비가동률',
-    'Nonfarm Productivity q/q':'비농업 생산성 (QoQ)','Unit Labor Costs q/q':'단위노동비용 (QoQ)',
-    'ECB Main Refinancing Rate':'ECB 기준금리','ECB Press Conference':'ECB 기자회견',
-    'BOJ Policy Rate':'일본은행 기준금리','BOE Official Bank Rate':'영란은행 기준금리',
-    'Employment Change':'고용변화','Employment Cost Index q/q':'고용비용지수 (QoQ)',
-    'Chicago PMI':'시카고 PMI','Challenger Job Cuts y/y':'챌린저 감원 (YoY)',
-  };
-  const LOWER_IS_BETTER = new Set([
-    'Unemployment Rate','Initial Jobless Claims','Continuing Jobless Claims',
-    'Core CPI m/m','CPI m/m','CPI y/y','Core CPI y/y',
-    'PPI m/m','Core PPI m/m','PPI y/y','Core PPI y/y',
-    'PCE Price Index m/m','Core PCE Price Index m/m',
-    'Unit Labor Costs q/q','Challenger Job Cuts y/y',
-  ]);
-
   try {
-    const [twRes, nwRes, lwRes] = await Promise.allSettled([
-      fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
-      fetch('https://nfs.faireconomy.media/ff_calendar_nextweek.json', { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
-      fetch('https://nfs.faireconomy.media/ff_calendar_lastweek.json', { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
-    ]);
+    const r = await fetch('/api/market-pulse?type=economic');
+    if (!r.ok) throw new Error('API error');
+    const j = await r.json();
 
-    let raw = [
-      ...(lwRes.status === 'fulfilled' && Array.isArray(lwRes.value) ? lwRes.value : []),
-      ...(twRes.status === 'fulfilled' && Array.isArray(twRes.value) ? twRes.value : []),
-      ...(nwRes.status === 'fulfilled' && Array.isArray(nwRes.value) ? nwRes.value : []),
-    ];
-
-    if (!raw.length) {
-      el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">이번 주 발표 없음</div>`;
-      return;
-    }
-
-    raw = raw.filter(e =>
-      (e.country === 'USD' || e.country === 'EUR' || e.country === 'JPY') &&
-      (e.impact === 'High' || e.impact === 'Medium')
-    );
-
-    const now = Date.now();
-    const windowStart = now - 7 * 86400000;
-    const windowEnd   = now + 14 * 86400000;
-
-    const items = raw.map(e => {
-      let dateIso = null;
-      try { const d = new Date(e.date); if (!isNaN(d)) dateIso = d.toISOString(); } catch {}
-      return {
-        title:        e.title || '',
-        titleKo:      NAME_KO[e.title] || e.title || '',
-        country:      e.country || 'USD',
-        impact:       e.impact  || 'Medium',
-        date:         dateIso,
-        forecast:     (e.forecast != null && e.forecast !== '') ? String(e.forecast) : null,
-        previous:     (e.previous != null && e.previous !== '') ? String(e.previous) : null,
-        actual:       (e.actual   != null && e.actual   !== '') ? String(e.actual)   : null,
-        lowerIsBetter: LOWER_IS_BETTER.has(e.title),
-      };
-    }).filter(e => {
-      if (!e.date) return false;
-      const t = new Date(e.date).getTime();
-      return t >= windowStart && t <= windowEnd;
-    }).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 30);
-
-    if (!items.length) {
+    if (!j.ok || !j.items?.length) {
       el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">이번 주 발표 없음</div>`;
       return;
     }
@@ -1842,7 +1652,7 @@ async function loadEconomicCalendar() {
 
     // Group by date
     const groups = new Map();
-    items.forEach(item => {
+    j.items.forEach(item => {
       const lbl = dayLabel(item.date);
       if (!groups.has(lbl)) groups.set(lbl, []);
       groups.get(lbl).push(item);
@@ -1852,16 +1662,16 @@ async function loadEconomicCalendar() {
 
     let html = '';
     let total = 0;
-    for (const [label, groupItems] of groups) {
+    for (const [label, items] of groups) {
       if (total >= 15) break;
-      // 과거 이벤트도 actual 있으면 표시, 또는 최근 24h 이내 이벤트 포함 섹션 표시
-      const hasFuture = groupItems.some(it => new Date(it.date).getTime() > nowMs - 86400000 || it.actual != null);
+      // 과거 24h 이내 이벤트 or actual 있는 항목이 있는 섹션 표시
+      const hasFuture = items.some(it => new Date(it.date).getTime() > nowMs - 86400000 || it.actual != null);
       if (!hasFuture) continue;
       html += `<div class="eco-section-label">${label}</div>`;
-      for (const item of groupItems) {
+      for (const item of items) {
         if (total >= 15) break;
-        const result = beatMiss(item);
-        const flag   = countryFlag[item.country] || item.country;
+        const result    = beatMiss(item);
+        const flag      = countryFlag[item.country] || item.country;
         const hasActual = item.actual != null;
         const isPastTime = new Date(item.date).getTime() < nowMs;
         html += `<div class="eco-item${hasActual ? ' eco-item-done' : ''}">
@@ -1888,8 +1698,7 @@ async function loadEconomicCalendar() {
     }
 
     el.innerHTML = html || `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">이번 주 발표 없음</div>`;
-  } catch (e) {
-    console.warn('loadEconomicCalendar error:', e.message);
+  } catch {
     el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">데이터 없음</div>`;
   }
 }
