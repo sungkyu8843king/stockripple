@@ -119,6 +119,34 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .company-ticker-link:hover .company-ticker { opacity: 0.8; }
 .company-card:hover { border-color: var(--blue); box-shadow: 0 4px 20px rgba(47,129,247,0.1); transform: translateY(-1px); }
 
+/* Auth Modal (shared) */
+.auth-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 2000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  backdrop-filter: blur(4px);
+}
+.auth-modal {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 16px;
+  width: 100%; max-width: 400px; padding: 32px; position: relative;
+}
+.auth-close { position: absolute; top: 14px; right: 14px; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; padding: 4px; border-radius: 4px; }
+.auth-close:hover { background: var(--bg3); color: var(--text); }
+.auth-logo { font-size: 16px; font-weight: 700; color: var(--text2); margin-bottom: 20px; }
+.auth-logo span { color: var(--blue); }
+.auth-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
+.auth-btn-google { width: 100%; padding: 11px; border-radius: 8px; font-size: 14px; font-weight: 500; background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.15s; margin-bottom: 16px; }
+.auth-btn-google:hover { background: var(--border); }
+.auth-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; color: var(--text3); font-size: 12px; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.auth-input { width: 100%; padding: 10px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; margin-bottom: 10px; outline: none; transition: border-color 0.15s; font-family: inherit; }
+.auth-input:focus { border-color: var(--blue); }
+.auth-submit-btn { width: 100%; padding: 11px; border-radius: 8px; font-size: 14px; font-weight: 600; background: var(--blue); border: none; color: #fff; cursor: pointer; transition: all 0.15s; margin-top: 4px; }
+.auth-submit-btn:hover { background: #388be8; }
+.auth-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.auth-switch { margin-top: 16px; text-align: center; font-size: 13px; color: var(--text2); }
+.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 13px; }
+.auth-link:hover { text-decoration: underline; }
+
 /* Chart Modal */
 .chart-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000;
@@ -463,25 +491,100 @@ async function init() {
   renderPage(issue, analysis, companies);
 }
 
+initAnalysisAuth();
 init();
 
-/* ── Watchlist (shared with index.html) ── */
-function getWatchlist() {
-  try { return JSON.parse(localStorage.getItem('sr_watchlist') || '[]'); } catch { return []; }
+/* ── Auth & Watchlist ── */
+let _authUser = null;
+let _wlCache = new Set();
+
+async function initAnalysisAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  _authUser = session?.user ?? null;
+  if (_authUser) {
+    const { data } = await sb.from('user_watchlist').select('ticker');
+    _wlCache = new Set((data || []).map(r => r.ticker));
+  }
+  sb.auth.onAuthStateChange(async (event, session) => {
+    _authUser = session?.user ?? null;
+    if (_authUser) {
+      const { data } = await sb.from('user_watchlist').select('ticker');
+      _wlCache = new Set((data || []).map(r => r.ticker));
+    } else {
+      _wlCache.clear();
+    }
+    if (event === 'SIGNED_IN') closeAnalysisAuthModal();
+  });
 }
-function saveWatchlist(list) { localStorage.setItem('sr_watchlist', JSON.stringify(list)); }
-function isAnalysisWatched(ticker) { return getWatchlist().some(w => w.ticker === ticker); }
-function toggleAnalysisWatch(e, btn) {
+
+function isAnalysisWatched(ticker) { return _wlCache.has(ticker); }
+
+async function toggleAnalysisWatch(e, btn) {
   e.stopPropagation();
+  if (!_authUser) { openAnalysisAuthModal(); return; }
   const { wlTicker: ticker, wlName: name, wlMarket: market } = btn.dataset;
-  const list = getWatchlist();
-  const idx = list.findIndex(w => w.ticker === ticker);
-  if (idx >= 0) { list.splice(idx, 1); }
-  else { list.push({ ticker, name, market, addedAt: new Date().toISOString() }); }
-  saveWatchlist(list);
-  const w = isAnalysisWatched(ticker);
+  if (_wlCache.has(ticker)) {
+    await sb.from('user_watchlist').delete().eq('ticker', ticker);
+    _wlCache.delete(ticker);
+  } else {
+    await sb.from('user_watchlist').insert({ user_id: _authUser.id, ticker, name, market });
+    _wlCache.add(ticker);
+  }
+  const w = _wlCache.has(ticker);
   btn.classList.toggle('active', w);
   btn.textContent = w ? '★' : '☆';
+}
+
+function openAnalysisAuthModal() {
+  document.getElementById('analysisAuthOverlay').style.display = 'flex';
+}
+function closeAnalysisAuthModal() {
+  document.getElementById('analysisAuthOverlay').style.display = 'none';
+}
+async function analysisSubmitAuth(e) {
+  e.preventDefault();
+  const mode = document.getElementById('analysisAuthForm').dataset.mode;
+  const email = document.getElementById('analysisAuthEmail').value.trim();
+  const pass = document.getElementById('analysisAuthPass').value;
+  const errEl = document.getElementById('analysisAuthError');
+  const btn = document.getElementById('analysisAuthSubmitBtn');
+  btn.disabled = true; btn.textContent = '처리 중...';
+  errEl.textContent = '';
+  try {
+    let result;
+    if (mode === 'signup') {
+      result = await sb.auth.signUp({ email, password: pass });
+      if (result.error) throw result.error;
+      if (result.data?.user && !result.data.session) {
+        errEl.style.color = 'var(--green)';
+        errEl.textContent = '이메일을 확인해 인증 링크를 클릭하세요.';
+        return;
+      }
+    } else {
+      result = await sb.auth.signInWithPassword({ email, password: pass });
+      if (result.error) throw result.error;
+    }
+  } catch (err) {
+    errEl.style.color = 'var(--red)';
+    const msgs = { 'Invalid login credentials': '이메일 또는 비밀번호가 올바르지 않습니다.' };
+    errEl.textContent = msgs[err.message] || err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = document.getElementById('analysisAuthForm').dataset.mode === 'signin' ? '로그인' : '가입하기';
+  }
+}
+async function analysisSignInGoogle() {
+  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } });
+}
+function switchAnalysisAuthMode(mode) {
+  const isSignIn = mode === 'signin';
+  document.getElementById('analysisAuthTitle').textContent = isSignIn ? '로그인' : '회원가입';
+  document.getElementById('analysisAuthSubmitBtn').textContent = isSignIn ? '로그인' : '가입하기';
+  document.getElementById('analysisAuthSwitch').innerHTML = isSignIn
+    ? `계정이 없나요? <button onclick="switchAnalysisAuthMode('signup')" class="auth-link">회원가입</button>`
+    : `이미 계정이 있나요? <button onclick="switchAnalysisAuthMode('signin')" class="auth-link">로그인</button>`;
+  document.getElementById('analysisAuthForm').dataset.mode = mode;
+  document.getElementById('analysisAuthError').textContent = '';
 }
 
 /* ── Stock Chart Modal ── */
@@ -638,5 +741,28 @@ function selectRange(range) {
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChart(); });
 </script>
+
+<!-- Auth Modal -->
+<div id="analysisAuthOverlay" class="auth-overlay" style="display:none" onclick="if(event.target===this)closeAnalysisAuthModal()">
+  <div class="auth-modal">
+    <button class="auth-close" onclick="closeAnalysisAuthModal()">✕</button>
+    <div class="auth-logo">Stock<span>Ripple</span></div>
+    <h2 class="auth-title" id="analysisAuthTitle">로그인</h2>
+    <button class="auth-btn-google" onclick="analysisSignInGoogle()">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Google로 계속하기
+    </button>
+    <div class="auth-divider"><span>또는</span></div>
+    <form id="analysisAuthForm" data-mode="signin" onsubmit="analysisSubmitAuth(event)">
+      <input type="email" id="analysisAuthEmail" class="auth-input" placeholder="이메일" required autocomplete="email">
+      <input type="password" id="analysisAuthPass" class="auth-input" placeholder="비밀번호 (6자 이상)" required minlength="6" autocomplete="current-password">
+      <div id="analysisAuthError" style="font-size:12px;min-height:18px;margin-bottom:4px"></div>
+      <button type="submit" id="analysisAuthSubmitBtn" class="auth-submit-btn">로그인</button>
+    </form>
+    <div class="auth-switch" id="analysisAuthSwitch">
+      계정이 없나요? <button onclick="switchAnalysisAuthMode('signup')" class="auth-link">회원가입</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

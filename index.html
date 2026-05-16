@@ -226,6 +226,74 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 .star-btn.active { color: #f0b429; }
 .star-btn:hover { transform: scale(1.2); }
 
+/* Auth Modal */
+.auth-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 2000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  backdrop-filter: blur(4px);
+}
+.auth-modal {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 16px;
+  width: 100%; max-width: 400px; padding: 32px; position: relative;
+}
+.auth-close {
+  position: absolute; top: 14px; right: 14px;
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  font-size: 18px; padding: 4px; border-radius: 4px;
+}
+.auth-close:hover { background: var(--bg3); color: var(--text); }
+.auth-logo { font-size: 16px; font-weight: 700; color: var(--text2); margin-bottom: 20px; }
+.auth-logo span { color: var(--blue); }
+.auth-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
+.auth-btn-google {
+  width: 100%; padding: 11px; border-radius: 8px; font-size: 14px; font-weight: 500;
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: all 0.15s; margin-bottom: 16px;
+}
+.auth-btn-google:hover { background: var(--border); }
+.auth-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 16px; color: var(--text3); font-size: 12px;
+}
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.auth-input {
+  width: 100%; padding: 10px 12px; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 14px; margin-bottom: 10px;
+  outline: none; transition: border-color 0.15s; font-family: inherit;
+}
+.auth-input:focus { border-color: var(--blue); }
+.auth-submit-btn {
+  width: 100%; padding: 11px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  background: var(--blue); border: none; color: #fff; cursor: pointer;
+  transition: all 0.15s; margin-top: 4px;
+}
+.auth-submit-btn:hover { background: #388be8; }
+.auth-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.auth-switch { margin-top: 16px; text-align: center; font-size: 13px; color: var(--text2); }
+.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 13px; }
+.auth-link:hover { text-decoration: underline; }
+/* User Menu */
+.user-menu { position: relative; }
+.user-avatar-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--blue-dim); color: var(--blue);
+  border: 1.5px solid var(--blue); font-size: 13px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.user-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  min-width: 140px; overflow: hidden; z-index: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.dropdown-item {
+  display: block; width: 100%; padding: 10px 14px; font-size: 13px;
+  color: var(--text2); background: none; border: none; text-align: left;
+  cursor: pointer; text-decoration: none; transition: all 0.1s;
+}
+.dropdown-item:hover { background: var(--bg3); color: var(--text); }
+
 /* Watchlist View */
 .watchlist-view { display: none; }
 .watchlist-empty { text-align: center; padding: 80px 24px; }
@@ -274,10 +342,18 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         <div class="logo-sub">파급효과 주식 전망</div>
       </div>
     </a>
-    <nav class="header-nav">
+    <nav class="header-nav" id="headerNav">
       <button class="nav-btn active" id="tabFeed" onclick="switchTab('feed')">피드</button>
       <button class="nav-btn" id="tabWatchlist" onclick="switchTab('watchlist')">관심종목<span id="wlCount"></span></button>
       <a href="/admin/" class="nav-btn">관리</a>
+      <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
+      <div class="user-menu" id="userMenu" style="display:none">
+        <button class="user-avatar-btn" id="userAvatar" onclick="toggleUserDropdown()"></button>
+        <div class="user-dropdown" id="userDropdown" style="display:none">
+          <a href="/account.html" class="dropdown-item">계정 설정</a>
+          <button class="dropdown-item" onclick="doSignOut()">로그아웃</button>
+        </div>
+      </div>
     </nav>
   </div>
 </header>
@@ -347,6 +423,29 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 
 <div class="toast" id="toast"></div>
 
+<!-- Auth Modal -->
+<div id="authOverlay" class="auth-overlay" style="display:none" onclick="if(event.target===this)closeAuthModal()">
+  <div class="auth-modal">
+    <button class="auth-close" onclick="closeAuthModal()">✕</button>
+    <div class="auth-logo">Stock<span>Ripple</span></div>
+    <h2 class="auth-title" id="authTitle">로그인</h2>
+    <button class="auth-btn-google" onclick="signInWithGoogle()">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Google로 계속하기
+    </button>
+    <div class="auth-divider"><span>또는</span></div>
+    <form id="authForm" data-mode="signin" onsubmit="submitAuth(event)">
+      <input type="email" id="authEmail" class="auth-input" placeholder="이메일" required autocomplete="email">
+      <input type="password" id="authPass" class="auth-input" placeholder="비밀번호 (6자 이상)" required minlength="6" autocomplete="current-password">
+      <div id="authError" style="font-size:12px;min-height:18px;margin-bottom:4px"></div>
+      <button type="submit" id="authSubmitBtn" class="auth-submit-btn">로그인</button>
+    </form>
+    <div class="auth-switch" id="authSwitchText">
+      계정이 없나요? <button onclick="switchAuthMode('signup')" class="auth-link">회원가입</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
@@ -415,33 +514,6 @@ async function loadStats() {
   if (latest?.[0]) document.getElementById('statUpdated').textContent = timeAgo(latest[0].published_at);
 }
 
-async function loadSectors() {
-  const { data } = await sb.from('issues').select('sectors').eq('is_analyzed', true).limit(300);
-  if (!data?.length) return;
-  const counts = {};
-  data.forEach(r => (r.sectors || []).forEach(s => { counts[s] = (counts[s] || 0) + 1; }));
-  const existing = new Set(['all', 'AI', '반도체', '전기차', '바이오', '에너지', '핀테크', '클라우드']);
-  const newSectors = Object.entries(counts)
-    .filter(([s, c]) => c >= 2 && !existing.has(s))
-    .sort((a, b) => b[1] - a[1])
-    .map(([s]) => s);
-  const container = document.querySelector('.filters');
-  const sep = container.querySelector('.filter-sep');
-  newSectors.forEach(s => {
-    const btn = document.createElement('button');
-    btn.className = 'filter-chip';
-    btn.dataset.sector = s;
-    btn.textContent = s;
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('[data-sector]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentSector = s;
-      currentPage = 1;
-      loadIssues();
-    });
-    container.insertBefore(btn, sep);
-  });
-}
 
 async function loadIssues() {
   const container = document.getElementById('issuesContainer');
@@ -577,47 +649,85 @@ function showToast(msg, type = 'info') {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-/* ── Watchlist ── */
-function getWatchlist() {
-  try { return JSON.parse(localStorage.getItem('sr_watchlist') || '[]'); } catch { return []; }
-}
-function saveWatchlist(list) { localStorage.setItem('sr_watchlist', JSON.stringify(list)); }
-function isWatched(ticker) { return getWatchlist().some(w => w.ticker === ticker); }
+/* ── Auth & Watchlist ── */
+let currentUser = null;
+let watchlistCache = new Set();
 
-function toggleWatch(e, btn) {
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  currentUser = session?.user ?? null;
+  if (currentUser) await loadWatchlistCache();
+  renderUserMenu(currentUser);
+  sb.auth.onAuthStateChange(async (event, session) => {
+    currentUser = session?.user ?? null;
+    if (currentUser) {
+      await loadWatchlistCache();
+    } else {
+      watchlistCache.clear();
+    }
+    renderUserMenu(currentUser);
+    if (event === 'SIGNED_IN') closeAuthModal();
+  });
+}
+
+function renderUserMenu(user) {
+  const loginBtn = document.getElementById('loginBtn');
+  const userMenu = document.getElementById('userMenu');
+  if (!user) {
+    loginBtn.style.display = '';
+    userMenu.style.display = 'none';
+  } else {
+    loginBtn.style.display = 'none';
+    userMenu.style.display = '';
+    document.getElementById('userAvatar').textContent = (user.email || '?')[0].toUpperCase();
+  }
+  updateWlCount();
+}
+
+async function loadWatchlistCache() {
+  if (!currentUser) return;
+  const { data } = await sb.from('user_watchlist').select('ticker');
+  watchlistCache = new Set((data || []).map(r => r.ticker));
+  updateWlCount();
+}
+
+function isWatched(ticker) { return watchlistCache.has(ticker); }
+
+async function toggleWatch(e, btn) {
   e.preventDefault(); e.stopPropagation();
+  if (!currentUser) { openAuthModal(); return; }
   const { wlTicker: ticker, wlName: name, wlMarket: market } = btn.dataset;
-  const list = getWatchlist();
-  const idx = list.findIndex(w => w.ticker === ticker);
-  if (idx >= 0) {
-    list.splice(idx, 1);
+  if (watchlistCache.has(ticker)) {
+    await sb.from('user_watchlist').delete().eq('ticker', ticker);
+    watchlistCache.delete(ticker);
     showToast(`${name} 관심종목 제거`, 'info');
   } else {
-    list.push({ ticker, name, market, addedAt: new Date().toISOString() });
+    await sb.from('user_watchlist').insert({ user_id: currentUser.id, ticker, name, market });
+    watchlistCache.add(ticker);
     showToast(`${name} ★ 관심종목 추가`, 'success');
   }
-  saveWatchlist(list);
   updateWlCount();
-  document.querySelectorAll('[data-wl-ticker]').forEach(b => {
-    if (b.dataset.wlTicker === ticker) {
-      const w = isWatched(ticker);
-      b.classList.toggle('active', w);
-      b.textContent = w ? '★' : '☆';
-      b.title = w ? '관심종목 제거' : '관심종목 추가';
-    }
+  document.querySelectorAll(`[data-wl-ticker="${ticker}"]`).forEach(b => {
+    const w = watchlistCache.has(ticker);
+    b.classList.toggle('active', w);
+    b.textContent = w ? '★' : '☆';
+    b.title = w ? '관심종목 제거' : '관심종목 추가';
   });
 }
 
 function updateWlCount() {
-  const n = getWatchlist().length;
   const el = document.getElementById('wlCount');
-  if (el) el.textContent = n > 0 ? ` (${n})` : '';
+  if (el) el.textContent = watchlistCache.size > 0 ? ` (${watchlistCache.size})` : '';
 }
 
 async function renderWatchlistView() {
-  const list = getWatchlist();
   const container = document.getElementById('watchlistView');
-  if (!list.length) {
+  if (!currentUser) {
+    container.innerHTML = `<div class="watchlist-empty"><div style="font-size:48px;margin-bottom:16px">🔐</div><p style="font-size:20px;font-weight:600;margin-bottom:8px">로그인이 필요합니다</p><p style="font-size:14px;color:var(--text2);margin-bottom:24px">관심종목을 저장하려면 로그인하세요.</p><button class="empty-btn" onclick="openAuthModal()">로그인 / 회원가입</button></div>`;
+    return;
+  }
+  const { data: list } = await sb.from('user_watchlist').select('ticker,name,market').order('added_at', { ascending: false });
+  if (!list?.length) {
     container.innerHTML = `<div class="watchlist-empty"><div style="font-size:48px;margin-bottom:16px">⭐</div><p style="font-size:20px;font-weight:600;margin-bottom:8px">관심종목이 없습니다</p><p style="font-size:14px;color:var(--text2)">피드에서 기업 옆의 ☆ 버튼을 눌러 추가하세요.</p></div>`;
     return;
   }
@@ -657,8 +767,9 @@ async function loadWLPrice(ticker) {
   } catch {}
 }
 
-function removeWL(ticker) {
-  saveWatchlist(getWatchlist().filter(w => w.ticker !== ticker));
+async function removeWL(ticker) {
+  await sb.from('user_watchlist').delete().eq('ticker', ticker);
+  watchlistCache.delete(ticker);
   updateWlCount();
   renderWatchlistView();
 }
@@ -674,6 +785,79 @@ function switchTab(tab) {
   wv.style.display = isFeed ? 'none' : 'block';
   if (!isFeed) renderWatchlistView();
 }
+
+/* ── Auth Modal ── */
+function openAuthModal(mode = 'signin') {
+  document.getElementById('authOverlay').style.display = 'flex';
+  switchAuthMode(mode);
+}
+function closeAuthModal() {
+  document.getElementById('authOverlay').style.display = 'none';
+}
+function switchAuthMode(mode) {
+  const isSignIn = mode === 'signin';
+  document.getElementById('authTitle').textContent = isSignIn ? '로그인' : '회원가입';
+  document.getElementById('authSubmitBtn').textContent = isSignIn ? '로그인' : '가입하기';
+  document.getElementById('authSwitchText').innerHTML = isSignIn
+    ? `계정이 없나요? <button onclick="switchAuthMode('signup')" class="auth-link">회원가입</button>`
+    : `이미 계정이 있나요? <button onclick="switchAuthMode('signin')" class="auth-link">로그인</button>`;
+  document.getElementById('authForm').dataset.mode = mode;
+  document.getElementById('authError').textContent = '';
+}
+async function submitAuth(e) {
+  e.preventDefault();
+  const mode = document.getElementById('authForm').dataset.mode;
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  const errEl = document.getElementById('authError');
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = true; btn.textContent = '처리 중...';
+  errEl.textContent = '';
+  try {
+    let result;
+    if (mode === 'signup') {
+      result = await sb.auth.signUp({ email, password: pass });
+      if (result.error) throw result.error;
+      if (result.data?.user && !result.data.session) {
+        errEl.style.color = 'var(--green)';
+        errEl.textContent = '이메일을 확인해 인증 링크를 클릭하세요.';
+        return;
+      }
+    } else {
+      result = await sb.auth.signInWithPassword({ email, password: pass });
+      if (result.error) throw result.error;
+    }
+  } catch (err) {
+    errEl.style.color = 'var(--red)';
+    const msgs = {
+      'Invalid login credentials': '이메일 또는 비밀번호가 올바르지 않습니다.',
+      'User already registered': '이미 가입된 이메일입니다.',
+    };
+    errEl.textContent = msgs[err.message] || err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = document.getElementById('authForm').dataset.mode === 'signin' ? '로그인' : '가입하기';
+  }
+}
+async function signInWithGoogle() {
+  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } });
+}
+async function doSignOut() {
+  await sb.auth.signOut();
+  watchlistCache.clear();
+  renderUserMenu(null);
+  showToast('로그아웃 했습니다', 'info');
+}
+function toggleUserDropdown() {
+  const dd = document.getElementById('userDropdown');
+  dd.style.display = dd.style.display === 'none' ? '' : 'none';
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#userMenu')) {
+    const dd = document.getElementById('userDropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
 
 document.querySelectorAll('[data-sector]').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -695,8 +879,6 @@ document.getElementById('searchInput').addEventListener('input', e => {
   }, 400);
 });
 
-updateWlCount();
-
 if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   document.getElementById('issuesContainer').innerHTML = `
     <div class="empty-state">
@@ -705,9 +887,9 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
       <p class="empty-sub">index.html의 SUPABASE_URL과 SUPABASE_ANON_KEY를 설정해주세요.</p>
     </div>`;
 } else {
+  initAuth();
   loadStats();
   loadIssues();
-  loadSectors();
 }
 </script>
 </body>
