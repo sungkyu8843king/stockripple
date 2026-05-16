@@ -56,7 +56,7 @@ export default async function handler(req, res) {
 
   // 3. 남은 미분석 이슈 추가 분석
   await new Promise(r => setTimeout(r, 1000));
-  log.analyze = await call('/api/analyze', { limit: 8 });
+  log.analyze = await call('/api/analyze', { limit: 20 });
 
   // 4. 정확도 체크
   await new Promise(r => setTimeout(r, 1000));
@@ -205,7 +205,7 @@ async function collectEvents(base) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${process.env.ADMIN_SECRET}`,
         },
-        body: JSON.stringify({ limit: Math.min(totalNew + 2, 10) }),
+        body: JSON.stringify({ limit: Math.min(totalNew + 5, 20) }),
         signal: AbortSignal.timeout(60000),
       });
       const analyzeData = await analyzeRes.json();

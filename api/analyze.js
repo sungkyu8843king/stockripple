@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { issue_id, limit = 3 } = req.body || {};
+  const { issue_id, limit = 10 } = req.body || {};
 
   let query = supabase.from('issues').select('*').eq('is_analyzed', false);
   if (issue_id) query = supabase.from('issues').select('*').eq('id', issue_id);
