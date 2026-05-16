@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockRipple — 파급효과 주식 전망</title>
+<meta name="description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d1117;
+  --bg2: #161b22;
+  --bg3: #21262d;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --text3: #6e7681;
+  --blue: #2f81f7;
+  --blue-dim: #1f4d8a;
+  --green: #3fb950;
+  --green-dim: #1a4a26;
+  --red: #f85149;
+  --red-dim: #4a1a1a;
+  --yellow: #d29922;
+  --yellow-dim: #3d2e00;
+  --purple: #a371f7;
+  --purple-dim: #2d1f5e;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* Header */
+.header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(13,17,23,0.92); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+.header-inner {
+  max-width: 1200px; margin: 0 auto;
+  display: flex; align-items: center; gap: 24px; height: 60px;
+}
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.logo-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.logo-text { font-size: 18px; font-weight: 700; color: var(--text); }
+.logo-sub { font-size: 11px; color: var(--text2); font-weight: 400; margin-top: 1px; }
+.header-nav { display: flex; gap: 4px; margin-left: auto; }
+.nav-btn {
+  padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  background: none; border: none; color: var(--text2); cursor: pointer;
+  text-decoration: none; display: flex; align-items: center; gap: 6px;
+  transition: all 0.15s;
+}
+.nav-btn:hover { background: var(--bg3); color: var(--text); }
+.nav-btn.active { background: var(--bg3); color: var(--text); }
+.nav-btn-primary {
+  background: var(--blue); color: #fff; padding: 6px 16px;
+  border-radius: 6px; font-size: 13px; font-weight: 600;
+  text-decoration: none; cursor: pointer; border: none; transition: all 0.15s;
+}
+.nav-btn-primary:hover { background: #388be8; }
+
+/* Hero */
+.hero {
+  max-width: 1200px; margin: 0 auto; padding: 40px 24px 0;
+}
+.hero-title { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+.hero-title span { color: var(--blue); }
+.hero-sub { font-size: 15px; color: var(--text2); line-height: 1.6; }
+
+/* Stats bar */
+.stats-bar {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  margin: 24px 0 0; padding: 16px 20px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+}
+.stat-item { display: flex; flex-direction: column; gap: 2px; }
+.stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-size: 22px; font-weight: 700; }
+.stat-value.green { color: var(--green); }
+.stat-value.blue { color: var(--blue); }
+.stat-sep { width: 1px; background: var(--border); }
+
+/* Filters */
+.main-content { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.filters {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 24px; align-items: center;
+}
+.filter-label { font-size: 13px; color: var(--text2); margin-right: 4px; }
+.filter-chip {
+  padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border); background: var(--bg2); color: var(--text2);
+  cursor: pointer; transition: all 0.15s;
+}
+.filter-chip:hover { border-color: var(--blue); color: var(--blue); }
+.filter-chip.active { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
+.filter-sep { flex: 1; }
+.search-box {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 12px;
+}
+.search-box input {
+  background: none; border: none; outline: none; color: var(--text);
+  font-size: 13px; width: 180px;
+}
+.search-box input::placeholder { color: var(--text3); }
+
+/* Issue Grid */
+.issues-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+}
+.issue-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  overflow: hidden; transition: all 0.2s; cursor: pointer;
+  text-decoration: none; display: block; color: var(--text);
+}
+.issue-card:hover { border-color: var(--blue); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(47,129,247,0.12); }
+.card-header { padding: 16px 16px 0; display: flex; align-items: flex-start; gap: 12px; }
+.card-source { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
+.source-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+.card-date { font-size: 11px; color: var(--text3); margin-left: auto; white-space: nowrap; }
+.card-body { padding: 10px 16px 14px; }
+.card-title { font-size: 15px; font-weight: 600; line-height: 1.45; margin-bottom: 8px; }
+.card-summary { font-size: 12px; color: var(--text2); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-sectors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sector-tag {
+  font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500;
+}
+.tag-semi { background: #1f2d4a; color: #79c0ff; }
+.tag-ev { background: #1a3d2e; color: #56d364; }
+.tag-ai { background: #2d1f5e; color: #c084fc; }
+.tag-bio { background: #3d1a1a; color: #ff7b7b; }
+.tag-fin { background: #2e2000; color: #f0b429; }
+.tag-cloud { background: #1f3540; color: #64c8ea; }
+.tag-robot { background: #2a2040; color: #b06bff; }
+.tag-energy { background: #2a3a1a; color: #8bc34a; }
+.tag-default { background: var(--bg3); color: var(--text2); }
+.card-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+.footer-stat { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); }
+.footer-stat .val { font-weight: 600; }
+.footer-stat .val.green { color: var(--green); }
+.footer-stat .val.blue { color: var(--blue); }
+.confidence-bar { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+.confidence-fill { height: 100%; border-radius: 2px; background: var(--blue); transition: width 0.6s; }
+.view-btn {
+  margin-left: auto; font-size: 12px; color: var(--blue); font-weight: 600;
+  background: none; border: none; cursor: pointer; white-space: nowrap;
+}
+
+/* Company Preview */
+.card-companies { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 6px; }
+.mini-company { display: flex; align-items: center; gap: 8px; }
+.mini-ticker {
+  font-size: 11px; font-weight: 700; font-family: 'SF Mono', monospace;
+  background: var(--bg3); color: var(--text2); padding: 2px 7px; border-radius: 4px;
+  min-width: 60px; text-align: center;
+}
+.mini-name { font-size: 12px; color: var(--text2); flex: 1; }
+.mini-upside { font-size: 12px; font-weight: 700; }
+.mini-upside.up { color: var(--green); }
+.mini-upside.dn { color: var(--red); }
+
+/* Loading */
+.loading-state { text-align: center; padding: 60px 24px; color: var(--text2); }
+.spinner {
+  width: 32px; height: 32px; border: 2px solid var(--border);
+  border-top-color: var(--blue); border-radius: 50%;
+  animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state { text-align: center; padding: 80px 24px; }
+.empty-icon { font-size: 48px; margin-bottom: 16px; }
+.empty-title { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+.empty-sub { font-size: 14px; color: var(--text2); max-width: 400px; margin: 0 auto 24px; line-height: 1.6; }
+.empty-btn {
+  display: inline-block; padding: 10px 20px; background: var(--blue); color: #fff;
+  border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; border: none; cursor: pointer;
+}
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4); transform: translateY(80px); opacity: 0;
+  transition: all 0.3s; pointer-events: none;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-color: var(--green); }
+.toast.error { border-color: var(--red); }
+
+/* Pagination */
+.pagination { display: flex; justify-content: center; gap: 8px; margin: 32px 0; }
+.page-btn {
+  padding: 7px 14px; border-radius: 6px; font-size: 13px;
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text2);
+  cursor: pointer; transition: all 0.15s;
+}
+.page-btn:hover { border-color: var(--blue); color: var(--blue); }
+.page-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@media (max-width: 600px) {
+  .header-inner { padding: 0; }
+  .hero-title { font-size: 22px; }
+  .issues-grid { grid-template-columns: 1fr; }
+  .stats-bar { gap: 12px; }
+  .stat-sep { display: none; }
+  .search-box input { width: 120px; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <a href="/" class="logo">
+      <div class="logo-icon">〜</div>
+      <div>
+        <div class="logo-text">StockRipple</div>
+        <div class="logo-sub">파급효과 주식 전망</div>
+      </div>
+    </a>
+    <nav class="header-nav">
+      <a href="/" class="nav-btn active">피드</a>
+      <a href="/admin/" class="nav-btn">관리</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero" id="heroSection">
+  <h1 class="hero-title">
+    오늘의 이슈가 <span>어떤 주식</span>을 움직이나요?
+  </h1>
+  <p class="hero-sub">뉴스 이슈 → 파급 섹터 분석 → 수혜 기업 발굴 → 상승 가능성 시각화</p>
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-item">
+      <span class="stat-label">분석된 이슈</span>
+      <span class="stat-value blue" id="statIssues">—</span>
+    </div>
+    <div class="stat-sep"></div>
+    <div class="stat-item">
+      <span class="stat-label">발굴 기업</span>
+      <span class="stat-value blue" id="statCompanies">—</span>
+    </div>
+    <div class="stat-sep"></div>
+    <div class="stat-item">
+      <span class="stat-label">평균 예상 상승률</span>
+      <span class="stat-value green" id="statUpside">—</span>
+    </div>
+    <div class="stat-sep"></div>
+    <div class="stat-item">
+      <span class="stat-label">최근 업데이트</span>
+      <span class="stat-value" id="statUpdated" style="font-size:14px;color:var(--text2)">—</span>
+    </div>
+  </div>
+</div>
+
+<main class="main-content">
+  <div class="filters">
+    <span class="filter-label">섹터</span>
+    <button class="filter-chip active" data-sector="all">전체</button>
+    <button class="filter-chip" data-sector="AI">AI</button>
+    <button class="filter-chip" data-sector="반도체">반도체</button>
+    <button class="filter-chip" data-sector="전기차">전기차</button>
+    <button class="filter-chip" data-sector="바이오">바이오</button>
+    <button class="filter-chip" data-sector="에너지">에너지</button>
+    <button class="filter-chip" data-sector="핀테크">핀테크</button>
+    <button class="filter-chip" data-sector="클라우드">클라우드</button>
+    <div class="filter-sep"></div>
+    <div class="search-box">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--text3)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="searchInput" placeholder="기업명 또는 키워드...">
+    </div>
+  </div>
+
+  <div id="issuesContainer">
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p>이슈 불러오는 중...</p>
+    </div>
+  </div>
+
+  <div class="pagination" id="pagination"></div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const PAGE_SIZE = 12;
+let currentPage = 1;
+let currentSector = 'all';
+let searchQuery = '';
+let totalCount = 0;
+
+const sectorColors = {
+  '반도체': 'tag-semi', 'AI': 'tag-ai', '전기차': 'tag-ev', '배터리': 'tag-ev',
+  '바이오': 'tag-bio', '제약': 'tag-bio', '핀테크': 'tag-fin', '금융': 'tag-fin',
+  '클라우드': 'tag-cloud', 'IT': 'tag-cloud', '로봇': 'tag-robot', '자동화': 'tag-robot',
+  '에너지': 'tag-energy', '친환경': 'tag-energy',
+};
+
+function getSectorClass(s) { return sectorColors[s] || 'tag-default'; }
+
+function timeAgo(dateStr) {
+  const d = new Date(dateStr);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}일 전`;
+  return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+}
+
+function formatNum(n) {
+  if (!n) return '—';
+  if (n >= 1e12) return (n / 1e12).toFixed(1) + 'T';
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  return n.toFixed(0);
+}
+
+async function loadStats() {
+  const [issuesRes, companiesRes, upsideRes] = await Promise.all([
+    sb.from('analyses').select('*', { count: 'exact', head: true }),
+    sb.from('companies').select('*', { count: 'exact', head: true }),
+    sb.from('analysis_companies').select('upside_pct'),
+  ]);
+
+  document.getElementById('statIssues').textContent = issuesRes.count ?? 0;
+  document.getElementById('statCompanies').textContent = companiesRes.count ?? 0;
+
+  const ups = (upsideRes.data || []).map(r => r.upside_pct).filter(Boolean);
+  if (ups.length) {
+    const avg = ups.reduce((a, b) => a + b, 0) / ups.length;
+    document.getElementById('statUpside').textContent = `+${avg.toFixed(1)}%`;
+  }
+
+  const { data: latest } = await sb.from('issues')
+    .select('published_at').eq('is_analyzed', true)
+    .order('published_at', { ascending: false }).limit(1);
+  if (latest?.[0]) document.getElementById('statUpdated').textContent = timeAgo(latest[0].published_at);
+}
+
+async function loadIssues() {
+  const container = document.getElementById('issuesContainer');
+  container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>이슈 불러오는 중...</p></div>';
+
+  let query = sb.from('issues')
+    .select(`
+      id, title, summary, source_name, published_at, sectors, is_analyzed,
+      analyses!inner(id, confidence_score, ripple_effects, ai_summary,
+        analysis_companies(upside_pct, ripple_sector,
+          companies(ticker, name_ko, name_en, market)
+        )
+      )
+    `)
+    .eq('is_analyzed', true)
+    .order('published_at', { ascending: false });
+
+  if (currentSector !== 'all') query = query.contains('sectors', [currentSector]);
+  if (searchQuery) query = query.ilike('title', `%${searchQuery}%`);
+
+  const { data, error, count } = await query
+    .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
+
+  if (error) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p class="empty-title">오류 발생</p><p class="empty-sub">${error.message}</p></div>`;
+    return;
+  }
+
+  if (!data?.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📡</div>
+        <p class="empty-title">아직 분석된 이슈가 없습니다</p>
+        <p class="empty-sub">관리자 패널에서 뉴스를 수집하고 AI 분석을 실행해주세요.</p>
+        <a href="/admin/" class="empty-btn">관리자 패널로 이동</a>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="issues-grid">${data.map(renderIssueCard).join('')}</div>`;
+  renderPagination();
+}
+
+function renderIssueCard(issue) {
+  const analysis = issue.analyses?.[0];
+  const companies = analysis?.analysis_companies?.slice(0, 3) || [];
+  const upside = companies.map(c => c.upside_pct).filter(Boolean);
+  const avgUpside = upside.length ? (upside.reduce((a, b) => a + b, 0) / upside.length).toFixed(1) : null;
+  const confidence = analysis?.confidence_score || 0;
+
+  const sectors = (issue.sectors || []).slice(0, 4);
+  const sectorTags = sectors.map(s => `<span class="sector-tag ${getSectorClass(s)}">${s}</span>`).join('');
+
+  const companyRows = companies.map(c => {
+    const co = c.companies;
+    if (!co) return '';
+    const upPct = c.upside_pct;
+    const cls = upPct >= 0 ? 'up' : 'dn';
+    const sign = upPct >= 0 ? '+' : '';
+    return `<div class="mini-company">
+      <span class="mini-ticker">${co.ticker}</span>
+      <span class="mini-name">${co.name_ko || co.name_en || ''}</span>
+      ${upPct != null ? `<span class="mini-upside ${cls}">${sign}${upPct}%</span>` : ''}
+    </div>`;
+  }).join('');
+
+  return `
+    <a href="/analysis.html?id=${issue.id}" class="issue-card">
+      <div class="card-header">
+        <span class="card-source">
+          <span class="source-dot"></span>${issue.source_name || '뉴스'}
+        </span>
+        <span class="card-date">${timeAgo(issue.published_at)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">${escHtml(issue.title)}</div>
+        ${issue.summary ? `<div class="card-summary">${escHtml(issue.summary)}</div>` : ''}
+        <div class="card-sectors">${sectorTags}</div>
+      </div>
+      ${companies.length ? `<div class="card-companies">${companyRows}</div>` : ''}
+      <div class="card-footer">
+        <div class="footer-stat">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="val blue">${companies.length}</span>개 기업
+        </div>
+        ${avgUpside != null ? `<div class="footer-stat"><span class="val green">+${avgUpside}%</span> 평균 예상</div>` : ''}
+        <div class="confidence-bar" title="분석 신뢰도 ${confidence}%">
+          <div class="confidence-fill" style="width:${confidence}%"></div>
+        </div>
+        <span class="view-btn">분석 보기 →</span>
+      </div>
+    </a>`;
+}
+
+function renderPagination() {
+  const pg = document.getElementById('pagination');
+  if (totalCount <= PAGE_SIZE) { pg.innerHTML = ''; return; }
+  const total = Math.ceil(totalCount / PAGE_SIZE);
+  let html = '';
+  html += `<button class="page-btn" onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>← 이전</button>`;
+  for (let i = Math.max(1, currentPage - 2); i <= Math.min(total, currentPage + 2); i++) {
+    html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="changePage(${i})">${i}</button>`;
+  }
+  html += `<button class="page-btn" onclick="changePage(${currentPage + 1})" ${currentPage === total ? 'disabled' : ''}>다음 →</button>`;
+  pg.innerHTML = html;
+}
+
+function changePage(p) {
+  currentPage = p;
+  loadIssues();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  const icons = { success: '✓', error: '✗', info: 'ℹ' };
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+document.querySelectorAll('[data-sector]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-sector]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentSector = btn.dataset.sector;
+    currentPage = 1;
+    loadIssues();
+  });
+});
+
+let searchTimeout;
+document.getElementById('searchInput').addEventListener('input', e => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    searchQuery = e.target.value.trim();
+    currentPage = 1;
+    loadIssues();
+  }, 400);
+});
+
+if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+  document.getElementById('issuesContainer').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">⚙️</div>
+      <p class="empty-title">Supabase 설정 필요</p>
+      <p class="empty-sub">index.html의 SUPABASE_URL과 SUPABASE_ANON_KEY를 설정해주세요.</p>
+    </div>`;
+} else {
+  loadStats();
+  loadIssues();
+}
+</script>
+</body>
+</html>

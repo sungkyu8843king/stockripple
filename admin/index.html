@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 — StockRipple</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+  --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+  --blue: #2f81f7; --green: #3fb950; --red: #f85149; --yellow: #d29922;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
+
+/* Sidebar */
+.sidebar {
+  width: 220px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100;
+}
+.sidebar-logo { padding: 20px 16px; border-bottom: 1px solid var(--border); }
+.sidebar-logo .site-name { font-size: 16px; font-weight: 700; }
+.sidebar-logo .site-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.sidebar-nav { padding: 12px 8px; flex: 1; overflow-y: auto; }
+.nav-section { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; padding: 8px 8px 4px; font-weight: 600; }
+.nav-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px;
+  cursor: pointer; font-size: 13px; color: var(--text2); transition: all 0.15s; margin-bottom: 2px;
+  background: none; border: none; width: 100%; text-align: left;
+}
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active { background: var(--bg3); color: var(--text); }
+.nav-item svg { flex-shrink: 0; }
+.sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); }
+.back-link { font-size: 12px; color: var(--text3); text-decoration: none; display: flex; align-items: center; gap: 6px; }
+.back-link:hover { color: var(--blue); }
+
+/* Main */
+.main { margin-left: 220px; flex: 1; min-height: 100vh; }
+.topbar {
+  background: rgba(13,17,23,0.95); border-bottom: 1px solid var(--border);
+  padding: 0 24px; display: flex; align-items: center; gap: 16px; height: 56px;
+  position: sticky; top: 0; z-index: 50;
+}
+.topbar-title { font-size: 15px; font-weight: 600; }
+.topbar-sub { font-size: 12px; color: var(--text3); }
+.spacer { flex: 1; }
+.btn {
+  padding: 7px 16px; border-radius: 7px; font-size: 13px; font-weight: 600;
+  border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;
+}
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover { background: #388be8; }
+.btn-success { background: #1a4a26; color: var(--green); border: 1px solid #2d7a3a; }
+.btn-success:hover { background: #215930; }
+.btn-warn { background: #3d2e00; color: var(--yellow); border: 1px solid #6d4f00; }
+.btn-warn:hover { background: #4d3a00; }
+.btn-danger { background: #4a1a1a; color: var(--red); border: 1px solid #7a2a2a; }
+.btn-danger:hover { background: #5a2020; }
+.btn-ghost { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--text); border-color: var(--text2); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.content { padding: 24px; }
+
+/* Panel sections */
+.panel-section { display: none; }
+.panel-section.active { display: block; }
+.section-header { margin-bottom: 20px; }
+.section-header h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.section-header p { font-size: 13px; color: var(--text2); }
+
+/* Cards */
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.card-title { font-size: 14px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.card-title svg { color: var(--text3); }
+
+/* Action Row */
+.action-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+.label-row { font-size: 12px; color: var(--text3); }
+
+/* Log Box */
+.log-box {
+  background: #0a0a0a; border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px;
+  color: #a8b5c1; max-height: 200px; overflow-y: auto; line-height: 1.7;
+}
+.log-box .log-ok { color: var(--green); }
+.log-box .log-err { color: var(--red); }
+.log-box .log-info { color: var(--blue); }
+.log-box .log-warn { color: var(--yellow); }
+
+/* Stats grid */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.stat-value { font-size: 28px; font-weight: 700; }
+.stat-value.blue { color: var(--blue); }
+.stat-value.green { color: var(--green); }
+.stat-value.yellow { color: var(--yellow); }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 12px; font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg3); }
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+.badge-green { background: #1a4a26; color: var(--green); }
+.badge-yellow { background: #3d2e00; color: var(--yellow); }
+.badge-red { background: #4a1a1a; color: var(--red); }
+.badge-blue { background: #1f4d8a; color: #79c0ff; }
+.badge-gray { background: var(--bg3); color: var(--text2); }
+.ticker-cell { font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 700; color: var(--blue); }
+.truncate { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-actions { display: flex; gap: 6px; }
+.icon-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.15s; }
+.icon-btn:hover { background: var(--bg3); color: var(--text); }
+.icon-btn.danger:hover { background: #4a1a1a; color: var(--red); }
+
+/* Input */
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; display: block; }
+.form-input {
+  width: 100%; padding: 9px 12px; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text); font-size: 13px; outline: none; font-family: inherit;
+}
+.form-input:focus { border-color: var(--blue); }
+.form-textarea { min-height: 80px; resize: vertical; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4); transform: translateY(80px); opacity: 0;
+  transition: all 0.3s; pointer-events: none; min-width: 240px;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-color: var(--green); }
+.toast.error { border-color: var(--red); }
+
+/* Spinner inline */
+.spin { animation: spin 0.8s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-row { text-align: center; padding: 32px; color: var(--text3); }
+
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="site-name">StockRipple</div>
+    <div class="site-sub">관리자 패널</div>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-section">대시보드</div>
+    <button class="nav-item active" data-panel="dashboard">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      대시보드
+    </button>
+    <div class="nav-section">데이터 관리</div>
+    <button class="nav-item" data-panel="news">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 0-2 2Z"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M4 10h16"/></svg>
+      뉴스 수집
+    </button>
+    <button class="nav-item" data-panel="analyze">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      AI 분석
+    </button>
+    <button class="nav-item" data-panel="issues">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      이슈 목록
+    </button>
+    <button class="nav-item" data-panel="companies">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+      기업 데이터
+    </button>
+    <div class="nav-section">설정</div>
+    <button class="nav-item" data-panel="settings">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      API 키 설정
+    </button>
+  </div>
+  <div class="sidebar-footer">
+    <a href="/" class="back-link">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      사이트 홈으로
+    </a>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topbarTitle">대시보드</div>
+      <div class="topbar-sub" id="topbarSub">StockRipple 관리자</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost" onclick="location.reload()">새로고침</button>
+  </div>
+
+  <div class="content">
+
+    <!-- Dashboard -->
+    <div class="panel-section active" id="panel-dashboard">
+      <div class="stats-grid" id="dashStats">
+        <div class="stat-card"><div class="stat-label">총 이슈</div><div class="stat-value blue" id="ds-issues">—</div></div>
+        <div class="stat-card"><div class="stat-label">분석 완료</div><div class="stat-value green" id="ds-analyzed">—</div></div>
+        <div class="stat-card"><div class="stat-label">미분석</div><div class="stat-value yellow" id="ds-pending">—</div></div>
+        <div class="stat-card"><div class="stat-label">등록 기업</div><div class="stat-value blue" id="ds-companies">—</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">빠른 작업</div>
+        <div class="action-row">
+          <button class="btn btn-success" onclick="runFetchNews()">뉴스 수집 실행</button>
+          <button class="btn btn-primary" onclick="runAnalyze(null, 5)">미분석 AI 분석 (최대 5건)</button>
+          <button class="btn btn-ghost" onclick="showPanel('issues')">이슈 목록 보기</button>
+        </div>
+        <div id="quickLog" class="log-box" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- News -->
+    <div class="panel-section" id="panel-news">
+      <div class="section-header">
+        <h2>뉴스 수집</h2>
+        <p>NewsAPI를 통해 최신 이슈를 자동으로 수집합니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">수집 실행</div>
+        <div class="action-row">
+          <button class="btn btn-success" onclick="runFetchNews()">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.61"/></svg>
+            뉴스 수집 실행
+          </button>
+        </div>
+        <div class="log-box" id="newsLog">대기 중...</div>
+      </div>
+    </div>
+
+    <!-- Analyze -->
+    <div class="panel-section" id="panel-analyze">
+      <div class="section-header">
+        <h2>AI 분석</h2>
+        <p>Claude AI로 이슈의 파급효과와 수혜 기업을 분석합니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">일괄 분석</div>
+        <div class="action-row">
+          <button class="btn btn-primary" onclick="runAnalyze(null, 3)">미분석 3건 분석</button>
+          <button class="btn btn-primary" onclick="runAnalyze(null, 10)">미분석 10건 분석</button>
+        </div>
+        <div class="log-box" id="analyzeLog">대기 중...</div>
+      </div>
+      <div class="card">
+        <div class="card-title">개별 이슈 분석</div>
+        <div class="form-group">
+          <label class="form-label">이슈 ID</label>
+          <input type="text" id="singleIssueId" class="form-input" placeholder="이슈 UUID를 입력하세요">
+        </div>
+        <button class="btn btn-primary" onclick="runAnalyzeSingle()">이 이슈 분석</button>
+      </div>
+    </div>
+
+    <!-- Issues -->
+    <div class="panel-section" id="panel-issues">
+      <div class="section-header">
+        <h2>이슈 목록</h2>
+        <p>수집된 모든 뉴스 이슈를 관리합니다.</p>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:44%">제목</th>
+                <th>출처</th>
+                <th>섹터</th>
+                <th>상태</th>
+                <th>날짜</th>
+                <th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="issuesTable"><tr><td colspan="6" class="loading-row">불러오는 중...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Companies -->
+    <div class="panel-section" id="panel-companies">
+      <div class="section-header">
+        <h2>기업 데이터</h2>
+        <p>AI 분석으로 발굴된 기업 목록입니다.</p>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>티커</th>
+                <th>기업명</th>
+                <th>시장</th>
+                <th>현재가</th>
+                <th>시총</th>
+                <th>업데이트</th>
+                <th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="companiesTable"><tr><td colspan="7" class="loading-row">불러오는 중...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="panel-section" id="panel-settings">
+      <div class="section-header">
+        <h2>API 키 설정</h2>
+        <p>Vercel 환경변수에 아래 키를 설정해야 서비스가 작동합니다.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">필수 환경변수</div>
+        <table>
+          <thead><tr><th>키 이름</th><th>설명</th><th>발급처</th><th>상태</th></tr></thead>
+          <tbody>
+            <tr><td><code style="color:var(--blue);font-size:12px">SUPABASE_URL</code></td><td>Supabase 프로젝트 URL</td><td>Supabase 대시보드</td><td><span class="badge badge-green">필수</span></td></tr>
+            <tr><td><code style="color:var(--blue);font-size:12px">SUPABASE_SERVICE_KEY</code></td><td>Supabase Service Role Key</td><td>Supabase → Settings → API</td><td><span class="badge badge-green">필수</span></td></tr>
+            <tr><td><code style="color:var(--blue);font-size:12px">ANTHROPIC_API_KEY</code></td><td>Claude AI API 키</td><td>console.anthropic.com</td><td><span class="badge badge-green">필수</span></td></tr>
+            <tr><td><code style="color:var(--blue);font-size:12px">NEWS_API_KEY</code></td><td>NewsAPI.org API 키</td><td>newsapi.org</td><td><span class="badge badge-green">필수</span></td></tr>
+            <tr><td><code style="color:var(--blue);font-size:12px">ADMIN_SECRET</code></td><td>관리자 인증 토큰</td><td>직접 생성 (무작위 문자열)</td><td><span class="badge badge-green">필수</span></td></tr>
+            <tr><td><code style="color:var(--blue);font-size:12px">CRON_SECRET</code></td><td>Vercel 크론 인증 토큰</td><td>직접 생성</td><td><span class="badge badge-blue">크론 사용시</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">관리자 시크릿 설정</div>
+        <div class="form-group">
+          <label class="form-label">ADMIN_SECRET (이 페이지에서 API 호출 시 필요)</label>
+          <input type="password" id="adminSecretInput" class="form-input" placeholder="Vercel에 설정한 ADMIN_SECRET 값 입력">
+        </div>
+        <button class="btn btn-ghost" onclick="saveAdminSecret()">저장 (로컬 브라우저)</button>
+        <p style="font-size:11px;color:var(--text3);margin-top:8px">브라우저 localStorage에만 저장되며 서버로 전송되지 않습니다.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', settings: 'API 키 설정' };
+
+function showPanel(name) {
+  document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById(`panel-${name}`)?.classList.add('active');
+  document.querySelector(`[data-panel="${name}"]`)?.classList.add('active');
+  document.getElementById('topbarTitle').textContent = panels[name] || name;
+
+  if (name === 'dashboard') loadDashStats();
+  if (name === 'issues') loadIssuesTable();
+  if (name === 'companies') loadCompaniesTable();
+}
+
+document.querySelectorAll('[data-panel]').forEach(btn => {
+  btn.addEventListener('click', () => showPanel(btn.dataset.panel));
+});
+
+function getAdminSecret() { return localStorage.getItem('sr_admin_secret') || ''; }
+function saveAdminSecret() {
+  const val = document.getElementById('adminSecretInput').value.trim();
+  localStorage.setItem('sr_admin_secret', val);
+  showToast('저장되었습니다', 'success');
+}
+
+function log(elId, msg, type = '') {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.style.display = 'block';
+  const cls = { ok: 'log-ok', err: 'log-err', info: 'log-info', warn: 'log-warn' }[type] || '';
+  el.innerHTML += `<div class="${cls}">${new Date().toLocaleTimeString('ko-KR')} ${escHtml(msg)}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function callApi(path, body, logId) {
+  const secret = getAdminSecret();
+  if (!secret) { showToast('ADMIN_SECRET을 설정 탭에서 먼저 설정해주세요', 'error'); return null; }
+
+  log(logId, `POST ${path} ...`, 'info');
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${secret}` },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json();
+    if (!res.ok) { log(logId, `오류: ${data.error || res.status}`, 'err'); return null; }
+    return data;
+  } catch(e) { log(logId, `네트워크 오류: ${e.message}`, 'err'); return null; }
+}
+
+async function runFetchNews(logId = 'newsLog') {
+  const el = document.getElementById(logId);
+  if (el) el.innerHTML = '';
+  log(logId, '뉴스 수집 시작...', 'info');
+
+  const data = await callApi('/api/fetch-news', {}, logId);
+  if (!data) return;
+
+  log(logId, `수집: ${data.fetched}건, 저장: ${data.saved}건`, 'ok');
+  if (data.errors?.length) data.errors.forEach(e => log(logId, e, 'warn'));
+  showToast(`뉴스 ${data.saved}건 저장`, 'success');
+}
+
+async function runAnalyze(issueId = null, limit = 3, logId = 'analyzeLog') {
+  const el = document.getElementById(logId);
+  if (el) el.innerHTML = '';
+  log(logId, `분석 시작 (최대 ${limit}건)...`, 'info');
+
+  const body = issueId ? { issue_id: issueId } : { limit };
+  const data = await callApi('/api/analyze', body, logId);
+  if (!data) return;
+
+  log(logId, `분석 완료: ${data.analyzed}건`, 'ok');
+  if (data.errors?.length) data.errors.forEach(e => log(logId, e, 'warn'));
+  showToast(`${data.analyzed}건 분석 완료`, 'success');
+}
+
+async function runAnalyzeSingle() {
+  const id = document.getElementById('singleIssueId').value.trim();
+  if (!id) { showToast('이슈 ID를 입력하세요', 'error'); return; }
+  await runAnalyze(id, 1, 'analyzeLog');
+}
+
+async function loadDashStats() {
+  const [i, a, c] = await Promise.all([
+    sb.from('issues').select('*', { count: 'exact', head: true }),
+    sb.from('issues').select('*', { count: 'exact', head: true }).eq('is_analyzed', true),
+    sb.from('companies').select('*', { count: 'exact', head: true }),
+  ]);
+  document.getElementById('ds-issues').textContent = i.count ?? '—';
+  document.getElementById('ds-analyzed').textContent = a.count ?? '—';
+  document.getElementById('ds-pending').textContent = ((i.count ?? 0) - (a.count ?? 0));
+  document.getElementById('ds-companies').textContent = c.count ?? '—';
+}
+
+async function loadIssuesTable() {
+  const tbody = document.getElementById('issuesTable');
+  const { data, error } = await sb.from('issues').select('id,title,source_name,sectors,is_analyzed,published_at').order('published_at', { ascending: false }).limit(50);
+  if (error || !data?.length) { tbody.innerHTML = `<tr><td colspan="6" class="loading-row">${error?.message || '데이터 없음'}</td></tr>`; return; }
+
+  tbody.innerHTML = data.map(r => `
+    <tr>
+      <td><div class="truncate" title="${escHtml(r.title)}">${escHtml(r.title)}</div></td>
+      <td style="color:var(--text2);font-size:12px">${escHtml(r.source_name || '—')}</td>
+      <td style="font-size:11px;color:var(--text3)">${(r.sectors||[]).slice(0,2).join(', ')}</td>
+      <td>${r.is_analyzed ? '<span class="badge badge-green">완료</span>' : '<span class="badge badge-yellow">대기</span>'}</td>
+      <td style="font-size:11px;color:var(--text3);white-space:nowrap">${r.published_at ? new Date(r.published_at).toLocaleDateString('ko-KR') : '—'}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" onclick="location.href='/analysis.html?id=${r.id}'" title="분석 보기">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        ${!r.is_analyzed ? `<button class="icon-btn" onclick="analyzeAndRefresh('${r.id}')" title="분석 실행">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </button>` : ''}
+        <button class="icon-btn danger" onclick="deleteIssue('${r.id}')" title="삭제">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div></td>
+    </tr>`).join('');
+}
+
+async function analyzeAndRefresh(id) {
+  showToast('분석 시작...', 'info');
+  await runAnalyze(id, 1, 'quickLog');
+  await loadIssuesTable();
+}
+
+async function deleteIssue(id) {
+  if (!confirm('이 이슈를 삭제할까요?')) return;
+  const { error } = await sb.from('issues').delete().eq('id', id);
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast('삭제되었습니다', 'success');
+  loadIssuesTable();
+}
+
+async function loadCompaniesTable() {
+  const tbody = document.getElementById('companiesTable');
+  const { data, error } = await sb.from('companies').select('*').order('created_at', { ascending: false }).limit(100);
+  if (error || !data?.length) { tbody.innerHTML = `<tr><td colspan="7" class="loading-row">${error?.message || '데이터 없음'}</td></tr>`; return; }
+
+  tbody.innerHTML = data.map(c => {
+    const fmtPrice = c.current_price ? `${c.currency === 'KRW' ? '₩' : '$'}${Number(c.current_price).toLocaleString()}` : '—';
+    const fmtMc = c.market_cap ? (c.market_cap >= 1e12 ? `$${(c.market_cap/1e12).toFixed(1)}T` : c.market_cap >= 1e9 ? `$${(c.market_cap/1e9).toFixed(1)}B` : `$${(c.market_cap/1e6).toFixed(0)}M`) : '—';
+    const updated = c.price_updated_at ? new Date(c.price_updated_at).toLocaleDateString('ko-KR') : '—';
+    return `<tr>
+      <td class="ticker-cell">${escHtml(c.ticker)}</td>
+      <td>${escHtml(c.name_ko || c.name_en || '—')}</td>
+      <td><span class="badge ${c.market === 'KR' ? 'badge-blue' : 'badge-gray'}">${c.market || '—'}</span></td>
+      <td style="color:var(--text2)">${fmtPrice}</td>
+      <td style="color:var(--text2)">${fmtMc}</td>
+      <td style="font-size:11px;color:var(--text3)">${updated}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" onclick="refreshPrice('${escHtml(c.ticker)}')" title="주가 갱신">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.61"/></svg>
+        </button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+async function refreshPrice(ticker) {
+  showToast(`${ticker} 주가 갱신 중...`, 'info');
+  try {
+    const res = await fetch(`/api/stock-price?ticker=${encodeURIComponent(ticker)}`);
+    const data = await res.json();
+    if (data.price) {
+      showToast(`${ticker}: $${data.price}`, 'success');
+      setTimeout(loadCompaniesTable, 1000);
+    }
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  const icons = { success: '✓', error: '✗', info: 'ℹ', warn: '⚠' };
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span>${icons[type] || ''}</span><span>${escHtml(msg)}</span>`;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadDashStats();
+
+const savedSecret = localStorage.getItem('sr_admin_secret');
+if (savedSecret) document.getElementById('adminSecretInput').value = savedSecret;
+</script>
+</body>
+</html>
