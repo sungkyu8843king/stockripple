@@ -8,16 +8,23 @@ const supabase = createClient(
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 
 const QUERIES = [
-  { q: 'semiconductor AI chip technology', sectors: ['반도체', 'AI'] },
-  { q: 'electric vehicle battery EV', sectors: ['전기차', '배터리'] },
-  { q: 'renewable energy solar wind', sectors: ['에너지', '친환경'] },
-  { q: 'pharmaceutical biotech drug', sectors: ['바이오', '제약'] },
-  { q: 'fintech banking cryptocurrency', sectors: ['핀테크', '금융'] },
-  { q: 'cloud computing software SaaS', sectors: ['클라우드', 'IT'] },
-  { q: 'robotics automation manufacturing', sectors: ['로봇', '자동화'] },
-  { q: 'supply chain logistics shipping', sectors: ['물류', '공급망'] },
-  { q: '반도체 AI 인공지능', sectors: ['반도체', 'AI'] },
-  { q: '전기차 배터리 2차전지', sectors: ['전기차', '배터리'] },
+  // 시장 지배 테마
+  { q: 'Trump tariff trade policy executive order sanctions', sectors: ['정치·외교', '무역', '관세'] },
+  { q: 'Federal Reserve interest rate inflation monetary policy', sectors: ['경제지표', '금리', '연준'] },
+  { q: 'earnings revenue profit quarterly results beat miss', sectors: ['실적발표', '주식'] },
+  // 섹터별
+  { q: 'semiconductor AI chip NVDA AMD Intel TSMC', sectors: ['반도체', 'AI'] },
+  { q: 'electric vehicle battery EV Tesla BYD', sectors: ['전기차', '배터리'] },
+  { q: 'pharmaceutical biotech drug FDA approval', sectors: ['바이오', '제약'] },
+  { q: 'cloud computing software Microsoft Google Amazon', sectors: ['클라우드', 'IT'] },
+  { q: 'fintech banking cryptocurrency Bitcoin Ethereum', sectors: ['핀테크', '금융'] },
+  { q: 'renewable energy solar wind climate', sectors: ['에너지', '친환경'] },
+  { q: 'supply chain logistics shipping freight', sectors: ['물류', '공급망'] },
+  // 한국어
+  { q: '트럼프 관세 무역 외교 제재', sectors: ['정치·외교', '무역', '관세'] },
+  { q: '금리 인플레이션 CPI 연준 한국은행', sectors: ['경제지표', '금리'] },
+  { q: '반도체 AI 인공지능 삼성 SK하이닉스', sectors: ['반도체', 'AI'] },
+  { q: '실적 어닝 매출 영업이익 주가', sectors: ['실적발표', '주식'] },
 ];
 
 export default async function handler(req, res) {

@@ -7,12 +7,19 @@ const supabase = createClient(
 
 // 국내외 금융 RSS 피드 목록
 const RSS_FEEDS = [
-  { url: 'https://www.hankyung.com/feed/stock',          name: '한국경제',     sector: '증권' },
-  { url: 'https://www.hankyung.com/feed/finance',        name: '한국경제',     sector: '금융' },
-  { url: 'https://www.edaily.co.kr/rss/rss.asp?sitetype=stock', name: '이데일리', sector: '증권' },
-  { url: 'https://rss.etnews.com/Section901.xml',        name: 'ETNews',      sector: 'IT·반도체' },
-  { url: 'https://feeds.feedburner.com/businessinsider', name: 'Business Insider', sector: '글로벌' },
-  { url: 'https://feeds.reuters.com/reuters/businessNews', name: 'Reuters',   sector: '글로벌' },
+  // 국내
+  { url: 'https://www.hankyung.com/feed/stock',                name: '한국경제',     sectors: ['증권', '주식'] },
+  { url: 'https://www.hankyung.com/feed/finance',              name: '한국경제',     sectors: ['금융', '경제'] },
+  { url: 'https://www.edaily.co.kr/rss/rss.asp?sitetype=stock',name: '이데일리',     sectors: ['증권', '주식'] },
+  { url: 'https://rss.etnews.com/Section901.xml',              name: 'ETNews',       sectors: ['IT', '반도체'] },
+  // 해외
+  { url: 'https://feeds.reuters.com/reuters/businessNews',     name: 'Reuters',      sectors: ['글로벌', '경제'] },
+  { url: 'https://feeds.reuters.com/reuters/technologyNews',   name: 'Reuters Tech', sectors: ['IT', '기술'] },
+  { url: 'https://feeds.marketwatch.com/marketwatch/topstories/', name: 'MarketWatch', sectors: ['주식', '글로벌'] },
+  { url: 'https://www.investing.com/rss/news_1.rss',           name: 'Investing.com',sectors: ['글로벌', '경제'] },
+  { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', name: 'CNBC Markets', sectors: ['글로벌', '주식'] },
+  // 트럼프 Truth Social (정치·외교 이슈)
+  { url: 'https://truthsocial.com/@realDonaldTrump.rss',       name: 'Truth Social', sectors: ['정치·외교', '트럼프'], isTrump: true },
 ];
 
 export default async function handler(req, res) {
@@ -30,23 +37,32 @@ export default async function handler(req, res) {
       for (const item of items) {
         if (!item.title || !item.link) continue;
 
+        // 트럼프 글: 24시간 이내만 저장
+        if (feed.isTrump && item.pubDate) {
+          const age = Date.now() - new Date(item.pubDate).getTime();
+          if (age > 24 * 3600 * 1000) continue;
+        }
+
         // 중복 체크
         const { data: exists } = await supabase
-          .from('issues')
-          .select('id')
-          .eq('source_url', item.link)
-          .single();
+          .from('issues').select('id').eq('source_url', item.link).maybeSingle();
         if (exists) continue;
 
         results.fetched++;
 
+        const cleanText = (s) => s ? s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : null;
+        const title = feed.isTrump
+          ? `[트럼프] ${cleanText(item.description || item.title)?.slice(0, 120) || item.title.slice(0, 120)}`
+          : item.title.slice(0, 300);
+
         const { error } = await supabase.from('issues').insert({
-          title: item.title.slice(0, 300),
-          summary: item.description?.replace(/<[^>]+>/g, '').slice(0, 500) || null,
+          title,
+          summary: cleanText(item.description)?.slice(0, 800) || null,
           source_url: item.link,
           source_name: feed.name,
           published_at: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
-          sectors: [feed.sector],
+          sectors: feed.sectors || [feed.sector || '글로벌'],
+          tags: feed.isTrump ? ['Trump', '트럼프', 'TruthSocial'] : [],
           is_analyzed: false,
         });
 
