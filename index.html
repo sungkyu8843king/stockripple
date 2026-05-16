@@ -1659,38 +1659,40 @@ async function loadEconomicCalendar() {
       groups.get(lbl).push(item);
     });
 
+    const nowMs = Date.now();
+
     let html = '';
     let total = 0;
     for (const [label, items] of groups) {
       if (total >= 15) break;
+      // 섹션 내 미래 이벤트가 하나라도 있으면 표시 (순 과거 섹션은 스킵)
+      const hasFuture = items.some(it => new Date(it.date).getTime() > nowMs - 3600000);
+      if (!hasFuture) continue;
       html += `<div class="eco-section-label">${label}</div>`;
       for (const item of items) {
         if (total >= 15) break;
         const result = beatMiss(item);
         const flag   = countryFlag[item.country] || item.country;
-        const isPast = item.actual != null;
-        const isAlreadyPast = !isPast && item.date && new Date(item.date) < new Date();
-        html += `<div class="eco-item${isPast ? ' eco-item-done' : ''}">
+        const hasActual = item.actual != null;
+        const isPastTime = new Date(item.date).getTime() < nowMs;
+        html += `<div class="eco-item${hasActual ? ' eco-item-done' : ''}">
           <div class="eco-header">
             <div class="eco-dot-${item.impact === 'High' ? 'high' : 'medium'}"></div>
             <span class="eco-title">${escHtml(item.titleKo || item.title)}</span>
             <span class="eco-flag">${flag}</span>
           </div>
           <div class="eco-time">${fmtTime(item.date)} KST</div>
-          ${isPast
-            ? `<div class="eco-result-row">
-                <span class="eco-actual ${result}">결과 ${escHtml(item.actual)}${result === 'beat' ? ' ▲' : result === 'miss' ? ' ▼' : ''}</span>
-               </div>
-               <div class="eco-meta-row">
-                 ${item.forecast ? `<span>예상 ${escHtml(item.forecast)}</span>` : ''}
-                 ${item.previous ? `<span>이전 ${escHtml(item.previous)}</span>` : ''}
-               </div>`
-            : `<div class="eco-values">
-                 ${isAlreadyPast ? `<span style="color:var(--text3);font-size:10px">미집계</span>` : ''}
-                 ${item.forecast ? `<span class="eco-actual pending">예상 ${escHtml(item.forecast)}</span>` : ''}
-                 ${item.previous ? `<span class="eco-prev">이전 ${escHtml(item.previous)}</span>` : ''}
-               </div>`
-          }
+          <div class="eco-values">
+            ${hasActual
+              ? `<span class="eco-actual ${result}">결과 ${escHtml(item.actual)}${result === 'beat' ? ' ▲' : result === 'miss' ? ' ▼' : ''}</span>
+                 ${item.forecast ? `<span class="eco-prev">예상 ${escHtml(item.forecast)}</span>` : ''}`
+              : isPastTime
+                ? `<span style="color:var(--text3);font-size:11px">발표 집계 대기</span>
+                   ${item.forecast ? `<span class="eco-prev">예상 ${escHtml(item.forecast)}</span>` : ''}`
+                : `${item.forecast ? `<span class="eco-actual pending">예상 ${escHtml(item.forecast)}</span>` : ''}
+                   ${item.previous ? `<span class="eco-prev">이전 ${escHtml(item.previous)}</span>` : ''}`
+            }
+          </div>
         </div>`;
         total++;
       }
@@ -1872,7 +1874,7 @@ function renderEcoCalTable(items) {
       const actualHtml = item.actual
         ? `<span class="${bm === 'beat' ? 'cal-beat' : bm === 'miss' ? 'cal-miss' : 'cal-meet'}">${escHtml(item.actual)}</span>${bm === 'beat' ? ' ▲상회' : bm === 'miss' ? ' ▼하회' : ' =부합'}`
         : isPastEvent
-          ? '<span style="color:var(--text3)">미집계</span>'
+          ? '<span style="color:var(--text3);font-size:11px">집계 대기</span>'
           : '<span class="cal-pend">예정</span>';
       const impHtml = item.impact === 'High'
         ? '<span class="cal-hi">●고</span>'
