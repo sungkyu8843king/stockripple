@@ -330,6 +330,12 @@ tr:hover td { background: var(--bg3); }
         <h2>기업 데이터</h2>
         <p>AI 분석으로 발굴된 기업 목록입니다.</p>
       </div>
+      <div class="action-row">
+        <button class="btn btn-ghost" onclick="refreshAllPrices()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.61"/></svg>
+          전체 주가 갱신
+        </button>
+      </div>
       <div class="card" style="padding:0;overflow:hidden">
         <div class="table-wrap">
           <table>
@@ -540,7 +546,7 @@ async function deleteIssue(id) {
   loadIssuesTable();
 }
 
-async function loadCompaniesTable() {
+async function loadCompaniesTable(autoFetch = true) {
   const tbody = document.getElementById('companiesTable');
   const { data, error } = await sb.from('companies').select('*').order('created_at', { ascending: false }).limit(100);
   if (error || !data?.length) { tbody.innerHTML = `<tr><td colspan="7" class="loading-row">${error?.message || '데이터 없음'}</td></tr>`; return; }
@@ -549,11 +555,11 @@ async function loadCompaniesTable() {
     const fmtPrice = c.current_price ? `${c.currency === 'KRW' ? '₩' : '$'}${Number(c.current_price).toLocaleString()}` : '—';
     const fmtMc = c.market_cap ? (c.market_cap >= 1e12 ? `$${(c.market_cap/1e12).toFixed(1)}T` : c.market_cap >= 1e9 ? `$${(c.market_cap/1e9).toFixed(1)}B` : `$${(c.market_cap/1e6).toFixed(0)}M`) : '—';
     const updated = c.price_updated_at ? new Date(c.price_updated_at).toLocaleDateString('ko-KR') : '—';
-    return `<tr>
+    return `<tr id="tr-${escHtml(c.ticker)}">
       <td class="ticker-cell">${escHtml(c.ticker)}</td>
       <td>${escHtml(c.name_ko || c.name_en || '—')}</td>
       <td><span class="badge ${c.market === 'KR' ? 'badge-blue' : 'badge-gray'}">${c.market || '—'}</span></td>
-      <td style="color:var(--text2)">${fmtPrice}</td>
+      <td id="price-${escHtml(c.ticker)}" style="color:var(--text2)">${fmtPrice}</td>
       <td style="color:var(--text2)">${fmtMc}</td>
       <td style="font-size:11px;color:var(--text3)">${updated}</td>
       <td><div class="row-actions">
@@ -563,18 +569,40 @@ async function loadCompaniesTable() {
       </div></td>
     </tr>`;
   }).join('');
+
+  // 가격 없는 기업 자동 조회 (순차, 0.5초 간격)
+  if (autoFetch) {
+    const noPrice = data.filter(c => !c.current_price);
+    for (const c of noPrice) {
+      await refreshPrice(c.ticker, true);
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
 }
 
-async function refreshPrice(ticker) {
-  showToast(`${ticker} 주가 갱신 중...`, 'info');
+async function refreshAllPrices() {
+  const { data } = await sb.from('companies').select('ticker').limit(100);
+  if (!data?.length) return;
+  showToast(`${data.length}개 주가 갱신 시작...`, 'info');
+  for (const c of data) {
+    await refreshPrice(c.ticker, true);
+    await new Promise(r => setTimeout(r, 400));
+  }
+  showToast('전체 갱신 완료', 'success');
+  loadCompaniesTable(false);
+}
+
+async function refreshPrice(ticker, silent = false) {
+  if (!silent) showToast(`${ticker} 갱신 중...`, 'info');
   try {
     const res = await fetch(`/api/stock-price?ticker=${encodeURIComponent(ticker)}`);
     const data = await res.json();
     if (data.price) {
-      showToast(`${ticker}: $${data.price}`, 'success');
-      setTimeout(loadCompaniesTable, 1000);
+      const cell = document.getElementById(`price-${ticker}`);
+      if (cell) cell.textContent = `${data.currency === 'KRW' ? '₩' : '$'}${Number(data.price).toLocaleString()}`;
+      if (!silent) showToast(`${ticker}: ${data.price}`, 'success');
     }
-  } catch(e) { showToast(e.message, 'error'); }
+  } catch(e) { if (!silent) showToast(e.message, 'error'); }
 }
 
 function showToast(msg, type = 'info') {
