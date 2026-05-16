@@ -1128,37 +1128,37 @@ function fmtIdx(val, fmt) {
   return Number(val).toLocaleString('ko-KR', {maximumFractionDigits: 2});
 }
 
-async function fetchIndex(ticker) {
-  try {
-    const r = await fetch(`/api/stock-price?ticker=${ticker}`);
-    if (!r.ok) return null;
-    return await r.json();
-  } catch { return null; }
-}
-
 async function loadIndices() {
-  const results = await Promise.allSettled(INDICES.map(idx => fetchIndex(idx.ticker)));
-  results.forEach((res, i) => {
-    const idx = INDICES[i];
-    if (res.status !== 'fulfilled' || !res.value?.price) return;
-    const { price, changePercent } = res.value;
-    const chgClass = changePercent > 0 ? 'up' : changePercent < 0 ? 'dn' : 'flat';
-    const chgSign = changePercent > 0 ? '+' : '';
-    const chgStr = changePercent != null ? `${chgSign}${changePercent.toFixed(2)}%` : '—';
-    const priceStr = fmtIdx(price, idx.fmt);
+  try {
+    const r = await fetch('/api/indices');
+    if (!r.ok) throw new Error('indices API failed');
+    const { data } = await r.json();
+    if (!data) return;
 
-    // ticker bar
-    const tkPrice = document.getElementById(`tk-${idx.id}`);
-    const tkChg = document.getElementById(`tk-${idx.id}-chg`);
-    if (tkPrice) tkPrice.textContent = priceStr;
-    if (tkChg) { tkChg.textContent = chgStr; tkChg.className = `ticker-chg ${chgClass}`; }
+    INDICES.forEach(idx => {
+      const d = data[idx.id];
+      if (!d?.price) return;
+      const { price, changePercent } = d;
+      const chgClass = changePercent > 0 ? 'up' : changePercent < 0 ? 'dn' : 'flat';
+      const chgSign = changePercent > 0 ? '+' : '';
+      const chgStr = changePercent != null ? `${chgSign}${changePercent.toFixed(2)}%` : '—';
+      const priceStr = fmtIdx(price, idx.fmt);
 
-    // sidebar
-    const siVal = document.getElementById(`si-${idx.id}`);
-    const siChg = document.getElementById(`si-${idx.id}-chg`);
-    if (siVal) { siVal.textContent = priceStr; siVal.className = `index-val ${chgClass}`; }
-    if (siChg) { siChg.textContent = chgStr; siChg.className = `index-chg ${chgClass}`; }
-  });
+      // ticker bar
+      const tkPrice = document.getElementById(`tk-${idx.id}`);
+      const tkChg = document.getElementById(`tk-${idx.id}-chg`);
+      if (tkPrice) tkPrice.textContent = priceStr;
+      if (tkChg) { tkChg.textContent = chgStr; tkChg.className = `ticker-chg ${chgClass}`; }
+
+      // sidebar
+      const siVal = document.getElementById(`si-${idx.id}`);
+      const siChg = document.getElementById(`si-${idx.id}-chg`);
+      if (siVal) { siVal.textContent = priceStr; siVal.className = `index-val ${chgClass}`; }
+      if (siChg) { siChg.textContent = chgStr; siChg.className = `index-chg ${chgClass}`; }
+    });
+  } catch (e) {
+    console.warn('loadIndices error:', e.message);
+  }
 
   // ticker bar duplicate for seamless loop
   const track = document.getElementById('tickerTrack');
