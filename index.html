@@ -402,6 +402,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
 .index-name { font-size: 13px; color: var(--text2); }
+.idx-clickable { cursor: pointer; transition: color .15s; }
+.idx-clickable:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
 .index-val { font-size: 13px; font-weight: 700; font-family: 'SF Mono', monospace; }
 .index-chg { font-size: 11px; font-weight: 600; }
 .index-chg.up { color: var(--green); }
@@ -687,16 +689,16 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         <span style="font-size:11px;color:var(--text3)" id="indicesUpdatedAt">—</span>
       </div>
       <div class="sidebar-card-body" id="sidebarIndices">
-        <div class="index-row"><span class="index-name">S&amp;P 500</span><span class="index-val" id="si-sp500">—</span><span class="index-chg flat" id="si-sp500-chg">—</span></div>
-        <div class="index-row"><span class="index-name">NASDAQ</span><span class="index-val" id="si-nasdaq">—</span><span class="index-chg flat" id="si-nasdaq-chg">—</span></div>
-        <div class="index-row"><span class="index-name">DOW</span><span class="index-val" id="si-dow">—</span><span class="index-chg flat" id="si-dow-chg">—</span></div>
-        <div class="index-row"><span class="index-name">KOSPI</span><span class="index-val" id="si-kospi">—</span><span class="index-chg flat" id="si-kospi-chg">—</span></div>
-        <div class="index-row"><span class="index-name">KOSDAQ</span><span class="index-val" id="si-kosdaq">—</span><span class="index-chg flat" id="si-kosdaq-chg">—</span></div>
-        <div class="index-row"><span class="index-name">비트코인</span><span class="index-val" id="si-btc">—</span><span class="index-chg flat" id="si-btc-chg">—</span></div>
-        <div class="index-row"><span class="index-name">금 (GC)</span><span class="index-val" id="si-gold">—</span><span class="index-chg flat" id="si-gold-chg">—</span></div>
-        <div class="index-row"><span class="index-name">WTI 원유</span><span class="index-val" id="si-oil">—</span><span class="index-chg flat" id="si-oil-chg">—</span></div>
-        <div class="index-row"><span class="index-name">USD/KRW</span><span class="index-val" id="si-usdkrw">—</span><span class="index-chg flat" id="si-usdkrw-chg">—</span></div>
-        <div class="index-row"><span class="index-name">VIX (공포지수)</span><span class="index-val" id="si-vix">—</span><span class="index-chg flat" id="si-vix-chg">—</span></div>
+        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('sp500')">S&amp;P 500</span><span class="index-val" id="si-sp500">—</span><span class="index-chg flat" id="si-sp500-chg">—</span></div>
+        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('nasdaq')">NASDAQ</span><span class="index-val" id="si-nasdaq">—</span><span class="index-chg flat" id="si-nasdaq-chg">—</span></div>
+        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('dow')">DOW</span><span class="index-val" id="si-dow">—</span><span class="index-chg flat" id="si-dow-chg">—</span></div>
+        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('kospi')">KOSPI</span><span class="index-val" id="si-kospi">—</span><span class="index-chg flat" id="si-kospi-chg">—</span></div>
+        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('kosdaq')">KOSDAQ</span><span class="index-val" id="si-kosdaq">—</span><span class="index-chg flat" id="si-kosdaq-chg">—</span></div>
+        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('btc')">비트코인</span><span class="index-val" id="si-btc">—</span><span class="index-chg flat" id="si-btc-chg">—</span></div>
+        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('gold')">금 (GC)</span><span class="index-val" id="si-gold">—</span><span class="index-chg flat" id="si-gold-chg">—</span></div>
+        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('oil')">WTI 원유</span><span class="index-val" id="si-oil">—</span><span class="index-chg flat" id="si-oil-chg">—</span></div>
+        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('usdkrw')">USD/KRW</span><span class="index-val" id="si-usdkrw">—</span><span class="index-chg flat" id="si-usdkrw-chg">—</span></div>
+        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('vix')">VIX (공포지수)</span><span class="index-val" id="si-vix">—</span><span class="index-chg flat" id="si-vix-chg">—</span></div>
       </div>
     </div>
 
@@ -1271,17 +1273,18 @@ document.querySelectorAll('.cat-tab').forEach(btn => {
 
 /* ── Indices ── */
 const INDICES = [
-  { id: 'sp500',  ticker: '%5EGSPC',  name: 'S&P 500',    fmt: 'n' },
-  { id: 'nasdaq', ticker: '%5EIXIC',  name: 'NASDAQ',     fmt: 'n' },
-  { id: 'dow',    ticker: '%5EDJI',   name: 'DOW',        fmt: 'n' },
-  { id: 'kospi',  ticker: '%5EKS11',  name: 'KOSPI',      fmt: 'n' },
-  { id: 'kosdaq', ticker: '%5EKQ11',  name: 'KOSDAQ',     fmt: 'n' },
-  { id: 'btc',    ticker: 'BTC-USD',  name: '비트코인',    fmt: '$' },
-  { id: 'gold',   ticker: 'GC%3DF',   name: '금',         fmt: '$' },
-  { id: 'oil',    ticker: 'CL%3DF',   name: 'WTI유',      fmt: '$' },
-  { id: 'usdkrw', ticker: 'KRW%3DX',  name: 'USD/KRW',   fmt: 'n' },
-  { id: 'vix',    ticker: '%5EVIX',   name: 'VIX',        fmt: 'n' },
+  { id: 'sp500',  ticker: '%5EGSPC',  name: 'S&P 500',    fmt: 'n', tvSym: 'SPX' },
+  { id: 'nasdaq', ticker: '%5EIXIC',  name: 'NASDAQ',     fmt: 'n', tvSym: 'NASDAQ:COMP' },
+  { id: 'dow',    ticker: '%5EDJI',   name: 'DOW',        fmt: 'n', tvSym: 'DJI' },
+  { id: 'kospi',  ticker: '%5EKS11',  name: 'KOSPI',      fmt: 'n', tvSym: 'KRX:KOSPI' },
+  { id: 'kosdaq', ticker: '%5EKQ11',  name: 'KOSDAQ',     fmt: 'n', tvSym: 'KRX:KOSDAQ' },
+  { id: 'btc',    ticker: 'BTC-USD',  name: '비트코인',    fmt: '$', tvSym: 'BITSTAMP:BTCUSD' },
+  { id: 'gold',   ticker: 'GC%3DF',   name: '금 (GC)',    fmt: '$', tvSym: 'TVC:GOLD' },
+  { id: 'oil',    ticker: 'CL%3DF',   name: 'WTI 원유',   fmt: '$', tvSym: 'TVC:USOIL' },
+  { id: 'usdkrw', ticker: 'KRW%3DX',  name: 'USD/KRW',   fmt: 'n', tvSym: 'FX_IDC:USDKRW' },
+  { id: 'vix',    ticker: '%5EVIX',   name: 'VIX',        fmt: 'n', tvSym: 'TVC:VIX' },
 ];
+const _idxMap = Object.fromEntries(INDICES.map(i => [i.id, i]));
 
 function fmtIdx(val, fmt) {
   if (!val) return '—';
@@ -1976,6 +1979,74 @@ function renderEarningsCalTable(items) {
   html += '</tbody></table>';
   body.innerHTML = html;
 }
+</script>
+<!-- 지수 차트 모달 -->
+<div id="indexChartModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.75);align-items:center;justify-content:center" onclick="closeIndexChart(event)">
+  <div style="background:var(--card);border-radius:14px;width:min(860px,96vw);height:min(540px,85vh);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6)">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="indexChartTitle" style="font-weight:700;font-size:16px"></span>
+        <span id="indexChartSub" style="font-size:11px;color:var(--text3)">TradingView</span>
+      </div>
+      <button onclick="closeIndexChart()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1;padding:2px 6px">&times;</button>
+    </div>
+    <div style="display:flex;gap:6px;padding:8px 14px;flex-shrink:0;border-bottom:1px solid var(--border)">
+      <button class="ichrt-btn active" onclick="setIndexInterval('D',this)">일봉</button>
+      <button class="ichrt-btn" onclick="setIndexInterval('W',this)">주봉</button>
+      <button class="ichrt-btn" onclick="setIndexInterval('M',this)">월봉</button>
+      <button class="ichrt-btn" onclick="setIndexInterval('60',this)">1시간</button>
+    </div>
+    <iframe id="indexChartFrame" style="flex:1;border:none;width:100%" src="" loading="lazy"></iframe>
+  </div>
+</div>
+<style>
+.ichrt-btn { background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;transition:all .15s; }
+.ichrt-btn:hover { border-color:var(--blue);color:var(--blue); }
+.ichrt-btn.active { background:var(--blue);border-color:var(--blue);color:#fff; }
+</style>
+<script>
+let _icurIdx = null, _icurInterval = 'D';
+
+function openIndexChart(id) {
+  const idx = _idxMap[id];
+  if (!idx?.tvSym) return;
+  _icurIdx = idx;
+  _icurInterval = 'D';
+  document.querySelectorAll('.ichrt-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+  document.getElementById('indexChartTitle').textContent = idx.name;
+  document.getElementById('indexChartSub').textContent = idx.tvSym;
+  _loadIndexChart();
+  const modal = document.getElementById('indexChartModal');
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function setIndexInterval(interval, btn) {
+  _icurInterval = interval;
+  document.querySelectorAll('.ichrt-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _loadIndexChart();
+}
+
+function _loadIndexChart() {
+  if (!_icurIdx) return;
+  const sym = encodeURIComponent(_icurIdx.tvSym);
+  const frame = document.getElementById('indexChartFrame');
+  frame.src = `https://www.tradingview.com/widgetembed/?symbol=${sym}&interval=${_icurInterval}&theme=dark&style=1&timezone=Asia%2FSeoul&locale=kr&hide_side_toolbar=1&allow_symbol_change=0&save_image=0&referral_id=stockripple`;
+}
+
+function closeIndexChart(e) {
+  if (e && e.target !== document.getElementById('indexChartModal')) return;
+  document.getElementById('indexChartModal').style.display = 'none';
+  document.getElementById('indexChartFrame').src = '';
+  document.body.style.overflow = '';
+  _icurIdx = null;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('indexChartModal').style.display === 'flex')
+    closeIndexChart();
+});
 </script>
 </body>
 </html>
