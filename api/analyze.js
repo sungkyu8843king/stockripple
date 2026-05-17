@@ -32,6 +32,13 @@ export default async function handler(req, res) {
     try {
       const analysis = await analyzeIssue(issue);
 
+      // 관련성 낮은 이슈 제거 (비상장 스타트업, 생활경제, 스포츠 등)
+      if ((analysis.relevance_score ?? 100) < 40) {
+        await supabase.from('issues').delete().eq('id', issue.id);
+        results.errors.push(`Irrelevant (score ${analysis.relevance_score}), deleted: "${issue.title?.slice(0, 60)}"`);
+        continue;
+      }
+
       const { data: savedAnalysis, error: analysisErr } = await supabase
         .from('analyses')
         .insert({
@@ -114,6 +121,7 @@ async function analyzeIssue(issue) {
 
 다음 형식으로 JSON만 반환하세요 (다른 텍스트 없이):
 {
+  "relevance_score": 75,
   "summary": "이슈의 핵심 내용과 시장 영향 2-3문장",
   "directSectors": ["직접 영향받는 섹터1", "섹터2"],
   "rippleEffects": [
@@ -138,7 +146,9 @@ async function analyzeIssue(issue) {
 }
 
 규칙:
-- rippleEffects는 2-4개, 각 섹터당 기업은 2-3개
+- relevance_score: 주식시장 투자 관련성 (0-100). 상장기업 실적/정책/금리/무역 등 투자에 직접 영향이면 70+, 간접적이면 40-70, 비상장 스타트업·생활경제·스포츠·연예 등 무관하면 40 미만
+- relevance_score < 40이면 rippleEffects는 빈 배열로 반환
+- rippleEffects는 2-4개, 각 섹터당 기업은 2-3개 (relevance_score >= 40인 경우만)
 - 한국 기업(KR)과 미국 기업(US)을 균형있게 포함
 - upside_pct는 현실적으로 5-50% 범위
 - confidence는 0-100 (데이터 확실성 기반)

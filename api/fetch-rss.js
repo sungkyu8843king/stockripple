@@ -5,13 +5,27 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+// 한국 뉴스 관련성 키워드 (이 중 하나라도 없으면 저장 안 함)
+const KO_STOCK_KEYWORDS = [
+  '주가', '증시', '주식', '코스피', '코스닥', '나스닥', '다우', 'S&P',
+  '상승', '하락', '급등', '급락', '강세', '약세',
+  '반도체', '배터리', '전기차', 'AI', '인공지능',
+  '금리', '채권', '환율', '인플레', '연준', '한국은행',
+  '실적', '매출', '영업이익', '순이익', '어닝',
+  '펀드', 'ETF', '투자', '시가총액', '시총',
+  '증권', '배당', '공매도', '선물', '옵션',
+  '관세', '무역', '수출', '수입', '제재',
+  'IPO', '상장', '공모', '유상증자',
+  '삼성', 'SK', 'LG', '현대', '포스코', '카카오', '네이버', 'NAVER',
+];
+
 // 국내외 금융 RSS 피드 목록
 const RSS_FEEDS = [
   // 국내
-  { url: 'https://www.hankyung.com/feed/stock',                name: '한국경제',     sectors: ['증권', '주식'] },
-  { url: 'https://www.hankyung.com/feed/finance',              name: '한국경제',     sectors: ['금융', '경제'] },
-  { url: 'https://www.edaily.co.kr/rss/rss.asp?sitetype=stock',name: '이데일리',     sectors: ['증권', '주식'] },
-  { url: 'https://rss.etnews.com/Section901.xml',              name: 'ETNews',       sectors: ['IT', '반도체'] },
+  { url: 'https://www.hankyung.com/feed/stock',                name: '한국경제',     sectors: ['증권', '주식'],  isKorean: true },
+  { url: 'https://www.hankyung.com/feed/finance',              name: '한국경제',     sectors: ['금융', '경제'],  isKorean: true },
+  { url: 'https://www.edaily.co.kr/rss/rss.asp?sitetype=stock',name: '이데일리',     sectors: ['증권', '주식'],  isKorean: true },
+  { url: 'https://rss.etnews.com/Section901.xml',              name: 'ETNews',       sectors: ['IT', '반도체'],  isKorean: true },
   // 해외
   { url: 'https://feeds.reuters.com/reuters/businessNews',     name: 'Reuters',      sectors: ['글로벌', '경제'] },
   { url: 'https://feeds.reuters.com/reuters/technologyNews',   name: 'Reuters Tech', sectors: ['IT', '기술'] },
@@ -41,6 +55,13 @@ export default async function handler(req, res) {
         if (feed.isTrump && item.pubDate) {
           const age = Date.now() - new Date(item.pubDate).getTime();
           if (age > 24 * 3600 * 1000) continue;
+        }
+
+        // 한국 뉴스: 주식시장 관련 키워드 없으면 스킵
+        if (feed.isKorean) {
+          const titleText = item.title || '';
+          const hasKeyword = KO_STOCK_KEYWORDS.some(kw => titleText.includes(kw));
+          if (!hasKeyword) continue;
         }
 
         // 중복 체크
