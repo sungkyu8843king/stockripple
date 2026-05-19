@@ -6,10 +6,10 @@ const supabase = createClient(
 );
 
 const PERIODS = [
-  { key: '1d',  days: 1  },
-  { key: '3d',  days: 3  },
-  { key: '7d',  days: 7  },
-  { key: '30d', days: 30 },
+  { key: '1d',  days: 1,  minActual: 0.3  },  // 최소 0.3% 실제 변동 있어야 "적중"
+  { key: '3d',  days: 3,  minActual: 0.5  },  // 최소 0.5%
+  { key: '7d',  days: 7,  minActual: 1.5  },  // 최소 1.5%
+  { key: '30d', days: 30, minActual: 3.0  },  // 최소 3.0%
 ];
 
 export default async function handler(req, res) {
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   const now = new Date();
   const results = { checked_1d: 0, checked_3d: 0, checked_7d: 0, checked_30d: 0, errors: [] };
 
-  for (const { key, days } of PERIODS) {
+  for (const { key, days, minActual } of PERIODS) {
     const cutoff = new Date(now - days * 24 * 60 * 60 * 1000).toISOString();
     const { data: due, error } = await supabase
       .from('analysis_companies')
@@ -39,7 +39,11 @@ export default async function handler(req, res) {
         if (!price) continue;
 
         const actualReturn = Math.round(((price - row.entry_price) / row.entry_price) * 10000) / 100;
-        const isAccurate = row.upside_pct > 0 ? actualReturn > 0 : actualReturn < 0;
+        // 적중 기준: ① 방향 일치 + ② 최소 실제 수익률 달성 (노이즈 제거)
+        // 예) 예측 +22%이면 방향(상승) + 실제 0.3%↑ 이상이어야 적중
+        const directionOk = row.upside_pct > 0 ? actualReturn > 0 : actualReturn < 0;
+        const magnitudeOk = Math.abs(actualReturn) >= minActual;
+        const isAccurate = directionOk && magnitudeOk;
 
         await supabase.from('analysis_companies').update({
           [`check_price_${key}`]:   price,

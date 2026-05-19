@@ -25,7 +25,8 @@ const RSS_FEEDS = [
   { url: 'https://www.hankyung.com/feed/stock',                name: '한국경제',     sectors: ['증권', '주식'],  isKorean: true },
   { url: 'https://www.hankyung.com/feed/finance',              name: '한국경제',     sectors: ['금융', '경제'],  isKorean: true },
   { url: 'https://www.edaily.co.kr/rss/rss.asp?sitetype=stock',name: '이데일리',     sectors: ['증권', '주식'],  isKorean: true },
-  { url: 'https://rss.etnews.com/Section901.xml',              name: 'ETNews',       sectors: ['IT', '반도체'],  isKorean: true },
+  // ETNews 제거 — 기술 일반 기사 노이즈 많음
+
   // 해외
   { url: 'https://feeds.reuters.com/reuters/businessNews',     name: 'Reuters',      sectors: ['글로벌', '경제'] },
   { url: 'https://feeds.reuters.com/reuters/technologyNews',   name: 'Reuters Tech', sectors: ['IT', '기술'] },

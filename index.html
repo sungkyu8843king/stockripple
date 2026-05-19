@@ -738,6 +738,17 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       </div>
     </div>
 
+    <!-- 예측 적중 상위 종목 -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">🏆 예측 적중 상위</span>
+        <span style="font-size:11px;color:var(--text3)">7일 기준</span>
+      </div>
+      <div style="padding:8px 16px 12px" id="topStocksPanel">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
+      </div>
+    </div>
+
     <!-- 속보 + 트럼프 -->
     <div class="sidebar-card">
       <div class="sidebar-card-header">
@@ -884,7 +895,7 @@ async function loadIssues() {
     .select(`
       id, title, summary, source_name, published_at, sectors, is_analyzed,
       analyses!inner(id, confidence_score, ripple_effects, ai_summary,
-        analysis_companies(upside_pct, ripple_sector, is_accurate_1d, actual_return_1d,
+        analysis_companies(upside_pct, ripple_sector, is_accurate_1d, actual_return_1d, is_accurate_7d, actual_return_7d,
           companies(ticker, name_ko, name_en, market)
         )
       )
@@ -937,10 +948,21 @@ function renderIssueCard(issue) {
   const avgUpside = upside.length ? (upside.reduce((a, b) => a + b, 0) / upside.length).toFixed(1) : null;
   const confidence = analysis?.confidence_score || 0;
 
-  const verified = companies.filter(c => c.is_accurate_1d !== null && c.is_accurate_1d !== undefined);
-  const accurate = verified.filter(c => c.is_accurate_1d === true);
-  const accBadge = verified.length > 0
-    ? `<span class="accuracy-badge ${Math.round(accurate.length/verified.length*100) < 60 ? 'low' : ''}">✓ 1일 ${Math.round(accurate.length/verified.length*100)}%</span>`
+  // 7일 데이터 우선, 없으면 1일 — 방향+최소수익률 모두 충족한 경우만 "적중"
+  const has7d = companies.some(c => c.is_accurate_7d !== null && c.is_accurate_7d !== undefined);
+  const accKey   = has7d ? '7d' : '1d';
+  const accMinAbs = has7d ? 1.5 : 0.3;
+  const verified = companies.filter(c => c[`is_accurate_${accKey}`] !== null && c[`is_accurate_${accKey}`] !== undefined);
+  const accurate = verified.filter(c =>
+    c[`is_accurate_${accKey}`] === true &&
+    Math.abs(c[`actual_return_${accKey}`] ?? 0) >= accMinAbs
+  );
+  const accRate = verified.length > 0 ? Math.round(accurate.length / verified.length * 100) : null;
+  // 평균 실제 수익률
+  const actuals = verified.map(c => c[`actual_return_${accKey}`]).filter(v => v != null);
+  const avgActual = actuals.length ? (actuals.reduce((a,b)=>a+b,0)/actuals.length).toFixed(1) : null;
+  const accBadge = accRate !== null
+    ? `<span class="accuracy-badge ${accRate < 50 ? 'low' : ''}" title="${accKey === '7d' ? '7일' : '1일'} 적중률 (방향+수익 기준)">🎯 ${accKey === '7d' ? '7일' : '1일'} ${accRate}%${avgActual != null ? ` · 실제 ${avgActual >= 0 ? '+' : ''}${avgActual}%` : ''}</span>`
     : '';
 
   const sectors = (issue.sectors || []).slice(0, 4);
@@ -1334,6 +1356,87 @@ async function loadIndices() {
   const now = new Date().toLocaleTimeString('ko-KR', {timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
   const el = document.getElementById('indicesUpdatedAt');
   if (el) el.textContent = now + ' 기준';
+}
+
+// ── 예측 적중 상위 종목 ─────────────────────────────────────────────
+async function loadTopStocks() {
+  const el = document.getElementById('topStocksPanel');
+  if (!el) return;
+
+  try {
+    // 7일 체크된 예측 전체 조회 (방향+최소1.5% 기준)
+    const { data, error } = await sb
+      .from('analysis_companies')
+      .select('upside_pct, is_accurate_7d, actual_return_7d, companies(ticker, name_ko, market)')
+      .not('is_accurate_7d', 'is', null);
+
+    if (error || !data?.length) {
+      // 7d 없으면 1d로 폴백
+      const { data: d1 } = await sb
+        .from('analysis_companies')
+        .select('upside_pct, is_accurate_1d, actual_return_1d, companies(ticker, name_ko, market)')
+        .not('is_accurate_1d', 'is', null);
+      return renderTopStocks(el, d1 || [], '1d', 0.3);
+    }
+    renderTopStocks(el, data, '7d', 1.5);
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">데이터 없음</div>';
+  }
+}
+
+function renderTopStocks(el, data, period, minAbs) {
+  const map = {};
+  for (const row of data) {
+    const t = row.companies?.ticker;
+    if (!t) continue;
+    const accKey  = `is_accurate_${period}`;
+    const retKey  = `actual_return_${period}`;
+    if (!map[t]) map[t] = { ticker: t, name: row.companies.name_ko || t, market: row.companies.market || 'US', total: 0, hits: 0, upsides: [], actuals: [] };
+    map[t].total++;
+    const ret = row[retKey] ?? 0;
+    const dirOk = row[accKey] === true;
+    const magOk = Math.abs(ret) >= minAbs;
+    if (dirOk && magOk) map[t].hits++;
+    if (row.upside_pct != null) map[t].upsides.push(row.upside_pct);
+    if (ret != null) map[t].actuals.push(ret);
+  }
+
+  const stocks = Object.values(map)
+    .filter(s => s.total >= 2)
+    .map(s => ({
+      ...s,
+      rate:      Math.round(s.hits / s.total * 100),
+      avgUpside: s.upsides.length ? Math.round(s.upsides.reduce((a,b)=>a+b,0)/s.upsides.length) : 0,
+      avgActual: s.actuals.length ? Math.round(s.actuals.reduce((a,b)=>a+b,0)/s.actuals.length * 10)/10 : null,
+    }))
+    .filter(s => s.hits > 0)
+    .sort((a, b) => b.rate - a.rate || b.avgUpside - a.avgUpside)
+    .slice(0, 8);
+
+  if (!stocks.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">집계 데이터 부족</div>';
+    return;
+  }
+
+  const periodLabel = period === '7d' ? '7일' : '1일';
+  el.innerHTML = stocks.map((s, i) => {
+    const rateColor = s.rate >= 70 ? 'var(--green)' : s.rate >= 50 ? 'var(--yellow)' : 'var(--text3)';
+    const mktColor  = s.market === 'KR' ? '#64c8ea' : '#79c0ff';
+    const upSign    = s.avgActual != null ? (s.avgActual >= 0 ? '+' : '') : '';
+    return `
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;${i < stocks.length-1 ? 'border-bottom:1px solid var(--border)' : ''}">
+      <span style="font-size:11px;color:var(--text3);width:14px;text-align:right">${i+1}</span>
+      <span style="font-family:'SF Mono',monospace;font-size:12px;font-weight:700;color:${mktColor};min-width:68px">${escHtml(s.ticker)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(s.name)}</div>
+        ${s.avgActual != null ? `<div style="font-size:10px;color:var(--text3)">${periodLabel} 실제 ${upSign}${s.avgActual}%</div>` : ''}
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:13px;font-weight:700;color:${rateColor}">${s.rate}%</div>
+        <div style="font-size:10px;color:var(--text3)">${s.total}건</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // 실적발표 캘린더 (강화: 위스퍼·IV·매출 포함)
@@ -1759,6 +1862,7 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   loadEconomicCalendar();
   loadEarningsCalendar();
   loadAnalystRatings();
+  loadTopStocks();
   loadTrumpPosts();
   loadBreakingNews();
   setInterval(loadIndices, 30000);
