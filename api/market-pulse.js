@@ -259,7 +259,7 @@ async function handleEconomic() {
       ok: true,
       items,
       ts: Date.now(),
-      fmp: { ok: !!fmpArr.length, count: fmpArr.length, withActual: fmpArr.filter(e => e?.actual != null).length, status: fmpStatus, tried: fmpTried },
+      fmp: { ok: !!fmpArr.length, count: fmpArr.length, withActual: fmpArr.filter(e => e?.actual != null).length, status: fmpStatus },
     }), { headers: corsHeaders });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: e.message, items: [] }), { status: 500, headers: corsHeaders });

@@ -2105,7 +2105,7 @@ async function loadEconomicCalendar() {
               ? `<span class="eco-actual ${result}">결과 ${escHtml(item.actual)}${result === 'beat' ? ' ▲' : result === 'miss' ? ' ▼' : ''}</span>
                  ${item.forecast ? `<span class="eco-prev">예상 ${escHtml(item.forecast)}</span>` : ''}`
               : isPastTime
-                ? `<span style="color:var(--text3);font-size:11px">발표 집계 대기</span>
+                ? `<a href="https://www.forexfactory.com/calendar" target="_blank" rel="noopener" style="color:var(--blue);font-size:11px;text-decoration:none">📊 발표됨 — 결과 확인 ↗</a>
                    ${item.forecast ? `<span class="eco-prev">예상 ${escHtml(item.forecast)}</span>` : ''}`
                 : `${item.forecast ? `<span class="eco-actual pending">예상 ${escHtml(item.forecast)}</span>` : ''}
                    ${item.previous ? `<span class="eco-prev">이전 ${escHtml(item.previous)}</span>` : ''}`
