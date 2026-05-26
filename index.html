@@ -667,6 +667,19 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       </div>
     </div>
 
+    <!-- 🎯 투자 인사이트: 누적 예측 데이터 기반 추천 종목 -->
+    <div id="insightsSection" style="display:none;margin-bottom:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">🎯</span>
+          <span style="font-size:16px;font-weight:700">지금 주목할 종목</span>
+          <span style="font-size:11px;color:var(--text3)">AI 예측 정확도 + 최근 분석 빈도 + 평균 상승률 기반</span>
+        </div>
+        <span style="font-size:11px;color:var(--text3)" id="insightsUpdated">—</span>
+      </div>
+      <div id="insightsPanel"></div>
+    </div>
+
     <div id="issuesContainer">
       <div class="loading-state">
         <div class="spinner"></div>
@@ -1358,6 +1371,163 @@ async function loadIndices() {
   if (el) el.textContent = now + ' 기준';
 }
 
+// ── 🎯 투자 인사이트: 누적 예측 데이터 기반 종목 추천 ──────────────
+async function loadInsights() {
+  const sec = document.getElementById('insightsSection');
+  const el  = document.getElementById('insightsPanel');
+  if (!sec || !el) return;
+
+  try {
+    const now = Date.now();
+    const RECENT_DAYS = 14;
+    const recentMs = RECENT_DAYS * 86400000;
+
+    // 최근 500건의 예측 (이력 + 활성 모두)
+    const { data, error } = await sb
+      .from('analysis_companies')
+      .select(`
+        upside_pct, confidence, rationale, entry_date,
+        is_accurate_7d, actual_return_7d, is_accurate_1d, actual_return_1d,
+        companies(ticker, name_ko, name_en, market),
+        analyses!inner(issue_id, ai_summary,
+          issues!inner(id, title, published_at)
+        )
+      `)
+      .order('entry_date', { ascending: false })
+      .limit(500);
+
+    if (error || !data?.length) { sec.style.display = 'none'; return; }
+
+    // 티커별 집계
+    const map = {};
+    for (const row of data) {
+      const t = row.companies?.ticker;
+      if (!t) continue;
+      if (!map[t]) map[t] = {
+        ticker: t,
+        name: row.companies.name_ko || row.companies.name_en || t,
+        market: row.companies.market || 'US',
+        histTotal: 0, histHits: 0,
+        recent: [], recentUpsides: [], recentConfs: [],
+        latestIssue: null, latestRationale: null,
+      };
+      const m = map[t];
+
+      // 과거 적중 이력 (7일 검증 우선, 1일 폴백)
+      if (row.is_accurate_7d !== null && row.is_accurate_7d !== undefined) {
+        m.histTotal++;
+        if (row.is_accurate_7d === true && Math.abs(row.actual_return_7d || 0) >= 1.5) m.histHits++;
+      } else if (row.is_accurate_1d !== null && row.is_accurate_1d !== undefined) {
+        m.histTotal++;
+        if (row.is_accurate_1d === true && Math.abs(row.actual_return_1d || 0) >= 0.3) m.histHits++;
+      }
+
+      // 최근 14일 예측 (활성 신호)
+      const entryMs = new Date(row.entry_date).getTime();
+      if (now - entryMs <= recentMs) {
+        m.recent.push(row);
+        if (row.upside_pct != null) m.recentUpsides.push(row.upside_pct);
+        if (row.confidence != null) m.recentConfs.push(row.confidence);
+        if (!m.latestIssue && row.analyses?.issues) {
+          m.latestIssue = row.analyses.issues;
+          m.latestRationale = row.rationale;
+        }
+      }
+    }
+
+    // 점수 계산
+    const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+    const scored = Object.values(map)
+      .filter(s => s.recent.length >= 1)
+      .map(s => {
+        const accuracy = s.histTotal >= 2 ? (s.histHits / s.histTotal * 100) : null;
+        const avgUpside = avg(s.recentUpsides);
+        const avgConf   = avg(s.recentConfs) || 50;
+        const predCount = s.recent.length;
+
+        // 종합 점수
+        // - 적중률 가중치 50점 (이력 없으면 35점 기본)
+        // - 평균 상승률 가중치 40점 (cap 30%)
+        // - AI 신뢰도 가중치 25점
+        // - 예측 빈도 가중치 20점 (최근 5건까지)
+        const accScore   = accuracy != null ? (accuracy / 100) * 50 : 35;
+        const upScore    = Math.min(Math.max(avgUpside, 0), 30) / 30 * 40;
+        const confScore  = (avgConf / 100) * 25;
+        const countScore = Math.min(predCount, 5) / 5 * 20;
+        const score = Math.round(accScore + upScore + confScore + countScore);
+
+        return {
+          ...s,
+          accuracy: accuracy != null ? Math.round(accuracy) : null,
+          avgUpside: Math.round(avgUpside * 10) / 10,
+          avgConf:   Math.round(avgConf),
+          predCount, score,
+        };
+      })
+      .filter(s => s.avgUpside > 0) // 상승 예측만
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+
+    if (!scored.length) { sec.style.display = 'none'; return; }
+
+    sec.style.display = 'block';
+    const upd = document.getElementById('insightsUpdated');
+    if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', {timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit'}) + ' KST · 최근 ' + RECENT_DAYS + '일';
+
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px">` +
+      scored.map((s, i) => {
+        const isKr = s.market === 'KR';
+        const signal = s.score >= 75 ? { label: '🔥 강력 추천', color: '#fff', bg: 'linear-gradient(135deg,#ef4444,#dc2626)' }
+                      : s.score >= 60 ? { label: '⭐ 주목',       color: '#fff', bg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)' }
+                      : s.score >= 45 ? { label: '관망',          color: 'var(--text2)', bg: 'var(--bg3)' }
+                      : { label: '신호 약함', color: 'var(--text3)', bg: 'var(--bg3)' };
+        const accColor = s.accuracy == null ? 'var(--text3)'
+                      : s.accuracy >= 70   ? 'var(--green)'
+                      : s.accuracy >= 50   ? 'var(--yellow)' : 'var(--red)';
+        const accLabel = s.accuracy != null ? `적중률 ${s.accuracy}% (${s.histTotal}건)` : `신규 (이력 부족)`;
+        const reason   = s.latestRationale || '';
+        const issueLink = s.latestIssue ? `/analysis.html?id=${s.latestIssue.id}` : `/company.html?ticker=${encodeURIComponent(s.ticker)}`;
+
+        return `
+        <a href="${issueLink}" style="text-decoration:none;color:inherit">
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;transition:all .15s;height:100%;display:flex;flex-direction:column;gap:10px"
+               onmouseover="this.style.borderColor='var(--blue)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(47,129,247,.15)'"
+               onmouseout="this.style.borderColor='var(--border)';this.style.transform='none';this.style.boxShadow='none'">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <span style="font-size:22px;font-weight:800;color:var(--text3);min-width:24px">${i+1}</span>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+                  <span style="font-family:'SF Mono',monospace;font-size:12px;font-weight:700;color:${isKr?'#64c8ea':'#79c0ff'};background:${isKr?'#1f3540':'#1f2d4a'};padding:2px 8px;border-radius:5px">${escHtml(s.ticker)}</span>
+                  <span style="font-size:14px;font-weight:700">${escHtml(s.name)}</span>
+                </div>
+                <div style="font-size:10px;color:${accColor};font-weight:600">${accLabel}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:22px;font-weight:800;color:var(--green);line-height:1">+${s.avgUpside}%</div>
+                <div style="font-size:9px;color:var(--text3);margin-top:2px">예상 상승률</div>
+              </div>
+            </div>
+            ${reason ? `<div style="font-size:11px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escHtml(reason)}</div>` : ''}
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto">
+              <div style="display:flex;gap:10px;font-size:10px;color:var(--text3)">
+                <span>최근 ${s.predCount}건 분석</span>
+                <span>·</span>
+                <span>AI 신뢰도 ${s.avgConf}%</span>
+              </div>
+              <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;color:${signal.color};background:${signal.bg};white-space:nowrap">${signal.label}</span>
+            </div>
+            <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(s.score,100)}%;background:linear-gradient(90deg,#2f81f7,#a371f7);transition:width .5s"></div>
+            </div>
+          </div>
+        </a>`;
+      }).join('') + `</div>`;
+  } catch(e) {
+    console.warn('loadInsights error:', e.message);
+    sec.style.display = 'none';
+  }
+}
+
 // ── 예측 적중 상위 종목 ─────────────────────────────────────────────
 async function loadTopStocks() {
   const el = document.getElementById('topStocksPanel');
@@ -1858,6 +2028,7 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   initAuth();
   loadStats();
   loadIssues();
+  loadInsights();
   loadIndices();
   loadEconomicCalendar();
   loadEarningsCalendar();
