@@ -74,6 +74,14 @@ function getTag(xml, tag) {
   return m ? (m[1] ?? m[2] ?? '').trim() : '';
 }
 
+// 이벤트명 정규화 (ForexFactory/FMP 명명 차이 흡수)
+function normalizeTitle(s) {
+  if (!s) return '';
+  return String(s).toLowerCase()
+    .replace(/\bm\/m\b/g, 'mom').replace(/\by\/y\b/g, 'yoy').replace(/\bq\/q\b/g, 'qoq')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 // ─── ForexFactory 경제지표 ─────────────────────────────────────────────────
 async function handleEconomic() {
   const corsHeaders = {
@@ -132,10 +140,21 @@ async function handleEconomic() {
   ]);
 
   try {
-    const [tw, nw, lw] = await Promise.allSettled([
+    const fmpKey = process.env.FMP_API_KEY;
+    const today  = new Date();
+    const past   = new Date(today.getTime() - 7 * 86400000);
+    const future = new Date(today.getTime() + 14 * 86400000);
+    const fmpFrom = past.toISOString().split('T')[0];
+    const fmpTo   = future.toISOString().split('T')[0];
+
+    const [tw, nw, lw, fmp] = await Promise.allSettled([
       fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
       fetch('https://nfs.faireconomy.media/ff_calendar_nextweek.json', { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
       fetch('https://nfs.faireconomy.media/ff_calendar_lastweek.json', { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
+      fmpKey
+        ? fetch(`https://financialmodelingprep.com/stable/economic-calendar?from=${fmpFrom}&to=${fmpTo}&apikey=${fmpKey}`,
+            { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : [])
+        : Promise.resolve([]),
     ]);
 
     let raw = [
@@ -144,8 +163,29 @@ async function handleEconomic() {
       ...(nw.status === 'fulfilled' && Array.isArray(nw.value) ? nw.value : []),
     ];
 
+    // FMP economic calendar로 actual 값 보강 (ForexFactory JSON엔 actual 필드 없음)
+    const fmpArr = fmp.status === 'fulfilled' && Array.isArray(fmp.value) ? fmp.value : [];
+    // FMP country: 'US', 'EU', 'JP' → ForexFactory currency: 'USD', 'EUR', 'JPY'
+    const COUNTRY_TO_CURRENCY = { US:'USD', EU:'EUR', JP:'JPY', GB:'GBP', CN:'CNY', DE:'EUR', FR:'EUR' };
+    const fmpByKey = {};  // key: "currency|normalizedTitle" → FMP event
+    for (const e of fmpArr) {
+      const title = e?.event || e?.title;
+      if (!title) continue;
+      const curr  = (e.currency || COUNTRY_TO_CURRENCY[(e.country || '').toUpperCase()] || e.country || '').toUpperCase();
+      const key   = `${curr}|${normalizeTitle(title)}`;
+      // 시간 기반: 가장 가까운 이벤트 우선 매칭
+      const existing = fmpByKey[key];
+      if (!existing) { fmpByKey[key] = e; continue; }
+      const eMs   = new Date(e.date).getTime();
+      const exMs  = new Date(existing.date).getTime();
+      // actual 있는 쪽 우선, 없으면 더 최근
+      if (e.actual != null && existing.actual == null) fmpByKey[key] = e;
+      else if (e.actual == null && existing.actual != null) {}
+      else if (eMs > exMs) fmpByKey[key] = e;
+    }
+
     if (!raw.length) {
-      return new Response(JSON.stringify({ ok: false, error: 'ForexFactory returned empty', items: [] }), { headers: corsHeaders });
+      return new Response(JSON.stringify({ ok: false, error: 'ForexFactory returned empty', items: [], fmpCount: fmpArr.length }), { headers: corsHeaders });
     }
 
     raw = raw.filter(e =>
@@ -161,6 +201,13 @@ async function handleEconomic() {
       .map(e => {
         let dateIso = null;
         try { const d = new Date(e.date); if (!isNaN(d)) dateIso = d.toISOString(); } catch {}
+        // FMP에서 actual 보강 (currency + 정규화된 이벤트명 매칭)
+        const matchKey = `${(e.country || '').toUpperCase()}|${normalizeTitle(e.title)}`;
+        const fmpMatch = fmpByKey[matchKey];
+        const ffActual  = (e.actual != null && e.actual !== '') ? String(e.actual) : null;
+        const fmpActual = fmpMatch && fmpMatch.actual != null && fmpMatch.actual !== '' ? String(fmpMatch.actual) : null;
+        const fmpFcast  = fmpMatch && fmpMatch.estimate != null && fmpMatch.estimate !== '' ? String(fmpMatch.estimate) : null;
+        const fmpPrev   = fmpMatch && fmpMatch.previous != null && fmpMatch.previous !== '' ? String(fmpMatch.previous) : null;
         return {
           title:        e.title || '',
           titleKo:      NAME_KO[e.title] || e.title || '',
@@ -168,9 +215,9 @@ async function handleEconomic() {
           impact:       e.impact  || 'Medium',
           date:         dateIso,
           dateRaw:      e.date || '',
-          forecast:     (e.forecast != null && e.forecast !== undefined && e.forecast !== '') ? String(e.forecast) : null,
-          previous:     (e.previous != null && e.previous !== undefined && e.previous !== '') ? String(e.previous) : null,
-          actual:       (e.actual   != null && e.actual   !== undefined && e.actual   !== '') ? String(e.actual)   : null,
+          forecast:     (e.forecast != null && e.forecast !== '') ? String(e.forecast) : fmpFcast,
+          previous:     (e.previous != null && e.previous !== '') ? String(e.previous) : fmpPrev,
+          actual:       ffActual || fmpActual,  // ForexFactory 우선, 없으면 FMP
           lowerIsBetter: LOWER_IS_BETTER.has(e.title),
         };
       })
@@ -182,7 +229,12 @@ async function handleEconomic() {
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, 30);
 
-    return new Response(JSON.stringify({ ok: true, items, ts: Date.now() }), { headers: corsHeaders });
+    return new Response(JSON.stringify({
+      ok: true,
+      items,
+      ts: Date.now(),
+      fmp: { ok: !!fmpArr.length, count: fmpArr.length, withActual: fmpArr.filter(e => e?.actual != null).length },
+    }), { headers: corsHeaders });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: e.message, items: [] }), { status: 500, headers: corsHeaders });
   }
