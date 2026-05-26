@@ -44,8 +44,8 @@ async function fetchInsights(ticker) {
   } catch { return null; }
 }
 
-// ─── FMP — 여러 엔드포인트 시도 (무료 티어 호환) ──────────────────
-// 단일 티커에 대해 가장 가까운 실적 데이터 가져오기
+// ─── FMP Stable API (2025년 9월 이후 신규) ────────────────────────
+// 무료 티어 호환 엔드포인트만 사용
 async function fetchFMPForTicker(sym, key) {
   const tryEndpoint = async (path, parser) => {
     try {
@@ -54,66 +54,50 @@ async function fetchFMPForTicker(sym, key) {
       if (!r.ok) return { ok: false, status: r.status };
       const data = await r.json();
       const result = parser(data);
-      return { ok: !!result, data: result, raw: Array.isArray(data) ? data.length : (data ? 1 : 0) };
+      return { ok: !!result, data: result };
     } catch (e) {
       return { ok: false, error: e.message };
     }
   };
 
-  // 1) earnings-surprises: 과거 실적 EPS actual + estimate + date
-  const surprises = await tryEndpoint(
-    `/api/v3/earnings-surprises/${encodeURIComponent(sym)}`,
+  // 1) /stable/earnings — 과거 + 미래 실적 (EPS actual + estimate + 매출 + 날짜)
+  const earnings = await tryEndpoint(
+    `/stable/earnings?symbol=${encodeURIComponent(sym)}&limit=8`,
     (arr) => {
       if (!Array.isArray(arr) || !arr.length) return null;
-      // 가장 최근 발표 (date 내림차순)
-      const sorted = arr.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
-      const latest = sorted[0];
+      const todayMs = Date.now();
+      const sorted = arr.slice().sort((a,b) => new Date(a.date) - new Date(b.date));
+      // 가장 가까운 미래 우선, 없으면 가장 최근 과거
+      const future = sorted.find(e => new Date(e.date).getTime() >= todayMs);
+      const past   = sorted.filter(e => new Date(e.date).getTime() < todayMs).pop();
+      const e = future || past;
+      if (!e) return null;
       return {
         symbol: sym,
-        date: latest.date,
-        eps: latest.actualEarningResult,
-        epsEstimated: latest.estimatedEarning,
-        revenue: null,
-        revenueEstimated: null,
+        date: e.date,
+        eps:              e.epsActual ?? e.eps ?? null,
+        epsEstimated:     e.epsEstimated ?? e.epsEstimate ?? null,
+        revenue:          e.revenueActual ?? e.revenue ?? null,
+        revenueEstimated: e.revenueEstimated ?? e.revenueEstimate ?? null,
         time: null,
-        source: 'surprises',
+        source: 'stable-earnings',
       };
     }
   );
-  if (surprises.ok) return { ok: true, data: surprises.data, source: 'surprises' };
+  if (earnings.ok) return { ok: true, data: earnings.data, source: 'stable-earnings' };
 
-  // 2) income-statement: 분기 손익계산서 (EPS + 매출)
-  const income = await tryEndpoint(
-    `/api/v3/income-statement/${encodeURIComponent(sym)}?period=quarter&limit=1`,
-    (arr) => {
-      if (!Array.isArray(arr) || !arr.length) return null;
-      const i = arr[0];
-      return {
-        symbol: sym,
-        date: i.date || i.fillingDate || null,
-        eps: i.eps ?? i.epsdiluted ?? null,
-        epsEstimated: null,
-        revenue: i.revenue ?? null,
-        revenueEstimated: null,
-        time: null,
-        source: 'income',
-      };
-    }
-  );
-  if (income.ok) return { ok: true, data: income.data, source: 'income', surprisesStatus: surprises.status };
-
-  return { ok: false, surprisesStatus: surprises.status, incomeStatus: income.status };
+  return { ok: false, earningsStatus: earnings.status };
 }
 
 async function fetchFMP(tickers) {
   const key = process.env.FMP_API_KEY;
   if (!key) return { data: null, error: 'no-key', keyLength: 0 };
 
-  // ⓪ 키 유효성 진단 — /quote/AAPL은 항상 무료
+  // ⓪ 키 유효성 진단 — /stable/quote 사용 (신 API)
   let keyCheck = 'unknown';
   let keyCheckBody = '';
   try {
-    const r = await fetch(`https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=${key}`,
+    const r = await fetch(`https://financialmodelingprep.com/stable/quote?symbol=AAPL&apikey=${key}`,
       { headers: BASE, signal: AbortSignal.timeout(5000) });
     keyCheck = `${r.status}`;
     if (!r.ok) keyCheckBody = (await r.text().catch(() => '')).slice(0, 200);
@@ -132,14 +116,14 @@ async function fetchFMP(tickers) {
       count++;
       statusByTicker[sym] = res.source;
     } else {
-      statusByTicker[sym] = `fail (surprises=${res.surprisesStatus}, income=${res.incomeStatus})`;
+      statusByTicker[sym] = `fail (earnings=${res.earningsStatus})`;
     }
   });
   return {
     data: bySym,
     error: count ? null : 'all-failed',
     count,
-    mode: 'per-symbol-v2',
+    mode: 'stable-api',
     statusByTicker,
     keyCheck,
     keyCheckBody,
