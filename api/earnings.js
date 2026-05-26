@@ -131,44 +131,15 @@ async function fetchFMPForTicker(sym, key) {
 
 async function fetchFMP(tickers) {
   const key = process.env.FMP_API_KEY;
-  if (!key) return { data: null, error: 'no-key', keyLength: 0 };
-
-  // ⓪ 키 유효성 진단 — /stable/quote 사용 (신 API)
-  let keyCheck = 'unknown';
-  let keyCheckBody = '';
-  try {
-    const r = await fetch(`https://financialmodelingprep.com/stable/quote?symbol=AAPL&apikey=${key}`,
-      { headers: BASE, signal: AbortSignal.timeout(5000) });
-    keyCheck = `${r.status}`;
-    if (!r.ok) keyCheckBody = (await r.text().catch(() => '')).slice(0, 200);
-  } catch (e) {
-    keyCheck = 'error: ' + e.message;
-  }
+  if (!key) return { data: null, error: 'no-key' };
 
   const results = await Promise.all(tickers.map(t => fetchFMPForTicker(t, key)));
   const bySym = {};
-  const statusByTicker = {};
   let count = 0;
   results.forEach((res, i) => {
-    const sym = tickers[i];
-    if (res.ok && res.data) {
-      bySym[sym] = res.data;
-      count++;
-      statusByTicker[sym] = res.source;
-    } else {
-      statusByTicker[sym] = `fail (earnings=${res.earningsStatus}, income=${res.incomeStatus}, km=${res.kmStatus})`;
-    }
+    if (res.ok && res.data) { bySym[tickers[i]] = res.data; count++; }
   });
-  return {
-    data: bySym,
-    error: count ? null : 'all-failed',
-    count,
-    mode: 'stable-api',
-    statusByTicker,
-    keyCheck,
-    keyCheckBody,
-    keyLength: key.length,
-  };
+  return { data: bySym, error: count ? null : 'all-failed', count };
 }
 
 // ─── Earnings handler ─────────────────────────────────────────────
@@ -226,16 +197,7 @@ async function handleEarnings() {
   return new Response(JSON.stringify({
     ok: true,
     items,
-    fmp: {
-      ok:        !!fmpRes.data,
-      error:     fmpRes.error,
-      count:     fmpRes.count || 0,
-      mode:      fmpRes.mode || null,
-      keyLength: fmpRes.keyLength,
-      keyCheck:  fmpRes.keyCheck,
-      keyCheckBody: fmpRes.keyCheckBody,
-      statusByTicker: fmpRes.statusByTicker || null,
-    },
+    fmp: { ok: !!fmpRes.data, count: fmpRes.count || 0 },
     ts: Date.now(),
   }), { headers: corsH });
 }

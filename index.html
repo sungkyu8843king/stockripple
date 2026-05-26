@@ -1768,14 +1768,14 @@ async function loadEarningsCalendar() {
     const timingClass = item.callTime === 'BMO' ? 'bmo' : item.callTime === 'AMC' ? 'amc' : '';
     const timingLabel = item.callTime === 'BMO' ? '장전' : item.callTime === 'AMC' ? '장후' : '';
 
-    // 날짜 (없으면 표시 안 함)
+    // 날짜
     const dateLabel = !item.date
       ? `<span style="color:var(--text3);font-size:11px">다음 분기 발표 예정</span>`
       : isToday
         ? `<span class="ei-today">🔴 오늘 실적발표</span>`
         : isFuture
-          ? `<span style="color:var(--blue)">📅 ${item.date}</span>`
-          : `<span style="color:var(--text2)">${item.date}</span>`;
+          ? `<span style="color:var(--blue)">📅 ${item.date} 예정</span>`
+          : `<span style="color:var(--text2)">📊 ${item.date} 발표</span>`;
 
     // EPS 메트릭 (있을 때만)
     const consensus = item.epsConsensus ?? item.epsEstimate ?? null;
