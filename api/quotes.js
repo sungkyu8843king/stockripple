@@ -16,7 +16,7 @@ export default async function handler(req) {
   const cors = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
-    'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=180',
+    'Cache-Control': 'public, s-maxage=3, stale-while-revalidate=10',
   };
 
   const { searchParams } = new URL(req.url);
