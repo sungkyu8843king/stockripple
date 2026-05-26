@@ -64,6 +64,52 @@ async function fetchQS(ticker, modules, crumb, cookieStr) {
   return null;
 }
 
+// ─── Nasdaq scraping fallback (EPS 컨센서스 + 다음 실적일) ────────
+async function fetchNasdaqEarningsInfo(ticker) {
+  if (/\.KS$|\.KQ$/i.test(ticker)) return null;
+  try {
+    const r = await fetch(
+      `https://api.nasdaq.com/api/quote/${encodeURIComponent(ticker)}/eps?assetclass=stocks`,
+      {
+        headers: {
+          ...BASE,
+          'Accept': 'application/json, text/plain, */*',
+          'Origin':  'https://www.nasdaq.com',
+          'Referer': 'https://www.nasdaq.com/',
+        },
+        signal: AbortSignal.timeout(5000),
+      }
+    );
+    if (!r.ok) return null;
+    const j = await r.json();
+    const earnings = j?.data?.earningsPerShare;
+    if (!Array.isArray(earnings) || !earnings.length) return null;
+
+    const parse = (s) => {
+      if (!s || s === 'N/A') return null;
+      const m = String(s).match(/-?\$?([\d.]+)/);
+      return m ? parseFloat(m[1]) * (String(s).startsWith('-') ? -1 : 1) : null;
+    };
+
+    // Past quarters: actual reported
+    // Future quarters: consensus only
+    let lastActual = null, nextConsensus = null, nextDate = null;
+    for (const e of earnings) {
+      const epsActual = parse(e.eps);
+      const epsCons   = parse(e.consensusEPSForecast);
+      if (epsActual != null && lastActual == null) {
+        lastActual = { actual: epsActual, consensus: epsCons, date: e.fiscalQuarterEnd || null };
+      }
+      if (epsActual == null && epsCons != null && nextConsensus == null) {
+        nextConsensus = epsCons;
+        nextDate = e.fiscalQuarterEnd || null;
+      }
+    }
+
+    return { lastActual, nextConsensus, nextDate };
+  } catch { return null; }
+}
+
 // ─── Yahoo Finance Insights (auth 없이 작동) ─────────────────────
 async function fetchInsights(ticker) {
   try {
@@ -187,6 +233,21 @@ async function handleEarnings() {
         }
       }
     } catch {}
+
+    // ⑤ Nasdaq 폴백 — EPS / 다음 실적일 (Yahoo가 막혔을 때만)
+    if (!epsConsensus && !epsActual && !date) {
+      const nd = await fetchNasdaqEarningsInfo(ticker);
+      if (nd) {
+        if (nd.lastActual?.actual != null) {
+          epsActual    = nd.lastActual.actual;
+          epsConsensus = nd.lastActual.consensus ?? epsConsensus;
+          date         = nd.lastActual.date || date;
+        } else if (nd.nextConsensus != null) {
+          epsConsensus = nd.nextConsensus;
+          date         = nd.nextDate || date;
+        }
+      }
+    }
 
     return { ticker, company, date, epsConsensus, epsActual, whisper, epsGrowth, revEstimate,
              priceTarget, targetHigh, targetLow, currentPrice, recKey, iv };

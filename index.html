@@ -1759,6 +1759,7 @@ async function loadEarningsCalendar() {
     return;
   }
 
+  // 적응적 렌더링: 데이터 있는 필드만 표시
   const html = apiItems.map(item => {
     const isToday  = item.date === today;
     const isFuture = item.date && item.date > today;
@@ -1767,59 +1768,78 @@ async function loadEarningsCalendar() {
     const timingClass = item.callTime === 'BMO' ? 'bmo' : item.callTime === 'AMC' ? 'amc' : '';
     const timingLabel = item.callTime === 'BMO' ? '장전' : item.callTime === 'AMC' ? '장후' : '';
 
-    // 날짜 표시
+    // 날짜 (없으면 표시 안 함)
     const dateLabel = !item.date
-      ? `<span style="color:var(--text3)">일정 미확정</span>`
+      ? `<span style="color:var(--text3);font-size:11px">다음 분기 발표 예정</span>`
       : isToday
         ? `<span class="ei-today">🔴 오늘 실적발표</span>`
         : isFuture
-          ? `📅 ${item.date}`
-          : item.date;
+          ? `<span style="color:var(--blue)">📅 ${item.date}</span>`
+          : `<span style="color:var(--text2)">${item.date}</span>`;
 
-    // EPS 메트릭
-    let m1Label = 'EPS 컨센서스', m1Val = '예상치 없음', m1Class = '';
+    // EPS 메트릭 (있을 때만)
     const consensus = item.epsConsensus ?? item.epsEstimate ?? null;
+    const metrics = [];
+
+    // EPS 결과/컨센서스
     if (isPast && item.epsActual != null) {
       const ref = item.epsEstimate ?? item.epsConsensus;
       if (ref != null) {
         const beat = item.epsActual >= ref;
-        m1Label = beat ? 'EPS ▲ 서프라이즈' : 'EPS ▼ 쇼크';
-        m1Val   = `${fmtNum(item.epsActual)} (예상 ${fmtNum(ref)})`;
-        m1Class = beat ? 'beat' : 'miss';
+        metrics.push({
+          label: beat ? 'EPS ▲ 서프라이즈' : 'EPS ▼ 쇼크',
+          val:   `${fmtNum(item.epsActual)} (예상 ${fmtNum(ref)})`,
+          cls:   beat ? 'beat' : 'miss',
+        });
       } else {
-        m1Label = '발표 EPS'; m1Val = fmtNum(item.epsActual) || '—';
+        metrics.push({ label: '발표 EPS', val: fmtNum(item.epsActual) || '—' });
       }
     } else if (consensus != null) {
-      m1Val = fmtNum(consensus);
+      metrics.push({ label: 'EPS 컨센서스', val: fmtNum(consensus) });
     }
 
-    // 위스퍼 (고단 애널리스트 추정)
-    const whisperLabel = (isPast && item.epsActual != null) ? '발표 실적' : '위스퍼 (고단추정)';
-    let whisperVal = '미발표';
-    if (isPast && item.epsActual != null) whisperVal = fmtNum(item.epsActual) || '—';
-    else if (item.whisper != null)        whisperVal = fmtNum(item.whisper);
-    else if (consensus != null)           whisperVal = `~${fmtNum(consensus)}`;
+    // 위스퍼 (값 있을 때만)
+    if (item.whisper != null && item.whisper !== consensus) {
+      metrics.push({ label: '위스퍼', val: fmtNum(item.whisper), cls: 'whisper' });
+    }
+
+    // IV
+    if (item.iv != null) {
+      metrics.push({ label: '내재변동성', val: `${item.iv.toFixed(1)}%`, cls: 'iv' });
+    }
+
+    // 매출 예상
+    if (item.revEstimate != null) {
+      metrics.push({ label: '매출 예상', val: fmtRev(item.revEstimate), cls: 'rev' });
+    }
 
     // YoY 성장률
     const growthStr = item.epsGrowth != null
-      ? `<div class="ei-growth" style="${item.epsGrowth >= 0 ? 'color:var(--green)' : 'color:var(--red)'}">`
+      ? `<div class="ei-growth" style="${item.epsGrowth >= 0 ? 'color:var(--green)' : 'color:var(--red)'};font-size:10px">`
         + `${item.epsGrowth >= 0 ? '▲' : '▼'} YoY ${Math.abs(item.epsGrowth * 100).toFixed(1)}%</div>`
       : '';
 
-    // IV
-    const ivVal = item.iv != null ? `${item.iv.toFixed(1)}%` : '집계 중';
-
-    // 매출 예상
-    const revVal = fmtRev(item.revEstimate) || '미집계';
-
-    // 목표주가
+    // 현재가 + 변동률 (chartMeta가 응답에 포함되지 않으니 priceTarget 만 표시)
     const ptStr = item.priceTarget
-      ? `<span style="font-size:10px;color:var(--text3)">목표 ${fmtNum(item.priceTarget)}</span>`
+      ? `<span style="font-size:11px;color:var(--text3)">목표 ${fmtNum(item.priceTarget)}</span>`
+      : '';
+    const recStr = item.recKey
+      ? `<span style="font-size:11px;font-weight:700;${recColor(item.recKey)}">${recLabel(item.recKey)}</span>`
+      : '';
+    const cpStr = item.currentPrice
+      ? `<span style="font-size:11px;color:var(--text2);font-family:'SF Mono',monospace">${fmtNum(item.currentPrice)}</span>`
       : '';
 
-    // 투자의견
-    const recStr = item.recKey
-      ? `<span style="font-size:10px;font-weight:700;${recColor(item.recKey)}">${recLabel(item.recKey)}</span>`
+    // 메트릭 그리드 (있을 때만)
+    const metricsHtml = metrics.length
+      ? `<div class="ei-metrics" style="grid-template-columns:repeat(${Math.min(metrics.length, 2)}, 1fr)">
+          ${metrics.map(m => `
+            <div class="ei-metric">
+              <div class="ei-metric-label">${m.label}</div>
+              <div class="ei-metric-val ${m.cls||''}">${m.val}</div>
+              ${m === metrics[0] ? growthStr : ''}
+            </div>`).join('')}
+        </div>`
       : '';
 
     return `<div class="earnings-item">
@@ -1828,29 +1848,11 @@ async function loadEarningsCalendar() {
         <span class="earnings-company">${escHtml(item.company||item.ticker||'')}</span>
         ${timingClass ? `<span class="ei-timing-${timingClass}">${timingLabel}</span>` : ''}
       </div>
-      <div class="ei-date-row" style="display:flex;align-items:center;justify-content:space-between">
+      <div class="ei-date-row" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
         <span>${dateLabel}</span>
-        <span style="display:flex;gap:6px">${recStr}${ptStr}</span>
+        <span style="display:flex;gap:8px;align-items:center">${cpStr}${recStr}${ptStr}</span>
       </div>
-      <div class="ei-metrics">
-        <div class="ei-metric">
-          <div class="ei-metric-label">${m1Label}</div>
-          <div class="ei-metric-val ${m1Class}">${m1Val}</div>
-          ${growthStr}
-        </div>
-        <div class="ei-metric">
-          <div class="ei-metric-label">${whisperLabel}</div>
-          <div class="ei-metric-val whisper">${whisperVal}</div>
-        </div>
-        <div class="ei-metric">
-          <div class="ei-metric-label">내재변동성 (IV)</div>
-          <div class="ei-metric-val iv">${ivVal}</div>
-        </div>
-        <div class="ei-metric">
-          <div class="ei-metric-label">매출 예상</div>
-          <div class="ei-metric-val rev">${revVal}</div>
-        </div>
-      </div>
+      ${metricsHtml}
     </div>`;
   }).join('');
 
@@ -2018,9 +2020,11 @@ async function loadEconomicCalendar() {
     const j = await r.json();
 
     if (!j.ok || !j.items?.length) {
+      console.warn('[EconomicCalendar] empty response:', j);
       el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">이번 주 발표 없음</div>`;
       return;
     }
+    console.info('[EconomicCalendar]', j.items.length, '개 이벤트 수신');
 
     const nowKST = new Date().toLocaleDateString('ko-KR', { timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit' });
     const tomKST = new Date(Date.now()+86400000).toLocaleDateString('ko-KR', { timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit' });
