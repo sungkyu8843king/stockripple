@@ -124,6 +124,57 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .return-badge.pending { background: var(--bg3); color: var(--text3); }
 .empty-row td { text-align: center; color: var(--text3); padding: 40px; }
 
+/* AI Summary */
+.ai-summary-card {
+  background: linear-gradient(135deg, #1f2d4a 0%, #162234 100%);
+  border: 1px solid #2d4a7a; border-radius: 12px; padding: 22px; margin-bottom: 24px;
+}
+.ai-badge-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.ai-badge { font-size: 11px; color: #79c0ff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+.ai-dot { width: 6px; height: 6px; border-radius: 50%; background: #79c0ff; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.ai-block { margin-bottom: 14px; }
+.ai-block:last-child { margin-bottom: 0; }
+.ai-block-label { font-size: 11px; color: var(--text3); font-weight: 600; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
+.ai-block-text { font-size: 14px; line-height: 1.65; color: #c9d1d9; }
+.ai-risks { display: flex; flex-direction: column; gap: 6px; }
+.ai-risk-item { font-size: 13px; color: #f0b429; line-height: 1.5; padding-left: 16px; position: relative; }
+.ai-risk-item::before { content: '⚠️'; position: absolute; left: -2px; }
+.ai-watch-item { font-size: 13px; color: #56d364; line-height: 1.5; padding-left: 16px; position: relative; }
+.ai-watch-item::before { content: '👁'; position: absolute; left: -2px; }
+
+/* Trade box */
+.trade-box {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 16px;
+  background: linear-gradient(135deg, rgba(63,185,80,.08), rgba(47,129,247,.08));
+  border: 1px solid rgba(63,185,80,.25); border-radius: 10px; margin-bottom: 14px;
+}
+.trade-cell { text-align: center; }
+.trade-cell + .trade-cell { border-left: 1px solid var(--border); }
+.trade-label { font-size: 10px; color: var(--text3); margin-bottom: 4px; }
+.trade-val { font-size: 16px; font-weight: 700; font-family: 'SF Mono', monospace; }
+.trade-val.buy { color: var(--blue); }
+.trade-val.tg  { color: var(--green); }
+.trade-val.sl  { color: var(--red); }
+
+/* Tech chips */
+.tech-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+.tech-chip {
+  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 5px;
+  background: var(--bg3); color: var(--text2);
+}
+
+/* TradingView wrapper */
+.tv-wrap {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  margin-bottom: 24px;
+}
+.tv-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.tv-tabs { display: flex; gap: 4px; }
+.tv-tab { padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); }
+.tv-tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.tv-frame { width: 100%; height: 500px; border: none; }
+
 /* Loading / Error */
 .loading-state { text-align: center; padding: 80px 24px; }
 .spinner { width: 36px; height: 36px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
@@ -377,10 +428,37 @@ function renderPage(company, records, priceData) {
       </div>
     </div>
 
+    <!-- AI 종합 분석 -->
+    <div id="aiSummaryWrap"></div>
+
+    <!-- 매매 정보 (최근 분석에서 추출) -->
+    <div id="tradeBoxWrap"></div>
+
+    <!-- 기술 지표 -->
+    <div id="techChipsWrap"></div>
+
+    <!-- TradingView 캔들 차트 + 거래량 -->
+    <div class="tv-wrap">
+      <div class="tv-header">
+        <div class="section-title" style="margin:0;padding:0">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          캔들 차트 + 거래량
+        </div>
+        <div class="tv-tabs" style="margin-left:auto">
+          <button class="tv-tab active" data-int="D" onclick="setTvInterval('D',this)">일봉</button>
+          <button class="tv-tab" data-int="W" onclick="setTvInterval('W',this)">주봉</button>
+          <button class="tv-tab" data-int="M" onclick="setTvInterval('M',this)">월봉</button>
+          <button class="tv-tab" data-int="60" onclick="setTvInterval('60',this)">1시간</button>
+        </div>
+      </div>
+      <iframe id="tvFrame" class="tv-frame" src="" loading="lazy"></iframe>
+    </div>
+
+    <!-- 라인 차트 (기존) -->
     <div class="chart-section">
       <div class="section-title">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        주가 차트
+        라인 차트 (Yahoo)
       </div>
       <div class="chart-container">
         <div class="chart-range-btns">
@@ -420,7 +498,20 @@ function renderPage(company, records, priceData) {
 
   document.getElementById('pageWrap').innerHTML = html;
 
-  // Load chart
+  // TradingView 차트 로드
+  _tvSymbol = buildTvSymbol(ticker, company.market);
+  loadTradingView('D');
+
+  // 매매 정보 (rationale [TRADE] 마커)
+  renderTradeBox(records);
+
+  // 기술 지표
+  loadTechChips(ticker);
+
+  // AI 종합 분석 (병렬)
+  loadAiSummary(ticker, company.name_ko || company.name_en || ticker);
+
+  // Load line chart
   loadChartData(ticker, _currentRange).then(data => {
     if (data && data.points && data.points.length) {
       renderLineChart(data);
@@ -429,6 +520,182 @@ function renderPage(company, records, priceData) {
       if (wrap) wrap.innerHTML = '<div class="chart-loading" style="color:var(--red)">차트 데이터를 불러올 수 없습니다.</div>';
     }
   });
+}
+
+// ── TradingView 차트 ──────────────────────────────────────
+let _tvSymbol = '';
+let _tvInterval = 'D';
+
+function buildTvSymbol(ticker, market) {
+  // 한국 주식: 005930.KS → KRX:005930
+  if (/\.KS$/i.test(ticker)) return 'KRX:' + ticker.replace(/\.KS$/i, '');
+  if (/\.KQ$/i.test(ticker)) return 'KOSDAQ:' + ticker.replace(/\.KQ$/i, '');
+  // 미국 주식: 자동 인식 (대부분 NASDAQ:XXX 또는 NYSE:XXX)
+  return ticker;
+}
+
+function loadTradingView(interval) {
+  _tvInterval = interval;
+  const frame = document.getElementById('tvFrame');
+  if (!frame || !_tvSymbol) return;
+  const sym = encodeURIComponent(_tvSymbol);
+  // hide_side_toolbar=0 → 거래량/지표 도구 표시
+  frame.src = `https://www.tradingview.com/widgetembed/?symbol=${sym}&interval=${interval}&theme=dark&style=1&timezone=Asia%2FSeoul&locale=kr&hide_side_toolbar=0&allow_symbol_change=0&studies=Volume%40tv-basicstudies&save_image=0`;
+}
+
+function setTvInterval(interval, btn) {
+  document.querySelectorAll('.tv-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadTradingView(interval);
+}
+
+// ── 매매 정보 박스 ────────────────────────────────────────
+function renderTradeBox(records) {
+  // [TRADE] 마커가 있는 가장 최근 분석을 사용
+  const withTrade = (records || []).find(r => (r.rationale || '').includes('[TRADE]'));
+  const wrap = document.getElementById('tradeBoxWrap');
+  if (!withTrade || !wrap) { if (wrap) wrap.innerHTML = ''; return; }
+
+  let trade = null, reason = '';
+  try {
+    const idx = withTrade.rationale.indexOf('[TRADE]');
+    reason = withTrade.rationale.slice(0, idx).trim();
+    trade = JSON.parse(withTrade.rationale.slice(idx + 7).trim());
+  } catch { return; }
+
+  const fmtP = v => (v > 0 ? '+' : '') + v + '%';
+  const tfLabel = { '1w':'단기 1주', '1m':'중기 1개월', '3m':'중장기 3개월', '6m':'장기 6개월' };
+
+  wrap.innerHTML = `
+    <div class="section-title" style="margin-top:8px">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      AI 추천 매매 가이드 ${trade.tf ? `<span style="font-size:12px;color:var(--blue);font-weight:600;margin-left:6px">${tfLabel[trade.tf] || trade.tf}</span>` : ''}
+    </div>
+    <div class="trade-box">
+      <div class="trade-cell">
+        <div class="trade-label">매수가 (현재가 대비)</div>
+        <div class="trade-val buy">${trade.elp != null ? fmtP(trade.elp) : '—'} ~ ${trade.ehp != null ? fmtP(trade.ehp) : '—'}</div>
+      </div>
+      <div class="trade-cell">
+        <div class="trade-label">목표</div>
+        <div class="trade-val tg">${trade.tp != null ? fmtP(trade.tp) : '—'}</div>
+      </div>
+      <div class="trade-cell">
+        <div class="trade-label">손절</div>
+        <div class="trade-val sl">${trade.sl != null ? fmtP(trade.sl) : '—'}</div>
+      </div>
+    </div>
+    ${trade.th ? `<div style="font-size:13px;color:#56d364;margin-bottom:6px;line-height:1.55"><b>💡 매수 근거:</b> ${escHtml(trade.th)}</div>` : ''}
+    ${trade.rk ? `<div style="font-size:13px;color:#f0b429;margin-bottom:16px;line-height:1.55"><b>⚠️ 리스크:</b> ${escHtml(trade.rk)}</div>` : ''}
+  `;
+}
+
+// ── 기술 지표 chip ────────────────────────────────────────
+async function loadTechChips(ticker) {
+  const wrap = document.getElementById('techChipsWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div style="font-size:11px;color:var(--text3);margin:8px 0">기술 지표 로딩...</div>';
+  try {
+    const r = await fetch(`/api/technicals?tickers=${encodeURIComponent(ticker)}`);
+    if (!r.ok) { wrap.innerHTML = ''; return; }
+    const j = await r.json();
+    const info = j?.data?.[ticker];
+    if (!info) { wrap.innerHTML = ''; return; }
+
+    const sigMap = {
+      strong_bullish: { label: '🟢 강세 추세',  color: 'var(--green)' },
+      bullish:        { label: '🟢 상승',       color: 'var(--green)' },
+      oversold_bull:  { label: '🟢 과매도(매수기회)', color: '#56d364' },
+      neutral:        { label: '⚪ 중립',       color: 'var(--text2)' },
+      overbought:     { label: '🟡 과매수',     color: 'var(--yellow)' },
+      oversold:       { label: '🟠 과매도',     color: 'var(--yellow)' },
+      bearish:        { label: '🔴 하락',       color: 'var(--red)' },
+      strong_bearish: { label: '🔴 약세 추세',  color: 'var(--red)' },
+    };
+    const sig = sigMap[info.signal] || sigMap.neutral;
+
+    const chips = [
+      `<span class="tech-chip" style="color:${sig.color}">${sig.label}</span>`,
+    ];
+    if (info.rsi14 != null) {
+      const rsiColor = info.rsi14 >= 70 ? 'var(--yellow)' : info.rsi14 <= 30 ? 'var(--yellow)' : 'var(--text2)';
+      chips.push(`<span class="tech-chip" style="color:${rsiColor}">RSI 14: ${info.rsi14}</span>`);
+    }
+    if (info.vsSma20  != null) chips.push(`<span class="tech-chip" style="color:${info.vsSma20  > 0 ? 'var(--green)' : 'var(--red)'}">20일선 ${info.vsSma20  > 0 ? '+' : ''}${info.vsSma20}%</span>`);
+    if (info.vsSma50  != null) chips.push(`<span class="tech-chip" style="color:${info.vsSma50  > 0 ? 'var(--green)' : 'var(--red)'}">50일선 ${info.vsSma50  > 0 ? '+' : ''}${info.vsSma50}%</span>`);
+    if (info.vsSma200 != null) chips.push(`<span class="tech-chip" style="color:${info.vsSma200 > 0 ? 'var(--green)' : 'var(--red)'}">200일선 ${info.vsSma200 > 0 ? '+' : ''}${info.vsSma200}%</span>`);
+
+    wrap.innerHTML = `<div class="tech-chips">${chips.join('')}</div>`;
+  } catch { wrap.innerHTML = ''; }
+}
+
+// ── AI 종합 분석 ──────────────────────────────────────────
+async function loadAiSummary(ticker, displayName) {
+  const wrap = document.getElementById('aiSummaryWrap');
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div class="ai-summary-card">
+      <div class="ai-badge-row">
+        <span class="ai-dot"></span>
+        <span class="ai-badge">Claude AI 종합 분석</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:auto">로딩 중...</span>
+      </div>
+      <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">
+        🤖 ${escHtml(displayName)} 종합 분석 생성 중... (약 10초)
+      </div>
+    </div>`;
+  try {
+    const r = await fetch(`/api/company-summary?ticker=${encodeURIComponent(ticker)}`);
+    if (!r.ok) { wrap.innerHTML = ''; return; }
+    const d = await r.json();
+    if (!d.ok) { wrap.innerHTML = ''; return; }
+
+    wrap.innerHTML = `
+      <div class="ai-summary-card">
+        <div class="ai-badge-row">
+          <span class="ai-dot"></span>
+          <span class="ai-badge">Claude AI 종합 분석</span>
+          <span style="font-size:11px;color:var(--text3);margin-left:auto">${d.analyses_count || 0}건 분석 통합</span>
+        </div>
+
+        ${d.overview ? `
+        <div class="ai-block">
+          <div class="ai-block-label">📋 회사 개요</div>
+          <div class="ai-block-text">${escHtml(d.overview)}</div>
+        </div>` : ''}
+
+        ${d.thesis ? `
+        <div class="ai-block">
+          <div class="ai-block-label">💡 매수 후보 종합 근거</div>
+          <div class="ai-block-text">${escHtml(d.thesis)}</div>
+        </div>` : ''}
+
+        ${d.competitive_position ? `
+        <div class="ai-block">
+          <div class="ai-block-label">🎯 시장 포지션</div>
+          <div class="ai-block-text">${escHtml(d.competitive_position)}</div>
+        </div>` : ''}
+
+        ${Array.isArray(d.key_risks) && d.key_risks.length ? `
+        <div class="ai-block">
+          <div class="ai-block-label">⚠️ 핵심 리스크</div>
+          <div class="ai-risks">
+            ${d.key_risks.map(x => `<div class="ai-risk-item">${escHtml(x)}</div>`).join('')}
+          </div>
+        </div>` : ''}
+
+        ${Array.isArray(d.watch_points) && d.watch_points.length ? `
+        <div class="ai-block">
+          <div class="ai-block-label">👁 주시 포인트</div>
+          <div class="ai-risks">
+            ${d.watch_points.map(x => `<div class="ai-watch-item">${escHtml(x)}</div>`).join('')}
+          </div>
+        </div>` : ''}
+      </div>
+    `;
+  } catch(e) {
+    wrap.innerHTML = `<div class="ai-summary-card"><div style="color:var(--red);font-size:13px">AI 분석 로딩 실패: ${escHtml(e.message)}</div></div>`;
+  }
 }
 
 async function init() {
@@ -458,7 +725,7 @@ async function init() {
   const [priceData, { data: records }] = await Promise.all([
     loadPrice(ticker),
     sb.from('analysis_companies')
-      .select('upside_pct,confidence,actual_return_1d,is_accurate_1d,actual_return_7d,is_accurate_7d,entry_date,analyses(id,confidence_score,issues(id,title,published_at,source_name))')
+      .select('upside_pct,confidence,rationale,actual_return_1d,is_accurate_1d,actual_return_7d,is_accurate_7d,entry_date,analyses(id,confidence_score,issues(id,title,published_at,source_name))')
       .eq('company_id', company.id)
       .order('entry_date', { ascending: false }),
   ]);

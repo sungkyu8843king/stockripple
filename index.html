@@ -1575,7 +1575,8 @@ async function loadInsights() {
         const accLabel = s.accuracy != null ? `적중률 ${s.accuracy}% (${s.histTotal}건)` : `신규 분석`;
         const parsed = parseTradeMeta(s.latestRationale);
         const trade  = parsed.trade;
-        const issueLink = s.latestIssue ? `/analysis.html?id=${s.latestIssue.id}` : `/company.html?ticker=${encodeURIComponent(s.ticker)}`;
+        // 카드 클릭 → 항상 company.html로 (기업 상세 + 차트 + AI 종합)
+        const issueLink = `/company.html?ticker=${encodeURIComponent(s.ticker)}`;
 
         // 매매 정보 박스 (trade 있을 때만)
         const fmtPct = v => (v > 0 ? '+' : '') + v + '%';
