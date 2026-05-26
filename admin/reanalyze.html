@@ -105,19 +105,71 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 let _session = null;
 
-// 디버그 정보를 페이지에 표시
+// 디버그 정보를 페이지에 표시 + sessionStorage에 저장 (리다이렉트 후 복원용)
+const DEBUG_KEY = 'admin_debug_logs';
+function loadDebugLogs() {
+  try { return JSON.parse(sessionStorage.getItem(DEBUG_KEY) || '[]'); } catch { return []; }
+}
+function saveDebugLogs(logs) {
+  try { sessionStorage.setItem(DEBUG_KEY, JSON.stringify(logs.slice(-50))); } catch {}
+}
+function clearDebugLogs() {
+  try { sessionStorage.removeItem(DEBUG_KEY); } catch {}
+  const el = document.getElementById('debugBox');
+  if (el) el.innerHTML = '';
+}
+
 function debugInfo(msg) {
   let el = document.getElementById('debugBox');
   if (!el) {
     el = document.createElement('div');
     el.id = 'debugBox';
-    el.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;font-family:monospace;font-size:11px;color:var(--text2);max-height:200px;overflow-y:auto';
+    el.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;font-family:monospace;font-size:11px;color:var(--text2);max-height:240px;overflow-y:auto;position:relative';
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = '× clear';
+    clearBtn.style.cssText = 'position:absolute;top:4px;right:6px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;width:auto;padding:2px 6px;margin:0';
+    clearBtn.onclick = (e) => { e.preventDefault(); clearDebugLogs(); };
+    el.appendChild(clearBtn);
     document.querySelector('.wrap').insertBefore(el, document.getElementById('authCard'));
   }
+  const time = new Date().toLocaleTimeString('ko-KR');
+  const entry = `[${time}] ${msg}`;
   const line = document.createElement('div');
-  line.textContent = `[${new Date().toLocaleTimeString('ko-KR')}] ${msg}`;
+  line.textContent = entry;
   el.appendChild(line);
   el.scrollTop = el.scrollHeight;
+
+  // sessionStorage에 저장 (리다이렉트 후 복원)
+  const logs = loadDebugLogs();
+  logs.push(entry);
+  saveDebugLogs(logs);
+}
+
+// 페이지 로드 시 이전 로그 복원
+function restoreDebugLogs() {
+  const logs = loadDebugLogs();
+  if (!logs.length) return;
+  let el = document.getElementById('debugBox');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'debugBox';
+    el.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;font-family:monospace;font-size:11px;color:var(--text2);max-height:240px;overflow-y:auto;position:relative';
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = '× clear';
+    clearBtn.style.cssText = 'position:absolute;top:4px;right:6px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;width:auto;padding:2px 6px;margin:0';
+    clearBtn.onclick = (e) => { e.preventDefault(); clearDebugLogs(); };
+    el.appendChild(clearBtn);
+    document.querySelector('.wrap').insertBefore(el, document.getElementById('authCard'));
+  }
+  for (const entry of logs) {
+    const line = document.createElement('div');
+    line.textContent = entry;
+    line.style.opacity = '0.7';
+    el.appendChild(line);
+  }
+  const sep = document.createElement('div');
+  sep.style.cssText = 'border-top:1px dashed #444;margin:6px 0';
+  el.appendChild(sep);
 }
 
 function log(msg, cls='') {
@@ -159,55 +211,15 @@ async function signIn() {
 }
 
 async function signInGoogle() {
-  debugInfo(`Google OAuth 시작 (팝업 창)`);
-  // skipBrowserRedirect: 자동 리다이렉트 막고 URL만 받음
-  const { data, error } = await sb.auth.signInWithOAuth({
+  debugInfo(`Google OAuth 시작 (전체 리다이렉트, 로그 보존됨)`);
+  const { error } = await sb.auth.signInWithOAuth({
     provider: 'google',
     options: {
       redirectTo: `${location.origin}${location.pathname}`,
       queryParams: { prompt: 'select_account' },
-      skipBrowserRedirect: true,
     },
   });
-  if (error) { debugInfo(`OAuth 에러: ${error.message}`); return; }
-  if (!data?.url) { debugInfo(`OAuth URL 못 받음`); return; }
-
-  // 팝업 창으로 열기
-  const w = 500, h = 650;
-  const left = (screen.width - w) / 2;
-  const top  = (screen.height - h) / 2;
-  const popup = window.open(data.url, 'sb-oauth', `width=${w},height=${h},left=${left},top=${top},popup=yes`);
-  if (!popup) {
-    debugInfo(`⚠️ 팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요.`);
-    return;
-  }
-  debugInfo(`팝업 열림, 로그인 대기 중...`);
-
-  // 0.7초마다 세션 체크 + 팝업 닫힘 감지
-  const startedAt = Date.now();
-  const poll = setInterval(async () => {
-    // 팝업이 닫혔거나 너무 오래 걸리면 종료
-    if (popup.closed) {
-      clearInterval(poll);
-      debugInfo(`팝업 닫힘, 세션 확인 중...`);
-      await refreshUI();
-      return;
-    }
-    if (Date.now() - startedAt > 180000) {  // 3분 타임아웃
-      clearInterval(poll);
-      try { popup.close(); } catch {}
-      debugInfo(`⚠️ 로그인 타임아웃 (3분 초과)`);
-      return;
-    }
-    // 세션이 생겼는지 체크
-    const { data: s } = await sb.auth.getSession();
-    if (s?.session?.user) {
-      clearInterval(poll);
-      try { popup.close(); } catch {}
-      debugInfo(`✓ 로그인 감지: ${s.session.user.email}`);
-      await refreshUI();
-    }
-  }, 700);
+  if (error) debugInfo(`OAuth 에러: ${error.message}`);
 }
 
 async function signOut() {
@@ -273,62 +285,41 @@ async function runFresh() {
 // 팝업 창에서 실행 중인지 감지 (OAuth 콜백용)
 const isOAuthPopup = window.opener && window.opener !== window && (location.hash.includes('access_token') || location.search.includes('code='));
 
-// 팝업 모드와 메인 모드 분기
-const inPopup = window.opener && window.opener !== window;
-const hasOAuthData = location.hash.includes('access_token') || location.search.includes('code=');
+// 이전 디버그 로그 복원 (OAuth 리다이렉트 후)
+restoreDebugLogs();
 
-if (inPopup) {
-  // 팝업: 자기 URL을 부모에게 알림 + OAuth 처리
-  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#8b949e;font-family:sans-serif;flex-direction:column;gap:10px"><div>로그인 처리 중...</div><div style="font-size:11px;color:#6e7681">URL: ' + location.href.slice(0, 80) + '</div></div>';
+sb.auth.onAuthStateChange((event, session) => {
+  debugInfo(`auth event: ${event} ${session?.user?.email || ''}`);
+  refreshUI();
+});
 
-  // 부모 창에 URL 전달
-  try {
-    window.opener.postMessage({
-      type: 'oauth-popup-arrived',
-      url:    location.href,
-      origin: location.origin,
-      pathname: location.pathname,
-      hasHash:    !!location.hash,
-      hasCode:    location.search.includes('code='),
-      hasError:   location.search.includes('error=') || location.hash.includes('error='),
-    }, location.origin);
-  } catch (e) {}
+(async () => {
+  // OAuth 콜백 감지 + 진단
+  const hasCode  = location.search.includes('code=');
+  const hasHash  = location.hash.includes('access_token');
+  const hasError = location.search.includes('error=') || location.hash.includes('error=');
 
-  (async () => {
-    let tries = 0;
-    while (tries < 30) {
-      const { data } = await sb.auth.getSession();
-      if (data?.session) {
-        try { window.opener.postMessage({ type:'oauth-popup-session', email: data.session.user.email }, location.origin); } catch {}
-        break;
-      }
-      await new Promise(r => setTimeout(r, 300));
-      tries++;
+  if (hasError) {
+    const m = (location.search + location.hash).match(/error[^=]*=([^&]+)/);
+    debugInfo(`❌ OAuth 에러 응답: ${m ? decodeURIComponent(m[1]) : '알 수 없음'}`);
+  } else if (hasCode) {
+    debugInfo(`📍 OAuth 콜백 도착 (PKCE code 있음), 코드 교환 중...`);
+    // PKCE 코드 교환 시도
+    try {
+      const { data, error } = await sb.auth.exchangeCodeForSession(location.href);
+      if (error) debugInfo(`❌ 코드 교환 실패: ${error.message}`);
+      else if (data?.session) debugInfo(`✓ 코드 교환 성공: ${data.session.user.email}`);
+    } catch (e) {
+      debugInfo(`❌ 코드 교환 예외: ${e.message}`);
     }
-    setTimeout(() => { try { window.close(); } catch {} }, 400);
-  })();
-} else {
-  // 부모 창: 팝업 메시지 리스너
-  window.addEventListener('message', (e) => {
-    if (e.origin !== location.origin) return;
-    const m = e.data;
-    if (m?.type === 'oauth-popup-arrived') {
-      debugInfo(`📍 팝업 도착: ${m.pathname}${m.hasCode ? ' (code✓)' : ''}${m.hasHash ? ' (hash✓)' : ''}${m.hasError ? ' ❌ ERROR' : ''}`);
-      if (m.pathname !== location.pathname) {
-        debugInfo(`⚠️ Supabase Redirect URLs에 admin 경로 미허용 — 메인 사이트로 리다이렉트됨`);
-      }
-    } else if (m?.type === 'oauth-popup-session') {
-      debugInfo(`✓ 팝업에서 세션 생성: ${m.email}`);
-    }
-  });
-
-  sb.auth.onAuthStateChange((event, session) => {
-    debugInfo(`auth event: ${event} ${session?.user?.email || ''}`);
-    refreshUI();
-  });
-
-  (async () => { await refreshUI(); })();
-}
+    // URL 정리 (token이 URL에 남아있지 않게)
+    history.replaceState({}, document.title, location.pathname);
+  } else if (hasHash) {
+    debugInfo(`📍 OAuth 콜백 도착 (implicit hash 있음)`);
+    await new Promise(r => setTimeout(r, 500));
+  }
+  await refreshUI();
+})();
 </script>
 </body>
 </html>
