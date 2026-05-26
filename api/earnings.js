@@ -60,33 +60,73 @@ async function fetchFMPForTicker(sym, key) {
     }
   };
 
-  // 1) /stable/earnings — 과거 + 미래 실적 (EPS actual + estimate + 매출 + 날짜)
+  // 1) /stable/earnings — 통합 실적 (유료 402)
   const earnings = await tryEndpoint(
     `/stable/earnings?symbol=${encodeURIComponent(sym)}&limit=8`,
     (arr) => {
       if (!Array.isArray(arr) || !arr.length) return null;
       const todayMs = Date.now();
       const sorted = arr.slice().sort((a,b) => new Date(a.date) - new Date(b.date));
-      // 가장 가까운 미래 우선, 없으면 가장 최근 과거
       const future = sorted.find(e => new Date(e.date).getTime() >= todayMs);
       const past   = sorted.filter(e => new Date(e.date).getTime() < todayMs).pop();
       const e = future || past;
       if (!e) return null;
       return {
-        symbol: sym,
-        date: e.date,
-        eps:              e.epsActual ?? e.eps ?? null,
-        epsEstimated:     e.epsEstimated ?? e.epsEstimate ?? null,
-        revenue:          e.revenueActual ?? e.revenue ?? null,
+        symbol: sym, date: e.date,
+        eps: e.epsActual ?? e.eps ?? null,
+        epsEstimated: e.epsEstimated ?? e.epsEstimate ?? null,
+        revenue: e.revenueActual ?? e.revenue ?? null,
         revenueEstimated: e.revenueEstimated ?? e.revenueEstimate ?? null,
-        time: null,
-        source: 'stable-earnings',
+        time: null, source: 'stable-earnings',
       };
     }
   );
   if (earnings.ok) return { ok: true, data: earnings.data, source: 'stable-earnings' };
 
-  return { ok: false, earningsStatus: earnings.status };
+  // 2) /stable/income-statement — 분기 손익계산서 (과거 EPS + 매출)
+  const income = await tryEndpoint(
+    `/stable/income-statement?symbol=${encodeURIComponent(sym)}&period=quarter&limit=1`,
+    (arr) => {
+      if (!Array.isArray(arr) || !arr.length) return null;
+      const i = arr[0];
+      return {
+        symbol: sym,
+        date: i.date || i.fillingDate || null,
+        eps: i.eps ?? i.epsDiluted ?? i.epsdiluted ?? null,
+        epsEstimated: null,
+        revenue: i.revenue ?? null,
+        revenueEstimated: null,
+        time: null, source: 'income-statement',
+      };
+    }
+  );
+  if (income.ok) return { ok: true, data: income.data, source: 'income-statement' };
+
+  // 3) /stable/key-metrics — TTM 메트릭
+  const km = await tryEndpoint(
+    `/stable/key-metrics?symbol=${encodeURIComponent(sym)}&period=quarter&limit=1`,
+    (arr) => {
+      if (!Array.isArray(arr) || !arr.length) return null;
+      const k = arr[0];
+      return {
+        symbol: sym,
+        date: k.date || null,
+        eps: k.netIncomePerShare ?? k.eps ?? null,
+        epsEstimated: null,
+        revenue: k.revenuePerShare ? null : (k.revenue ?? null),
+        revenueEstimated: null,
+        time: null, source: 'key-metrics',
+      };
+    }
+  );
+  if (km.ok) return { ok: true, data: km.data, source: 'key-metrics' };
+
+  return {
+    ok: false,
+    earningsStatus: earnings.status,
+    incomeStatus:   income.status,
+    kmStatus:       km.status,
+  };
 }
 
 async function fetchFMP(tickers) {
@@ -116,7 +156,7 @@ async function fetchFMP(tickers) {
       count++;
       statusByTicker[sym] = res.source;
     } else {
-      statusByTicker[sym] = `fail (earnings=${res.earningsStatus})`;
+      statusByTicker[sym] = `fail (earnings=${res.earningsStatus}, income=${res.incomeStatus}, km=${res.kmStatus})`;
     }
   });
   return {
