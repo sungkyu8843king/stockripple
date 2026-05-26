@@ -238,6 +238,10 @@ tr:hover td { background: var(--bg3); }
     <button class="nav-item" data-panel="accuracy">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       예측 정확도</button>
+    <button class="nav-item" data-panel="backtest">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+      📈 통계 + 백테스트
+    </button>
     <button class="nav-item" data-panel="reanalyze">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
       재분석 (구→신 변환)
@@ -444,6 +448,103 @@ tr:hover td { background: var(--bg3); }
       </div>
     </div>
 
+    <!-- Backtest -->
+    <div class="panel-section" id="panel-backtest">
+      <div class="section-header">
+        <h2>📈 통계 + 백테스트</h2>
+        <p>누적된 AI 예측 데이터의 전체 정확도, 신뢰도/섹터별 분포, 가상 매수 시 누적 수익률</p>
+      </div>
+
+      <div class="action-row" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="loadBacktest()">📊 분석 실행 / 새로고침</button>
+        <span id="btUpdated" style="font-size:12px;color:var(--text3);align-self:center"></span>
+      </div>
+
+      <!-- 전체 통계 -->
+      <div class="card">
+        <div class="card-title">전체 검증 결과</div>
+        <div id="btOverall" class="stats-grid">
+          <div class="stat-card"><div class="stat-label">총 예측</div><div class="stat-value blue" id="btTotal">—</div></div>
+          <div class="stat-card"><div class="stat-label">7일 검증</div><div class="stat-value green" id="btV7d">—</div></div>
+          <div class="stat-card"><div class="stat-label">7일 적중률</div><div class="stat-value yellow" id="btAcc7d">—</div></div>
+          <div class="stat-card"><div class="stat-label">30일 적중률</div><div class="stat-value yellow" id="btAcc30d">—</div></div>
+        </div>
+      </div>
+
+      <!-- 백테스트 결과 -->
+      <div class="card">
+        <div class="card-title">💼 백테스트 — AI 추천대로 동일 비중 매수 시 (7일 보유)</div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">총 거래</div><div class="stat-value blue" id="btTrades">—</div></div>
+          <div class="stat-card"><div class="stat-label">승률</div><div class="stat-value green" id="btWinRate">—</div></div>
+          <div class="stat-card"><div class="stat-label">평균 수익률</div><div class="stat-value yellow" id="btAvgRet">—</div></div>
+          <div class="stat-card"><div class="stat-label">누적 수익률</div><div class="stat-value green" id="btCumRet">—</div></div>
+        </div>
+        <p style="font-size:11px;color:var(--text3);margin-top:10px">
+          ⚠️ 누적 수익률 = 모든 거래의 수익률 단순 합산 (이론치). 실제 투자에는 수수료/세금/슬리피지가 추가됨.
+        </p>
+      </div>
+
+      <!-- 신뢰도별 정확도 -->
+      <div class="card">
+        <div class="card-title">🎯 AI 신뢰도 버킷별 정확도</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>신뢰도 구간</th><th>건수</th><th>7일 적중률</th><th>평균 실제 수익률</th><th>평균 예상 상승률</th></tr></thead>
+            <tbody id="btConfTable"><tr><td colspan="5" class="loading-row">아직 실행 안 됨</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 섹터별 정확도 -->
+      <div class="card">
+        <div class="card-title">🏭 섹터별 정확도 (Top 15)</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>섹터</th><th>건수</th><th>7일 적중률</th><th>평균 실제 수익률</th><th>평균 예상</th></tr></thead>
+            <tbody id="btSectorTable"><tr><td colspan="5" class="loading-row">아직 실행 안 됨</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 종목별 Top -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="card">
+          <div class="card-title">🏆 누적 수익률 TOP 10</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>티커</th><th>이름</th><th>거래</th><th>평균</th><th>누적</th></tr></thead>
+              <tbody id="btWinnersTable"><tr><td colspan="5" class="loading-row">—</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">📉 누적 손실 BOTTOM 10</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>티커</th><th>이름</th><th>거래</th><th>평균</th><th>누적</th></tr></thead>
+              <tbody id="btLosersTable"><tr><td colspan="5" class="loading-row">—</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 기간별 비교 -->
+      <div class="card">
+        <div class="card-title">⏰ 기간별 성과 비교</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>기간</th><th>검증 건수</th><th>적중률 (방향+최소변동)</th><th>승률 (방향만)</th><th>평균 수익률</th></tr></thead>
+            <tbody id="btPeriodTable"><tr><td colspan="5" class="loading-row">—</td></tr></tbody>
+          </table>
+        </div>
+        <p style="font-size:11px;color:var(--text3);margin-top:10px">
+          • <b>적중률</b>: 방향 일치 + 최소 변동 충족 (1d≥0.3%, 7d≥1.5%, 30d≥3.0%)<br>
+          • <b>승률</b>: 방향만 일치 (수익 났는지 여부)
+        </p>
+      </div>
+    </div>
+
     <!-- Reanalyze -->
     <div class="panel-section" id="panel-reanalyze">
       <div class="section-header">
@@ -554,7 +655,7 @@ const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', accuracy: '예측 정확도', reanalyze: '재분석 (구→신)', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -567,6 +668,7 @@ function showPanel(name) {
   if (name === 'issues') loadIssuesTable();
   if (name === 'companies') loadCompaniesTable();
   if (name === 'accuracy') loadAccuracy();
+  if (name === 'backtest' && !window._btLoaded) { window._btLoaded = true; loadBacktest(); }
 }
 
 document.querySelectorAll('[data-panel]').forEach(btn => {
@@ -1122,6 +1224,115 @@ async function fixNamesAi(dryRun) {
   targetBtn.onclick = () => (dryRun ? fixNamesAi(true) : fixNamesAi(false));
   previewBtn.disabled = false;
   runBtn.disabled = false;
+}
+
+// ─── 통계 + 백테스트 ───────────────────────────
+async function loadBacktest() {
+  const token = await getAuthToken();
+  if (!token) { showToast('로그인 필요', 'error'); return; }
+  showToast('통계 집계 중...', 'info');
+  try {
+    const res = await fetch('/api/stats-backtest', {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!res.ok) { showToast(`HTTP ${res.status}`, 'error'); return; }
+    const d = await res.json();
+    if (d.empty) {
+      document.getElementById('btUpdated').textContent = '검증된 데이터 없음 — 분석 + 시간 경과 필요';
+      return;
+    }
+    renderBacktest(d);
+    document.getElementById('btUpdated').textContent = '업데이트: ' + new Date().toLocaleTimeString('ko-KR');
+  } catch(e) {
+    showToast(`에러: ${e.message}`, 'error');
+  }
+}
+
+function renderBacktest(d) {
+  const o = d.overall || {};
+  document.getElementById('btTotal').textContent = (o.total || 0).toLocaleString();
+  document.getElementById('btV7d').textContent   = (o.verified7d || 0).toLocaleString();
+  document.getElementById('btAcc7d').textContent  = o.accuracy7d  != null ? `${o.accuracy7d}%`  : '—';
+  document.getElementById('btAcc30d').textContent = o.accuracy30d != null ? `${o.accuracy30d}%` : '—';
+
+  const bt = d.backtest || {};
+  document.getElementById('btTrades').textContent = (bt.totalTrades || 0).toLocaleString();
+  document.getElementById('btWinRate').textContent = `${bt.winRate || 0}%`;
+  document.getElementById('btAvgRet').textContent = bt.avgReturn != null ? `${bt.avgReturn > 0 ? '+' : ''}${bt.avgReturn}%` : '—';
+  const cumColor = (bt.cumulativeReturn || 0) >= 0 ? 'var(--green)' : 'var(--red)';
+  const cumEl = document.getElementById('btCumRet');
+  cumEl.textContent = bt.cumulativeReturn != null ? `${bt.cumulativeReturn > 0 ? '+' : ''}${Math.round(bt.cumulativeReturn)}%` : '—';
+  cumEl.style.color = cumColor;
+
+  // 신뢰도 버킷 테이블
+  const confTbody = document.getElementById('btConfTable');
+  confTbody.innerHTML = (d.byConfidence || []).map(b => `
+    <tr>
+      <td><span class="badge ${b.bucket === '80-100' ? 'badge-green' : b.bucket === '60-80' ? 'badge-blue' : 'badge-gray'}">${b.bucket}</span></td>
+      <td>${(b.total || 0).toLocaleString()}</td>
+      <td style="color:${accColor(b.accuracy7d)}">${b.accuracy7d != null ? b.accuracy7d + '%' : '—'}</td>
+      <td style="color:${retColor(b.avgActualReturn7d)}">${fmtPctVal(b.avgActualReturn7d)}</td>
+      <td style="color:var(--text2)">${fmtPctVal(b.avgUpside)}</td>
+    </tr>
+  `).join('');
+
+  // 섹터 테이블
+  const sectorTbody = document.getElementById('btSectorTable');
+  sectorTbody.innerHTML = (d.bySector || []).map(s => `
+    <tr>
+      <td>${escHtml(s.sector)}</td>
+      <td>${s.total}</td>
+      <td style="color:${accColor(s.accuracy7d)}">${s.accuracy7d != null ? s.accuracy7d + '%' : '—'}</td>
+      <td style="color:${retColor(s.avgActualReturn7d)}">${fmtPctVal(s.avgActualReturn7d)}</td>
+      <td style="color:var(--text2)">${fmtPctVal(s.avgUpside)}</td>
+    </tr>
+  `).join('');
+
+  // 위너/루저 테이블
+  const renderTickerRow = t => `
+    <tr>
+      <td><code style="color:${t.market === 'KR' ? '#64c8ea' : '#79c0ff'};font-size:11px">${escHtml(t.ticker)}</code></td>
+      <td style="font-size:12px">${escHtml(t.name)}</td>
+      <td>${t.n}</td>
+      <td style="color:${retColor(t.avg)}">${fmtPctVal(t.avg)}</td>
+      <td style="color:${retColor(t.total)};font-weight:700">${fmtPctVal(t.total)}</td>
+    </tr>`;
+  document.getElementById('btWinnersTable').innerHTML = (bt.topWinners || []).map(renderTickerRow).join('') || '<tr><td colspan="5">—</td></tr>';
+  document.getElementById('btLosersTable').innerHTML  = (bt.topLosers  || []).map(renderTickerRow).join('') || '<tr><td colspan="5">—</td></tr>';
+
+  // 기간별 비교
+  const bp = bt.byPeriod || {};
+  const periodLabel = { '1d': '1일', '7d': '7일', '30d': '30일' };
+  const periodTbody = document.getElementById('btPeriodTable');
+  periodTbody.innerHTML = ['1d', '7d', '30d'].map(p => {
+    const s = bp[p] || {};
+    return `
+      <tr>
+        <td><b>${periodLabel[p]}</b></td>
+        <td>${(s.verified || 0).toLocaleString()}</td>
+        <td style="color:${accColor(s.accuracy)}">${s.accuracy != null ? s.accuracy + '%' : '—'}</td>
+        <td style="color:${accColor(s.winRate)}">${s.winRate != null ? s.winRate + '%' : '—'}</td>
+        <td style="color:${retColor(s.avgReturn)}">${fmtPctVal(s.avgReturn)}</td>
+      </tr>`;
+  }).join('');
+}
+
+function accColor(v) {
+  if (v == null) return 'var(--text3)';
+  if (v >= 70) return 'var(--green)';
+  if (v >= 50) return 'var(--yellow)';
+  return 'var(--red)';
+}
+function retColor(v) {
+  if (v == null) return 'var(--text3)';
+  if (v > 0) return 'var(--green)';
+  if (v < 0) return 'var(--red)';
+  return 'var(--text2)';
+}
+function fmtPctVal(v) {
+  if (v == null) return '—';
+  return (v > 0 ? '+' : '') + v + '%';
 }
 </script>
 </body>

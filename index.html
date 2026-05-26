@@ -701,13 +701,19 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 
     <!-- 🎯 투자 인사이트: 누적 예측 데이터 기반 추천 종목 -->
     <div id="insightsSection" style="display:none;margin-bottom:24px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:18px">🎯</span>
           <span style="font-size:16px;font-weight:700">지금 매수 후보</span>
-          <span style="font-size:11px;color:var(--text3)">매수가 · 목표 · 손절 · 시간 프레임까지 한눈에</span>
+          <span style="font-size:11px;color:var(--text3)">매수가 · 목표 · 손절 · 기술 시그널 통합</span>
         </div>
-        <span style="font-size:11px;color:var(--text3)" id="insightsUpdated">—</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none">
+            <input type="checkbox" id="strictModeToggle" onchange="loadInsights()" style="cursor:pointer">
+            <span>🔒 엄격 모드 (신뢰도 ≥80%)</span>
+          </label>
+          <span style="font-size:11px;color:var(--text3)" id="insightsUpdated">—</span>
+        </div>
       </div>
       <div id="insightsPanel"></div>
     </div>
@@ -1517,14 +1523,32 @@ async function loadInsights() {
         };
       })
       .filter(s => s.avgUpside > 0) // 상승 예측만
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 6);
+      .sort((a, b) => b.score - a.score);
 
-    if (!scored.length) { sec.style.display = 'none'; return; }
+    // 엄격 모드: AI 신뢰도 ≥80% 종목만
+    const strictMode = document.getElementById('strictModeToggle')?.checked;
+    const beforeStrict = scored.length;
+    const finalScored = (strictMode ? scored.filter(s => s.avgConf >= 80) : scored).slice(0, 6);
+
+    if (!finalScored.length) {
+      sec.style.display = 'block';
+      el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text3);background:var(--bg2);border:1px dashed var(--border);border-radius:10px;font-size:13px">
+        ${strictMode
+          ? `🔒 엄격 모드: AI 신뢰도 ≥80% 종목 없음 (전체 ${beforeStrict}개 중 0개 통과)<br><span style="font-size:11px">→ 엄격 모드 해제하거나 더 많은 분석 누적 필요</span>`
+          : '데이터 부족'}
+      </div>`;
+      const upd = document.getElementById('insightsUpdated');
+      if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', {timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit'}) + ' KST';
+      return;
+    }
 
     sec.style.display = 'block';
     const upd = document.getElementById('insightsUpdated');
-    if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', {timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit'}) + ' KST · 최근 ' + RECENT_DAYS + '일';
+    if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', {timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit'}) + ' KST · 최근 ' + RECENT_DAYS + '일' + (strictMode ? ` · 🔒 (${finalScored.length}/${beforeStrict})` : '');
+
+    // 기술 지표 fetch (비동기로 백그라운드 로딩)
+    const tickers = finalScored.map(s => s.ticker);
+    fetchTechnicalsForCards(tickers);
 
     // ── 매매 정보 파싱 (rationale에 임베드된 [TRADE]{...} 마커 추출) ──
     const parseTradeMeta = (rationale) => {
@@ -1539,7 +1563,7 @@ async function loadInsights() {
     const tfLabel = { '1w':'단기 1주', '1m':'중기 1개월', '3m':'중장기 3개월', '6m':'장기 6개월' };
 
     el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:12px">` +
-      scored.map((s, i) => {
+      finalScored.map((s, i) => {
         const isKr = s.market === 'KR';
         const signal = s.score >= 75 ? { label: '🔥 STRONG BUY', color: '#fff', bg: 'linear-gradient(135deg,#ef4444,#dc2626)' }
                       : s.score >= 60 ? { label: '⭐ BUY',         color: '#fff', bg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)' }
@@ -1605,6 +1629,11 @@ async function loadInsights() {
               <span class="ins-q-chg" style="font-size:13px;font-weight:700;color:var(--text3);min-width:64px;text-align:right">—</span>
             </div>
 
+            <!-- 기술 시그널 chips (technicals 로드되면 채워짐) -->
+            <div class="ins-tech" data-tech-ticker="${escHtml(s.ticker)}" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;min-height:20px;font-size:10px">
+              <span style="color:var(--text3)">기술 지표 로딩...</span>
+            </div>
+
             <!-- 매매 가격대 (현재가 ± %) -->
             ${tradeBox}
 
@@ -1635,6 +1664,73 @@ async function loadInsights() {
     console.warn('loadInsights error:', e.message);
     sec.style.display = 'none';
   }
+}
+
+// 인사이트 카드에 기술 지표 chip 채우기
+const _techCache = {};
+async function fetchTechnicalsForCards(tickers) {
+  if (!tickers?.length) return;
+  // 캐시 활용 — 5분 이내면 재요청 안 함
+  const need = tickers.filter(t => !_techCache[t] || (Date.now() - _techCache[t]._ts > 300000));
+  if (need.length) {
+    try {
+      const r = await fetch(`/api/technicals?tickers=${need.map(encodeURIComponent).join(',')}`);
+      if (r.ok) {
+        const j = await r.json();
+        if (j?.data) {
+          for (const [t, info] of Object.entries(j.data)) {
+            if (info) _techCache[t] = { ...info, _ts: Date.now() };
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 시그널 라벨/색상 매핑
+  const sigMap = {
+    strong_bullish: { label: '🟢 강세 추세',  color: 'var(--green)',  bg: 'rgba(63,185,80,.15)' },
+    bullish:        { label: '🟢 상승',      color: 'var(--green)',  bg: 'rgba(63,185,80,.1)'  },
+    oversold_bull:  { label: '🟢 과매도(매수기회)', color: '#56d364',  bg: 'rgba(63,185,80,.2)' },
+    neutral:        { label: '⚪ 중립',      color: 'var(--text2)',  bg: 'var(--bg3)' },
+    overbought:     { label: '🟡 과매수',    color: 'var(--yellow)', bg: 'rgba(210,153,34,.15)' },
+    oversold:       { label: '🟠 과매도',    color: 'var(--yellow)', bg: 'rgba(210,153,34,.15)' },
+    bearish:        { label: '🔴 하락',      color: 'var(--red)',    bg: 'rgba(248,81,73,.1)' },
+    strong_bearish: { label: '🔴 약세 추세', color: 'var(--red)',    bg: 'rgba(248,81,73,.15)' },
+  };
+
+  document.querySelectorAll('.ins-tech[data-tech-ticker]').forEach(node => {
+    const t = node.dataset.techTicker;
+    const info = _techCache[t];
+    if (!info) {
+      node.innerHTML = '<span style="color:var(--text3)">기술 지표 데이터 없음</span>';
+      return;
+    }
+    const sig = sigMap[info.signal] || sigMap.neutral;
+    const chipStyle = 'padding:2px 7px;border-radius:4px;font-weight:600;display:inline-flex;align-items:center;gap:3px';
+    const chips = [];
+
+    // 메인 시그널
+    chips.push(`<span style="${chipStyle};background:${sig.bg};color:${sig.color}">${sig.label}</span>`);
+
+    // RSI
+    if (info.rsi14 != null) {
+      const rsiColor = info.rsi14 >= 70 ? 'var(--yellow)' : info.rsi14 <= 30 ? 'var(--yellow)' : 'var(--text2)';
+      chips.push(`<span style="${chipStyle};background:var(--bg3);color:${rsiColor}">RSI ${info.rsi14}</span>`);
+    }
+
+    // 주요 MA 대비 (200일 또는 50일)
+    if (info.vsSma200 != null) {
+      const c = info.vsSma200 > 0 ? 'var(--green)' : 'var(--red)';
+      const sign = info.vsSma200 > 0 ? '+' : '';
+      chips.push(`<span style="${chipStyle};background:var(--bg3);color:${c}">200일 ${sign}${info.vsSma200}%</span>`);
+    } else if (info.vsSma50 != null) {
+      const c = info.vsSma50 > 0 ? 'var(--green)' : 'var(--red)';
+      const sign = info.vsSma50 > 0 ? '+' : '';
+      chips.push(`<span style="${chipStyle};background:var(--bg3);color:${c}">50일 ${sign}${info.vsSma50}%</span>`);
+    }
+
+    node.innerHTML = chips.join('');
+  });
 }
 
 // 직전 시세 캐시 (티커별)
