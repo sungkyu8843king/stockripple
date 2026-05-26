@@ -273,29 +273,61 @@ async function runFresh() {
 // 팝업 창에서 실행 중인지 감지 (OAuth 콜백용)
 const isOAuthPopup = window.opener && window.opener !== window && (location.hash.includes('access_token') || location.search.includes('code='));
 
-if (isOAuthPopup) {
-  // 팝업 모드: UI 숨기고 OAuth 처리만 한 뒤 자동 닫기
-  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#8b949e;font-family:sans-serif">로그인 처리 중...</div>';
+// 팝업 모드와 메인 모드 분기
+const inPopup = window.opener && window.opener !== window;
+const hasOAuthData = location.hash.includes('access_token') || location.search.includes('code=');
+
+if (inPopup) {
+  // 팝업: 자기 URL을 부모에게 알림 + OAuth 처리
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#8b949e;font-family:sans-serif;flex-direction:column;gap:10px"><div>로그인 처리 중...</div><div style="font-size:11px;color:#6e7681">URL: ' + location.href.slice(0, 80) + '</div></div>';
+
+  // 부모 창에 URL 전달
+  try {
+    window.opener.postMessage({
+      type: 'oauth-popup-arrived',
+      url:    location.href,
+      origin: location.origin,
+      pathname: location.pathname,
+      hasHash:    !!location.hash,
+      hasCode:    location.search.includes('code='),
+      hasError:   location.search.includes('error=') || location.hash.includes('error='),
+    }, location.origin);
+  } catch (e) {}
+
   (async () => {
-    // detectSessionInUrl이 처리할 시간 확보
     let tries = 0;
-    while (tries < 20) {
+    while (tries < 30) {
       const { data } = await sb.auth.getSession();
-      if (data?.session) break;
-      await new Promise(r => setTimeout(r, 250));
+      if (data?.session) {
+        try { window.opener.postMessage({ type:'oauth-popup-session', email: data.session.user.email }, location.origin); } catch {}
+        break;
+      }
+      await new Promise(r => setTimeout(r, 300));
       tries++;
     }
-    setTimeout(() => window.close(), 200);
+    setTimeout(() => { try { window.close(); } catch {} }, 400);
   })();
 } else {
+  // 부모 창: 팝업 메시지 리스너
+  window.addEventListener('message', (e) => {
+    if (e.origin !== location.origin) return;
+    const m = e.data;
+    if (m?.type === 'oauth-popup-arrived') {
+      debugInfo(`📍 팝업 도착: ${m.pathname}${m.hasCode ? ' (code✓)' : ''}${m.hasHash ? ' (hash✓)' : ''}${m.hasError ? ' ❌ ERROR' : ''}`);
+      if (m.pathname !== location.pathname) {
+        debugInfo(`⚠️ Supabase Redirect URLs에 admin 경로 미허용 — 메인 사이트로 리다이렉트됨`);
+      }
+    } else if (m?.type === 'oauth-popup-session') {
+      debugInfo(`✓ 팝업에서 세션 생성: ${m.email}`);
+    }
+  });
+
   sb.auth.onAuthStateChange((event, session) => {
     debugInfo(`auth event: ${event} ${session?.user?.email || ''}`);
     refreshUI();
   });
 
-  (async () => {
-    await refreshUI();
-  })();
+  (async () => { await refreshUI(); })();
 }
 </script>
 </body>
