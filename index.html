@@ -704,8 +704,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:18px">🎯</span>
-          <span style="font-size:16px;font-weight:700">지금 주목할 종목</span>
-          <span style="font-size:11px;color:var(--text3)">AI 예측 정확도 + 최근 분석 빈도 + 평균 상승률 기반</span>
+          <span style="font-size:16px;font-weight:700">지금 매수 후보</span>
+          <span style="font-size:11px;color:var(--text3)">매수가 · 목표 · 손절 · 시간 프레임까지 한눈에</span>
         </div>
         <span style="font-size:11px;color:var(--text3)" id="insightsUpdated">—</span>
       </div>
@@ -1498,7 +1498,7 @@ async function loadInsights() {
       })
       .filter(s => s.avgUpside > 0) // 상승 예측만
       .sort((a, b) => b.score - a.score)
-      .slice(0, 8);
+      .slice(0, 6);
 
     if (!scored.length) { sec.style.display = 'none'; return; }
 
@@ -1506,56 +1506,104 @@ async function loadInsights() {
     const upd = document.getElementById('insightsUpdated');
     if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', {timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit'}) + ' KST · 최근 ' + RECENT_DAYS + '일';
 
-    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px">` +
+    // ── 매매 정보 파싱 (rationale에 임베드된 [TRADE]{...} 마커 추출) ──
+    const parseTradeMeta = (rationale) => {
+      if (!rationale || !rationale.includes('[TRADE]')) return { reason: rationale || '', trade: null };
+      const idx = rationale.indexOf('[TRADE]');
+      const reason = rationale.slice(0, idx).trim();
+      try {
+        const json = rationale.slice(idx + 7).trim();
+        return { reason, trade: JSON.parse(json) };
+      } catch { return { reason, trade: null }; }
+    };
+    const tfLabel = { '1w':'단기 1주', '1m':'중기 1개월', '3m':'중장기 3개월', '6m':'장기 6개월' };
+
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:12px">` +
       scored.map((s, i) => {
         const isKr = s.market === 'KR';
-        const signal = s.score >= 75 ? { label: '🔥 강력 추천', color: '#fff', bg: 'linear-gradient(135deg,#ef4444,#dc2626)' }
-                      : s.score >= 60 ? { label: '⭐ 주목',       color: '#fff', bg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)' }
-                      : s.score >= 45 ? { label: '관망',          color: 'var(--text2)', bg: 'var(--bg3)' }
-                      : { label: '신호 약함', color: 'var(--text3)', bg: 'var(--bg3)' };
+        const signal = s.score >= 75 ? { label: '🔥 STRONG BUY', color: '#fff', bg: 'linear-gradient(135deg,#ef4444,#dc2626)' }
+                      : s.score >= 60 ? { label: '⭐ BUY',         color: '#fff', bg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)' }
+                      : s.score >= 45 ? { label: 'WATCH',          color: 'var(--text2)', bg: 'var(--bg3)' }
+                      : { label: 'WEAK', color: 'var(--text3)', bg: 'var(--bg3)' };
         const accColor = s.accuracy == null ? 'var(--text3)'
                       : s.accuracy >= 70   ? 'var(--green)'
                       : s.accuracy >= 50   ? 'var(--yellow)' : 'var(--red)';
-        const accLabel = s.accuracy != null ? `적중률 ${s.accuracy}% (${s.histTotal}건)` : `신규 (이력 부족)`;
-        const reason   = s.latestRationale || '';
+        const accLabel = s.accuracy != null ? `적중률 ${s.accuracy}% (${s.histTotal}건)` : `신규 분석`;
+        const parsed = parseTradeMeta(s.latestRationale);
+        const trade  = parsed.trade;
         const issueLink = s.latestIssue ? `/analysis.html?id=${s.latestIssue.id}` : `/company.html?ticker=${encodeURIComponent(s.ticker)}`;
+
+        // 매매 정보 박스 (trade 있을 때만)
+        const fmtPct = v => (v > 0 ? '+' : '') + v + '%';
+        const tradeBox = trade ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:10px;background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(47,129,247,.08));border:1px solid rgba(63,185,80,.2);border-radius:8px">
+            <div style="text-align:center">
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">매수가</div>
+              <div style="font-size:12px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace">${trade.elp != null ? fmtPct(trade.elp) : '—'}~${trade.ehp != null ? fmtPct(trade.ehp) : '—'}</div>
+            </div>
+            <div style="text-align:center;border-left:1px solid var(--border);border-right:1px solid var(--border)">
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">목표</div>
+              <div style="font-size:12px;font-weight:700;color:var(--green);font-family:'SF Mono',monospace">${trade.tp != null ? fmtPct(trade.tp) : '—'}</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">손절</div>
+              <div style="font-size:12px;font-weight:700;color:var(--red);font-family:'SF Mono',monospace">${trade.sl != null ? fmtPct(trade.sl) : '—'}</div>
+            </div>
+          </div>` : `
+          <div style="padding:6px 10px;background:var(--bg3);border-radius:8px;font-size:10px;color:var(--text3);text-align:center">
+            ⚠️ 구버전 분석 — 정밀 매매 정보 없음 (재분석 필요)
+          </div>`;
 
         return `
         <a href="${issueLink}" style="text-decoration:none;color:inherit">
-          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;transition:all .15s;height:100%;display:flex;flex-direction:column;gap:10px"
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;transition:all .15s;height:100%;display:flex;flex-direction:column;gap:10px"
                onmouseover="this.style.borderColor='var(--blue)';this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(47,129,247,.15)'"
                onmouseout="this.style.borderColor='var(--border)';this.style.transform='none';this.style.boxShadow='none'">
-            <div style="display:flex;align-items:flex-start;gap:10px">
-              <span style="font-size:22px;font-weight:800;color:var(--text3);min-width:24px">${i+1}</span>
+
+            <!-- 헤더: 순위 + 티커 + 신호 -->
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:24px;font-weight:800;color:var(--text3);min-width:28px">${i+1}</span>
               <div style="flex:1;min-width:0">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
                   <span style="font-family:'SF Mono',monospace;font-size:12px;font-weight:700;color:${isKr?'#64c8ea':'#79c0ff'};background:${isKr?'#1f3540':'#1f2d4a'};padding:2px 8px;border-radius:5px">${escHtml(s.ticker)}</span>
-                  <span style="font-size:14px;font-weight:700">${escHtml(s.name)}</span>
+                  <span style="font-size:15px;font-weight:700">${escHtml(s.name)}</span>
                 </div>
-                <div style="font-size:10px;color:${accColor};font-weight:600">${accLabel}</div>
+                <div style="display:flex;gap:8px;font-size:10px;align-items:center">
+                  <span style="color:${accColor};font-weight:600">${accLabel}</span>
+                  <span style="color:var(--text3)">·</span>
+                  <span style="color:var(--text3)">신뢰 ${s.avgConf}%</span>
+                  ${trade?.tf ? `<span style="color:var(--text3)">·</span><span style="color:var(--blue);font-weight:600">${tfLabel[trade.tf] || trade.tf}</span>` : ''}
+                </div>
               </div>
-              <div style="text-align:right">
-                <div style="font-size:22px;font-weight:800;color:var(--green);line-height:1">+${s.avgUpside}%</div>
-                <div style="font-size:9px;color:var(--text3);margin-top:2px">예상 상승률</div>
-              </div>
+              <span style="font-size:10px;font-weight:800;padding:5px 10px;border-radius:6px;color:${signal.color};background:${signal.bg};white-space:nowrap">${signal.label}</span>
             </div>
+
             <!-- 실시간 시세 -->
-            <div class="ins-quote" data-quote-ticker="${escHtml(s.ticker)}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg3);border-radius:8px;font-family:'SF Mono',monospace">
+            <div class="ins-quote" data-quote-ticker="${escHtml(s.ticker)}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-radius:8px;font-family:'SF Mono',monospace">
               <span style="font-size:10px;color:var(--text3);font-family:inherit;display:inline-flex;align-items:center"><span class="live-pulse-dot"></span><span class="live-state-label">LIVE</span></span>
-              <span class="ins-q-price" style="font-size:14px;font-weight:700;color:var(--text2)">—</span>
-              <span class="ins-q-chg" style="font-size:12px;font-weight:700;color:var(--text3);min-width:64px;text-align:right">—</span>
+              <span class="ins-q-price" style="font-size:15px;font-weight:700;color:var(--text2)">—</span>
+              <span class="ins-q-chg" style="font-size:13px;font-weight:700;color:var(--text3);min-width:64px;text-align:right">—</span>
             </div>
-            ${reason ? `<div style="font-size:11px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escHtml(reason)}</div>` : ''}
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto">
-              <div style="display:flex;gap:10px;font-size:10px;color:var(--text3)">
-                <span>최근 ${s.predCount}건 분석</span>
-                <span>·</span>
-                <span>AI 신뢰도 ${s.avgConf}%</span>
+
+            <!-- 매매 가격대 (현재가 ± %) -->
+            ${tradeBox}
+
+            <!-- 핵심 thesis & risk -->
+            ${trade?.th || trade?.rk ? `
+              <div style="display:flex;flex-direction:column;gap:5px;font-size:11px;line-height:1.45">
+                ${trade.th ? `<div><span style="color:var(--green);font-weight:700">💡</span> <span style="color:var(--text2)">${escHtml(trade.th)}</span></div>` : ''}
+                ${trade.rk ? `<div><span style="color:var(--yellow);font-weight:700">⚠️</span> <span style="color:var(--text3)">${escHtml(trade.rk)}</span></div>` : ''}
               </div>
-              <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;color:${signal.color};background:${signal.bg};white-space:nowrap">${signal.label}</span>
-            </div>
-            <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
-              <div style="height:100%;width:${Math.min(s.score,100)}%;background:linear-gradient(90deg,#2f81f7,#a371f7);transition:width .5s"></div>
+            ` : (parsed.reason ? `<div style="font-size:11px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escHtml(parsed.reason.slice(0, 140))}</div>` : '')}
+
+            <!-- 하단: 분석 빈도 + 스코어 바 -->
+            <div style="display:flex;align-items:center;gap:8px;margin-top:auto;font-size:10px;color:var(--text3)">
+              <span>최근 ${s.predCount}건 분석</span>
+              <span>·</span>
+              <span>점수 ${s.score}</span>
+              <div style="flex:1;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-left:6px">
+                <div style="height:100%;width:${Math.min(s.score,100)}%;background:linear-gradient(90deg,#2f81f7,#a371f7)"></div>
+              </div>
             </div>
           </div>
         </a>`;

@@ -61,11 +61,28 @@ export default async function handler(req, res) {
             continue;
           }
           const companyId = await upsertCompany(co, valid);
+          // 매매 정보를 rationale 끝에 구조화된 마커로 임베드 (DB 스키마 변경 불필요)
+          const tradeMeta = {
+            elp: co.entry_low_pct,       // entry_low_pct
+            ehp: co.entry_high_pct,      // entry_high_pct
+            tp:  co.target_pct,          // target_pct
+            sl:  co.stop_loss_pct,       // stop_loss_pct
+            tf:  co.time_frame,          // time_frame
+            th:  co.key_thesis,          // key_thesis
+            rk:  co.key_risk,            // key_risk
+          };
+          const cleanMeta = Object.fromEntries(
+            Object.entries(tradeMeta).filter(([_, v]) => v != null && v !== '')
+          );
+          const enrichedRationale = Object.keys(cleanMeta).length
+            ? `${co.rationale || ''}\n\n[TRADE]${JSON.stringify(cleanMeta)}`
+            : co.rationale;
+
           await supabase.from('analysis_companies').insert({
             analysis_id: savedAnalysis.id,
             company_id: companyId,
             ripple_sector: ripple.sector,
-            rationale: co.rationale,
+            rationale: enrichedRationale,
             upside_pct: co.upside_pct,
             confidence: co.confidence,
             entry_price: valid.price,
@@ -137,7 +154,14 @@ async function analyzeIssue(issue) {
           "market": "US 또는 KR",
           "rationale": "이 기업이 수혜를 받는 구체적 이유",
           "upside_pct": 15,
-          "confidence": 70
+          "confidence": 70,
+          "entry_low_pct": -2,
+          "entry_high_pct": 1,
+          "target_pct": 15,
+          "stop_loss_pct": -7,
+          "time_frame": "1m",
+          "key_thesis": "한 문장 핵심 매수 논리 (왜 지금 사야 하는가)",
+          "key_risk": "한 문장 핵심 리스크"
         }
       ]
     }
@@ -152,6 +176,18 @@ async function analyzeIssue(issue) {
 - 한국 기업(KR)과 미국 기업(US)을 균형있게 포함
 - upside_pct는 현실적으로 5-50% 범위
 - confidence는 0-100 (데이터 확실성 기반)
+
+⭐ 매매 정보 (현재가 대비 % 단위, 매우 중요):
+- entry_low_pct / entry_high_pct: 진입 가격대 (현재가 대비 %). 예: -2 ~ +1이면 현재가에서 -2%~+1% 사이에서 매수
+  · 강하게 추천이면 좁게 (-1 ~ +1), 조정 기대시 넓게 (-5 ~ 0)
+- target_pct: 목표가까지 기대 수익률 (%). upside_pct와 일치해야 함
+- stop_loss_pct: 손절선 (음수, 보통 -5 ~ -10% 사이)
+- time_frame: 보유 기간. "1w"(단기 1주) / "1m"(중기 1개월) / "3m"(중장기 3개월) / "6m"(장기 6개월) 중 하나
+  · 단발 이슈/실적 모멘텀은 1w-1m, 구조적 변화는 3m-6m
+- key_thesis: "왜 지금 사야 하는가" 한 문장 (15자~40자, 구체적·실행 가능한 근거)
+- key_risk: "무엇이 잘못될 수 있나" 한 문장 (15자~40자)
+
+티커 규칙:
 - 반드시 Yahoo Finance에서 실제로 거래되는 종목만 사용
 - 한국 주식 티커: 반드시 6자리 숫자.KS 형식 (예: 005930.KS=삼성전자, 000660.KS=SK하이닉스, 035420.KS=NAVER, 051910.KS=LG화학)
 - 미국 주식: NYSE/NASDAQ 실제 상장 티커만 사용 (예: AAPL, MSFT, NVDA, TSLA)
