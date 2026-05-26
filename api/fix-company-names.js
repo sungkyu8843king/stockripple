@@ -30,8 +30,9 @@ export default async function handler(req, res) {
 
   const dryRun     = !!req.body?.dry_run;
   const aiVerify   = !!req.body?.ai_verify;
-  const batchSize  = Math.min(parseInt(req.body?.batch_size || 30, 10), 50);
+  const batchSize  = Math.min(parseInt(req.body?.batch_size || 12, 10), 20);  // 작은 배치 (~10초)
   const batchOff   = parseInt(req.body?.batch_offset || 0, 10);
+  const startMs    = Date.now();
 
   const { data: companies, error } = await supabase
     .from('companies')
@@ -47,24 +48,23 @@ export default async function handler(req, res) {
     ? (companies || []).slice(batchOff, batchOff + batchSize)
     : (companies || []);
 
-  // 먼저 Yahoo로 영어 이름 + 기본 휴리스틱
-  const enriched = [];
-  for (const c of targets) {
-    try {
-      const yfMeta = await fetchYahooMeta(c.ticker);
-      const officialEn = yfMeta?.longName || yfMeta?.shortName || null;
-      enriched.push({ c, officialEn });
-      await new Promise(r => setTimeout(r, 80));
-    } catch (e) {
-      errors.push(`${c.ticker} fetch: ${e.message}`);
-      enriched.push({ c, officialEn: null });
-    }
-  }
+  // Yahoo fetch 병렬 처리 (~1-2초로 단축)
+  const yhResults = await Promise.all(
+    targets.map(c => fetchYahooMeta(c.ticker)
+      .then(m => ({ c, officialEn: m?.longName || m?.shortName || null }))
+      .catch(e => { errors.push(`${c.ticker} fetch: ${e.message}`); return { c, officialEn: null }; })
+    )
+  );
+  const enriched = yhResults;
+  const yhMs = Date.now() - startMs;
 
   // AI 검증 (선택)
   let aiCorrections = {};
+  let aiMs = 0;
   if (aiVerify && anthropic) {
+    const aiStart = Date.now();
     aiCorrections = await aiVerifyNames(enriched);
+    aiMs = Date.now() - aiStart;
   }
 
   // 업데이트 결정
@@ -97,15 +97,18 @@ export default async function handler(req, res) {
     }
   }
 
+  const totalMs = Date.now() - startMs;
   return res.status(200).json({
     ok: true,
     dryRun,
     aiVerify,
-    total:   companies?.length || 0,
-    scanned: targets.length,
-    updated: updates.length,
-    updates: updates.slice(0, 50),
+    total:    companies?.length || 0,
+    scanned:  targets.length,
+    updated:  updates.length,
+    updates:  updates.slice(0, 50),
     errors,
+    timing:   { totalMs, yhMs, aiMs },
+    offset:   batchOff,
     nextOffset: aiVerify ? (batchOff + batchSize < (companies?.length || 0) ? batchOff + batchSize : null) : null,
   });
 }

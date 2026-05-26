@@ -485,18 +485,40 @@ tr:hover td { background: var(--bg3); }
         <div class="card-title">🏷️ 회사명 일괄 보정</div>
         <p style="font-size:13px;color:var(--text2);margin-bottom:10px">
           <b>기본 모드</b>: Yahoo Finance 공식명으로 빈 이름/티커명만 보정 (빠름, 무료)<br>
-          <b>AI 검증 모드</b>: Claude AI가 한국어 이름 환각(예: LRCX="라이젠")을 감지하고 정확한 이름으로 교체 (1배치 30개당 약 $0.005)
+          <b>AI 검증 모드</b>: Claude AI가 한국어 이름 환각(예: LRCX="라이젠")을 감지하고 정확한 이름으로 교체
         </p>
+        <div class="form-group" style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+          <label style="font-size:12px;color:var(--text2);margin:0">배치 크기:</label>
+          <input type="number" id="fnBatchSize" class="form-input" value="10" min="3" max="20" style="width:80px">
+          <span style="font-size:11px;color:var(--text3)">3-20 권장 (작을수록 안정, 클수록 빠름)</span>
+        </div>
         <div class="action-row" style="margin-bottom:8px">
-          <button class="btn btn-ghost" onclick="fixNames(true, false)">기본 미리보기</button>
-          <button class="btn btn-primary" onclick="fixNames(false, false)">기본 실행</button>
+          <button class="btn btn-ghost" onclick="fixNames(true)">기본 미리보기</button>
+          <button class="btn btn-primary" onclick="fixNames(false)">기본 실행</button>
         </div>
         <div class="action-row">
-          <button class="btn btn-warn" onclick="fixNamesAi(true)">🤖 AI 검증 미리보기 (30개)</button>
-          <button class="btn btn-warn" onclick="fixNamesAi(false)">🤖 AI 검증 자동 반복 (전체)</button>
+          <button class="btn btn-warn" id="fnAiPreviewBtn" onclick="fixNamesAi(true)">🤖 AI 검증 미리보기 (1배치)</button>
+          <button class="btn btn-warn" id="fnAiRunBtn" onclick="fixNamesAi(false)">🤖 AI 검증 자동 반복 (전체)</button>
+        </div>
+        <!-- 실시간 진행 상태 -->
+        <div id="fnStatus" style="display:none;margin-top:12px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div class="spinner-mini"></div>
+            <span id="fnStatusText">대기 중...</span>
+            <span style="margin-left:auto;color:var(--text3);font-family:monospace;font-size:12px">
+              <span id="fnElapsed">0</span>초 · 배치 <span id="fnBatchN">0</span>/<span id="fnBatchT">?</span>
+            </span>
+          </div>
+          <div style="margin-top:8px;height:4px;background:var(--bg);border-radius:2px;overflow:hidden">
+            <div id="fnProgBar" style="height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--green));transition:width .5s"></div>
+          </div>
         </div>
         <div class="log-box" id="fixNamesLog" style="display:none;margin-top:12px"></div>
       </div>
+      <style>
+        .spinner-mini { width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:fnSpin 0.8s linear infinite }
+        @keyframes fnSpin { to { transform:rotate(360deg) } }
+      </style>
     </div>
 
     <!-- Settings -->
@@ -1003,38 +1025,103 @@ function fnRenderResult(result, dryRun) {
   (result.errors || []).slice(0, 5).forEach(e => fnTag(`⚠️ ${e}`, 'var(--red)'));
 }
 
+// 실시간 상태 박스 제어
+let _fnElapsedTimer = null;
+let _fnStop = false;
+function fnShowStatus(text) {
+  document.getElementById('fnStatus').style.display = 'block';
+  document.getElementById('fnStatusText').textContent = text;
+}
+function fnHideStatus() {
+  document.getElementById('fnStatus').style.display = 'none';
+  if (_fnElapsedTimer) clearInterval(_fnElapsedTimer);
+  _fnElapsedTimer = null;
+}
+function fnStartElapsed() {
+  const start = Date.now();
+  if (_fnElapsedTimer) clearInterval(_fnElapsedTimer);
+  document.getElementById('fnElapsed').textContent = '0';
+  _fnElapsedTimer = setInterval(() => {
+    document.getElementById('fnElapsed').textContent = Math.round((Date.now() - start) / 1000);
+  }, 250);
+}
+function fnSetProgress(curr, total) {
+  document.getElementById('fnBatchN').textContent = curr;
+  document.getElementById('fnBatchT').textContent = total;
+  document.getElementById('fnProgBar').style.width = total ? `${Math.min(100, (curr/total)*100)}%` : '0';
+}
+
 async function fixNames(dryRun) {
   document.getElementById('fixNamesLog').innerHTML = '';
   fnTag(dryRun ? '🔍 기본 모드 미리보기...' : '🏷️ 기본 모드 실행...', 'var(--blue)');
+  fnShowStatus(dryRun ? '기본 미리보기 진행 중...' : '기본 보정 진행 중...');
+  fnStartElapsed();
   const result = await callApi('/api/fix-company-names', { dry_run: dryRun }, 'fixNamesLog');
+  fnHideStatus();
   if (result) fnRenderResult(result, dryRun);
 }
 
-// AI 검증 모드: 30개씩 배치 자동 반복
+// AI 검증 모드: 작은 배치 자동 반복 + 실시간 상태
 async function fixNamesAi(dryRun) {
-  document.getElementById('fixNamesLog').innerHTML = '';
-  fnTag(dryRun ? '🔍 AI 검증 미리보기 (배치 1, 30개)...' : '🤖 AI 검증 자동 반복 시작...', 'var(--blue)');
+  const log = document.getElementById('fixNamesLog');
+  log.innerHTML = '';
+  _fnStop = false;
+  const previewBtn = document.getElementById('fnAiPreviewBtn');
+  const runBtn     = document.getElementById('fnAiRunBtn');
+  const targetBtn  = dryRun ? previewBtn : runBtn;
+  const origText = targetBtn.textContent;
+  targetBtn.textContent = '🛑 중단';
+  targetBtn.onclick = () => { _fnStop = true; fnTag('🛑 중단 요청, 현재 배치 후 종료', 'var(--yellow)'); };
+  previewBtn.disabled = dryRun ? false : true;
+  runBtn.disabled = dryRun ? true : false;
+
+  const batchSize = Math.max(3, Math.min(20, parseInt(document.getElementById('fnBatchSize').value, 10) || 10));
+  fnTag(dryRun ? `🔍 AI 검증 미리보기 (배치 1, ${batchSize}개)` : `🤖 AI 검증 자동 반복 시작 (배치 ${batchSize}개씩)`, 'var(--blue)');
+  fnShowStatus('첫 배치 시작...');
+  fnStartElapsed();
 
   let offset = 0;
   let totalUpdated = 0;
+  let totalProcessed = 0;
+  let totalKnown = null;
   let batch = 1;
-  while (true) {
-    fnTag(`📦 배치 ${batch} (offset ${offset})...`, 'var(--text3)');
+
+  while (!_fnStop) {
+    fnShowStatus(`📦 배치 ${batch} 처리 중 (offset ${offset}, ${batchSize}개)...`);
+    fnSetProgress(batch - 1, totalKnown ? Math.ceil(totalKnown / batchSize) : '?');
+    fnTag(`📦 배치 ${batch} (offset ${offset}, ${batchSize}개)`, 'var(--text3)');
+
     const result = await callApi('/api/fix-company-names',
-      { dry_run: dryRun, ai_verify: true, batch_size: 30, batch_offset: offset },
+      { dry_run: dryRun, ai_verify: true, batch_size: batchSize, batch_offset: offset },
       'fixNamesLog');
-    if (!result) break;
+    if (!result) { fnTag(`❌ 배치 ${batch} 실패 (네트워크 또는 타임아웃) — 배치 크기 줄여 재시도하세요`, 'var(--red)'); break; }
+
+    if (totalKnown == null) totalKnown = result.total;
+    totalProcessed += result.scanned || 0;
+    totalUpdated   += result.updated || 0;
+
     fnRenderResult(result, dryRun);
-    totalUpdated += result.updated || 0;
-    if (dryRun) break;  // 미리보기는 1배치만
+    if (result.timing) {
+      fnTag(`  ⏱ Yahoo ${(result.timing.yhMs/1000).toFixed(1)}s · Claude ${(result.timing.aiMs/1000).toFixed(1)}s · 총 ${(result.timing.totalMs/1000).toFixed(1)}s`, 'var(--text3)');
+    }
+    fnSetProgress(batch, Math.ceil(totalKnown / batchSize));
+
+    if (dryRun) break;
     if (result.nextOffset == null) {
-      fnTag(`🎯 완료: 전체 ${totalUpdated}개 변경`, 'var(--green)');
+      fnTag(`🎯 완료: 전체 ${totalUpdated}개 변경 (스캔 ${totalProcessed}/${totalKnown})`, 'var(--green)');
       break;
     }
     offset = result.nextOffset;
     batch++;
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 800));
   }
+
+  if (_fnStop) fnTag(`🛑 중단됨: ${totalUpdated}개 변경됨, 다음 offset ${offset}`, 'var(--yellow)');
+  fnHideStatus();
+  targetBtn.textContent = origText;
+  targetBtn.onclick = () => (dryRun ? fixNamesAi(true) : fixNamesAi(false));
+  previewBtn.disabled = false;
+  runBtn.disabled = false;
 }
 </script>
 </body>
