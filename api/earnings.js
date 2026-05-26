@@ -1,13 +1,14 @@
 /**
- * earnings.js — Vercel Edge Function
+ * earnings.js — Vercel Edge Function (v2-fmp)
  * GET /api/earnings            → 기업실적 + 애널리스트 기본 정보
- * GET /api/earnings?type=analyst → 투자의견 (YF insights 엔드포인트 사용)
+ * GET /api/earnings?type=analyst → 투자의견
  *
  * 데이터 전략:
- *  - v8/finance/chart    → 현재가, 회사명 (항상 작동)
- *  - ws/insights/v2      → 목표주가, 투자의견, 밸류에이션, 기술적 전망 (항상 작동)
- *  - v10/quoteSummary    → 실적날짜, EPS, 매출 (크럼 필요, 실패 시 graceful fallback)
- *  - v7/options          → 내재변동성 (실패 시 생략)
+ *  - FMP earning_calendar → 메인 (실적일정 + EPS + 매출 예상)
+ *  - v8/finance/chart     → 현재가, 회사명 (항상 작동)
+ *  - ws/insights/v2       → 목표주가, 투자의견 (항상 작동)
+ *  - v10/quoteSummary     → 보강 (크럼 필요)
+ *  - Nasdaq               → 폴백
  */
 export const config = { runtime: 'edge' };
 
