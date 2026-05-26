@@ -845,6 +845,26 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
 <script>
 const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
+
+// 만료된 Supabase 세션이 페이지 쿼리를 멈추게 만드는 버그 방지
+// (admin 페이지에서 로그인한 세션이 깨진 상태로 남아있을 때 발생)
+try {
+  for (const key of Object.keys(localStorage)) {
+    if (!key.startsWith('sb-') || !key.endsWith('-auth-token')) continue;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      const exp = parsed?.expires_at;
+      // expires_at은 Unix 초. 현재 시각보다 과거면 제거
+      if (typeof exp === 'number' && exp * 1000 < Date.now()) {
+        localStorage.removeItem(key);
+        console.info('[StockRipple] 만료된 세션 자동 제거:', key);
+      }
+    } catch { localStorage.removeItem(key); }  // 파싱 실패한 토큰도 제거
+  }
+} catch {}
+
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const PAGE_SIZE = 20;
