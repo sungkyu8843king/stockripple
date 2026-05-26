@@ -45,8 +45,8 @@ export default async function handler(req, res) {
 
   // 1. 뉴스 수집 (병렬)
   const [newsData, rssData] = await Promise.all([
-    call('/api/fetch-news'),
-    call('/api/fetch-rss'),
+    call('/api/fetch?type=news'),
+    call('/api/fetch?type=rss'),
   ]);
   log.news = newsData;
   log.rss  = rssData;
