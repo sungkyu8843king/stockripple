@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { verifyAdmin } from '../lib/auth.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -39,10 +40,8 @@ const RSS_FEEDS = [
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const auth = req.headers.authorization;
-  if (auth !== `Bearer ${process.env.ADMIN_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  const result = await verifyAdmin(req.headers.authorization);
+  if (!result.ok) return res.status(401).json({ error: result.error });
 
   const results = { fetched: 0, saved: 0, errors: [] };
 

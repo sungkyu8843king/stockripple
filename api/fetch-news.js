@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { verifyAdmin } from '../lib/auth.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -32,10 +33,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.ADMIN_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  const _auth = await verifyAdmin(req.headers.authorization);
+  if (!_auth.ok) return res.status(401).json({ error: _auth.error });
 
   if (!NEWS_API_KEY) {
     return res.status(500).json({ error: 'NEWS_API_KEY not configured' });

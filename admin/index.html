@@ -174,12 +174,38 @@ tr:hover td { background: var(--bg3); }
 <div class="login-overlay" id="loginOverlay" style="display:none">
   <div class="login-box">
     <div class="login-logo">StockRipple</div>
-    <div class="login-sub">관리자 패널 — 비밀번호를 입력하세요</div>
-    <div class="form-group">
-      <input type="password" id="loginInput" class="form-input" placeholder="ADMIN_SECRET"
-        onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="login-sub">관리자 패널 로그인</div>
+
+    <!-- 탭 -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border)">
+      <button id="tabSb" onclick="switchLoginTab('sb')" style="flex:1;padding:8px;background:none;border:none;color:var(--text);border-bottom:2px solid var(--blue);font-weight:600;cursor:pointer;font-size:13px">Supabase 계정</button>
+      <button id="tabSec" onclick="switchLoginTab('sec')" style="flex:1;padding:8px;background:none;border:none;color:var(--text3);border-bottom:2px solid transparent;cursor:pointer;font-size:13px">ADMIN_SECRET</button>
     </div>
-    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">로그인</button>
+
+    <!-- Supabase 로그인 (기본) -->
+    <form id="loginSbForm" autocomplete="off" onsubmit="event.preventDefault();doLoginSb()">
+      <input type="text" name="fakeu" style="display:none" autocomplete="username" tabindex="-1">
+      <input type="password" name="fakep" style="display:none" autocomplete="new-password" tabindex="-1">
+      <div class="form-group">
+        <input type="email" id="sbEmail" class="form-input" placeholder="example@email.com"
+          autocomplete="off" name="ae_${Date.now()}" readonly onfocus="this.removeAttribute('readonly')">
+      </div>
+      <div class="form-group">
+        <input type="password" id="sbPassword" class="form-input" placeholder="비밀번호"
+          autocomplete="new-password" name="ap_${Date.now()}" readonly onfocus="this.removeAttribute('readonly')">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%">로그인</button>
+    </form>
+
+    <!-- ADMIN_SECRET 로그인 -->
+    <div id="loginSecForm" style="display:none">
+      <div class="form-group">
+        <input type="password" id="loginInput" class="form-input" placeholder="ADMIN_SECRET"
+          onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">로그인</button>
+    </div>
+
     <div class="login-error" id="loginError"></div>
   </div>
 </div>
@@ -212,6 +238,10 @@ tr:hover td { background: var(--bg3); }
     <button class="nav-item" data-panel="accuracy">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       예측 정확도</button>
+    <button class="nav-item" data-panel="reanalyze">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      재분석 (구→신 변환)
+    </button>
     <button class="nav-item" data-panel="settings">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
       API 키 설정
@@ -414,6 +444,44 @@ tr:hover td { background: var(--bg3); }
       </div>
     </div>
 
+    <!-- Reanalyze -->
+    <div class="panel-section" id="panel-reanalyze">
+      <div class="section-header">
+        <h2>재분석 (구버전 → 신버전 변환)</h2>
+        <p>기존 분석된 이슈를 새 형식(매수가/목표/손절/시간프레임/thesis/risk)으로 재분석합니다.</p>
+      </div>
+
+      <div class="card" style="background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(47,129,247,.08));border-color:rgba(63,185,80,.3)">
+        <div class="card-title">💡 사용 시기</div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6">
+          • AI 분석 프롬프트를 새 형식으로 업그레이드한 후, <b>기존 데이터를 일괄 변환</b>할 때<br>
+          • 매일 자동 수집되는 신규 이슈는 이미 새 형식으로 분석되므로 재분석 불필요<br>
+          • 비용: 이슈당 약 $0.003 (Claude Haiku 4.5)
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">단일 배치 재분석</div>
+        <div class="form-group">
+          <label class="form-label">재분석할 최근 이슈 개수 (1회 최대 15)</label>
+          <input type="number" id="reanCount" class="form-input" value="15" min="1" max="15">
+        </div>
+        <div class="action-row">
+          <button class="btn btn-primary" id="reanRunBtn" onclick="reanRunSingle()">재분석 시작</button>
+          <button class="btn btn-success" onclick="reanRunFresh()">신규 미분석만 분석</button>
+        </div>
+        <div class="log-box" id="reanLog" style="display:none;margin-top:12px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🔁 자동 반복 (전체 재분석)</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:10px">15개씩 배치로 자동 반복 실행. Vercel 60초 타임아웃 회피.</p>
+        <div class="action-row">
+          <button class="btn btn-warn" id="reanAutoBtn" onclick="reanRunAuto()">🔁 자동 반복 시작</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Settings -->
     <div class="panel-section" id="panel-settings">
       <div class="section-header">
@@ -447,7 +515,7 @@ const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', accuracy: '예측 정확도', reanalyze: '재분석 (구→신)', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -494,6 +562,36 @@ async function doLogin() {
   } catch(e) { errEl.textContent = '서버 연결 오류: ' + e.message; }
 }
 
+// Supabase 로그인
+function switchLoginTab(which) {
+  document.getElementById('loginSbForm').style.display  = which === 'sb' ? 'block' : 'none';
+  document.getElementById('loginSecForm').style.display = which === 'sec' ? 'block' : 'none';
+  document.getElementById('tabSb').style.cssText  = `flex:1;padding:8px;background:none;border:none;color:${which==='sb'?'var(--text)':'var(--text3)'};border-bottom:2px solid ${which==='sb'?'var(--blue)':'transparent'};font-weight:${which==='sb'?'600':'400'};cursor:pointer;font-size:13px`;
+  document.getElementById('tabSec').style.cssText = `flex:1;padding:8px;background:none;border:none;color:${which==='sec'?'var(--text)':'var(--text3)'};border-bottom:2px solid ${which==='sec'?'var(--blue)':'transparent'};font-weight:${which==='sec'?'600':'400'};cursor:pointer;font-size:13px`;
+}
+async function doLoginSb() {
+  const email = document.getElementById('sbEmail').value.trim();
+  const password = document.getElementById('sbPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = '이메일과 비밀번호 입력'; return; }
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { errEl.textContent = error.message; return; }
+  if (data?.session?.access_token) {
+    document.getElementById('loginOverlay').style.display = 'none';
+    loadDashStats();
+  } else {
+    errEl.textContent = '로그인 실패';
+  }
+}
+
+// 통합 인증 토큰 — Supabase 세션 우선, 없으면 ADMIN_SECRET
+async function getAuthToken() {
+  const { data } = await sb.auth.getSession();
+  if (data?.session?.access_token) return data.session.access_token;
+  return sessionStorage.getItem('sr_admin_secret') || null;
+}
+
 function log(elId, msg, type = '') {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -504,13 +602,13 @@ function log(elId, msg, type = '') {
 }
 
 async function callApi(path, body, logId, authMode = 'ADMIN') {
-  const secret = getAdminSecret();
-  if (!secret) { showToast('ADMIN_SECRET을 설정 탭에서 먼저 설정해주세요', 'error'); return null; }
+  const token = await getAuthToken();
+  if (!token) { showToast('로그인이 필요합니다', 'error'); return null; }
 
   try {
     const res = await fetch(path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${secret}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: body && Object.keys(body).length ? JSON.stringify(body) : undefined,
     });
     const data = await res.json();
@@ -781,12 +879,91 @@ async function runAccuracyCheck() {
   }
 }
 
-// Show login overlay if not authenticated
-if (!sessionStorage.getItem('sr_admin_secret')) {
-  document.getElementById('loginOverlay').style.display = 'flex';
-  setTimeout(() => document.getElementById('loginInput').focus(), 100);
-} else {
-  loadDashStats();
+// 페이지 로드 시 인증 확인 — Supabase 세션 또는 ADMIN_SECRET 둘 중 하나만 있으면 통과
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data?.session?.access_token || sessionStorage.getItem('sr_admin_secret')) {
+    loadDashStats();
+  } else {
+    document.getElementById('loginOverlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('sbEmail').focus(), 100);
+  }
+})();
+
+// 재분석 함수들
+function reanLog(msg, cls = '') {
+  const el = document.getElementById('reanLog');
+  el.style.display = 'block';
+  const colors = { ok: 'var(--green)', err: 'var(--red)', info: 'var(--blue)', warn: 'var(--yellow)' };
+  const div = document.createElement('div');
+  div.style.color = colors[cls] || 'var(--text2)';
+  div.textContent = `${new Date().toLocaleTimeString('ko-KR')} ${msg}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function reanRunSingle() {
+  const btn = document.getElementById('reanRunBtn');
+  const count = parseInt(document.getElementById('reanCount').value, 10) || 15;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '실행 중...';
+  reanLog(`🔄 최근 ${count}개 재분석 시작 (구버전 삭제 + 새 형식 분석)`, 'info');
+  const result = await callApi('/api/analyze', { force_recent: count, limit: count }, 'reanLog');
+  if (result) {
+    reanLog(`✓ 완료: 삭제 ${result.reanalyzed || 0}건, 새 분석 ${result.analyzed || 0}건`, 'ok');
+    if (result.errors?.length) result.errors.slice(0, 5).forEach(e => reanLog(`  ⚠️ ${e}`, 'warn'));
+  }
+  btn.disabled = false;
+  btn.textContent = orig;
+}
+
+async function reanRunFresh() {
+  reanLog('🆕 신규 미분석 이슈 처리', 'info');
+  const result = await callApi('/api/analyze', { limit: 15 }, 'reanLog');
+  if (result) {
+    reanLog(`✓ 완료: 분석 ${result.analyzed || 0}건`, 'ok');
+    if (result.errors?.length) result.errors.slice(0, 5).forEach(e => reanLog(`  ⚠️ ${e}`, 'warn'));
+  }
+}
+
+let _reanAutoStop = false;
+async function reanRunAuto() {
+  const btn = document.getElementById('reanAutoBtn');
+  const total = parseInt(prompt('전체 재분석할 이슈 개수 (예: 50)', '30'), 10);
+  if (!total || total < 1) return;
+  if (!confirm(`최근 ${total}개를 15개씩 배치로 재분석. 약 ${Math.ceil(total/15)}분 소요. 진행할까요?`)) return;
+
+  _reanAutoStop = false;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '🛑 중단';
+  btn.onclick = () => { _reanAutoStop = true; reanLog('🛑 중단 요청됨, 현재 배치 후 종료', 'warn'); };
+
+  reanLog(`🔁 자동 반복 시작: 최근 ${total}개 (15개씩)`, 'info');
+  reanLog(`1️⃣ 최근 ${Math.min(total, 15)}개 기존 분석 삭제 중...`, 'info');
+  const wipe = await callApi('/api/analyze', { force_recent: Math.min(total, 15), limit: 0 }, 'reanLog');
+  if (!wipe) { btn.disabled = false; btn.textContent = orig; btn.onclick = reanRunAuto; return; }
+  reanLog(`  ↳ ${wipe.reanalyzed || 0}개 삭제`, 'ok');
+
+  let analyzedTotal = 0, batch = 1;
+  while (!_reanAutoStop && analyzedTotal < total) {
+    reanLog(`2️⃣ 배치 ${batch} 시작 (15개)...`, 'info');
+    const res = await callApi('/api/analyze', { limit: 15 }, 'reanLog');
+    if (!res) break;
+    const got = res.analyzed || 0;
+    analyzedTotal += got;
+    reanLog(`  ↳ ${got}개 완료 (누적 ${analyzedTotal}/${total})`, 'ok');
+    if (got === 0) { reanLog('✓ 더 분석할 이슈 없음, 종료', 'ok'); break; }
+    if (res.errors?.length) res.errors.slice(0, 3).forEach(e => reanLog(`  ⚠️ ${e}`, 'warn'));
+    batch++;
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  reanLog(`🎯 완료: 총 ${analyzedTotal}개 새 형식 분석 생성`, 'ok');
+  btn.disabled = false;
+  btn.textContent = orig;
+  btn.onclick = reanRunAuto;
 }
 </script>
 </body>

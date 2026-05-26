@@ -8,6 +8,7 @@
  *  5. check-accuracy — 기존 분석 정확도 업데이트
  */
 import { createClient } from '@supabase/supabase-js';
+import { verifyAdmin } from '../lib/auth.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -15,12 +16,8 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  const auth = req.headers.authorization;
-  const isCron  = auth === `Bearer ${process.env.CRON_SECRET}`;
-  const isAdmin = auth === `Bearer ${process.env.ADMIN_SECRET}`;
-  if (!isCron && !isAdmin) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  const result = await verifyAdmin(req.headers.authorization);
+  if (!result.ok) return res.status(401).json({ error: result.error });
 
   const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
