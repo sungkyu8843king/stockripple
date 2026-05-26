@@ -300,8 +300,13 @@ sb.auth.onAuthStateChange((event, session) => {
   const hasError = location.search.includes('error=') || location.hash.includes('error=');
 
   if (hasError) {
-    const m = (location.search + location.hash).match(/error[^=]*=([^&]+)/);
-    debugInfo(`❌ OAuth 에러 응답: ${m ? decodeURIComponent(m[1]) : '알 수 없음'}`);
+    const params = new URLSearchParams(location.search + '&' + location.hash.replace(/^#/, ''));
+    const errCode = params.get('error') || params.get('error_code') || '';
+    const errDesc = params.get('error_description') || params.get('error_message') || '';
+    debugInfo(`❌ OAuth 에러: ${errCode}`);
+    if (errDesc) debugInfo(`   상세: ${decodeURIComponent(errDesc.replace(/\+/g, ' '))}`);
+    debugInfo(`   원인 후보: Supabase Auth Providers에서 Google 비활성화 또는 Client ID/Secret 누락`);
+    history.replaceState({}, document.title, location.pathname);
   } else if (hasCode) {
     debugInfo(`📍 OAuth 콜백 도착 (PKCE code 있음), 코드 교환 중...`);
     // PKCE 코드 교환 시도
