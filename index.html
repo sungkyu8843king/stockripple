@@ -1507,6 +1507,12 @@ async function loadInsights() {
                 <div style="font-size:9px;color:var(--text3);margin-top:2px">예상 상승률</div>
               </div>
             </div>
+            <!-- 실시간 시세 -->
+            <div class="ins-quote" data-quote-ticker="${escHtml(s.ticker)}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg3);border-radius:8px;font-family:'SF Mono',monospace">
+              <span style="font-size:10px;color:var(--text3);font-family:inherit">실시간</span>
+              <span class="ins-q-price" style="font-size:14px;font-weight:700;color:var(--text2)">—</span>
+              <span class="ins-q-chg" style="font-size:12px;font-weight:700;color:var(--text3);min-width:64px;text-align:right">—</span>
+            </div>
             ${reason ? `<div style="font-size:11px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escHtml(reason)}</div>` : ''}
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto">
               <div style="display:flex;gap:10px;font-size:10px;color:var(--text3)">
@@ -1522,9 +1528,51 @@ async function loadInsights() {
           </div>
         </a>`;
       }).join('') + `</div>`;
+
+    // 실시간 시세 즉시 로드
+    refreshInsightQuotes();
   } catch(e) {
     console.warn('loadInsights error:', e.message);
     sec.style.display = 'none';
+  }
+}
+
+// 인사이트 카드 실시간 시세 갱신 (60초마다)
+async function refreshInsightQuotes() {
+  const nodes = document.querySelectorAll('.ins-quote[data-quote-ticker]');
+  if (!nodes.length) return;
+  const tickers = [...new Set([...nodes].map(n => n.dataset.quoteTicker))];
+  if (!tickers.length) return;
+
+  try {
+    const r = await fetch(`/api/quotes?tickers=${tickers.map(encodeURIComponent).join(',')}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    if (!j.ok || !j.data) return;
+
+    nodes.forEach(node => {
+      const t = node.dataset.quoteTicker;
+      const q = j.data[t];
+      const priceEl = node.querySelector('.ins-q-price');
+      const chgEl   = node.querySelector('.ins-q-chg');
+      if (!q || q.price == null) {
+        if (priceEl) priceEl.textContent = '시세 없음';
+        if (chgEl)   { chgEl.textContent = '—'; chgEl.style.color = 'var(--text3)'; }
+        return;
+      }
+      const cur = q.currency === 'KRW' ? '₩' : '$';
+      const priceStr = cur + Number(q.price).toLocaleString(q.currency === 'KRW' ? 'ko-KR' : 'en-US',
+        { maximumFractionDigits: q.currency === 'KRW' ? 0 : 2 });
+      const cp = q.changePercent;
+      const sign = cp != null && cp > 0 ? '+' : '';
+      const chgStr = cp != null ? `${sign}${cp.toFixed(2)}%` : '—';
+      const color  = cp == null ? 'var(--text3)' : cp > 0 ? 'var(--green)' : cp < 0 ? 'var(--red)' : 'var(--text2)';
+
+      if (priceEl) { priceEl.textContent = priceStr; priceEl.style.color = 'var(--text)'; }
+      if (chgEl)   { chgEl.textContent = chgStr; chgEl.style.color = color; }
+    });
+  } catch(e) {
+    console.warn('refreshInsightQuotes error:', e.message);
   }
 }
 
@@ -2037,6 +2085,7 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   loadTrumpPosts();
   loadBreakingNews();
   setInterval(loadIndices, 30000);
+  setInterval(refreshInsightQuotes, 60000);   // 1분마다 인사이트 시세 갱신
   setInterval(loadEconomicCalendar, 120000);  // 2분마다 (실제 발표 시 actual 업데이트)
   setInterval(loadTrumpPosts, 120000);        // 2분마다 신글 감지
 }
