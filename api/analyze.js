@@ -11,9 +11,29 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.ADMIN_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const authHeader = req.headers.authorization || '';
+  const isAdminSecret = authHeader === `Bearer ${process.env.ADMIN_SECRET}`;
+
+  // 두 번째 인증 방식: 로그인된 Supabase 사용자 (admin allowlist에 있는 경우)
+  let isAdminUser = false;
+  let userEmail = null;
+  if (!isAdminSecret && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    try {
+      const { data, error } = await supabase.auth.getUser(token);
+      if (!error && data?.user?.email) {
+        userEmail = data.user.email.toLowerCase();
+        const adminEmails = (process.env.ADMIN_EMAILS || 'tjdrb8423@gmail.com')
+          .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        isAdminUser = adminEmails.includes(userEmail);
+      }
+    } catch {}
+  }
+
+  if (!isAdminSecret && !isAdminUser) {
+    return res.status(401).json({
+      error: userEmail ? `Email ${userEmail} not in admin list` : 'Unauthorized',
+    });
   }
 
   const { issue_id, limit = 10, force_recent = 0 } = req.body || {};

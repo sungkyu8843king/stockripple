@@ -14,23 +14,24 @@
   .wrap { max-width: 600px; margin: 0 auto; }
   h1 { font-size: 22px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
   .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
   label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 8px; }
-  input[type="password"], input[type="number"] {
+  input[type="email"], input[type="password"], input[type="number"] {
     width: 100%; padding: 10px 12px; background: var(--bg3); border: 1px solid var(--border);
     border-radius: 8px; color: var(--text); font-size: 14px; outline: none; font-family: inherit;
   }
   input:focus { border-color: var(--blue); }
   button {
-    padding: 12px 20px; background: var(--blue); color: #fff; border: none;
+    padding: 11px 18px; background: var(--blue); color: #fff; border: none;
     border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%;
-    transition: all .15s; margin-top: 12px;
+    transition: all .15s; margin-top: 10px;
   }
   button:hover:not(:disabled) { background: #388be8; transform: translateY(-1px); }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
-  button.danger { background: var(--red); }
-  button.danger:hover:not(:disabled) { background: #d04040; }
-  .row { display: flex; gap: 10px; }
-  .row > * { flex: 1; }
+  button.secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+  button.secondary:hover:not(:disabled) { border-color: var(--blue); }
+  button.success { background: var(--green); }
+  button.success:hover:not(:disabled) { background: #2ea043; }
   .info { font-size: 12px; color: var(--text3); line-height: 1.6; margin-top: 8px; }
   .log {
     margin-top: 20px; padding: 14px; background: #000; border-radius: 8px;
@@ -39,12 +40,12 @@
   }
   .log .err { color: var(--red); }
   .log .info-line { color: var(--blue); }
-  .pill {
-    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
-    font-weight: 600; background: var(--bg3); color: var(--text2);
-  }
+  .pill { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; background:var(--bg3); color:var(--text2); }
+  .user-chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text2); }
+  .user-chip .dot { width:6px; height:6px; border-radius:50%; background:var(--green); }
   a.back { color: var(--text3); font-size: 13px; text-decoration: none; }
   a.back:hover { color: var(--blue); }
+  .auth-error { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 16px; }
 </style>
 </head>
 <body>
@@ -52,34 +53,45 @@
   <a href="/" class="back">← 메인으로</a>
   <h1>🔄 재분석 트리거 <span class="pill">Admin</span></h1>
 
-  <div class="card">
-    <label for="secret">ADMIN_SECRET</label>
-    <input type="password" id="secret" placeholder="Vercel 환경변수 ADMIN_SECRET 값" autocomplete="off">
-    <div class="info">
-      세션에만 저장됩니다. Vercel 대시보드 → Settings → Environment Variables → ADMIN_SECRET 에서 확인.
-    </div>
+  <!-- 로그인 안 됐을 때 -->
+  <div id="authCard" class="card" style="display:none">
+    <label>관리자 로그인</label>
+    <input type="email" id="email" placeholder="example@email.com" autocomplete="email">
+    <input type="password" id="password" placeholder="비밀번호" autocomplete="current-password" style="margin-top:10px">
+    <div class="auth-error" id="authError"></div>
+    <button onclick="signIn()">로그인</button>
+    <button onclick="signInGoogle()" class="secondary">Google로 로그인</button>
+    <div class="info">관리자 이메일(allowlist)에 등록된 계정만 접근 가능합니다.</div>
   </div>
 
-  <div class="card">
+  <!-- 로그인 됐을 때 -->
+  <div id="actionCard" class="card" style="display:none">
+    <div class="row" style="margin-bottom:16px">
+      <span class="user-chip"><span class="dot"></span><span id="userEmail">—</span></span>
+      <button onclick="signOut()" class="secondary" style="margin-top:0;width:auto;padding:6px 12px;font-size:12px">로그아웃</button>
+    </div>
+
     <label>재분석할 최근 이슈 개수</label>
     <input type="number" id="count" value="20" min="1" max="50">
     <div class="info">
-      가장 최근 N개의 분석된 이슈를 삭제하고 새 형식(매수가/목표/손절/시간프레임)으로 재분석.<br>
+      가장 최근 N개의 분석된 이슈를 삭제하고 새 형식(매수가/목표/손절/시간프레임/thesis/risk)으로 재분석합니다.<br>
       Anthropic API 비용: 개당 약 $0.003 (20개 = ~$0.06)
     </div>
     <button id="btnRun" onclick="runReanalyze()">재분석 시작</button>
-  </div>
-
-  <div class="card">
-    <label>또는 신규 미분석 이슈만 분석</label>
-    <div class="info">기존 분석은 건드리지 않고 is_analyzed=false 이슈만 처리.</div>
-    <button onclick="runFresh()" style="background:var(--green)">신규 분석</button>
+    <button onclick="runFresh()" class="success" style="margin-top:8px">신규 미분석 이슈만 분석</button>
   </div>
 
   <div id="log" class="log" style="display:none"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
+const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let _session = null;
+
 function log(msg, cls='') {
   const el = document.getElementById('log');
   el.style.display = 'block';
@@ -90,15 +102,54 @@ function log(msg, cls='') {
   el.scrollTop = el.scrollHeight;
 }
 
+async function refreshUI() {
+  const { data } = await sb.auth.getSession();
+  _session = data.session;
+  if (_session?.user) {
+    document.getElementById('authCard').style.display = 'none';
+    document.getElementById('actionCard').style.display = 'block';
+    document.getElementById('userEmail').textContent = _session.user.email || _session.user.id;
+  } else {
+    document.getElementById('authCard').style.display = 'block';
+    document.getElementById('actionCard').style.display = 'none';
+  }
+}
+
+async function signIn() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const errEl = document.getElementById('authError');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = '이메일과 비밀번호를 입력해 주세요'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { errEl.textContent = error.message; return; }
+  await refreshUI();
+}
+
+async function signInGoogle() {
+  await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: location.href },
+  });
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  _session = null;
+  await refreshUI();
+}
+
 async function callAnalyze(body) {
-  const secret = document.getElementById('secret').value.trim();
-  if (!secret) { log('ADMIN_SECRET을 입력해 주세요', 'err'); return null; }
-  sessionStorage.setItem('admin_secret', secret);
+  if (!_session?.access_token) {
+    log('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.', 'err');
+    await refreshUI();
+    return null;
+  }
   const res = await fetch('/api/analyze', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${secret}`,
+      'Authorization': `Bearer ${_session.access_token}`,
     },
     body: JSON.stringify(body),
   });
@@ -116,11 +167,11 @@ async function runReanalyze() {
   const btn = document.getElementById('btnRun');
   const count = parseInt(document.getElementById('count').value, 10) || 20;
   btn.disabled = true;
-  btn.textContent = '실행 중...';
+  btn.textContent = '실행 중... (1~2분 소요)';
   log(`🔄 최근 ${count}개 이슈 재분석 시작`, 'info-line');
   const result = await callAnalyze({ force_recent: count, limit: count });
   if (result) {
-    log(`✓ 재분석 완료: 삭제 ${result.reanalyzed || 0}건, 새로 분석 ${result.analyzed || 0}건`);
+    log(`✓ 재분석 완료: 기존 분석 삭제 ${result.reanalyzed || 0}건, 새로 분석 ${result.analyzed || 0}건`);
     if (result.errors?.length) {
       log(`⚠️ 에러 ${result.errors.length}건:`, 'err');
       result.errors.slice(0, 5).forEach(e => log(`  - ${e}`, 'err'));
@@ -142,8 +193,8 @@ async function runFresh() {
   }
 }
 
-// sessionStorage에서 secret 복원
-document.getElementById('secret').value = sessionStorage.getItem('admin_secret') || '';
+sb.auth.onAuthStateChange(() => refreshUI());
+refreshUI();
 </script>
 </body>
 </html>
