@@ -16,7 +16,29 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { issue_id, limit = 10 } = req.body || {};
+  const { issue_id, limit = 10, force_recent = 0 } = req.body || {};
+
+  // force_recent: 최근 N개 이슈를 무조건 재분석 (기존 분석 삭제 후 재생성)
+  let reanalyzed = 0;
+  if (force_recent > 0) {
+    const { data: recentIssues } = await supabase
+      .from('issues')
+      .select('id, analyses(id)')
+      .order('published_at', { ascending: false })
+      .limit(Math.min(force_recent, 50));
+
+    const analysisIds = (recentIssues || []).flatMap(i => (i.analyses || []).map(a => a.id));
+    if (analysisIds.length) {
+      // 자식 테이블 먼저 삭제
+      await supabase.from('analysis_companies').delete().in('analysis_id', analysisIds);
+      await supabase.from('analyses').delete().in('id', analysisIds);
+    }
+    const ids = (recentIssues || []).map(i => i.id);
+    if (ids.length) {
+      await supabase.from('issues').update({ is_analyzed: false }).in('id', ids);
+      reanalyzed = ids.length;
+    }
+  }
 
   let query = supabase.from('issues').select('*').eq('is_analyzed', false);
   if (issue_id) query = supabase.from('issues').select('*').eq('id', issue_id);
@@ -24,7 +46,7 @@ export default async function handler(req, res) {
 
   const { data: issues, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
-  if (!issues?.length) return res.status(200).json({ message: 'No issues to analyze', count: 0 });
+  if (!issues?.length) return res.status(200).json({ message: 'No issues to analyze', count: 0, reanalyzed });
 
   const results = { analyzed: 0, errors: [] };
 
@@ -111,7 +133,7 @@ export default async function handler(req, res) {
     }
   }
 
-  return res.status(200).json(results);
+  return res.status(200).json({ ...results, reanalyzed });
 }
 
 async function sendNotify(message, req) {

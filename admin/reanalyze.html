@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>재분석 트리거 — StockRipple Admin</title>
+<style>
+  :root {
+    --bg:#0d1117; --bg2:#161b22; --bg3:#21262d; --border:#30363d;
+    --text:#e6edf3; --text2:#8b949e; --text3:#6e7681;
+    --blue:#2f81f7; --green:#3fb950; --red:#f85149; --yellow:#d29922;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 40px 20px; }
+  .wrap { max-width: 600px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+  label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 8px; }
+  input[type="password"], input[type="number"] {
+    width: 100%; padding: 10px 12px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 14px; outline: none; font-family: inherit;
+  }
+  input:focus { border-color: var(--blue); }
+  button {
+    padding: 12px 20px; background: var(--blue); color: #fff; border: none;
+    border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%;
+    transition: all .15s; margin-top: 12px;
+  }
+  button:hover:not(:disabled) { background: #388be8; transform: translateY(-1px); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.danger { background: var(--red); }
+  button.danger:hover:not(:disabled) { background: #d04040; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  .info { font-size: 12px; color: var(--text3); line-height: 1.6; margin-top: 8px; }
+  .log {
+    margin-top: 20px; padding: 14px; background: #000; border-radius: 8px;
+    font-family: 'SF Mono', Consolas, monospace; font-size: 12px; line-height: 1.6;
+    max-height: 360px; overflow-y: auto; white-space: pre-wrap; color: var(--green);
+  }
+  .log .err { color: var(--red); }
+  .log .info-line { color: var(--blue); }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
+    font-weight: 600; background: var(--bg3); color: var(--text2);
+  }
+  a.back { color: var(--text3); font-size: 13px; text-decoration: none; }
+  a.back:hover { color: var(--blue); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="/" class="back">← 메인으로</a>
+  <h1>🔄 재분석 트리거 <span class="pill">Admin</span></h1>
+
+  <div class="card">
+    <label for="secret">ADMIN_SECRET</label>
+    <input type="password" id="secret" placeholder="Vercel 환경변수 ADMIN_SECRET 값" autocomplete="off">
+    <div class="info">
+      세션에만 저장됩니다. Vercel 대시보드 → Settings → Environment Variables → ADMIN_SECRET 에서 확인.
+    </div>
+  </div>
+
+  <div class="card">
+    <label>재분석할 최근 이슈 개수</label>
+    <input type="number" id="count" value="20" min="1" max="50">
+    <div class="info">
+      가장 최근 N개의 분석된 이슈를 삭제하고 새 형식(매수가/목표/손절/시간프레임)으로 재분석.<br>
+      Anthropic API 비용: 개당 약 $0.003 (20개 = ~$0.06)
+    </div>
+    <button id="btnRun" onclick="runReanalyze()">재분석 시작</button>
+  </div>
+
+  <div class="card">
+    <label>또는 신규 미분석 이슈만 분석</label>
+    <div class="info">기존 분석은 건드리지 않고 is_analyzed=false 이슈만 처리.</div>
+    <button onclick="runFresh()" style="background:var(--green)">신규 분석</button>
+  </div>
+
+  <div id="log" class="log" style="display:none"></div>
+</div>
+
+<script>
+function log(msg, cls='') {
+  const el = document.getElementById('log');
+  el.style.display = 'block';
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = `[${new Date().toLocaleTimeString('ko-KR')}] ${msg}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function callAnalyze(body) {
+  const secret = document.getElementById('secret').value.trim();
+  if (!secret) { log('ADMIN_SECRET을 입력해 주세요', 'err'); return null; }
+  sessionStorage.setItem('admin_secret', secret);
+  const res = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${secret}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let json;
+  try { json = JSON.parse(text); } catch { json = { raw: text }; }
+  if (!res.ok) {
+    log(`HTTP ${res.status}: ${json.error || text.slice(0,200)}`, 'err');
+    return null;
+  }
+  return json;
+}
+
+async function runReanalyze() {
+  const btn = document.getElementById('btnRun');
+  const count = parseInt(document.getElementById('count').value, 10) || 20;
+  btn.disabled = true;
+  btn.textContent = '실행 중...';
+  log(`🔄 최근 ${count}개 이슈 재분석 시작`, 'info-line');
+  const result = await callAnalyze({ force_recent: count, limit: count });
+  if (result) {
+    log(`✓ 재분석 완료: 삭제 ${result.reanalyzed || 0}건, 새로 분석 ${result.analyzed || 0}건`);
+    if (result.errors?.length) {
+      log(`⚠️ 에러 ${result.errors.length}건:`, 'err');
+      result.errors.slice(0, 5).forEach(e => log(`  - ${e}`, 'err'));
+    }
+  }
+  btn.disabled = false;
+  btn.textContent = '재분석 시작';
+}
+
+async function runFresh() {
+  log('🆕 신규 미분석 이슈 처리 시작', 'info-line');
+  const result = await callAnalyze({ limit: 20 });
+  if (result) {
+    log(`✓ 완료: 분석 ${result.analyzed || 0}건`);
+    if (result.errors?.length) {
+      log(`⚠️ 에러 ${result.errors.length}건`, 'err');
+      result.errors.slice(0, 5).forEach(e => log(`  - ${e}`, 'err'));
+    }
+  }
+}
+
+// sessionStorage에서 secret 복원
+document.getElementById('secret').value = sessionStorage.getItem('admin_secret') || '';
+</script>
+</body>
+</html>
