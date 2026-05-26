@@ -480,6 +480,18 @@ tr:hover td { background: var(--bg3); }
           <button class="btn btn-warn" id="reanAutoBtn" onclick="reanRunAuto()">🔁 자동 반복 시작</button>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-title">🏷️ 회사명 일괄 보정</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:10px">
+          Yahoo Finance의 공식 회사명(longName)으로 모든 종목의 이름을 검증/수정. 잘못 저장된 한국어 이름(예: LRCX="라이젠")을 정확한 이름으로 교체.
+        </p>
+        <div class="action-row">
+          <button class="btn btn-ghost" onclick="fixNames(true)">미리보기 (변경 항목만)</button>
+          <button class="btn btn-primary" onclick="fixNames(false)">실제 보정 실행</button>
+        </div>
+        <div class="log-box" id="fixNamesLog" style="display:none;margin-top:12px"></div>
+      </div>
     </div>
 
     <!-- Settings -->
@@ -964,6 +976,33 @@ async function reanRunAuto() {
   btn.disabled = false;
   btn.textContent = orig;
   btn.onclick = reanRunAuto;
+}
+
+// 회사명 보정
+async function fixNames(dryRun) {
+  const el = document.getElementById('fixNamesLog');
+  el.style.display = 'block';
+  el.innerHTML = '';
+  const tag = (msg, color = 'var(--text2)') => {
+    const div = document.createElement('div');
+    div.style.color = color;
+    div.textContent = `${new Date().toLocaleTimeString('ko-KR')} ${msg}`;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+  };
+  tag(dryRun ? '🔍 미리보기 시작...' : '🏷️ 회사명 보정 시작...', 'var(--blue)');
+  const result = await callApi('/api/fix-company-names', { dry_run: dryRun }, 'fixNamesLog');
+  if (!result) return;
+  tag(`✓ 전체 ${result.total}개 중 ${result.updated}개 변경 ${dryRun ? '예정' : '완료'}`, 'var(--green)');
+  if (result.updates?.length) {
+    tag(`변경 예시 (최대 30개):`, 'var(--text3)');
+    result.updates.forEach(u => {
+      const before = `[${u.before.ko || '∅'} / ${u.before.en || '∅'}]`;
+      const after  = `[${u.after.name_ko || u.before.ko || '∅'} / ${u.after.name_en || u.before.en || '∅'}]`;
+      tag(`  ${u.ticker}: ${before} → ${after}`);
+    });
+  }
+  if (result.errors?.length) result.errors.slice(0, 5).forEach(e => tag(`⚠️ ${e}`, 'var(--red)'));
 }
 </script>
 </body>

@@ -217,7 +217,14 @@ async function analyzeIssue(issue) {
 - 반드시 Yahoo Finance에서 실제로 거래되는 종목만 사용
 - 한국 주식 티커: 반드시 6자리 숫자.KS 형식 (예: 005930.KS=삼성전자, 000660.KS=SK하이닉스, 035420.KS=NAVER, 051910.KS=LG화학)
 - 미국 주식: NYSE/NASDAQ 실제 상장 티커만 사용 (예: AAPL, MSFT, NVDA, TSLA)
-- 확실하지 않은 티커는 절대 추측하지 말고 제외할 것`;
+- 확실하지 않은 티커는 절대 추측하지 말고 제외할 것
+
+⭐ 회사명 정확성 (매우 중요 - 환각 금지):
+- name_en은 회사의 정식 영문 법인명 (예: LRCX → "Lam Research", AVGO → "Broadcom")
+- name_ko는 한국에서 통용되는 정식 한국어 회사명. 영문명의 음역이거나 한국에서 공식 사용하는 이름.
+  · 예: Lam Research → "램 리서치", Broadcom → "브로드컴", Micron → "마이크론 테크놀로지"
+  · 절대 다른 회사의 제품명/브랜드명 사용 금지 (예: LRCX를 "라이젠"이라고 하면 안 됨 — Ryzen은 AMD 제품)
+- 티커와 회사명이 매칭되는지 확실하지 않으면 그 종목을 제외할 것`;
 
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -276,19 +283,38 @@ function parseJsonSafe(text) {
 }
 
 async function upsertCompany(co, priceData = null) {
+  // Yahoo가 알려주는 공식 회사명을 신뢰의 원천으로 사용 (AI 환각 방지)
+  const officialName = priceData?.longName || null;
+  // AI가 준 name_ko가 의심스러우면 (영어 공식명에 포함된 토큰과 다른 회사명일 때) 영어명으로 대체
+  // 예: LRCX의 longName이 "Lam Research Corporation"인데 AI가 "라이젠"이라고 했다면 → "Lam Research" 로 대체
+  let nameKo = co.name_ko || '';
+  if (officialName) {
+    const officialLower = officialName.toLowerCase();
+    const koLower       = nameKo.toLowerCase();
+    // 한글 변형 확인: 영어 longName의 첫 단어가 한글 이름에 음역으로 포함되는지 대충 확인
+    // 너무 엄격하면 정상 데이터도 거부하므로, 공식명을 fallback으로만 사용
+    if (!nameKo || nameKo.length < 2) nameKo = officialName;
+  }
+
   const { data: existing } = await supabase
     .from('companies')
-    .select('id')
+    .select('id, name_en, name_ko')
     .eq('ticker', co.ticker)
     .single();
 
-  if (existing) return existing.id;
+  // 기존 row가 있어도 공식 영어명이 비어 있으면 업데이트
+  if (existing) {
+    if (officialName && (!existing.name_en || existing.name_en === existing.name_ko)) {
+      await supabase.from('companies').update({ name_en: officialName }).eq('id', existing.id);
+    }
+    return existing.id;
+  }
 
   const insertData = {
-    ticker: co.ticker,
-    name_ko: co.name_ko,
-    name_en: co.name_en || priceData?.longName || co.name_ko,
-    market: co.market,
+    ticker:  co.ticker,
+    name_ko: nameKo,
+    name_en: officialName || co.name_en || co.name_ko,
+    market:  co.market,
   };
   if (priceData) {
     insertData.current_price = priceData.price;

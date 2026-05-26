@@ -316,6 +316,16 @@ function renderPage(issue, analysis, companies) {
       </div>`;
   }).join('');
 
+  // [TRADE] 마커 파싱
+  const parseTradeMeta = (rationale) => {
+    if (!rationale || !rationale.includes('[TRADE]')) return { reason: rationale || '', trade: null };
+    const idx = rationale.indexOf('[TRADE]');
+    const reason = rationale.slice(0, idx).trim();
+    try { return { reason, trade: JSON.parse(rationale.slice(idx + 7).trim()) }; }
+    catch { return { reason, trade: null }; }
+  };
+  const tfLabel = { '1w':'단기 1주', '1m':'중기 1개월', '3m':'중장기 3개월', '6m':'장기 6개월' };
+
   const companyCards = companies.map(c => {
     const co = c.companies;
     if (!co) return '';
@@ -324,6 +334,29 @@ function renderPage(issue, analysis, companies) {
     const sign = upsidePct >= 0 ? '+' : '';
     const upsideClass = upsidePct >= 0 ? 'upside-pos' : 'upside-neg';
     const confColor = getConfColor(c.confidence || 50);
+    const parsed = parseTradeMeta(c.rationale);
+    const trade  = parsed.trade;
+    const fmtP   = v => (v > 0 ? '+' : '') + v + '%';
+
+    const tradeBox = trade ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:10px;margin:8px 0;background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(47,129,247,.08));border:1px solid rgba(63,185,80,.25);border-radius:8px">
+        <div style="text-align:center">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">매수가</div>
+          <div style="font-size:13px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace">${trade.elp != null ? fmtP(trade.elp) : '—'}~${trade.ehp != null ? fmtP(trade.ehp) : '—'}</div>
+        </div>
+        <div style="text-align:center;border-left:1px solid var(--border);border-right:1px solid var(--border)">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">목표</div>
+          <div style="font-size:13px;font-weight:700;color:var(--green);font-family:'SF Mono',monospace">${trade.tp != null ? fmtP(trade.tp) : '—'}</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">손절</div>
+          <div style="font-size:13px;font-weight:700;color:var(--red);font-family:'SF Mono',monospace">${trade.sl != null ? fmtP(trade.sl) : '—'}</div>
+        </div>
+      </div>
+      ${trade.tf ? `<div style="font-size:11px;color:var(--blue);margin-bottom:6px;font-weight:600">⏱ ${tfLabel[trade.tf] || trade.tf}</div>` : ''}
+      ${trade.th ? `<div style="font-size:12px;color:var(--text2);margin-bottom:4px;line-height:1.5"><span style="color:var(--green);font-weight:700">💡 </span>${escHtml(trade.th)}</div>` : ''}
+      ${trade.rk ? `<div style="font-size:12px;color:var(--text3);line-height:1.5"><span style="color:var(--yellow);font-weight:700">⚠️ </span>${escHtml(trade.rk)}</div>` : ''}
+    ` : '';
 
     return `
       <div class="company-card" data-chart-ticker="${escHtml(co.ticker)}" data-chart-name="${escHtml(co.name_ko||co.name_en||co.ticker)}" data-chart-kr="${isKr}" onclick="openChart(this.dataset.chartTicker,this.dataset.chartName,this.dataset.chartKr==='true')">
@@ -336,7 +369,8 @@ function renderPage(issue, analysis, companies) {
           </div>
           ${upsidePct != null ? `<div class="upside-badge ${upsideClass}">${sign}${upsidePct}%</div>` : ''}
         </div>
-        <div class="company-rationale">${escHtml(c.rationale || '')}</div>
+        <div class="company-rationale">${escHtml(parsed.reason || '')}</div>
+        ${tradeBox}
         ${c.ripple_sector ? `<div class="company-ripple">파급 섹터: <span>${escHtml(c.ripple_sector)}</span></div>` : ''}
         <div class="company-footer">
           <div class="price-info" data-ticker="${escHtml(co.ticker)}">주가 로딩중...</div>
