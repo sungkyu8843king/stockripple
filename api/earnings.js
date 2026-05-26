@@ -122,6 +122,37 @@ async function fetchInsights(ticker) {
   } catch { return null; }
 }
 
+// ─── Financial Modeling Prep (FMP) — 메인 EPS 데이터 소스 ──────────
+// 무료 250req/day. 환경변수 FMP_API_KEY 필요.
+// 한 번의 calendar 호출로 모든 티커의 과거+미래 실적을 가져옴.
+async function fetchFMPEarningsCalendar(fromStr, toStr) {
+  const key = process.env.FMP_API_KEY;
+  if (!key) return null;
+  try {
+    const r = await fetch(
+      `https://financialmodelingprep.com/api/v3/earning_calendar?from=${fromStr}&to=${toStr}&apikey=${key}`,
+      { headers: BASE, signal: AbortSignal.timeout(8000) }
+    );
+    if (!r.ok) return null;
+    const arr = await r.json();
+    if (!Array.isArray(arr)) return null;
+    // 심볼별 인덱싱 (가장 가까운 날짜 우선)
+    const bySym = {};
+    for (const e of arr) {
+      const sym = e.symbol;
+      if (!sym) continue;
+      if (!bySym[sym]) bySym[sym] = e;
+      else {
+        // 더 최근 발표일이 우선
+        const cur = new Date(bySym[sym].date).getTime();
+        const next = new Date(e.date).getTime();
+        if (next > cur) bySym[sym] = e;
+      }
+    }
+    return bySym;
+  } catch { return null; }
+}
+
 // ─── v8/chart (auth 없이 작동, 현재가+회사명) ────────────────────
 async function fetchChart(ticker) {
   try {
@@ -139,7 +170,7 @@ async function handleEarnings() {
   const corsH = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
-    'Cache-Control': 'public, s-maxage=1800, stale-while-revalidate=3600',
+    'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',  // 1시간 캐시 (FMP req/day 절약)
   };
 
   const TICKERS = ['AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AMD','INTC','QCOM','NFLX','ORCL'];
@@ -148,6 +179,9 @@ async function handleEarnings() {
   const futDate  = new Date(); futDate.setDate(futDate.getDate() + 10);
   const pastStr  = pastDate.toISOString().split('T')[0];
   const futStr   = futDate.toISOString().split('T')[0];
+
+  // FMP 캘린더 사전 로딩 (1 req로 모든 티커 커버)
+  const fmpBySym = await fetchFMPEarningsCalendar(pastStr, futStr);
 
   const { crumb, cookieStr } = await getCrumb();
 
@@ -163,6 +197,18 @@ async function handleEarnings() {
     if (chartMeta) {
       company      = chartMeta.shortName || chartMeta.longName || ticker;
       currentPrice = chartMeta.regularMarketPrice ?? null;
+    }
+
+    // ①.5 FMP — 실적일정 + EPS 컨센서스 + 매출 예상 (메인 소스, 작동 시 거의 모든 필드 채워짐)
+    const fmp = fmpBySym?.[ticker];
+    if (fmp) {
+      if (fmp.date)                    date         = fmp.date;
+      if (fmp.eps != null)             epsActual    = fmp.eps;
+      if (fmp.epsEstimated != null)    epsConsensus = fmp.epsEstimated;
+      if (fmp.revenueEstimated != null) revEstimate = fmp.revenueEstimated;
+      // BMO/AMC 시간
+      if (fmp.time === 'bmo') { /* 장전 */ }
+      else if (fmp.time === 'amc') { /* 장후 */ }
     }
 
     // ② quoteSummary — EPS, 실적날짜 (실패 OK)
@@ -249,8 +295,9 @@ async function handleEarnings() {
       }
     }
 
+    const callTime = fmp?.time === 'bmo' ? 'BMO' : fmp?.time === 'amc' ? 'AMC' : null;
     return { ticker, company, date, epsConsensus, epsActual, whisper, epsGrowth, revEstimate,
-             priceTarget, targetHigh, targetLow, currentPrice, recKey, iv };
+             priceTarget, targetHigh, targetLow, currentPrice, recKey, iv, callTime };
   };
 
   const enriched = await Promise.allSettled(TICKERS.map(t => enrichTicker(t)));
