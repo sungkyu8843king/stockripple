@@ -147,15 +147,41 @@ async function handleEconomic() {
     const fmpFrom = past.toISOString().split('T')[0];
     const fmpTo   = future.toISOString().split('T')[0];
 
-    const [tw, nw, lw, fmp] = await Promise.allSettled([
+    // FMP economic calendar 여러 엔드포인트 명 cascade 시도
+    const fetchFMPEconomic = async () => {
+      if (!fmpKey) return { data: [], status: 'no-key' };
+      const urls = [
+        `https://financialmodelingprep.com/stable/economic-calendar?from=${fmpFrom}&to=${fmpTo}&apikey=${fmpKey}`,
+        `https://financialmodelingprep.com/stable/economics-calendar?from=${fmpFrom}&to=${fmpTo}&apikey=${fmpKey}`,
+        `https://financialmodelingprep.com/api/v3/economic_calendar?from=${fmpFrom}&to=${fmpTo}&apikey=${fmpKey}`,
+      ];
+      const tried = [];
+      for (const url of urls) {
+        try {
+          const r = await fetch(url, { headers, signal: AbortSignal.timeout(7000) });
+          const path = url.split('?')[0].split('/').slice(-1)[0];
+          if (r.ok) {
+            const j = await r.json();
+            if (Array.isArray(j) && j.length) return { data: j, status: `ok-${path}`, tried };
+            tried.push(`${path}:empty`);
+          } else {
+            tried.push(`${path}:${r.status}`);
+          }
+        } catch (e) { tried.push(`err:${e.message}`); }
+      }
+      return { data: [], status: 'all-failed', tried };
+    };
+
+    const [tw, nw, lw, fmpResult] = await Promise.allSettled([
       fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
       fetch('https://nfs.faireconomy.media/ff_calendar_nextweek.json', { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
       fetch('https://nfs.faireconomy.media/ff_calendar_lastweek.json', { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : []),
-      fmpKey
-        ? fetch(`https://financialmodelingprep.com/stable/economic-calendar?from=${fmpFrom}&to=${fmpTo}&apikey=${fmpKey}`,
-            { headers, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : [])
-        : Promise.resolve([]),
+      fetchFMPEconomic(),
     ]);
+
+    const fmp = { status: 'fulfilled', value: fmpResult.status === 'fulfilled' ? fmpResult.value.data : [] };
+    const fmpStatus = fmpResult.status === 'fulfilled' ? fmpResult.value.status : 'rejected';
+    const fmpTried  = fmpResult.status === 'fulfilled' ? fmpResult.value.tried : [];
 
     let raw = [
       ...(lw.status === 'fulfilled' && Array.isArray(lw.value) ? lw.value : []),
@@ -233,7 +259,7 @@ async function handleEconomic() {
       ok: true,
       items,
       ts: Date.now(),
-      fmp: { ok: !!fmpArr.length, count: fmpArr.length, withActual: fmpArr.filter(e => e?.actual != null).length },
+      fmp: { ok: !!fmpArr.length, count: fmpArr.length, withActual: fmpArr.filter(e => e?.actual != null).length, status: fmpStatus, tried: fmpTried },
     }), { headers: corsHeaders });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: e.message, items: [] }), { status: 500, headers: corsHeaders });
