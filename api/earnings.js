@@ -107,7 +107,19 @@ async function fetchFMPForTicker(sym, key) {
 
 async function fetchFMP(tickers) {
   const key = process.env.FMP_API_KEY;
-  if (!key) return { data: null, error: 'no-key' };
+  if (!key) return { data: null, error: 'no-key', keyLength: 0 };
+
+  // ⓪ 키 유효성 진단 — /quote/AAPL은 항상 무료
+  let keyCheck = 'unknown';
+  let keyCheckBody = '';
+  try {
+    const r = await fetch(`https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=${key}`,
+      { headers: BASE, signal: AbortSignal.timeout(5000) });
+    keyCheck = `${r.status}`;
+    if (!r.ok) keyCheckBody = (await r.text().catch(() => '')).slice(0, 200);
+  } catch (e) {
+    keyCheck = 'error: ' + e.message;
+  }
 
   const results = await Promise.all(tickers.map(t => fetchFMPForTicker(t, key)));
   const bySym = {};
@@ -129,6 +141,9 @@ async function fetchFMP(tickers) {
     count,
     mode: 'per-symbol-v2',
     statusByTicker,
+    keyCheck,
+    keyCheckBody,
+    keyLength: key.length,
   };
 }
 
@@ -188,10 +203,13 @@ async function handleEarnings() {
     ok: true,
     items,
     fmp: {
-      ok:    !!fmpRes.data,
-      error: fmpRes.error,
-      count: fmpRes.count || 0,
-      mode:  fmpRes.mode || null,
+      ok:        !!fmpRes.data,
+      error:     fmpRes.error,
+      count:     fmpRes.count || 0,
+      mode:      fmpRes.mode || null,
+      keyLength: fmpRes.keyLength,
+      keyCheck:  fmpRes.keyCheck,
+      keyCheckBody: fmpRes.keyCheckBody,
       statusByTicker: fmpRes.statusByTicker || null,
     },
     ts: Date.now(),
