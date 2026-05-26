@@ -44,36 +44,76 @@ async function fetchInsights(ticker) {
   } catch { return null; }
 }
 
-// ─── FMP earning_calendar: 실적일정 + EPS + 매출 예상 ────────────
-async function fetchFMP(fromStr, toStr) {
+// ─── FMP earning_calendar (유료) 또는 historical/earning_calendar (무료) ─
+async function fetchFMP(fromStr, toStr, tickers) {
   const key = process.env.FMP_API_KEY;
   if (!key) return { data: null, error: 'no-key' };
+
+  // 1차 시도: bulk earning_calendar (유료 플랜만)
   try {
     const url = `https://financialmodelingprep.com/api/v3/earning_calendar?from=${fromStr}&to=${toStr}&apikey=${key}`;
     const r = await fetch(url, { headers: BASE, signal: AbortSignal.timeout(8000) });
-    if (!r.ok) return { data: null, error: 'http-' + r.status };
-    const arr = await r.json();
-    if (!Array.isArray(arr)) return { data: null, error: 'not-array' };
-
-    // 심볼별로 가장 가까운 미래 일정 우선, 없으면 가장 최근 과거
-    const todayMs = Date.now();
-    const bySym = {};
-    for (const e of arr) {
-      if (!e?.symbol || !e?.date) continue;
-      const cur = bySym[e.symbol];
-      if (!cur) { bySym[e.symbol] = e; continue; }
-      const curMs = new Date(cur.date).getTime();
-      const newMs = new Date(e.date).getTime();
-      const curFuture = curMs >= todayMs;
-      const newFuture = newMs >= todayMs;
-      if (newFuture && !curFuture) bySym[e.symbol] = e;
-      else if (newFuture && curFuture && newMs < curMs) bySym[e.symbol] = e;
-      else if (!newFuture && !curFuture && newMs > curMs) bySym[e.symbol] = e;
+    if (r.ok) {
+      const arr = await r.json();
+      if (Array.isArray(arr)) return { data: indexByLatest(arr), error: null, count: arr.length, mode: 'bulk' };
     }
-    return { data: bySym, error: null, count: arr.length };
-  } catch (e) {
-    return { data: null, error: e.message || 'fetch-failed' };
+  } catch {}
+
+  // 2차 시도: per-symbol historical/earning_calendar (무료 플랜)
+  const fromMs = new Date(fromStr).getTime();
+  const toMs   = new Date(toStr).getTime();
+  const todayMs = Date.now();
+
+  const fetchOne = async (sym) => {
+    try {
+      const url = `https://financialmodelingprep.com/api/v3/historical/earning_calendar/${encodeURIComponent(sym)}?apikey=${key}`;
+      const r = await fetch(url, { headers: BASE, signal: AbortSignal.timeout(7000) });
+      if (!r.ok) return [sym, null];
+      const arr = await r.json();
+      if (!Array.isArray(arr)) return [sym, null];
+
+      // 윈도우 내 일정 중 가장 가까운 미래 우선, 없으면 가장 최근 과거
+      const candidates = arr.filter(e => {
+        if (!e?.date) return false;
+        const ms = new Date(e.date).getTime();
+        return ms >= fromMs && ms <= toMs;
+      });
+      if (!candidates.length) return [sym, null];
+
+      const future = candidates.filter(e => new Date(e.date).getTime() >= todayMs)
+                                .sort((a,b) => new Date(a.date) - new Date(b.date));
+      const past   = candidates.filter(e => new Date(e.date).getTime() <  todayMs)
+                                .sort((a,b) => new Date(b.date) - new Date(a.date));
+      return [sym, future[0] || past[0]];
+    } catch { return [sym, null]; }
+  };
+
+  const results = await Promise.all(tickers.map(fetchOne));
+  const bySym = {};
+  let count = 0;
+  for (const [sym, e] of results) {
+    if (e) { bySym[sym] = e; count++; }
   }
+  return { data: bySym, error: count ? null : 'all-failed', count, mode: 'per-symbol' };
+}
+
+// Helper: bulk 응답에서 심볼별로 가장 적절한 일정 선택
+function indexByLatest(arr) {
+  const todayMs = Date.now();
+  const bySym = {};
+  for (const e of arr) {
+    if (!e?.symbol || !e?.date) continue;
+    const cur = bySym[e.symbol];
+    if (!cur) { bySym[e.symbol] = e; continue; }
+    const curMs = new Date(cur.date).getTime();
+    const newMs = new Date(e.date).getTime();
+    const curFuture = curMs >= todayMs;
+    const newFuture = newMs >= todayMs;
+    if (newFuture && !curFuture) bySym[e.symbol] = e;
+    else if (newFuture && curFuture && newMs < curMs) bySym[e.symbol] = e;
+    else if (!newFuture && !curFuture && newMs > curMs) bySym[e.symbol] = e;
+  }
+  return bySym;
 }
 
 // ─── Earnings handler ─────────────────────────────────────────────
@@ -89,8 +129,8 @@ async function handleEarnings() {
   const pastStr  = pastDate.toISOString().split('T')[0];
   const futStr   = futDate.toISOString().split('T')[0];
 
-  // FMP 한 번 호출로 전체 캘린더 수집
-  const fmpRes = await fetchFMP(pastStr, futStr);
+  // FMP 호출: bulk 시도 후 실패하면 per-symbol 폴백
+  const fmpRes = await fetchFMP(pastStr, futStr, TICKERS);
   const fmpBySym = fmpRes.data || {};
 
   const enrich = async (ticker) => {
@@ -137,7 +177,7 @@ async function handleEarnings() {
   return new Response(JSON.stringify({
     ok: true,
     items,
-    fmp: { ok: !!fmpRes.data, error: fmpRes.error, count: fmpRes.count || 0 },
+    fmp: { ok: !!fmpRes.data, error: fmpRes.error, count: fmpRes.count || 0, mode: fmpRes.mode || null },
     ts: Date.now(),
   }), { headers: corsH });
 }
