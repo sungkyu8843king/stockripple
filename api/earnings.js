@@ -127,15 +127,21 @@ async function fetchInsights(ticker) {
 // 한 번의 calendar 호출로 모든 티커의 과거+미래 실적을 가져옴.
 async function fetchFMPEarningsCalendar(fromStr, toStr) {
   const key = process.env.FMP_API_KEY;
-  if (!key) return null;
+  if (!key) { console.warn('[FMP] no API key'); return null; }
   try {
-    const r = await fetch(
-      `https://financialmodelingprep.com/api/v3/earning_calendar?from=${fromStr}&to=${toStr}&apikey=${key}`,
-      { headers: BASE, signal: AbortSignal.timeout(8000) }
-    );
-    if (!r.ok) return null;
+    const url = `https://financialmodelingprep.com/api/v3/earning_calendar?from=${fromStr}&to=${toStr}&apikey=${key}`;
+    const r = await fetch(url, { headers: BASE, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      console.warn('[FMP] HTTP', r.status, body.slice(0, 200));
+      return null;
+    }
     const arr = await r.json();
-    if (!Array.isArray(arr)) return null;
+    if (!Array.isArray(arr)) {
+      console.warn('[FMP] non-array response:', JSON.stringify(arr).slice(0, 200));
+      return null;
+    }
+    console.info('[FMP] got', arr.length, 'earnings rows for', fromStr, '~', toStr);
     // 심볼별 인덱싱 (가장 가까운 날짜 우선)
     const bySym = {};
     for (const e of arr) {
@@ -182,6 +188,13 @@ async function handleEarnings() {
 
   // FMP 캘린더 사전 로딩 (1 req로 모든 티커 커버)
   const fmpBySym = await fetchFMPEarningsCalendar(pastStr, futStr);
+  const fmpDebug = {
+    hasKey:    !!process.env.FMP_API_KEY,
+    keyLength: process.env.FMP_API_KEY?.length || 0,
+    success:   !!fmpBySym,
+    symbols:   fmpBySym ? Object.keys(fmpBySym).length : 0,
+    sample:    fmpBySym?.AAPL || null,
+  };
 
   const { crumb, cookieStr } = await getCrumb();
 
@@ -312,7 +325,7 @@ async function handleEarnings() {
       return new Date(a.date) - new Date(b.date);
     });
 
-  return new Response(JSON.stringify({ ok: true, items, source: 'edge', ts: Date.now() }), { headers: corsH });
+  return new Response(JSON.stringify({ ok: true, items, source: 'edge', version: 'v2-fmp', fmpDebug, ts: Date.now() }), { headers: corsH });
 }
 
 // ─── Analyst handler ──────────────────────────────────────────────
