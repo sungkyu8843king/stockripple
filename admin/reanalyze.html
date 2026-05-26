@@ -76,13 +76,15 @@
       <button onclick="signOut()" class="secondary" style="margin-top:0;width:auto;padding:6px 12px;font-size:12px">로그아웃</button>
     </div>
 
-    <label>재분석할 최근 이슈 개수</label>
-    <input type="number" id="count" value="20" min="1" max="50">
+    <label>재분석할 최근 이슈 개수 (1회 최대 15)</label>
+    <input type="number" id="count" value="15" min="1" max="15">
     <div class="info">
-      가장 최근 N개의 분석된 이슈를 삭제하고 새 형식(매수가/목표/손절/시간프레임/thesis/risk)으로 재분석합니다.<br>
-      Anthropic API 비용: 개당 약 $0.003 (20개 = ~$0.06)
+      가장 최근 N개의 분석된 이슈를 삭제하고 새 형식(매수가/목표/손절/시간프레임/thesis/risk)으로 재분석.<br>
+      Vercel 함수 60초 타임아웃 때문에 <b>1회 최대 15건</b>으로 제한됨. 더 많이 처리하려면 반복 실행.<br>
+      Anthropic API 비용: 개당 약 $0.003 (15개 = ~$0.045)
     </div>
     <button id="btnRun" onclick="runReanalyze()">재분석 시작</button>
+    <button id="btnAuto" onclick="runReanalyzeAuto()" class="secondary" style="margin-top:8px">🔁 자동 반복 (전체 재분석)</button>
     <button onclick="runFresh()" class="success" style="margin-top:8px">신규 미분석 이슈만 분석</button>
   </div>
 
@@ -272,7 +274,7 @@ async function runReanalyze() {
 
 async function runFresh() {
   log('🆕 신규 미분석 이슈 처리 시작', 'info-line');
-  const result = await callAnalyze({ limit: 20 });
+  const result = await callAnalyze({ limit: 15 });
   if (result) {
     log(`✓ 완료: 분석 ${result.analyzed || 0}건`);
     if (result.errors?.length) {
@@ -280,6 +282,49 @@ async function runFresh() {
       result.errors.slice(0, 5).forEach(e => log(`  - ${e}`, 'err'));
     }
   }
+}
+
+// 자동 반복: 신규 분석할 이슈 없을 때까지 15개씩 처리
+let _autoStop = false;
+async function runReanalyzeAuto() {
+  const btn = document.getElementById('btnAuto');
+  const total = parseInt(prompt('전체 재분석할 이슈 개수 (예: 50)', '30'), 10);
+  if (!total || total < 1) return;
+  if (!confirm(`최근 ${total}개 이슈를 15개씩 배치로 재분석합니다. 약 ${Math.ceil(total/15)}분 소요. 진행할까요?`)) return;
+
+  _autoStop = false;
+  btn.disabled = true;
+  btn.textContent = '🛑 중단';
+  btn.onclick = () => { _autoStop = true; log('🛑 중단 요청됨, 현재 배치 후 종료', 'err'); };
+
+  log(`🔁 자동 반복 시작: 최근 ${total}개 (15개씩 배치)`, 'info-line');
+
+  // 1) 먼저 최근 N개의 분석을 모두 삭제 + is_analyzed=false 처리
+  log(`1️⃣ 최근 ${total}개 기존 분석 삭제 중...`, 'info-line');
+  const wipe = await callAnalyze({ force_recent: Math.min(total, 15), limit: 0 });
+  if (!wipe) { btn.disabled = false; btn.textContent = '🔁 자동 반복 (전체 재분석)'; btn.onclick = runReanalyzeAuto; return; }
+  log(`  ↳ ${wipe.reanalyzed || 0}개 삭제`);
+
+  // 2) 15개씩 반복 처리
+  let analyzedTotal = 0;
+  let batch = 1;
+  while (!_autoStop && analyzedTotal < total) {
+    log(`2️⃣ 배치 ${batch} 시작 (15개)...`, 'info-line');
+    const res = await callAnalyze({ limit: 15 });
+    if (!res) break;
+    const got = res.analyzed || 0;
+    analyzedTotal += got;
+    log(`  ↳ ${got}개 분석 완료 (누적 ${analyzedTotal}/${total})`);
+    if (got === 0) { log(`✓ 더 분석할 이슈 없음, 종료`); break; }
+    if (res.errors?.length) res.errors.slice(0, 3).forEach(e => log(`  ⚠️ ${e}`, 'err'));
+    batch++;
+    await new Promise(r => setTimeout(r, 1500));  // 다음 배치 전 잠시 대기
+  }
+
+  log(`🎯 자동 반복 완료: 총 ${analyzedTotal}개 새 형식 분석 생성`);
+  btn.disabled = false;
+  btn.textContent = '🔁 자동 반복 (전체 재분석)';
+  btn.onclick = runReanalyzeAuto;
 }
 
 // 팝업 창에서 실행 중인지 감지 (OAuth 콜백용)

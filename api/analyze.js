@@ -36,7 +36,12 @@ export default async function handler(req, res) {
     });
   }
 
-  const { issue_id, limit = 10, force_recent = 0 } = req.body || {};
+  const rawBody = req.body || {};
+  const issue_id = rawBody.issue_id;
+  // Vercel 함수 60초 타임아웃 고려 — 1회 최대 15건으로 제한
+  const HARD_CAP = 15;
+  const limit = Math.min(rawBody.limit ?? 10, HARD_CAP);
+  const force_recent = Math.min(rawBody.force_recent ?? 0, HARD_CAP);
 
   // force_recent: 최근 N개 이슈를 무조건 재분석 (기존 분석 삭제 후 재생성)
   let reanalyzed = 0;
@@ -45,7 +50,7 @@ export default async function handler(req, res) {
       .from('issues')
       .select('id, analyses(id)')
       .order('published_at', { ascending: false })
-      .limit(Math.min(force_recent, 50));
+      .limit(force_recent);
 
     const analysisIds = (recentIssues || []).flatMap(i => (i.analyses || []).map(a => a.id));
     if (analysisIds.length) {
