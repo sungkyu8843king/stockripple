@@ -49,13 +49,26 @@ export default async function handler(req) {
         changePercent = (change / prev) * 100;
       }
 
+      // currentTradingPeriod로 마켓 상태 계산 (Yahoo는 marketState를 v8 chart에 안 줌)
+      const nowSec = Math.floor(Date.now() / 1000);
+      const ctp = meta.currentTradingPeriod || {};
+      const inRange = (p) => p && typeof p.start === 'number' && typeof p.end === 'number'
+        && nowSec >= p.start && nowSec < p.end;
+      let marketState = meta.marketState || null;
+      if (!marketState) {
+        if (inRange(ctp.regular))      marketState = 'REGULAR';
+        else if (inRange(ctp.pre))     marketState = 'PRE';
+        else if (inRange(ctp.post))    marketState = 'POST';
+        else                            marketState = 'CLOSED';
+      }
+
       return [ticker, {
         price,
         previousClose: prev,
         change:        change != null ? Math.round(change * 100) / 100 : null,
         changePercent: changePercent != null ? Math.round(changePercent * 100) / 100 : null,
         currency:      meta.currency || 'USD',
-        marketState:   meta.marketState || null,
+        marketState,
       }];
     } catch {
       return [ticker, null];
