@@ -93,9 +93,32 @@
 <script>
 const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// 메인 사이트와 동일한 기본 스토리지 키 사용 (세션 공유)
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
+});
 
 let _session = null;
+
+// 디버그 정보를 페이지에 표시
+function debugInfo(msg) {
+  let el = document.getElementById('debugBox');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'debugBox';
+    el.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;font-family:monospace;font-size:11px;color:var(--text2);max-height:200px;overflow-y:auto';
+    document.querySelector('.wrap').insertBefore(el, document.getElementById('authCard'));
+  }
+  const line = document.createElement('div');
+  line.textContent = `[${new Date().toLocaleTimeString('ko-KR')}] ${msg}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
 
 function log(msg, cls='') {
   const el = document.getElementById('log');
@@ -108,8 +131,12 @@ function log(msg, cls='') {
 }
 
 async function refreshUI() {
-  const { data } = await sb.auth.getSession();
+  const { data, error } = await sb.auth.getSession();
+  if (error) debugInfo(`getSession error: ${error.message}`);
   _session = data.session;
+  debugInfo(_session?.user
+    ? `✓ 로그인됨: ${_session.user.email || _session.user.id}`
+    : '⊘ 세션 없음 (로그인 필요)');
   if (_session?.user) {
     document.getElementById('authCard').style.display = 'none';
     document.getElementById('actionCard').style.display = 'block';
@@ -132,10 +159,16 @@ async function signIn() {
 }
 
 async function signInGoogle() {
-  await sb.auth.signInWithOAuth({
+  debugInfo(`Google OAuth 시작 → redirect: ${location.origin}${location.pathname}`);
+  const { data, error } = await sb.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: location.href },
+    options: {
+      redirectTo: `${location.origin}${location.pathname}`,
+      queryParams: { prompt: 'select_account' },
+    },
   });
+  if (error) debugInfo(`OAuth 에러: ${error.message}`);
+  else if (data?.url) debugInfo(`OAuth URL 생성됨, 리다이렉트 중...`);
 }
 
 async function signOut() {
@@ -198,8 +231,21 @@ async function runFresh() {
   }
 }
 
-sb.auth.onAuthStateChange(() => refreshUI());
-refreshUI();
+sb.auth.onAuthStateChange((event, session) => {
+  debugInfo(`auth event: ${event} ${session?.user?.email || ''}`);
+  refreshUI();
+});
+
+// 페이지 로드 시 URL에 OAuth 콜백 토큰이 있으면 처리 대기
+(async () => {
+  const hasOAuthHash = location.hash.includes('access_token') || location.search.includes('code=');
+  if (hasOAuthHash) {
+    debugInfo('OAuth 콜백 감지, 세션 처리 중...');
+    // detectSessionInUrl이 자동 처리, 잠시 대기
+    await new Promise(r => setTimeout(r, 500));
+  }
+  await refreshUI();
+})();
 </script>
 </body>
 </html>
