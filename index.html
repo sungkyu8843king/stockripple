@@ -1541,7 +1541,7 @@ async function loadInsights() {
             </div>
             <!-- 실시간 시세 -->
             <div class="ins-quote" data-quote-ticker="${escHtml(s.ticker)}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg3);border-radius:8px;font-family:'SF Mono',monospace">
-              <span style="font-size:10px;color:var(--text3);font-family:inherit;display:inline-flex;align-items:center"><span class="live-pulse-dot"></span>LIVE</span>
+              <span style="font-size:10px;color:var(--text3);font-family:inherit;display:inline-flex;align-items:center"><span class="live-pulse-dot"></span><span class="live-state-label">LIVE</span></span>
               <span class="ins-q-price" style="font-size:14px;font-weight:700;color:var(--text2)">—</span>
               <span class="ins-q-chg" style="font-size:12px;font-weight:700;color:var(--text3);min-width:64px;text-align:right">—</span>
             </div>
@@ -1588,20 +1588,38 @@ async function refreshInsightQuotes() {
     const j = await r.json();
     if (!j.ok || !j.data) return;
 
+    // 마켓 상태별 라벨/색상
+    const stateMap = {
+      REGULAR:  { label: 'LIVE',   color: 'var(--green)',  pulse: true  },
+      PRE:      { label: '장전',   color: 'var(--yellow)', pulse: false },
+      PREPRE:   { label: '장전',   color: 'var(--yellow)', pulse: false },
+      POST:     { label: '시간외', color: 'var(--yellow)', pulse: false },
+      POSTPOST: { label: '시간외', color: 'var(--yellow)', pulse: false },
+      CLOSED:   { label: '마감',   color: 'var(--text3)',  pulse: false },
+    };
+
     nodes.forEach(node => {
       const t = node.dataset.quoteTicker;
       const q = j.data[t];
       const priceEl = node.querySelector('.ins-q-price');
       const chgEl   = node.querySelector('.ins-q-chg');
+      const dotEl   = node.querySelector('.live-pulse-dot');
+      const labelEl = node.querySelector('.live-state-label');
+
+      // 마켓 상태 적용
+      const state = stateMap[q?.marketState] || stateMap.CLOSED;
+      if (dotEl)   { dotEl.style.background = state.color; dotEl.style.animation = state.pulse ? 'livePulse 1s infinite' : 'none'; }
+      if (labelEl) { labelEl.textContent    = state.label; }
+
       if (!q || q.price == null) {
         if (priceEl) priceEl.textContent = '시세 없음';
         if (chgEl)   { chgEl.textContent = '—'; chgEl.style.color = 'var(--text3)'; }
         return;
       }
 
-      // 이전 값과 비교
+      // 이전 값과 비교 (장 마감 후엔 변동 없음 → flash 안 함)
       const prev = _lastQuoteCache[t];
-      const direction = prev?.price != null && q.price !== prev.price
+      const direction = state.pulse && prev?.price != null && q.price !== prev.price
         ? (q.price > prev.price ? 'up' : 'down')
         : null;
       _lastQuoteCache[t] = { price: q.price, changePercent: q.changePercent };
@@ -2154,8 +2172,8 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   loadTrumpPosts();
   loadBreakingNews();
   setInterval(loadIndices, 30000);
-  setInterval(refreshInsightQuotes, 1000);    // 1초마다 인사이트 시세 갱신 (실시간)
-  setInterval(loadEconomicCalendar, 120000);  // 2분마다 (실제 발표 시 actual 업데이트)
+  setInterval(refreshInsightQuotes, 1000);    // 1초마다 시세 갱신 (마켓 상태는 카드에 표시)
+  setInterval(loadEconomicCalendar, 30000);   // 30초마다 (발표 결과 빠른 반영)
   setInterval(loadTrumpPosts, 120000);        // 2분마다 신글 감지
 }
 
