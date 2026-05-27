@@ -1535,6 +1535,16 @@ async function loadInsights() {
         };
       })
       .filter(s => s.avgUpside > 0) // 상승 예측만
+      // 최근 [TRADE] 정보가 있고 목표가 음수면 매수 후보에서 제외 (AI 환각/모순 픽)
+      .filter(s => {
+        const parsed = parseTradeMeta(s.latestRationale);
+        const t = parsed.trade;
+        if (!t) return true;  // 트레이드 정보 없으면 통과
+        // target은 양수여야 함, stop_loss는 음수여야 함
+        if (t.tp != null && t.tp <= 0) return false;
+        if (t.sl != null && t.sl >= 0) return false;
+        return true;
+      })
       .sort((a, b) => b.score - a.score);
 
     // 엄격 모드: AI 신뢰도 ≥80% 종목만

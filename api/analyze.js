@@ -90,6 +90,20 @@ export default async function handler(req, res) {
       const pickedTickers = [];
 
       await Promise.all(allCompanyTasks.map(async ({ ripple, co }) => {
+        // 모순된 매매 정보 자동 보정 (AI 환각 방지)
+        if (co.upside_pct != null && co.upside_pct <= 0) {
+          results.errors.push(`Skipped ${co.ticker}: 음수 upside_pct (${co.upside_pct}%) — 매수 추천 불가`);
+          return;
+        }
+        if (co.target_pct != null && co.target_pct <= 0) {
+          // upside_pct로 대체
+          co.target_pct = co.upside_pct;
+        }
+        if (co.stop_loss_pct != null && co.stop_loss_pct >= 0) {
+          // 양수 손절은 음수로 강제
+          co.stop_loss_pct = -Math.abs(co.stop_loss_pct);
+        }
+
         const valid = await validateTicker(co.ticker);
         if (!valid) {
           results.errors.push(`Invalid ticker skipped: ${co.ticker} (${co.name_ko})`);
@@ -231,12 +245,20 @@ async function analyzeIssue(issue) {
 - confidence는 0-100 (데이터 확실성 기반)
 
 ⭐ 매매 정보 (현재가 대비 % 단위, 매우 중요):
+
+📌 부호 일관성 (반드시 지킬 것):
+- target_pct: **반드시 양수 (+)** — 매수 추천이므로 목표는 무조건 상승. upside_pct와 일치
+- stop_loss_pct: **반드시 음수 (-)** — 손절선은 진입가 아래
+- upside_pct: 양수만. 음수면 그 종목은 rippleEffects에 넣지 말 것 (매수 추천 = 상승 예상이어야 함)
+
+⚠️ 만약 종목이 하락할 것으로 예상되면 → rippleEffects의 companies에서 제외하거나 impact:negative 섹터로만 분류 (그 섹터 내 companies는 비워둘 것)
+
+매매 정보 상세:
 - entry_low_pct / entry_high_pct: 진입 가격대 (현재가 대비 %). 예: -2 ~ +1이면 현재가에서 -2%~+1% 사이에서 매수
   · 강하게 추천이면 좁게 (-1 ~ +1), 조정 기대시 넓게 (-5 ~ 0)
-- target_pct: 목표가까지 기대 수익률 (%). upside_pct와 일치해야 함
-- stop_loss_pct: 손절선 (음수, 보통 -5 ~ -10% 사이)
+- target_pct: 양수만. 목표가까지 기대 수익률. upside_pct와 동일 값
+- stop_loss_pct: 음수만. 보통 -5 ~ -10% 사이. target_pct의 절댓값보다 작아야 함 (손익비 의미)
 - time_frame: 보유 기간. "1w"(단기 1주) / "1m"(중기 1개월) / "3m"(중장기 3개월) / "6m"(장기 6개월) 중 하나
-  · 단발 이슈/실적 모멘텀은 1w-1m, 구조적 변화는 3m-6m
 - key_thesis: "왜 지금 사야 하는가" 한 문장 (15자~40자, 구체적·실행 가능한 근거)
 - key_risk: "무엇이 잘못될 수 있나" 한 문장 (15자~40자)
 

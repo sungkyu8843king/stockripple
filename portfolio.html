@@ -296,9 +296,16 @@ async function loadWatchlist() {
     });
   }
 
-  // 신뢰도 70+ AND 상승 예측만, 점수순
+  // 신뢰도 70+ AND 상승 예측 AND 매매 정보 일관성 (target > 0, stop < 0)
   _watchlist = items
     .filter(i => i.upside > 0 && (i.confidence || 0) >= 70)
+    .filter(i => {
+      const t = i.trade;
+      if (!t) return true;
+      if (t.tp != null && t.tp <= 0) return false;  // 음수 목표 제외
+      if (t.sl != null && t.sl >= 0) return false;  // 양수 손절 제외
+      return true;
+    })
     .sort((a, b) => (b.confidence + b.upside) - (a.confidence + a.upside))
     .slice(0, 12);
 }
