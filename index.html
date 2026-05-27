@@ -989,11 +989,22 @@ async function loadIssues() {
     query = query.or(catFilters[currentCategory]);
   }
 
-  const { data, error, count } = await query
-    .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 15000);
+  let data, error;
+  try {
+    ({ data, error } = await query
+      .abortSignal(ac.signal)
+      .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1));
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">💤</div><p class="empty-title">DB 응답 없음</p><p class="empty-sub">Supabase DB가 슬립 상태일 수 있습니다. 잠시 후 다시 시도해주세요.</p><button class="empty-btn" onclick="loadIssues()">다시 시도</button></div>`;
+    return;
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (error) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p class="empty-title">오류 발생</p><p class="empty-sub">${error.message}</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p class="empty-title">오류 발생</p><p class="empty-sub">${error.message}</p><button class="empty-btn" onclick="loadIssues()">다시 시도</button></div>`;
     return;
   }
 
