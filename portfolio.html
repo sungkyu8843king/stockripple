@@ -324,10 +324,18 @@ async function refreshPrices() {
   } catch {}
 }
 
-// 종목 가격 → KRW 환산
+// 종목 가격 → KRW 환산 (현재 환율 사용)
 function toKrw(price, market) {
   if (price == null) return 0;
   return market === 'KR' ? price : price * _usdKrw;
+}
+
+// 진입 환율 기준 KRW 환산 (포지션별 entry_fx_rate 사용)
+function toKrwAtEntry(price, position) {
+  if (price == null) return 0;
+  if (position.market === 'KR') return price;
+  const fx = position.entry_fx_rate || _usdKrw;
+  return price * fx;
 }
 
 // ──────────────────────────────────────────────────────────
@@ -337,16 +345,23 @@ function render() {
   if (!_portfolio) return;
   const root = document.getElementById('root');
 
-  // 평가금액 계산 (USD → KRW 환산)
+  // 평가금액 계산 — 진입 환율 고정 사용 (환차익 제외, 순수 주식 손익만 반영)
   let unrealizedPnl = 0;       // KRW
   let positionsValue = 0;       // KRW
+  let fxGain = 0;               // 환차익 (참고용)
   for (const p of _positions) {
     const q = _quoteCache[p.ticker];
     const cur = q?.price ?? p.entry_price;
-    const valueKrw = toKrw(cur, p.market) * p.quantity;
-    const entryKrw = toKrw(p.entry_price, p.market) * p.quantity;
-    positionsValue += valueKrw;
-    unrealizedPnl  += (valueKrw - entryKrw);
+    // 진입 환율로 환산 (순수 주가 손익)
+    const valueAtEntryFx = toKrwAtEntry(cur, p) * p.quantity;
+    const entryKrw       = toKrwAtEntry(p.entry_price, p) * p.quantity;
+    positionsValue += valueAtEntryFx;
+    unrealizedPnl  += (valueAtEntryFx - entryKrw);
+    // 환차익 (현재 환율 vs 진입 환율) — 정보용
+    if (p.market !== 'KR') {
+      const fxNow = toKrw(cur, p.market) * p.quantity;
+      fxGain += (fxNow - valueAtEntryFx);
+    }
   }
   const realizedPnl = _closed.reduce((s, p) => s + (p.pnl_amount || 0), 0);
   const totalValue  = (_portfolio.cash_balance || 0) + positionsValue;
@@ -378,9 +393,9 @@ function render() {
         <div class="s-sub ${totalPnl >= 0 ? 'green' : ''}" style="color:${totalPnl >= 0 ? 'var(--green)' : 'var(--red)'}">${totalPnl >= 0 ? '+' : ''}${fmtKRW(totalPnl)} (${fmtPct(totalPnlPct)})</div>
       </div>
       <div class="summary-card">
-        <div class="s-label">🏆 실현/평가 손익</div>
+        <div class="s-label">🏆 주식 손익 (환율 고정)</div>
         <div class="s-val ${unrealizedPnl >= 0 ? 'green' : 'red'}">${unrealizedPnl >= 0 ? '+' : ''}${fmtKRW(unrealizedPnl)}</div>
-        <div class="s-sub">실현 ${realizedPnl >= 0 ? '+' : ''}${fmtKRW(realizedPnl)} · 마감 ${_closed.length}건</div>
+        <div class="s-sub">${Math.abs(fxGain) > 100 ? `환차익 ${fxGain >= 0 ? '+' : ''}${fmtKRW(fxGain)} · ` : ''}실현 ${realizedPnl >= 0 ? '+' : ''}${fmtKRW(realizedPnl)}</div>
       </div>
     </div>
 
@@ -445,10 +460,11 @@ function renderPositionRow(p) {
   const q = _quoteCache[p.ticker];
   const cur = q?.price ?? p.entry_price;
   const pnlPct = ((cur - p.entry_price) / p.entry_price) * 100;
-  const valueKrw = toKrw(cur, p.market) * p.quantity;
-  const entryKrw = toKrw(p.entry_price, p.market) * p.quantity;
-  const pnlAmt = valueKrw - entryKrw;   // KRW 환산 손익
-  const value  = valueKrw;              // 표시는 항상 KRW
+  // 진입 환율 고정 사용 (환차익 제외, 순수 주식 손익)
+  const valueKrw = toKrwAtEntry(cur, p) * p.quantity;
+  const entryKrw = toKrwAtEntry(p.entry_price, p) * p.quantity;
+  const pnlAmt = valueKrw - entryKrw;
+  const value  = valueKrw;
   const isKr   = p.market === 'KR';
   const fmtP   = isKr ? fmtKRW : fmtUSD;
   const cls    = pnlPct > 0 ? 'up' : pnlPct < 0 ? 'dn' : 'flat';
@@ -629,6 +645,7 @@ async function executeBuy(w) {
     quantity: qty,
     entry_price: price,
     entry_date: new Date().toISOString(),
+    entry_fx_rate: isKr ? 1 : _usdKrw,   // 매수 시점 환율 고정 (환차익 제거용)
     analysis_company_id: w.ac_id,
     ai_target_pct: w.trade?.tp ?? null,
     ai_stop_pct:   w.trade?.sl ?? null,
@@ -658,8 +675,10 @@ async function closePosition(positionId, reason) {
   if (reason === 'manual' && !confirm(`${pos.ticker} ${pos.quantity}주를 현재가에 청산하시겠습니까?`)) return;
 
   const isKr = pos.market === 'KR';
-  const exitPriceKrw  = isKr ? q.price       : q.price * _usdKrw;
-  const entryPriceKrw = isKr ? pos.entry_price : pos.entry_price * _usdKrw;
+  // 청산은 진입 환율 기준 (순수 주식 손익만 반영)
+  const entryFx       = pos.entry_fx_rate || (isKr ? 1 : _usdKrw);
+  const exitPriceKrw  = isKr ? q.price       : q.price * entryFx;
+  const entryPriceKrw = isKr ? pos.entry_price : pos.entry_price * entryFx;
   const pnlAmount = (exitPriceKrw - entryPriceKrw) * pos.quantity;
   const pnlPct = ((q.price - pos.entry_price) / pos.entry_price) * 100;
 
