@@ -316,13 +316,27 @@ function renderPage(issue, analysis, companies) {
       </div>`;
   }).join('');
 
-  // [TRADE] 마커 파싱
+  // [TRADE] / [FUND] 마커 파싱
   const parseTradeMeta = (rationale) => {
-    if (!rationale || !rationale.includes('[TRADE]')) return { reason: rationale || '', trade: null };
-    const idx = rationale.indexOf('[TRADE]');
-    const reason = rationale.slice(0, idx).trim();
-    try { return { reason, trade: JSON.parse(rationale.slice(idx + 7).trim()) }; }
-    catch { return { reason, trade: null }; }
+    if (!rationale) return { reason: '', trade: null, fund: null };
+    let reason = rationale, trade = null, fund = null;
+    const fundIdx = rationale.indexOf('[FUND]');
+    if (fundIdx >= 0) {
+      try { fund = JSON.parse(rationale.slice(fundIdx + 6).split(/\[(TRADE|FUND)\]/)[0].trim()); } catch {}
+    }
+    const tradeIdx = rationale.indexOf('[TRADE]');
+    if (tradeIdx >= 0) {
+      const after = rationale.slice(tradeIdx + 7);
+      const fundInAfter = after.indexOf('[FUND]');
+      const tradeJson = fundInAfter >= 0 ? after.slice(0, fundInAfter).trim() : after.trim();
+      try { trade = JSON.parse(tradeJson); } catch {}
+    }
+    const cutIdx = Math.min(
+      tradeIdx >= 0 ? tradeIdx : Infinity,
+      fundIdx  >= 0 ? fundIdx  : Infinity
+    );
+    if (cutIdx !== Infinity) reason = rationale.slice(0, cutIdx).trim();
+    return { reason, trade, fund };
   };
   const tfLabel = { '1w':'단기 1주', '1m':'중기 1개월', '3m':'중장기 3개월', '6m':'장기 6개월' };
 

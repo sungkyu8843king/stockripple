@@ -13,7 +13,8 @@ const supabase = createClient(
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const type = (req.query?.type || 'price').toString();
-  if (type === 'chart') return handleChart(req, res);
+  if (type === 'chart')        return handleChart(req, res);
+  if (type === 'fundamentals') return handleFundamentals(req, res);
   return handlePrice(req, res);
 }
 
@@ -77,6 +78,113 @@ async function handlePrice(req, res) {
     }
     return res.status(500).json({ error: err.message });
   }
+}
+
+// ─── 펀더멘털 (FMP stable API 무료 엔드포인트들 조합 + 자체 계산) ──
+async function handleFundamentals(req, res) {
+  const { ticker } = req.query;
+  if (!ticker) return res.status(400).json({ error: 'ticker required' });
+  res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');  // 6시간 캐시
+
+  const key = process.env.FMP_API_KEY;
+  if (!key) return res.status(500).json({ error: 'FMP_API_KEY missing' });
+
+  const fmp = (path) => fetch(`https://financialmodelingprep.com${path}${path.includes('?') ? '&' : '?'}apikey=${key}`,
+    { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) })
+    .then(r => r.ok ? r.json() : null).catch(() => null);
+
+  // 병렬 호출 (5개 무료 엔드포인트)
+  const [profile, quote, incomeQ, balanceQ, cashflowQ] = await Promise.all([
+    fmp(`/stable/profile?symbol=${encodeURIComponent(ticker)}`),
+    fmp(`/stable/quote?symbol=${encodeURIComponent(ticker)}`),
+    fmp(`/stable/income-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=5`),
+    fmp(`/stable/balance-sheet-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=2`),
+    fmp(`/stable/cash-flow-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=1`),
+  ]);
+
+  const prof = Array.isArray(profile) ? profile[0] : profile;
+  const qt   = Array.isArray(quote)   ? quote[0]   : quote;
+  const incList = Array.isArray(incomeQ)   ? incomeQ   : [];
+  const balList = Array.isArray(balanceQ)  ? balanceQ  : [];
+  const cfList  = Array.isArray(cashflowQ) ? cashflowQ : [];
+
+  const inc      = incList[0] || null;
+  const incPrev  = incList[1] || null;
+  const incYoY   = incList[3] || incList[4] || null;  // 4 분기 전
+  const bal      = balList[0] || null;
+  const balPrev  = balList[1] || null;
+  const cf       = cfList[0]  || null;
+
+  // 안전한 숫자 변환
+  const n = v => (v == null || isNaN(Number(v))) ? null : Number(v);
+  const pct = (a, b) => (n(a) != null && n(b) != null && n(b) !== 0) ? ((n(a) - n(b)) / Math.abs(n(b)) * 100) : null;
+  const safeDiv = (a, b) => (n(a) != null && n(b) != null && n(b) !== 0) ? (n(a) / n(b)) : null;
+
+  const price       = n(qt?.price) || n(prof?.price);
+  const marketCap   = n(qt?.marketCap) || n(prof?.mktCap);
+  const eps         = n(qt?.eps) || n(qt?.epsTtm);
+  const pe          = n(qt?.pe) || safeDiv(price, eps);
+  const revenue     = n(inc?.revenue);
+  const opIncome    = n(inc?.operatingIncome);
+  const netIncome   = n(inc?.netIncome);
+  const grossProfit = n(inc?.grossProfit);
+  const opMargin    = safeDiv(opIncome, revenue);
+  const netMargin   = safeDiv(netIncome, revenue);
+  const grossMargin = safeDiv(grossProfit, revenue);
+
+  const totalEquity      = n(bal?.totalStockholdersEquity) || n(bal?.totalEquity);
+  const totalAssets      = n(bal?.totalAssets);
+  const totalDebt        = n(bal?.totalDebt) || n(bal?.longTermDebt);
+  const totalCash        = n(bal?.cashAndCashEquivalents) || n(bal?.cashAndShortTermInvestments);
+  const currentAssets    = n(bal?.totalCurrentAssets);
+  const currentLiab      = n(bal?.totalCurrentLiabilities);
+  const sharesOut        = n(qt?.sharesOutstanding) || n(prof?.sharesOutstanding);
+
+  const bookValuePerShare = safeDiv(totalEquity, sharesOut);
+  const pb              = safeDiv(price, bookValuePerShare);
+  const ps              = safeDiv(marketCap, revenue ? revenue * 4 : null);  // 분기 매출 × 4 = 연환산
+  const roe             = safeDiv(netIncome, totalEquity);
+  const roa             = safeDiv(netIncome, totalAssets);
+  const debtToEquity    = safeDiv(totalDebt, totalEquity);
+  const currentRatio    = safeDiv(currentAssets, currentLiab);
+
+  // 매출 YoY 성장률
+  const revYoY  = incYoY ? pct(revenue, incYoY.revenue) : null;
+  const niYoY   = incYoY ? pct(netIncome, incYoY.netIncome) : null;
+  const opYoY   = incYoY ? pct(opIncome, incYoY.operatingIncome) : null;
+
+  const fcf = cf ? n(cf.freeCashFlow) : null;
+
+  return res.status(200).json({
+    ok: true,
+    ticker,
+    company:    prof?.companyName || qt?.name || null,
+    sector:     prof?.sector  || null,
+    industry:   prof?.industry || null,
+    beta:       n(prof?.beta),
+    dividendYield: n(prof?.lastDividend) && price ? n(prof.lastDividend) / price : null,
+    // 가격/시총
+    price, marketCap, sharesOutstanding: sharesOut,
+    // 밸류에이션
+    pe, pb, ps, eps,
+    // 수익성
+    roe:  roe  != null ? roe  * 100 : null,
+    roa:  roa  != null ? roa  * 100 : null,
+    grossMargin: grossMargin != null ? grossMargin * 100 : null,
+    operatingMargin: opMargin != null ? opMargin * 100 : null,
+    netMargin: netMargin != null ? netMargin * 100 : null,
+    // 재무 안정성
+    debtToEquity, currentRatio,
+    totalDebt, totalCash, totalEquity, totalAssets,
+    // 실적
+    revenue, operatingIncome: opIncome, netIncome, grossProfit, freeCashFlow: fcf,
+    revenueGrowthYoY:    revYoY,
+    netIncomeGrowthYoY:  niYoY,
+    operatingGrowthYoY:  opYoY,
+    reportDate: inc?.date || inc?.fillingDate || null,
+    fiscalPeriod: inc?.period || null,
+    source: 'fmp-stable',
+  });
 }
 
 // ─── 차트 데이터 (일봉 N개월) ─────────────────────────────

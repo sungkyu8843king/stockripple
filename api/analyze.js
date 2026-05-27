@@ -87,22 +87,47 @@ export default async function handler(req, res) {
             continue;
           }
           const companyId = await upsertCompany(co, valid);
+
+          // 펀더멘털 fetch + 점수 보정
+          const fund = await fetchFundamentals(co.ticker);
+          const fundScore = scoreFundamentals(fund);  // -30 ~ +30 점 가산
+
+          // 펀더멘털 기준 confidence 보정 (원본 ±30 범위)
+          let adjConfidence = co.confidence ?? 50;
+          if (fundScore != null) {
+            adjConfidence = Math.max(0, Math.min(100, adjConfidence + fundScore));
+          }
+
           // 매매 정보를 rationale 끝에 구조화된 마커로 임베드 (DB 스키마 변경 불필요)
           const tradeMeta = {
-            elp: co.entry_low_pct,       // entry_low_pct
-            ehp: co.entry_high_pct,      // entry_high_pct
-            tp:  co.target_pct,          // target_pct
-            sl:  co.stop_loss_pct,       // stop_loss_pct
-            tf:  co.time_frame,          // time_frame
-            th:  co.key_thesis,          // key_thesis
-            rk:  co.key_risk,            // key_risk
+            elp: co.entry_low_pct,
+            ehp: co.entry_high_pct,
+            tp:  co.target_pct,
+            sl:  co.stop_loss_pct,
+            tf:  co.time_frame,
+            th:  co.key_thesis,
+            rk:  co.key_risk,
           };
           const cleanMeta = Object.fromEntries(
             Object.entries(tradeMeta).filter(([_, v]) => v != null && v !== '')
           );
-          const enrichedRationale = Object.keys(cleanMeta).length
-            ? `${co.rationale || ''}\n\n[TRADE]${JSON.stringify(cleanMeta)}`
-            : co.rationale;
+
+          // 펀더멘털 요약 마커도 임베드
+          const fundMeta = fund ? {
+            pe:  fund.pe,
+            pb:  fund.pb,
+            roe: fund.roe,
+            opm: fund.operatingMargin,
+            de:  fund.debtToEquity,
+            cr:  fund.currentRatio,
+            rev_yoy: fund.revenueGrowthYoY,
+            ni_yoy:  fund.netIncomeGrowthYoY,
+            score:   fundScore,
+          } : null;
+
+          let enrichedRationale = co.rationale || '';
+          if (Object.keys(cleanMeta).length) enrichedRationale += `\n\n[TRADE]${JSON.stringify(cleanMeta)}`;
+          if (fundMeta) enrichedRationale += `\n\n[FUND]${JSON.stringify(fundMeta)}`;
 
           await supabase.from('analysis_companies').insert({
             analysis_id: savedAnalysis.id,
@@ -110,7 +135,7 @@ export default async function handler(req, res) {
             ripple_sector: ripple.sector,
             rationale: enrichedRationale,
             upside_pct: co.upside_pct,
-            confidence: co.confidence,
+            confidence: adjConfidence,  // 펀더멘털 점수 반영
             entry_price: valid.price,
             entry_date: new Date().toISOString(),
           });
@@ -219,6 +244,12 @@ async function analyzeIssue(issue) {
 - 미국 주식: NYSE/NASDAQ 실제 상장 티커만 사용 (예: AAPL, MSFT, NVDA, TSLA)
 - 확실하지 않은 티커는 절대 추측하지 말고 제외할 것
 
+⭐ 펀더멘털 고려 (시스템이 자동 검증):
+- 종목 선택 시 다음 조건을 우선 고려: 수익성(ROE/영업이익률) 양호, 부채비율 적정(<2), 매출 성장세
+- 시스템이 자동으로 PE/PB/ROE/부채비율/유동비율/매출성장 데이터를 가져와 confidence를 조정합니다
+- 적자 기업이나 부채비율 3+인 부실 기업은 가능한 한 회피 (테마주/모멘텀 이슈가 명확하지 않은 경우)
+- 동일 섹터 내에서는 펀더멘털 우수 기업 우선 (단, 뉴스 임팩트가 압도적이면 예외 OK)
+
 ⭐ 회사명 정확성 (매우 중요 - 환각 금지):
 - name_en은 회사의 정식 영문 법인명 (예: LRCX → "Lam Research", AVGO → "Broadcom")
 - name_ko는 한국에서 통용되는 정식 한국어 회사명. 영문명의 음역이거나 한국에서 공식 사용하는 이름.
@@ -237,6 +268,93 @@ async function analyzeIssue(issue) {
   if (!jsonMatch) throw new Error('JSON not found in response');
 
   return parseJsonSafe(jsonMatch[0]);
+}
+
+// ── 펀더멘털 fetch (FMP stable, 무료 엔드포인트만) ────────
+async function fetchFundamentals(ticker) {
+  const key = process.env.FMP_API_KEY;
+  if (!key) return null;
+  if (/\.KS$|\.KQ$/i.test(ticker)) return null;  // 한국 주식은 FMP 무료에서 안 됨
+
+  const fmp = (path) => fetch(`https://financialmodelingprep.com${path}${path.includes('?') ? '&' : '?'}apikey=${key}`,
+    { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) })
+    .then(r => r.ok ? r.json() : null).catch(() => null);
+
+  try {
+    const [quote, incomeQ, balanceQ] = await Promise.all([
+      fmp(`/stable/quote?symbol=${encodeURIComponent(ticker)}`),
+      fmp(`/stable/income-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=5`),
+      fmp(`/stable/balance-sheet-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=1`),
+    ]);
+    const qt  = Array.isArray(quote) ? quote[0] : quote;
+    const inc      = Array.isArray(incomeQ)  ? incomeQ[0]  : null;
+    const incYoY   = Array.isArray(incomeQ)  ? (incomeQ[3] || incomeQ[4] || null) : null;
+    const bal      = Array.isArray(balanceQ) ? balanceQ[0] : null;
+    if (!qt && !inc) return null;
+
+    const n = v => (v == null || isNaN(Number(v))) ? null : Number(v);
+    const div = (a, b) => (n(a) != null && n(b) != null && n(b) !== 0) ? (n(a) / n(b)) : null;
+    const pct = (a, b) => (n(a) != null && n(b) != null && n(b) !== 0) ? ((n(a) - n(b)) / Math.abs(n(b)) * 100) : null;
+
+    const revenue   = n(inc?.revenue);
+    const opInc     = n(inc?.operatingIncome);
+    const netInc    = n(inc?.netIncome);
+    const equity    = n(bal?.totalStockholdersEquity);
+    const debt      = n(bal?.totalDebt) || n(bal?.longTermDebt);
+    const ca        = n(bal?.totalCurrentAssets);
+    const cl        = n(bal?.totalCurrentLiabilities);
+
+    return {
+      pe:  n(qt?.pe),
+      pb:  div(n(qt?.price), div(equity, n(qt?.sharesOutstanding))),
+      roe: div(netInc, equity) != null ? div(netInc, equity) * 100 : null,
+      operatingMargin: div(opInc, revenue) != null ? div(opInc, revenue) * 100 : null,
+      debtToEquity:    div(debt, equity),
+      currentRatio:    div(ca, cl),
+      revenueGrowthYoY:   incYoY ? pct(revenue, incYoY.revenue) : null,
+      netIncomeGrowthYoY: incYoY ? pct(netInc, incYoY.netIncome) : null,
+    };
+  } catch { return null; }
+}
+
+// 펀더멘털 점수 -30 ~ +30 (AI confidence 보정용)
+function scoreFundamentals(f) {
+  if (!f) return null;
+  let score = 0;
+  // ROE: 높을수록 좋음
+  if (f.roe != null) {
+    if (f.roe > 20) score += 8;
+    else if (f.roe > 10) score += 4;
+    else if (f.roe < 0) score -= 8;
+  }
+  // 영업이익률
+  if (f.operatingMargin != null) {
+    if (f.operatingMargin > 20) score += 6;
+    else if (f.operatingMargin > 10) score += 3;
+    else if (f.operatingMargin < 0) score -= 8;
+  }
+  // 매출 성장 (YoY)
+  if (f.revenueGrowthYoY != null) {
+    if (f.revenueGrowthYoY > 20) score += 6;
+    else if (f.revenueGrowthYoY > 5) score += 3;
+    else if (f.revenueGrowthYoY < -10) score -= 6;
+  }
+  // 부채비율
+  if (f.debtToEquity != null) {
+    if (f.debtToEquity < 0.5) score += 4;
+    else if (f.debtToEquity > 3) score -= 6;
+  }
+  // 유동비율
+  if (f.currentRatio != null) {
+    if (f.currentRatio > 2) score += 3;
+    else if (f.currentRatio < 1) score -= 5;
+  }
+  // PE: 너무 비싸면 감점
+  if (f.pe != null) {
+    if (f.pe > 50) score -= 4;
+    else if (f.pe > 0 && f.pe < 20) score += 3;
+  }
+  return Math.max(-30, Math.min(30, score));
 }
 
 async function validateTicker(ticker) {

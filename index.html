@@ -1561,15 +1561,27 @@ async function loadInsights() {
     const tickers = finalScored.map(s => s.ticker);
     fetchTechnicalsForCards(tickers);
 
-    // ── 매매 정보 파싱 (rationale에 임베드된 [TRADE]{...} 마커 추출) ──
+    // ── 매매 정보 + 펀더멘털 파싱 (rationale에 임베드된 [TRADE]/[FUND] 마커) ──
     const parseTradeMeta = (rationale) => {
-      if (!rationale || !rationale.includes('[TRADE]')) return { reason: rationale || '', trade: null };
-      const idx = rationale.indexOf('[TRADE]');
-      const reason = rationale.slice(0, idx).trim();
-      try {
-        const json = rationale.slice(idx + 7).trim();
-        return { reason, trade: JSON.parse(json) };
-      } catch { return { reason, trade: null }; }
+      if (!rationale) return { reason: '', trade: null, fund: null };
+      let reason = rationale, trade = null, fund = null;
+      const fundIdx = rationale.indexOf('[FUND]');
+      if (fundIdx >= 0) {
+        try { fund = JSON.parse(rationale.slice(fundIdx + 6).split(/\[(TRADE|FUND)\]/)[0].trim()); } catch {}
+      }
+      const tradeIdx = rationale.indexOf('[TRADE]');
+      if (tradeIdx >= 0) {
+        const after = rationale.slice(tradeIdx + 7);
+        const fundInAfter = after.indexOf('[FUND]');
+        const tradeJson = fundInAfter >= 0 ? after.slice(0, fundInAfter).trim() : after.trim();
+        try { trade = JSON.parse(tradeJson); } catch {}
+      }
+      const cutIdx = Math.min(
+        tradeIdx >= 0 ? tradeIdx : Infinity,
+        fundIdx  >= 0 ? fundIdx  : Infinity
+      );
+      if (cutIdx !== Infinity) reason = rationale.slice(0, cutIdx).trim();
+      return { reason, trade, fund };
     };
     const tfLabel = { '1w':'단기 1주', '1m':'중기 1개월', '3m':'중장기 3개월', '6m':'장기 6개월' };
 
@@ -1586,6 +1598,7 @@ async function loadInsights() {
         const accLabel = s.accuracy != null ? `적중률 ${s.accuracy}% (${s.histTotal}건)` : `신규 분석`;
         const parsed = parseTradeMeta(s.latestRationale);
         const trade  = parsed.trade;
+        const fund   = parsed.fund;
         // 카드 클릭 → 항상 company.html로 (기업 상세 + 차트 + AI 종합)
         const issueLink = `/company.html?ticker=${encodeURIComponent(s.ticker)}`;
 
@@ -1645,6 +1658,19 @@ async function loadInsights() {
             <div class="ins-tech" data-tech-ticker="${escHtml(s.ticker)}" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;min-height:20px;font-size:10px">
               <span style="color:var(--text3)">기술 지표 로딩...</span>
             </div>
+
+            <!-- 펀더멘털 chips (분석 시점 임베드된 데이터) -->
+            ${fund ? (() => {
+              const fchip = 'padding:2px 7px;border-radius:4px;font-weight:600;background:var(--bg3)';
+              const chips = [];
+              if (fund.pe  != null) chips.push(`<span style="${fchip};color:${fund.pe  < 20 ? 'var(--green)' : fund.pe  < 40 ? 'var(--text2)' : 'var(--yellow)'}">PER ${fund.pe.toFixed(1)}</span>`);
+              if (fund.pb  != null) chips.push(`<span style="${fchip};color:${fund.pb  < 1.5 ? 'var(--green)' : fund.pb  < 4 ? 'var(--text2)' : 'var(--yellow)'}">PBR ${fund.pb.toFixed(1)}</span>`);
+              if (fund.roe != null) chips.push(`<span style="${fchip};color:${fund.roe > 15 ? 'var(--green)' : fund.roe > 5 ? 'var(--text2)' : 'var(--red)'}">ROE ${fund.roe.toFixed(0)}%</span>`);
+              if (fund.opm != null) chips.push(`<span style="${fchip};color:${fund.opm > 15 ? 'var(--green)' : fund.opm > 5 ? 'var(--text2)' : 'var(--red)'}">영업이익률 ${fund.opm.toFixed(0)}%</span>`);
+              if (fund.de  != null) chips.push(`<span style="${fchip};color:${fund.de  < 1 ? 'var(--green)' : fund.de  < 2 ? 'var(--text2)' : 'var(--red)'}">D/E ${fund.de.toFixed(1)}</span>`);
+              if (fund.rev_yoy != null) chips.push(`<span style="${fchip};color:${fund.rev_yoy > 10 ? 'var(--green)' : fund.rev_yoy > 0 ? 'var(--text2)' : 'var(--red)'}">매출 YoY ${fund.rev_yoy > 0 ? '+' : ''}${fund.rev_yoy.toFixed(0)}%</span>`);
+              return `<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:10px">${chips.join('')}</div>`;
+            })() : ''}
 
             <!-- 매매 가격대 (현재가 ± %) -->
             ${tradeBox}

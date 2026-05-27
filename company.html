@@ -164,6 +164,28 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   background: var(--bg3); color: var(--text2);
 }
 
+/* Fundamentals grid */
+.fund-section { margin-bottom: 24px; }
+.fund-group {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px; margin-bottom: 12px;
+}
+.fund-group-title { font-size: 12px; color: var(--text3); font-weight: 700; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.6px; display: flex; align-items: center; gap: 6px; }
+.fund-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.fund-item { padding: 10px 12px; background: var(--bg3); border-radius: 8px; }
+.fund-label { font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+.fund-val { font-size: 15px; font-weight: 700; font-family: 'SF Mono', monospace; color: var(--text); }
+.fund-val.good { color: var(--green); }
+.fund-val.bad  { color: var(--red); }
+.fund-val.warn { color: var(--yellow); }
+.fund-val.dim  { color: var(--text3); font-size: 13px; }
+.fund-sub { font-size: 10px; color: var(--text3); margin-top: 2px; font-family: 'SF Mono', monospace; }
+.fund-sub.pos { color: var(--green); }
+.fund-sub.neg { color: var(--red); }
+@media (max-width: 700px) {
+  .fund-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* TradingView wrapper */
 .tv-wrap {
   background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
@@ -437,6 +459,9 @@ function renderPage(company, records, priceData) {
     <!-- 기술 지표 -->
     <div id="techChipsWrap"></div>
 
+    <!-- 펀더멘털 (밸류에이션/수익성/재무 안정성/실적) -->
+    <div id="fundamentalsWrap"></div>
+
     <!-- TradingView 캔들 차트 + 거래량 -->
     <div class="tv-wrap">
       <div class="tv-header">
@@ -510,6 +535,9 @@ function renderPage(company, records, priceData) {
 
   // AI 종합 분석 (병렬)
   loadAiSummary(ticker, company.name_ko || company.name_en || ticker);
+
+  // 펀더멘털 (병렬)
+  loadFundamentals(ticker);
 
   // Load line chart
   loadChartData(ticker, _currentRange).then(data => {
@@ -696,6 +724,121 @@ async function loadAiSummary(ticker, displayName) {
   } catch(e) {
     wrap.innerHTML = `<div class="ai-summary-card"><div style="color:var(--red);font-size:13px">AI 분석 로딩 실패: ${escHtml(e.message)}</div></div>`;
   }
+}
+
+// ── 펀더멘털 표시 ────────────────────────────────────────
+async function loadFundamentals(ticker) {
+  const wrap = document.getElementById('fundamentalsWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="fund-section"><div class="section-title">📊 펀더멘털 (로딩 중...)</div></div>';
+  try {
+    const r = await fetch(`/api/stock?type=fundamentals&ticker=${encodeURIComponent(ticker)}`);
+    if (!r.ok) { wrap.innerHTML = ''; return; }
+    const f = await r.json();
+    if (!f.ok) { wrap.innerHTML = ''; return; }
+    renderFundamentals(wrap, f);
+  } catch { wrap.innerHTML = ''; }
+}
+
+function renderFundamentals(wrap, f) {
+  // 포맷 헬퍼
+  const fmtNum = (v, digits = 2) => v == null ? '—' : Number(v).toFixed(digits);
+  const fmtPct = v => v == null ? '—' : (v > 0 ? '+' : '') + Number(v).toFixed(1) + '%';
+  const fmtPctRaw = v => v == null ? '—' : Number(v).toFixed(1) + '%';
+  const fmtMoney = v => {
+    if (v == null) return '—';
+    const abs = Math.abs(v);
+    if (abs >= 1e12) return `$${(v/1e12).toFixed(2)}T`;
+    if (abs >= 1e9)  return `$${(v/1e9).toFixed(2)}B`;
+    if (abs >= 1e6)  return `$${(v/1e6).toFixed(0)}M`;
+    return `$${Number(v).toFixed(0)}`;
+  };
+
+  // 색상 판정 (값이 좋은지/나쁜지)
+  const peColor = f.pe == null ? '' : f.pe < 15 ? 'good' : f.pe < 30 ? '' : f.pe < 50 ? 'warn' : 'bad';
+  const pbColor = f.pb == null ? '' : f.pb < 1 ? 'good' : f.pb < 3 ? '' : f.pb < 5 ? 'warn' : 'bad';
+  const roeColor = f.roe == null ? '' : f.roe > 15 ? 'good' : f.roe > 5 ? '' : f.roe > 0 ? 'warn' : 'bad';
+  const opMarginColor = f.operatingMargin == null ? '' : f.operatingMargin > 20 ? 'good' : f.operatingMargin > 5 ? '' : f.operatingMargin > 0 ? 'warn' : 'bad';
+  const debtColor = f.debtToEquity == null ? '' : f.debtToEquity < 0.5 ? 'good' : f.debtToEquity < 1.5 ? '' : f.debtToEquity < 3 ? 'warn' : 'bad';
+  const currColor = f.currentRatio == null ? '' : f.currentRatio > 2 ? 'good' : f.currentRatio > 1 ? '' : 'bad';
+  const revGrColor = f.revenueGrowthYoY == null ? '' : f.revenueGrowthYoY > 10 ? 'good' : f.revenueGrowthYoY > 0 ? '' : 'bad';
+
+  const html = `
+    <div class="fund-section">
+      <div class="section-title">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        펀더멘털 ${f.fiscalPeriod ? `<span style="font-size:11px;color:var(--text3);font-weight:400">${f.fiscalPeriod} (${f.reportDate || ''})</span>` : ''}
+      </div>
+
+      <!-- 시총 / 밸류에이션 -->
+      <div class="fund-group">
+        <div class="fund-group-title">💎 밸류에이션</div>
+        <div class="fund-grid">
+          <div class="fund-item"><div class="fund-label">시가총액</div><div class="fund-val">${fmtMoney(f.marketCap)}</div></div>
+          <div class="fund-item"><div class="fund-label">PER</div><div class="fund-val ${peColor}">${fmtNum(f.pe, 1)}</div><div class="fund-sub">${f.eps ? 'EPS $' + Number(f.eps).toFixed(2) : ''}</div></div>
+          <div class="fund-item"><div class="fund-label">PBR</div><div class="fund-val ${pbColor}">${fmtNum(f.pb, 2)}</div></div>
+          <div class="fund-item"><div class="fund-label">PSR</div><div class="fund-val">${fmtNum(f.ps, 2)}</div></div>
+        </div>
+      </div>
+
+      <!-- 수익성 -->
+      <div class="fund-group">
+        <div class="fund-group-title">💰 수익성</div>
+        <div class="fund-grid">
+          <div class="fund-item"><div class="fund-label">ROE</div><div class="fund-val ${roeColor}">${fmtPctRaw(f.roe)}</div><div class="fund-sub">자기자본수익률</div></div>
+          <div class="fund-item"><div class="fund-label">ROA</div><div class="fund-val">${fmtPctRaw(f.roa)}</div><div class="fund-sub">총자산수익률</div></div>
+          <div class="fund-item"><div class="fund-label">영업이익률</div><div class="fund-val ${opMarginColor}">${fmtPctRaw(f.operatingMargin)}</div></div>
+          <div class="fund-item"><div class="fund-label">순이익률</div><div class="fund-val">${fmtPctRaw(f.netMargin)}</div></div>
+        </div>
+      </div>
+
+      <!-- 재무 안정성 -->
+      <div class="fund-group">
+        <div class="fund-group-title">🏦 재무 안정성</div>
+        <div class="fund-grid">
+          <div class="fund-item"><div class="fund-label">부채비율 (D/E)</div><div class="fund-val ${debtColor}">${fmtNum(f.debtToEquity, 2)}</div><div class="fund-sub">${f.debtToEquity != null ? (f.debtToEquity < 0.5 ? '낮음' : f.debtToEquity < 1.5 ? '보통' : f.debtToEquity < 3 ? '높음' : '매우 높음') : ''}</div></div>
+          <div class="fund-item"><div class="fund-label">유동비율</div><div class="fund-val ${currColor}">${fmtNum(f.currentRatio, 2)}</div><div class="fund-sub">${f.currentRatio != null ? (f.currentRatio > 2 ? '여유' : f.currentRatio > 1 ? '안전' : '위험') : ''}</div></div>
+          <div class="fund-item"><div class="fund-label">총 부채</div><div class="fund-val dim">${fmtMoney(f.totalDebt)}</div></div>
+          <div class="fund-item"><div class="fund-label">현금성 자산</div><div class="fund-val dim">${fmtMoney(f.totalCash)}</div></div>
+        </div>
+      </div>
+
+      <!-- 실적 (분기) -->
+      <div class="fund-group">
+        <div class="fund-group-title">📈 분기 실적</div>
+        <div class="fund-grid">
+          <div class="fund-item">
+            <div class="fund-label">매출</div>
+            <div class="fund-val">${fmtMoney(f.revenue)}</div>
+            ${f.revenueGrowthYoY != null ? `<div class="fund-sub ${f.revenueGrowthYoY > 0 ? 'pos' : 'neg'}">YoY ${fmtPct(f.revenueGrowthYoY)}</div>` : ''}
+          </div>
+          <div class="fund-item">
+            <div class="fund-label">영업이익</div>
+            <div class="fund-val">${fmtMoney(f.operatingIncome)}</div>
+            ${f.operatingGrowthYoY != null ? `<div class="fund-sub ${f.operatingGrowthYoY > 0 ? 'pos' : 'neg'}">YoY ${fmtPct(f.operatingGrowthYoY)}</div>` : ''}
+          </div>
+          <div class="fund-item">
+            <div class="fund-label">순이익</div>
+            <div class="fund-val">${fmtMoney(f.netIncome)}</div>
+            ${f.netIncomeGrowthYoY != null ? `<div class="fund-sub ${f.netIncomeGrowthYoY > 0 ? 'pos' : 'neg'}">YoY ${fmtPct(f.netIncomeGrowthYoY)}</div>` : ''}
+          </div>
+          <div class="fund-item"><div class="fund-label">잉여현금흐름</div><div class="fund-val dim">${fmtMoney(f.freeCashFlow)}</div></div>
+        </div>
+      </div>
+
+      ${(f.sector || f.industry || f.beta) ? `
+      <div class="fund-group">
+        <div class="fund-group-title">🏷️ 분류</div>
+        <div class="fund-grid">
+          ${f.sector   ? `<div class="fund-item"><div class="fund-label">섹터</div><div class="fund-val dim">${escHtml(f.sector)}</div></div>` : ''}
+          ${f.industry ? `<div class="fund-item"><div class="fund-label">산업</div><div class="fund-val dim">${escHtml(f.industry)}</div></div>` : ''}
+          ${f.beta != null ? `<div class="fund-item"><div class="fund-label">베타</div><div class="fund-val">${Number(f.beta).toFixed(2)}</div><div class="fund-sub">${f.beta > 1.2 ? '변동성 큼' : f.beta > 0.8 ? '시장 비슷' : '변동성 작음'}</div></div>` : ''}
+          ${f.dividendYield ? `<div class="fund-item"><div class="fund-label">배당수익률</div><div class="fund-val">${(f.dividendYield * 100).toFixed(2)}%</div></div>` : ''}
+        </div>
+      </div>` : ''}
+    </div>
+  `;
+  wrap.innerHTML = html;
 }
 
 async function init() {
