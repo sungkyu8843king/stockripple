@@ -160,7 +160,7 @@ let _positions = [];      // 보유 중 (open)
 let _closed = [];         // 종결 (closed)
 let _watchlist = [];      // AI 추천 (아직 안 산 것)
 let _quoteCache = {};     // 실시간 시세 캐시
-let _usdKrw = 1400;       // USD/KRW 환율 (init에서 실시간 조회)
+const _usdKrw = 1500;     // USD/KRW 환율 (고정)
 
 function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtKRW(v)  { return v == null ? '—' : '₩' + Math.round(v).toLocaleString('ko-KR'); }
@@ -304,23 +304,17 @@ async function loadWatchlist() {
 }
 
 async function refreshPrices() {
-  // 보유 + 워치리스트의 모든 티커 + USD/KRW
+  // 보유 + 워치리스트의 모든 티커 시세
   const tickers = [...new Set([
     ..._positions.map(p => p.ticker),
     ..._watchlist.map(w => w.ticker),
-    'KRW=X',  // USD/KRW 환율
   ])];
   if (!tickers.length) return;
   try {
     const r = await fetch(`/api/quotes?tickers=${tickers.map(encodeURIComponent).join(',')}`);
     if (!r.ok) return;
     const j = await r.json();
-    if (j?.data) {
-      Object.assign(_quoteCache, j.data);
-      // USD/KRW 환율 업데이트
-      const fx = j.data['KRW=X']?.price;
-      if (fx && fx > 100 && fx < 3000) _usdKrw = fx;
-    }
+    if (j?.data) Object.assign(_quoteCache, j.data);
   } catch {}
 }
 
