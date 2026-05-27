@@ -365,8 +365,10 @@ function render() {
 
   root.innerHTML = `
     <h1>📝 가상 포트폴리오</h1>
-    <p class="subtitle">실제 돈 없이 AI 추천대로 매매해보고, 30~90일 누적 결과로 신뢰도 검증.
-      <span style="margin-left:8px;font-size:11px;color:var(--text3);font-family:'SF Mono',monospace">USD/KRW: ₩${Math.round(_usdKrw).toLocaleString()}</span>
+    <p class="subtitle" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span>실제 돈 없이 AI 추천대로 매매해보고, 30~90일 누적 결과로 신뢰도 검증.</span>
+      <span style="font-size:11px;color:var(--text3);font-family:'SF Mono',monospace">USD/KRW: ₩${Math.round(_usdKrw).toLocaleString()}</span>
+      <button class="btn btn-ghost btn-sm" onclick="resetPortfolio()" style="margin-left:auto">🔄 포트폴리오 리셋</button>
     </p>
 
     <!-- 요약 카드 -->
@@ -591,11 +593,21 @@ function openBuyModal(w) {
         <div class="modal-row"><span class="mr-l">손절가</span><span class="mr-v" style="color:var(--red)">${stop ? fmtP(stop) : '—'} <span style="font-size:10px;color:var(--text3);font-weight:400">(${t.sl}%)</span></span></div>
         ` : ''}
         <div class="modal-row"><span class="mr-l">잔고</span><span class="mr-v">${fmtKRW(_portfolio.cash_balance)}</span></div>
+        <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+          <div class="mr-l" style="font-size:12px;margin-bottom:8px">💰 잔고 비율로 빠른 선택</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+            <button class="btn btn-ghost btn-sm" type="button" onclick="setBuyByPercent(10)">10%</button>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="setBuyByPercent(25)">25%</button>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="setBuyByPercent(50)">50%</button>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="setBuyByPercent(100)">최대</button>
+          </div>
+        </div>
         <div class="modal-row" style="display:flex;justify-content:space-between;align-items:center">
           <span class="mr-l">매수 수량</span>
           <input type="number" id="buyQty" value="${defaultQty}" min="1" style="width:120px;text-align:right" oninput="updateBuyTotal()">
         </div>
         <div class="modal-row"><span class="mr-l">예상 매수금액</span><span class="mr-v" id="buyTotal">${fmtKRW(defaultQty * priceInKrw)}</span></div>
+        <div class="modal-row"><span class="mr-l">매수 후 잔고</span><span class="mr-v" id="buyRemaining" style="color:var(--text3);font-size:12px">${fmtKRW(_portfolio.cash_balance - defaultQty * priceInKrw)}</span></div>
         <div id="buyError" style="font-size:12px;color:var(--red);margin-top:8px;min-height:16px"></div>
         <div class="modal-actions">
           <button class="btn btn-ghost" onclick="closeBuyModal()">취소</button>
@@ -609,7 +621,25 @@ function openBuyModal(w) {
 function updateBuyTotal() {
   const qty = parseFloat(document.getElementById('buyQty').value) || 0;
   const { priceInKrw } = window._buyContext || {};
-  if (priceInKrw) document.getElementById('buyTotal').textContent = fmtKRW(qty * priceInKrw);
+  if (!priceInKrw) return;
+  const total = qty * priceInKrw;
+  const remaining = _portfolio.cash_balance - total;
+  document.getElementById('buyTotal').textContent = fmtKRW(total);
+  const remEl = document.getElementById('buyRemaining');
+  if (remEl) {
+    remEl.textContent = fmtKRW(remaining);
+    remEl.style.color = remaining < 0 ? 'var(--red)' : 'var(--text3)';
+  }
+}
+
+// 잔고 비율로 매수 수량 자동 설정
+function setBuyByPercent(pct) {
+  const { priceInKrw } = window._buyContext || {};
+  if (!priceInKrw) return;
+  const budget = _portfolio.cash_balance * (pct / 100);
+  const qty = Math.floor(budget / priceInKrw);
+  document.getElementById('buyQty').value = Math.max(1, qty);
+  updateBuyTotal();
 }
 
 function closeBuyModal() {
@@ -660,6 +690,26 @@ async function executeBuy(w) {
 // ──────────────────────────────────────────────────────────
 // 청산
 // ──────────────────────────────────────────────────────────
+// 포트폴리오 리셋 (모든 포지션 삭제 + 잔고 1000만원으로 초기화)
+async function resetPortfolio() {
+  if (!confirm('정말 리셋하시겠습니까?\n\n• 모든 보유 포지션 삭제\n• 모든 거래 이력 삭제\n• 현금 잔고 ₩10,000,000으로 초기화')) return;
+  if (!confirm('이 작업은 되돌릴 수 없습니다. 진행할까요?')) return;
+
+  // 모든 포지션 삭제 (RLS가 user_id로 자동 필터)
+  const { error: posErr } = await sb.from('paper_positions')
+    .delete().eq('portfolio_id', _portfolio.id);
+  if (posErr) { toast('포지션 삭제 실패: ' + posErr.message, 'error'); return; }
+
+  // 잔고 리셋
+  const { error: portErr } = await sb.from('paper_portfolios')
+    .update({ cash_balance: 10000000, initial_cash: 10000000, updated_at: new Date().toISOString() })
+    .eq('id', _portfolio.id);
+  if (portErr) { toast('잔고 리셋 실패: ' + portErr.message, 'error'); return; }
+
+  toast('✓ 포트폴리오 리셋 완료', 'success');
+  await loadAll();
+}
+
 async function closePosition(positionId, reason) {
   const pos = _positions.find(p => p.id === positionId);
   if (!pos) return;
