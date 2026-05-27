@@ -877,25 +877,88 @@ function renderFundamentals(wrap, f, ticker) {
   wrap.innerHTML = html;
 }
 
+// Yahoo Finance에서 정보 가져와 companies 테이블에 자동 등록
+async function autoRegisterCompany(ticker) {
+  try {
+    // /api/quotes로 회사 정보 조회 (시세 + 통화 + marketState 가져옴)
+    const r = await fetch(`/api/quotes?tickers=${encodeURIComponent(ticker)}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    const q = j?.data?.[ticker];
+    if (!q || q.price == null) return null;
+
+    // 시장 자동 판별 (.KS = 한국, 그 외 = 미국)
+    const market = /\.KS$|\.KQ$/i.test(ticker) ? 'KR' : 'US';
+
+    // Yahoo의 v8/chart로 회사명 가져오기
+    let companyName = ticker;
+    try {
+      const r2 = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`);
+      if (r2.ok) {
+        const cd = await r2.json();
+        companyName = cd?.chart?.result?.[0]?.meta?.longName
+                   || cd?.chart?.result?.[0]?.meta?.shortName
+                   || ticker;
+      }
+    } catch {}
+
+    // DB에 INSERT (RLS: companies는 보통 public read + service write)
+    const { data: inserted, error } = await sb.from('companies').insert({
+      ticker,
+      name_en: companyName,
+      name_ko: companyName,  // 한국어 이름은 영문명으로 폴백, 추후 admin에서 보정
+      market,
+      current_price: q.price,
+      currency: q.currency || (market === 'KR' ? 'KRW' : 'USD'),
+      price_updated_at: new Date().toISOString(),
+    }).select('id,ticker,name_ko,name_en,market,sector').single();
+
+    if (error) {
+      // 동시 요청으로 이미 만들어졌을 가능성 → 다시 조회
+      const { data: existing } = await sb.from('companies')
+        .select('id,ticker,name_ko,name_en,market,sector').eq('ticker', ticker).maybeSingle();
+      return existing || null;
+    }
+    return inserted;
+  } catch (e) {
+    console.warn('autoRegisterCompany error:', e);
+    return null;
+  }
+}
+
 async function init() {
   const params = new URLSearchParams(location.search);
-  const ticker = params.get('ticker');
+  const ticker = (params.get('ticker') || '').toUpperCase().trim();
   if (!ticker) { location.href = '/'; return; }
 
   _currentTicker = ticker;
 
-  const { data: company, error: compErr } = await sb
+  let { data: company } = await sb
     .from('companies')
     .select('id,ticker,name_ko,name_en,market,sector')
     .eq('ticker', ticker)
-    .single();
+    .maybeSingle();
 
-  if (compErr || !company) {
+  // DB에 없으면 Yahoo에서 가져와서 자동 등록
+  if (!company) {
     document.getElementById('pageWrap').innerHTML = `
       <div class="loading-state">
-        <p style="color:var(--red)">종목 <strong>${escHtml(ticker)}</strong>을(를) 찾을 수 없습니다.</p>
+        <div class="spinner"></div>
+        <p style="color:var(--text2)"><strong>${escHtml(ticker)}</strong> 정보를 Yahoo Finance에서 가져오는 중...</p>
       </div>`;
-    return;
+    company = await autoRegisterCompany(ticker);
+    if (!company) {
+      document.getElementById('pageWrap').innerHTML = `
+        <div class="loading-state">
+          <p style="color:var(--red)">❌ 종목 <strong>${escHtml(ticker)}</strong>을(를) 찾을 수 없습니다.</p>
+          <p style="color:var(--text3);font-size:13px;margin-top:8px">
+            Yahoo Finance에서도 검색 실패. 올바른 티커인지 확인해 주세요.<br>
+            예: AAPL, MSFT, NVDA, 005930.KS, 035420.KS
+          </p>
+          <a href="/" class="back-btn" style="display:inline-block;margin-top:14px;padding:8px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text)">← 메인으로</a>
+        </div>`;
+      return;
+    }
   }
 
   document.title = `${company.name_ko || company.name_en || ticker} (${ticker}) — StockRipple`;

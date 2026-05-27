@@ -694,9 +694,13 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       <button class="filter-chip" data-sector="핀테크">핀테크</button>
       <button class="filter-chip" data-sector="클라우드">클라우드</button>
       <div class="filter-sep"></div>
-      <div class="search-box">
+      <div class="search-box" style="position:relative">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--text3)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="searchInput" placeholder="기업명 또는 키워드...">
+        <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL, 005930.KS)"
+               onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
+        <button onclick="tryDirectLookup(document.getElementById('searchInput').value)"
+                title="티커 직접 조회 (Yahoo Finance에서 자동 등록)"
+                style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:4px 8px;border-radius:5px;cursor:pointer;font-size:11px;margin-left:4px">🔍 종목 조회</button>
       </div>
     </div>
 
@@ -1010,13 +1014,33 @@ async function loadIssues() {
   }
 
   if (!data?.length) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">📡</div>
-        <p class="empty-title">아직 분석된 이슈가 없습니다</p>
-        <p class="empty-sub">관리자 패널에서 뉴스를 수집하고 AI 분석을 실행해주세요.</p>
-        <a href="/admin/" class="empty-btn">관리자 패널로 이동</a>
-      </div>`;
+    // 검색어가 티커 패턴이면 직접 조회 제안
+    const sq = (searchQuery || '').toUpperCase().trim();
+    const looksLikeTicker = /^[A-Z][A-Z0-9.\-]{0,9}$/.test(sq) || /^\d{6}\.K[SQ]$/i.test(sq);
+    if (sq && looksLikeTicker) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <p class="empty-title">"${escHtml(sq)}" 은 분석 이력이 없습니다</p>
+          <p class="empty-sub">Yahoo Finance에서 가져와 종목 페이지로 이동할 수 있습니다.</p>
+          <button class="empty-btn" onclick="location.href='/company.html?ticker=${encodeURIComponent(sq)}'">📊 ${escHtml(sq)} 조회하기</button>
+        </div>`;
+    } else if (sq) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <p class="empty-title">"${escHtml(searchQuery)}" 검색 결과 없음</p>
+          <p class="empty-sub">정확한 티커를 입력해 직접 조회할 수도 있습니다 (예: AAPL, 005930.KS)</p>
+        </div>`;
+    } else {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📡</div>
+          <p class="empty-title">아직 분석된 이슈가 없습니다</p>
+          <p class="empty-sub">관리자 패널에서 뉴스를 수집하고 AI 분석을 실행해주세요.</p>
+          <a href="/admin/" class="empty-btn">관리자 패널로 이동</a>
+        </div>`;
+    }
     return;
   }
 
@@ -1352,6 +1376,23 @@ document.querySelectorAll('[data-sector]').forEach(btn => {
     loadIssues();
   });
 });
+
+// 검색창에 티커 입력 후 Enter → 직접 조회 (DB 없으면 Yahoo에서 자동 등록)
+function tryDirectLookup(input) {
+  const raw = (input || '').trim().toUpperCase();
+  if (!raw) return;
+  // 티커 패턴: 영문 대문자 1-6자 + 선택적 .KS/.KQ
+  const tickerPattern = /^[A-Z][A-Z0-9.\-]{0,9}$/;
+  const isKrTicker    = /^\d{6}\.K[SQ]$/i.test(raw);
+  const isUsTicker    = tickerPattern.test(raw) && !/^\d/.test(raw);
+
+  if (isKrTicker || isUsTicker) {
+    location.href = `/company.html?ticker=${encodeURIComponent(raw)}`;
+    return;
+  }
+  // 티커 패턴 아니면 일반 검색 (이슈 필터링 그대로 동작)
+  showToast(`"${input}" 검색 중... 티커는 영문 대문자만 (예: AAPL, NVDA, 005930.KS)`, 'info');
+}
 
 let searchTimeout;
 document.getElementById('searchInput').addEventListener('input', e => {
