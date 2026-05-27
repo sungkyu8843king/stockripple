@@ -160,6 +160,7 @@ let _positions = [];      // 보유 중 (open)
 let _closed = [];         // 종결 (closed)
 let _watchlist = [];      // AI 추천 (아직 안 산 것)
 let _quoteCache = {};     // 실시간 시세 캐시
+let _usdKrw = 1400;       // USD/KRW 환율 (init에서 실시간 조회)
 
 function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtKRW(v)  { return v == null ? '—' : '₩' + Math.round(v).toLocaleString('ko-KR'); }
@@ -303,18 +304,30 @@ async function loadWatchlist() {
 }
 
 async function refreshPrices() {
-  // 보유 + 워치리스트의 모든 티커
+  // 보유 + 워치리스트의 모든 티커 + USD/KRW
   const tickers = [...new Set([
     ..._positions.map(p => p.ticker),
     ..._watchlist.map(w => w.ticker),
+    'KRW=X',  // USD/KRW 환율
   ])];
   if (!tickers.length) return;
   try {
     const r = await fetch(`/api/quotes?tickers=${tickers.map(encodeURIComponent).join(',')}`);
     if (!r.ok) return;
     const j = await r.json();
-    if (j?.data) Object.assign(_quoteCache, j.data);
+    if (j?.data) {
+      Object.assign(_quoteCache, j.data);
+      // USD/KRW 환율 업데이트
+      const fx = j.data['KRW=X']?.price;
+      if (fx && fx > 100 && fx < 3000) _usdKrw = fx;
+    }
   } catch {}
+}
+
+// 종목 가격 → KRW 환산
+function toKrw(price, market) {
+  if (price == null) return 0;
+  return market === 'KR' ? price : price * _usdKrw;
 }
 
 // ──────────────────────────────────────────────────────────
@@ -324,15 +337,16 @@ function render() {
   if (!_portfolio) return;
   const root = document.getElementById('root');
 
-  // 평가금액 계산
-  let unrealizedPnl = 0;
-  let positionsValue = 0;
+  // 평가금액 계산 (USD → KRW 환산)
+  let unrealizedPnl = 0;       // KRW
+  let positionsValue = 0;       // KRW
   for (const p of _positions) {
     const q = _quoteCache[p.ticker];
     const cur = q?.price ?? p.entry_price;
-    const value = cur * p.quantity;
-    positionsValue += value;
-    unrealizedPnl  += (cur - p.entry_price) * p.quantity;
+    const valueKrw = toKrw(cur, p.market) * p.quantity;
+    const entryKrw = toKrw(p.entry_price, p.market) * p.quantity;
+    positionsValue += valueKrw;
+    unrealizedPnl  += (valueKrw - entryKrw);
   }
   const realizedPnl = _closed.reduce((s, p) => s + (p.pnl_amount || 0), 0);
   const totalValue  = (_portfolio.cash_balance || 0) + positionsValue;
@@ -342,7 +356,9 @@ function render() {
 
   root.innerHTML = `
     <h1>📝 가상 포트폴리오</h1>
-    <p class="subtitle">실제 돈 없이 AI 추천대로 매매해보고, 30~90일 누적 결과로 신뢰도 검증.</p>
+    <p class="subtitle">실제 돈 없이 AI 추천대로 매매해보고, 30~90일 누적 결과로 신뢰도 검증.
+      <span style="margin-left:8px;font-size:11px;color:var(--text3);font-family:'SF Mono',monospace">USD/KRW: ₩${Math.round(_usdKrw).toLocaleString()}</span>
+    </p>
 
     <!-- 요약 카드 -->
     <div class="summary-grid">
@@ -429,8 +445,10 @@ function renderPositionRow(p) {
   const q = _quoteCache[p.ticker];
   const cur = q?.price ?? p.entry_price;
   const pnlPct = ((cur - p.entry_price) / p.entry_price) * 100;
-  const pnlAmt = (cur - p.entry_price) * p.quantity;
-  const value  = cur * p.quantity;
+  const valueKrw = toKrw(cur, p.market) * p.quantity;
+  const entryKrw = toKrw(p.entry_price, p.market) * p.quantity;
+  const pnlAmt = valueKrw - entryKrw;   // KRW 환산 손익
+  const value  = valueKrw;              // 표시는 항상 KRW
   const isKr   = p.market === 'KR';
   const fmtP   = isKr ? fmtKRW : fmtUSD;
   const cls    = pnlPct > 0 ? 'up' : pnlPct < 0 ? 'dn' : 'flat';
@@ -519,9 +537,8 @@ function openBuyModal(w) {
   const price = q?.price;
   const currency = isKr ? 'KRW' : 'USD';
 
-  // 환율 (간단히 1400원 고정 — TODO: 실시간 환율 API)
-  const usdKrw = 1400;
-  const priceInKrw = isKr ? price : (price * usdKrw);
+  // 실시간 환율 사용
+  const priceInKrw = isKr ? price : (price * _usdKrw);
 
   // 기본 투자금액: 잔고의 5%
   const defaultBudget = Math.round((_portfolio.cash_balance || 0) * 0.05);
@@ -615,9 +632,8 @@ async function closePosition(positionId, reason) {
   if (reason === 'manual' && !confirm(`${pos.ticker} ${pos.quantity}주를 현재가에 청산하시겠습니까?`)) return;
 
   const isKr = pos.market === 'KR';
-  const usdKrw = 1400;
-  const exitPriceKrw = isKr ? q.price : q.price * usdKrw;
-  const entryPriceKrw = isKr ? pos.entry_price : pos.entry_price * usdKrw;
+  const exitPriceKrw  = isKr ? q.price       : q.price * _usdKrw;
+  const entryPriceKrw = isKr ? pos.entry_price : pos.entry_price * _usdKrw;
   const pnlAmount = (exitPriceKrw - entryPriceKrw) * pos.quantity;
   const pnlPct = ((q.price - pos.entry_price) / pos.entry_price) * 100;
 
