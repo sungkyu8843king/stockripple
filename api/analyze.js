@@ -52,9 +52,10 @@ export default async function handler(req, res) {
   if (error) return res.status(500).json({ error: error.message });
   if (!issues?.length) return res.status(200).json({ message: 'No issues to analyze', count: 0, reanalyzed });
 
-  const results = { analyzed: 0, errors: [] };
+  const results = { analyzed: 0, errors: [], processed: [] };
 
   for (const issue of issues) {
+    const issueStart = Date.now();
     try {
       const analysis = await analyzeIssue(issue);
 
@@ -86,6 +87,7 @@ export default async function handler(req, res) {
           allCompanyTasks.push({ ripple, co });
         }
       }
+      const pickedTickers = [];
 
       await Promise.all(allCompanyTasks.map(async ({ ripple, co }) => {
         const valid = await validateTicker(co.ticker);
@@ -133,10 +135,17 @@ export default async function handler(req, res) {
           entry_price: valid.price,
           entry_date: new Date().toISOString(),
         });
+        pickedTickers.push(`${co.ticker}(${adjConfidence}%)`);
       }));
 
       await supabase.from('issues').update({ is_analyzed: true }).eq('id', issue.id);
       results.analyzed++;
+      results.processed.push({
+        title: issue.title?.slice(0, 80) || '(제목 없음)',
+        companies: pickedTickers.slice(0, 8),
+        duration_ms: Date.now() - issueStart,
+        relevance: analysis.relevance_score,
+      });
 
       const tickers = (analysis.rippleEffects || [])
         .flatMap(r => r.companies || [])
