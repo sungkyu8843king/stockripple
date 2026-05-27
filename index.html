@@ -1536,13 +1536,19 @@ async function loadInsights() {
       })
       .filter(s => s.avgUpside > 0) // 상승 예측만
       // 최근 [TRADE] 정보가 있고 목표가 음수면 매수 후보에서 제외 (AI 환각/모순 픽)
+      // 인라인 파싱 (parseTradeMeta는 아래에 정의됨)
       .filter(s => {
-        const parsed = parseTradeMeta(s.latestRationale);
-        const t = parsed.trade;
-        if (!t) return true;  // 트레이드 정보 없으면 통과
-        // target은 양수여야 함, stop_loss는 음수여야 함
-        if (t.tp != null && t.tp <= 0) return false;
-        if (t.sl != null && t.sl >= 0) return false;
+        const r = s.latestRationale || '';
+        const ti = r.indexOf('[TRADE]');
+        if (ti < 0) return true;  // 트레이드 정보 없으면 통과
+        const after = r.slice(ti + 7);
+        const fi = after.indexOf('[FUND]');
+        const json = fi >= 0 ? after.slice(0, fi).trim() : after.trim();
+        let t = null;
+        try { t = JSON.parse(json); } catch { return true; }
+        if (!t) return true;
+        if (t.tp != null && Number(t.tp) <= 0) return false;
+        if (t.sl != null && Number(t.sl) >= 0) return false;
         return true;
       })
       .sort((a, b) => b.score - a.score);
