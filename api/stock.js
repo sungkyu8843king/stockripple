@@ -82,24 +82,57 @@ async function handlePrice(req, res) {
 
 // ─── 펀더멘털 (FMP stable API 무료 엔드포인트들 조합 + 자체 계산) ──
 async function handleFundamentals(req, res) {
-  const { ticker } = req.query;
+  const { ticker, nocache } = req.query;
   if (!ticker) return res.status(400).json({ error: 'ticker required' });
-  res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');  // 6시간 캐시
+
+  // nocache=1 이면 캐시 무시 (수동 새로고침용)
+  if (nocache) {
+    res.setHeader('Cache-Control', 'no-store');
+  } else {
+    res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
+  }
+
+  // 한국 종목은 FMP 무료 미지원
+  if (/\.KS$|\.KQ$/i.test(ticker)) {
+    return res.status(200).json({
+      ok: false,
+      ticker,
+      error: '한국 종목은 FMP 무료 티어 미지원',
+      hint: '미국 종목(AAPL, MSFT 등)만 펀더멘털 데이터 제공됩니다.',
+    });
+  }
 
   const key = process.env.FMP_API_KEY;
-  if (!key) return res.status(500).json({ error: 'FMP_API_KEY missing' });
+  if (!key) return res.status(500).json({ error: 'FMP_API_KEY missing on server' });
 
-  const fmp = (path) => fetch(`https://financialmodelingprep.com${path}${path.includes('?') ? '&' : '?'}apikey=${key}`,
-    { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) })
-    .then(r => r.ok ? r.json() : null).catch(() => null);
+  // 각 엔드포인트별 상태 추적
+  const status = {};
+  const fmp = async (path, name) => {
+    try {
+      const url = `https://financialmodelingprep.com${path}${path.includes('?') ? '&' : '?'}apikey=${key}`;
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) });
+      if (!r.ok) {
+        const body = await r.text().catch(() => '');
+        status[name] = `HTTP ${r.status}${body.includes('Premium') ? ' (유료)' : ''}`;
+        return null;
+      }
+      const j = await r.json();
+      if (Array.isArray(j) ? !j.length : !j) { status[name] = 'empty'; return null; }
+      status[name] = 'ok';
+      return j;
+    } catch (e) {
+      status[name] = 'error: ' + e.message;
+      return null;
+    }
+  };
 
   // 병렬 호출 (5개 무료 엔드포인트)
   const [profile, quote, incomeQ, balanceQ, cashflowQ] = await Promise.all([
-    fmp(`/stable/profile?symbol=${encodeURIComponent(ticker)}`),
-    fmp(`/stable/quote?symbol=${encodeURIComponent(ticker)}`),
-    fmp(`/stable/income-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=5`),
-    fmp(`/stable/balance-sheet-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=2`),
-    fmp(`/stable/cash-flow-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=1`),
+    fmp(`/stable/profile?symbol=${encodeURIComponent(ticker)}`, 'profile'),
+    fmp(`/stable/quote?symbol=${encodeURIComponent(ticker)}`, 'quote'),
+    fmp(`/stable/income-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=5`, 'income'),
+    fmp(`/stable/balance-sheet-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=2`, 'balance'),
+    fmp(`/stable/cash-flow-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=1`, 'cashflow'),
   ]);
 
   const prof = Array.isArray(profile) ? profile[0] : profile;
@@ -184,6 +217,7 @@ async function handleFundamentals(req, res) {
     reportDate: inc?.date || inc?.fillingDate || null,
     fiscalPeriod: inc?.period || null,
     source: 'fmp-stable',
+    endpointStatus: status,
   });
 }
 

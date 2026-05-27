@@ -727,20 +727,52 @@ async function loadAiSummary(ticker, displayName) {
 }
 
 // ── 펀더멘털 표시 ────────────────────────────────────────
-async function loadFundamentals(ticker) {
+async function loadFundamentals(ticker, forceRefresh = false) {
   const wrap = document.getElementById('fundamentalsWrap');
   if (!wrap) return;
-  wrap.innerHTML = '<div class="fund-section"><div class="section-title">📊 펀더멘털 (로딩 중...)</div></div>';
+  wrap.innerHTML = `
+    <div class="fund-section">
+      <div class="section-title">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        펀더멘털 <span style="font-size:11px;color:var(--text3);font-weight:400">불러오는 중...</span>
+        <span class="spinner" style="width:14px;height:14px;border-width:2px;margin:0 0 0 8px"></span>
+      </div>
+    </div>`;
   try {
-    const r = await fetch(`/api/stock?type=fundamentals&ticker=${encodeURIComponent(ticker)}`);
-    if (!r.ok) { wrap.innerHTML = ''; return; }
+    const url = `/api/stock?type=fundamentals&ticker=${encodeURIComponent(ticker)}${forceRefresh ? '&nocache=' + Date.now() : ''}`;
+    const r = await fetch(url);
+    if (!r.ok) {
+      renderFundamentalsError(wrap, ticker, `서버 에러 (HTTP ${r.status})`);
+      return;
+    }
     const f = await r.json();
-    if (!f.ok) { wrap.innerHTML = ''; return; }
-    renderFundamentals(wrap, f);
-  } catch { wrap.innerHTML = ''; }
+    if (!f.ok) {
+      renderFundamentalsError(wrap, ticker, f.error || '데이터 없음', f.hint);
+      return;
+    }
+    renderFundamentals(wrap, f, ticker);
+  } catch (e) {
+    renderFundamentalsError(wrap, ticker, '네트워크 에러: ' + e.message);
+  }
 }
 
-function renderFundamentals(wrap, f) {
+function renderFundamentalsError(wrap, ticker, message, hint = '') {
+  wrap.innerHTML = `
+    <div class="fund-section">
+      <div class="section-title">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        펀더멘털
+        <button onclick="loadFundamentals('${escHtml(ticker)}', true)" style="margin-left:auto;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px">🔄 다시 시도</button>
+      </div>
+      <div class="fund-group" style="text-align:center;padding:32px">
+        <div style="font-size:14px;color:var(--yellow);margin-bottom:8px">⚠️ ${escHtml(message)}</div>
+        ${hint ? `<div style="font-size:12px;color:var(--text3);margin-top:6px">${escHtml(hint)}</div>` : ''}
+        <div style="font-size:11px;color:var(--text3);margin-top:14px">위 "다시 시도" 버튼으로 강제 새로고침 가능 (캐시 무시)</div>
+      </div>
+    </div>`;
+}
+
+function renderFundamentals(wrap, f, ticker) {
   // 포맷 헬퍼
   const fmtNum = (v, digits = 2) => v == null ? '—' : Number(v).toFixed(digits);
   const fmtPct = v => v == null ? '—' : (v > 0 ? '+' : '') + Number(v).toFixed(1) + '%';
@@ -768,6 +800,7 @@ function renderFundamentals(wrap, f) {
       <div class="section-title">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         펀더멘털 ${f.fiscalPeriod ? `<span style="font-size:11px;color:var(--text3);font-weight:400">${f.fiscalPeriod} (${f.reportDate || ''})</span>` : ''}
+        <button onclick="loadFundamentals('${escHtml(ticker)}', true)" style="margin-left:auto;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px" title="캐시 무시하고 최신 데이터 다시 가져오기">🔄 새로고침</button>
       </div>
 
       <!-- 시총 / 밸류에이션 -->
