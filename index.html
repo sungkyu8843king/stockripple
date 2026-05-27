@@ -1603,21 +1603,40 @@ async function loadInsights() {
         // 카드 클릭 → 항상 company.html로 (기업 상세 + 차트 + AI 종합)
         const issueLink = `/company.html?ticker=${encodeURIComponent(s.ticker)}`;
 
-        // 매매 정보 박스 (trade 있을 때만)
+        // 매매 정보 박스 (trade 있을 때만) — 현재가 기반 실제 가격 계산
         const fmtPct = v => (v > 0 ? '+' : '') + v + '%';
+        // 실시간 시세 캐시 (refreshInsightQuotes에서 _lastQuoteCache 사용)
+        const curPrice = _lastQuoteCache?.[s.ticker]?.price;
+        const fmtP = v => v == null ? '—' : (isKr
+          ? '₩' + Math.round(v).toLocaleString('ko-KR')
+          : '$' + Number(v).toFixed(2));
+        const buyLow  = curPrice && trade?.elp != null ? curPrice * (1 + trade.elp / 100) : null;
+        const buyHigh = curPrice && trade?.ehp != null ? curPrice * (1 + trade.ehp / 100) : null;
+        const target  = curPrice && trade?.tp  != null ? curPrice * (1 + trade.tp  / 100) : null;
+        const stop    = curPrice && trade?.sl  != null ? curPrice * (1 + trade.sl  / 100) : null;
+
         const tradeBox = trade ? `
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:10px;background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(47,129,247,.08));border:1px solid rgba(63,185,80,.2);border-radius:8px">
             <div style="text-align:center">
               <div style="font-size:9px;color:var(--text3);margin-bottom:2px">매수가</div>
-              <div style="font-size:12px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace">${trade.elp != null ? fmtPct(trade.elp) : '—'}~${trade.ehp != null ? fmtPct(trade.ehp) : '—'}</div>
+              <div style="font-size:12px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace">
+                ${buyLow ? fmtP(buyLow) : (trade.elp != null ? fmtPct(trade.elp) : '—')}
+                ${buyHigh ? `<br><span style="font-size:9px;color:var(--text3);font-weight:400">~ ${fmtP(buyHigh)}</span>` : ''}
+              </div>
             </div>
             <div style="text-align:center;border-left:1px solid var(--border);border-right:1px solid var(--border)">
               <div style="font-size:9px;color:var(--text3);margin-bottom:2px">목표</div>
-              <div style="font-size:12px;font-weight:700;color:var(--green);font-family:'SF Mono',monospace">${trade.tp != null ? fmtPct(trade.tp) : '—'}</div>
+              <div style="font-size:12px;font-weight:700;color:var(--green);font-family:'SF Mono',monospace">
+                ${target ? fmtP(target) : (trade.tp != null ? fmtPct(trade.tp) : '—')}
+                ${target ? `<br><span style="font-size:9px;color:var(--text3);font-weight:400">+${trade.tp}%</span>` : ''}
+              </div>
             </div>
             <div style="text-align:center">
               <div style="font-size:9px;color:var(--text3);margin-bottom:2px">손절</div>
-              <div style="font-size:12px;font-weight:700;color:var(--red);font-family:'SF Mono',monospace">${trade.sl != null ? fmtPct(trade.sl) : '—'}</div>
+              <div style="font-size:12px;font-weight:700;color:var(--red);font-family:'SF Mono',monospace">
+                ${stop ? fmtP(stop) : (trade.sl != null ? fmtPct(trade.sl) : '—')}
+                ${stop ? `<br><span style="font-size:9px;color:var(--text3);font-weight:400">${trade.sl}%</span>` : ''}
+              </div>
             </div>
           </div>` : `
           <div style="padding:6px 10px;background:var(--bg3);border-radius:8px;font-size:10px;color:var(--text3);text-align:center">
