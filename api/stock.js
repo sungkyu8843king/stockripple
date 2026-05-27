@@ -80,17 +80,15 @@ async function handlePrice(req, res) {
   }
 }
 
-// ─── 펀더멘털 (FMP stable API 무료 엔드포인트들 조합 + 자체 계산) ──
+// ─── 펀더멘털 (FMP stable + DB 캐시 24h) ──────────────────────────
+const FUND_CACHE_TTL_MS = 24 * 60 * 60 * 1000;  // 24시간
+
 async function handleFundamentals(req, res) {
   const { ticker, nocache } = req.query;
   if (!ticker) return res.status(400).json({ error: 'ticker required' });
 
-  // nocache=1 이면 캐시 무시 (수동 새로고침용)
-  if (nocache) {
-    res.setHeader('Cache-Control', 'no-store');
-  } else {
-    res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
-  }
+  if (nocache) res.setHeader('Cache-Control', 'no-store');
+  else         res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
 
   // 한국 종목은 FMP 무료 미지원
   if (/\.KS$|\.KQ$/i.test(ticker)) {
@@ -101,6 +99,29 @@ async function handleFundamentals(req, res) {
       hint: '미국 종목(AAPL, MSFT 등)만 펀더멘털 데이터 제공됩니다.',
     });
   }
+
+  // DB 캐시 확인 (nocache가 아니면 24h 이내 캐시 사용)
+  let cached = null;
+  let cachedAge = null;
+  try {
+    const { data } = await supabase
+      .from('companies')
+      .select('fundamentals, fundamentals_updated_at')
+      .eq('ticker', ticker)
+      .maybeSingle();
+    if (data?.fundamentals && data?.fundamentals_updated_at) {
+      cached = data.fundamentals;
+      cachedAge = Date.now() - new Date(data.fundamentals_updated_at).getTime();
+      if (!nocache && cachedAge < FUND_CACHE_TTL_MS) {
+        return res.status(200).json({
+          ...cached,
+          source: 'db-cache',
+          cachedAt: data.fundamentals_updated_at,
+          cacheAgeHours: Math.round(cachedAge / 3600000 * 10) / 10,
+        });
+      }
+    }
+  } catch {}
 
   const key = process.env.FMP_API_KEY;
   if (!key) return res.status(500).json({ error: 'FMP_API_KEY missing on server' });
@@ -134,6 +155,29 @@ async function handleFundamentals(req, res) {
     fmp(`/stable/balance-sheet-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=2`, 'balance'),
     fmp(`/stable/cash-flow-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=1`, 'cashflow'),
   ]);
+
+  // 모든 엔드포인트 실패(429 등)면 stale 캐시라도 반환
+  const allFailed = !profile && !quote && !incomeQ && !balanceQ && !cashflowQ;
+  if (allFailed && cached) {
+    const is429 = Object.values(status).some(v => String(v).includes('429'));
+    return res.status(200).json({
+      ...cached,
+      source: 'db-cache-stale',
+      cachedAt: new Date(Date.now() - cachedAge).toISOString(),
+      cacheAgeHours: Math.round(cachedAge / 3600000 * 10) / 10,
+      warning: is429 ? 'FMP 일일 한도 초과 — 캐시 데이터 반환' : 'FMP API 호출 실패 — 캐시 데이터 반환',
+      endpointStatus: status,
+    });
+  }
+  if (allFailed) {
+    const is429 = Object.values(status).some(v => String(v).includes('429'));
+    return res.status(429).json({
+      ok: false, ticker,
+      error: is429 ? 'FMP 일일 한도 초과 (250req/day)' : 'FMP API 호출 실패',
+      hint: is429 ? '내일 다시 시도하거나 FMP 유료 플랜으로 업그레이드' : '잠시 후 재시도',
+      endpointStatus: status,
+    });
+  }
 
   const prof = Array.isArray(profile) ? profile[0] : profile;
   const qt   = Array.isArray(quote)   ? quote[0]   : quote;
@@ -188,7 +232,7 @@ async function handleFundamentals(req, res) {
 
   const fcf = cf ? n(cf.freeCashFlow) : null;
 
-  return res.status(200).json({
+  const fundData = {
     ok: true,
     ticker,
     company:    prof?.companyName || qt?.name || null,
@@ -216,6 +260,18 @@ async function handleFundamentals(req, res) {
     operatingGrowthYoY:  opYoY,
     reportDate: inc?.date || inc?.fillingDate || null,
     fiscalPeriod: inc?.period || null,
+  };
+
+  // DB 캐시 저장 (다음 24h 동안 FMP 호출 절약)
+  try {
+    await supabase.from('companies').update({
+      fundamentals: fundData,
+      fundamentals_updated_at: new Date().toISOString(),
+    }).eq('ticker', ticker);
+  } catch {}
+
+  return res.status(200).json({
+    ...fundData,
     source: 'fmp-stable',
     endpointStatus: status,
   });
