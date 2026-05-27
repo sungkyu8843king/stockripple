@@ -17,9 +17,9 @@ export default async function handler(req, res) {
 
   const rawBody = req.body || {};
   const issue_id = rawBody.issue_id;
-  // Vercel 함수 60초 타임아웃 고려 — 1회 최대 15건으로 제한
-  const HARD_CAP = 15;
-  const limit = Math.min(rawBody.limit ?? 10, HARD_CAP);
+  // Vercel 60초 타임아웃 + 펀더멘털 fetch 추가로 1회 최대 5건 (이슈당 ~10초)
+  const HARD_CAP = 5;
+  const limit = Math.min(rawBody.limit ?? 5, HARD_CAP);
   const force_recent = Math.min(rawBody.force_recent ?? 0, HARD_CAP);
 
   // force_recent: 최근 N개 이슈를 무조건 재분석 (기존 분석 삭제 후 재생성)
@@ -79,68 +79,61 @@ export default async function handler(req, res) {
 
       if (analysisErr) throw new Error(analysisErr.message);
 
+      // 모든 ripple effects의 companies를 한꺼번에 병렬 처리 (속도 핵심)
+      const allCompanyTasks = [];
       for (const ripple of analysis.rippleEffects || []) {
         for (const co of ripple.companies || []) {
-          const valid = await validateTicker(co.ticker);
-          if (!valid) {
-            results.errors.push(`Invalid ticker skipped: ${co.ticker} (${co.name_ko})`);
-            continue;
-          }
-          const companyId = await upsertCompany(co, valid);
-
-          // 펀더멘털 fetch + 점수 보정
-          const fund = await fetchFundamentals(co.ticker);
-          const fundScore = scoreFundamentals(fund);  // -30 ~ +30 점 가산
-
-          // 펀더멘털 기준 confidence 보정 (원본 ±30 범위)
-          let adjConfidence = co.confidence ?? 50;
-          if (fundScore != null) {
-            adjConfidence = Math.max(0, Math.min(100, adjConfidence + fundScore));
-          }
-
-          // 매매 정보를 rationale 끝에 구조화된 마커로 임베드 (DB 스키마 변경 불필요)
-          const tradeMeta = {
-            elp: co.entry_low_pct,
-            ehp: co.entry_high_pct,
-            tp:  co.target_pct,
-            sl:  co.stop_loss_pct,
-            tf:  co.time_frame,
-            th:  co.key_thesis,
-            rk:  co.key_risk,
-          };
-          const cleanMeta = Object.fromEntries(
-            Object.entries(tradeMeta).filter(([_, v]) => v != null && v !== '')
-          );
-
-          // 펀더멘털 요약 마커도 임베드
-          const fundMeta = fund ? {
-            pe:  fund.pe,
-            pb:  fund.pb,
-            roe: fund.roe,
-            opm: fund.operatingMargin,
-            de:  fund.debtToEquity,
-            cr:  fund.currentRatio,
-            rev_yoy: fund.revenueGrowthYoY,
-            ni_yoy:  fund.netIncomeGrowthYoY,
-            score:   fundScore,
-          } : null;
-
-          let enrichedRationale = co.rationale || '';
-          if (Object.keys(cleanMeta).length) enrichedRationale += `\n\n[TRADE]${JSON.stringify(cleanMeta)}`;
-          if (fundMeta) enrichedRationale += `\n\n[FUND]${JSON.stringify(fundMeta)}`;
-
-          await supabase.from('analysis_companies').insert({
-            analysis_id: savedAnalysis.id,
-            company_id: companyId,
-            ripple_sector: ripple.sector,
-            rationale: enrichedRationale,
-            upside_pct: co.upside_pct,
-            confidence: adjConfidence,  // 펀더멘털 점수 반영
-            entry_price: valid.price,
-            entry_date: new Date().toISOString(),
-          });
+          allCompanyTasks.push({ ripple, co });
         }
       }
+
+      await Promise.all(allCompanyTasks.map(async ({ ripple, co }) => {
+        const valid = await validateTicker(co.ticker);
+        if (!valid) {
+          results.errors.push(`Invalid ticker skipped: ${co.ticker} (${co.name_ko})`);
+          return;
+        }
+        const companyId = await upsertCompany(co, valid);
+
+        // 펀더멘털 fetch + 점수 보정 (병렬 처리됨)
+        const fund = await fetchFundamentals(co.ticker);
+        const fundScore = scoreFundamentals(fund);
+
+        let adjConfidence = co.confidence ?? 50;
+        if (fundScore != null) {
+          adjConfidence = Math.max(0, Math.min(100, adjConfidence + fundScore));
+        }
+
+        const tradeMeta = {
+          elp: co.entry_low_pct, ehp: co.entry_high_pct,
+          tp:  co.target_pct,    sl:  co.stop_loss_pct,
+          tf:  co.time_frame,    th:  co.key_thesis,    rk: co.key_risk,
+        };
+        const cleanMeta = Object.fromEntries(
+          Object.entries(tradeMeta).filter(([_, v]) => v != null && v !== '')
+        );
+        const fundMeta = fund ? {
+          pe: fund.pe, pb: fund.pb, roe: fund.roe,
+          opm: fund.operatingMargin, de: fund.debtToEquity, cr: fund.currentRatio,
+          rev_yoy: fund.revenueGrowthYoY, ni_yoy: fund.netIncomeGrowthYoY,
+          score: fundScore,
+        } : null;
+
+        let enrichedRationale = co.rationale || '';
+        if (Object.keys(cleanMeta).length) enrichedRationale += `\n\n[TRADE]${JSON.stringify(cleanMeta)}`;
+        if (fundMeta) enrichedRationale += `\n\n[FUND]${JSON.stringify(fundMeta)}`;
+
+        await supabase.from('analysis_companies').insert({
+          analysis_id: savedAnalysis.id,
+          company_id: companyId,
+          ripple_sector: ripple.sector,
+          rationale: enrichedRationale,
+          upside_pct: co.upside_pct,
+          confidence: adjConfidence,
+          entry_price: valid.price,
+          entry_date: new Date().toISOString(),
+        });
+      }));
 
       await supabase.from('issues').update({ is_analyzed: true }).eq('id', issue.id);
       results.analyzed++;
@@ -156,7 +149,7 @@ export default async function handler(req, res) {
         req
       ).catch(() => {});
 
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 200));
     } catch (err) {
       results.errors.push(`Issue "${issue.title?.slice(0, 50)}": ${err.message}`);
     }

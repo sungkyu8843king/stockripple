@@ -564,8 +564,8 @@ tr:hover td { background: var(--bg3); }
       <div class="card">
         <div class="card-title">단일 배치 재분석</div>
         <div class="form-group">
-          <label class="form-label">재분석할 최근 이슈 개수 (1회 최대 15)</label>
-          <input type="number" id="reanCount" class="form-input" value="15" min="1" max="15">
+          <label class="form-label">재분석할 최근 이슈 개수 (1회 최대 5 — 펀더멘털 fetch 포함)</label>
+          <input type="number" id="reanCount" class="form-input" value="5" min="1" max="5">
         </div>
         <div class="action-row">
           <button class="btn btn-primary" id="reanRunBtn" onclick="reanRunSingle()">재분석 시작</button>
@@ -576,7 +576,7 @@ tr:hover td { background: var(--bg3); }
 
       <div class="card">
         <div class="card-title">🔁 자동 반복 (전체 재분석)</div>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:10px">15개씩 배치로 자동 반복 실행. Vercel 60초 타임아웃 회피.</p>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:10px">5개씩 배치로 자동 반복 실행 (펀더멘털 fetch 포함, Vercel 60초 회피).</p>
         <div class="action-row">
           <button class="btn btn-warn" id="reanAutoBtn" onclick="reanRunAuto()">🔁 자동 반복 시작</button>
         </div>
@@ -1061,7 +1061,7 @@ async function reanRunSingle() {
 
 async function reanRunFresh() {
   reanLog('🆕 신규 미분석 이슈 처리', 'info');
-  const result = await callApi('/api/analyze', { limit: 15 }, 'reanLog');
+  const result = await callApi('/api/analyze', { limit: 5 }, 'reanLog');
   if (result) {
     reanLog(`✓ 완료: 분석 ${result.analyzed || 0}건`, 'ok');
     if (result.errors?.length) result.errors.slice(0, 5).forEach(e => reanLog(`  ⚠️ ${e}`, 'warn'));
@@ -1073,7 +1073,7 @@ async function reanRunAuto() {
   const btn = document.getElementById('reanAutoBtn');
   const total = parseInt(prompt('전체 재분석할 이슈 개수 (예: 50)', '30'), 10);
   if (!total || total < 1) return;
-  if (!confirm(`최근 ${total}개를 15개씩 배치로 재분석. 약 ${Math.ceil(total/15)}분 소요. 진행할까요?`)) return;
+  if (!confirm(`최근 ${total}개를 5개씩 배치로 재분석. 약 ${Math.ceil(total/5)}분 소요. 진행할까요?`)) return;
 
   _reanAutoStop = false;
   btn.disabled = true;
@@ -1083,14 +1083,14 @@ async function reanRunAuto() {
 
   reanLog(`🔁 자동 반복 시작: 최근 ${total}개 (15개씩)`, 'info');
   reanLog(`1️⃣ 최근 ${Math.min(total, 15)}개 기존 분석 삭제 중...`, 'info');
-  const wipe = await callApi('/api/analyze', { force_recent: Math.min(total, 15), limit: 0 }, 'reanLog');
+  const wipe = await callApi('/api/analyze', { force_recent: Math.min(total, 5), limit: 0 }, 'reanLog');
   if (!wipe) { btn.disabled = false; btn.textContent = orig; btn.onclick = reanRunAuto; return; }
   reanLog(`  ↳ ${wipe.reanalyzed || 0}개 삭제`, 'ok');
 
   let analyzedTotal = 0, batch = 1;
   while (!_reanAutoStop && analyzedTotal < total) {
     reanLog(`2️⃣ 배치 ${batch} 시작 (15개)...`, 'info');
-    const res = await callApi('/api/analyze', { limit: 15 }, 'reanLog');
+    const res = await callApi('/api/analyze', { limit: 5 }, 'reanLog');
     if (!res) break;
     const got = res.analyzed || 0;
     analyzedTotal += got;
