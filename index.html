@@ -723,6 +723,16 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       <div id="insightsPanel"></div>
     </div>
 
+    <!-- 📰 최신 분석 이슈 섹션 헤더 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">📰</span>
+        <span style="font-size:16px;font-weight:700">최신 분석 이슈</span>
+        <span style="font-size:11px;color:var(--text3)">뉴스 → 파급 섹터 → 수혜 기업 분석</span>
+      </div>
+      <span style="font-size:11px;color:var(--text3)" id="issuesCount"></span>
+    </div>
+
     <div id="issuesContainer">
       <div class="loading-state">
         <div class="spinner"></div>
@@ -1045,6 +1055,9 @@ async function loadIssues() {
   }
 
   container.innerHTML = `<div class="issues-grid">${data.map(renderIssueCard).join('')}</div>`;
+  // 이슈 카운트 표시
+  const cntEl = document.getElementById('issuesCount');
+  if (cntEl) cntEl.textContent = `${(totalCount || data.length).toLocaleString()}건 · 페이지 ${currentPage}`;
   renderPagination();
 }
 
@@ -1597,7 +1610,7 @@ async function loadInsights() {
     // 엄격 모드: AI 신뢰도 ≥80% 종목만
     const strictMode = document.getElementById('strictModeToggle')?.checked;
     const beforeStrict = scored.length;
-    const finalScored = (strictMode ? scored.filter(s => s.avgConf >= 80) : scored).slice(0, 6);
+    const finalScored = (strictMode ? scored.filter(s => s.avgConf >= 80) : scored).slice(0, 12);
 
     if (!finalScored.length) {
       sec.style.display = 'block';

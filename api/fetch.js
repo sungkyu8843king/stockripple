@@ -94,7 +94,6 @@ const RSS_FEEDS = [
   { url: 'https://www.hankyung.com/feed/finance',               name: '한국경제',     sectors: ['금융', '경제'],   isKorean: true },
   { url: 'https://www.edaily.co.kr/rss/rss.asp?sitetype=stock', name: '이데일리',     sectors: ['증권', '주식'],   isKorean: true },
   { url: 'https://www.mk.co.kr/rss/30000001/',                  name: '매일경제',     sectors: ['증권', '주식'],   isKorean: true },
-  { url: 'https://www.hani.co.kr/rss/economy/',                 name: '한겨레 경제',  sectors: ['경제', '주식'],   isKorean: true },
 
   // 해외 — Reuters 대체 (feeds.reuters.com 폐쇄)
   { url: 'http://feeds.bbci.co.uk/news/business/rss.xml',        name: 'BBC Business', sectors: ['글로벌', '경제'] },
