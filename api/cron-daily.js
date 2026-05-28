@@ -54,12 +54,12 @@ export default async function handler(req, res) {
   // 2. 실시간 이벤트 수집 (경제지표·실적·트럼프) + 즉시 분석
   log.events = await collectEvents(base);
 
-  // 3. 남은 미분석 이슈 추가 분석
-  await new Promise(r => setTimeout(r, 1000));
-  log.analyze = await call('/api/analyze', { limit: 20 });
+  // 3. 남은 미분석 이슈 추가 분석 (5건 — 펀더멘털 fetch 포함으로 1건당 ~8초)
+  await new Promise(r => setTimeout(r, 500));
+  log.analyze = await call('/api/analyze', { limit: 5 });
 
   // 4. 정확도 체크
-  await new Promise(r => setTimeout(r, 1000));
+  await new Promise(r => setTimeout(r, 500));
   log.accuracy = await call('/api/check-accuracy');
 
   return res.status(200).json({

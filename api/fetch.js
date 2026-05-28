@@ -109,46 +109,60 @@ const RSS_FEEDS = [
 
 async function handleRss(res) {
   const results = { fetched: 0, saved: 0, errors: [], feedStatus: {} };
-  for (const feed of RSS_FEEDS) {
-    try {
-      const items = await fetchRSS(feed.url);
-      results.feedStatus[feed.name] = `ok (${items.length})`;
-      for (const item of items) {
-        if (!item.title || !item.link) continue;
-        if (feed.isTrump && item.pubDate) {
-          const age = Date.now() - new Date(item.pubDate).getTime();
-          if (age > 24 * 3600 * 1000) continue;
-        }
-        if (feed.isKorean) {
-          const hasKeyword = KO_STOCK_KEYWORDS.some(kw => item.title.includes(kw));
-          if (!hasKeyword) continue;
-        }
-        const { data: exists } = await supabase.from('issues').select('id').eq('source_url', item.link).maybeSingle();
-        if (exists) continue;
-        results.fetched++;
-        const cleanText = s => s ? s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : null;
-        const title = feed.isTrump
-          ? `[트럼프] ${cleanText(item.description || item.title)?.slice(0, 120) || item.title.slice(0, 120)}`
-          : item.title.slice(0, 300);
-        const { error } = await supabase.from('issues').insert({
-          title,
-          summary: cleanText(item.description)?.slice(0, 800) || null,
-          source_url: item.link,
-          source_name: feed.name,
-          published_at: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
-          sectors: feed.sectors || [feed.sector || '글로벌'],
-          tags: feed.isTrump ? ['Trump', '트럼프', 'TruthSocial'] : [],
-          is_analyzed: false,
-        });
-        if (!error) results.saved++;
-      }
-    } catch (err) {
-      const msg = err.message?.includes('fetch failed') ? 'DNS/네트워크 차단 (피드 폐쇄 가능성)'
+
+  // 모든 피드 병렬 fetch (각 6초 타임아웃 → 전체 ~6초 내에 끝)
+  const fetchResults = await Promise.allSettled(
+    RSS_FEEDS.map(feed => fetchRSS(feed.url).then(items => ({ feed, items })))
+  );
+
+  // 각 피드별 결과 순차 처리 (DB 부하 조절)
+  for (let i = 0; i < fetchResults.length; i++) {
+    const r = fetchResults[i];
+    const feed = RSS_FEEDS[i];
+
+    if (r.status === 'rejected') {
+      const err = r.reason;
+      const msg = err.message?.includes('fetch failed') ? 'DNS/네트워크 차단'
                 : err.message?.includes('HTTP 403') ? 'HTTP 403 봇 차단'
-                : err.message?.includes('HTTP 404') ? 'HTTP 404 (URL 변경됨)'
+                : err.message?.includes('HTTP 404') ? 'HTTP 404 (URL 변경)'
+                : err.message?.includes('aborted') ? '타임아웃 (느린 서버)'
                 : err.message || 'unknown';
       results.feedStatus[feed.name] = `❌ ${msg}`;
       results.errors.push(`${feed.name}: ${msg}`);
+      continue;
+    }
+
+    const { items } = r.value;
+    results.feedStatus[feed.name] = `ok (${items.length})`;
+
+    for (const item of items) {
+      if (!item.title || !item.link) continue;
+      if (feed.isTrump && item.pubDate) {
+        const age = Date.now() - new Date(item.pubDate).getTime();
+        if (age > 24 * 3600 * 1000) continue;
+      }
+      if (feed.isKorean) {
+        const hasKeyword = KO_STOCK_KEYWORDS.some(kw => item.title.includes(kw));
+        if (!hasKeyword) continue;
+      }
+      const { data: exists } = await supabase.from('issues').select('id').eq('source_url', item.link).maybeSingle();
+      if (exists) continue;
+      results.fetched++;
+      const cleanText = s => s ? s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : null;
+      const title = feed.isTrump
+        ? `[트럼프] ${cleanText(item.description || item.title)?.slice(0, 120) || item.title.slice(0, 120)}`
+        : item.title.slice(0, 300);
+      const { error } = await supabase.from('issues').insert({
+        title,
+        summary: cleanText(item.description)?.slice(0, 800) || null,
+        source_url: item.link,
+        source_name: feed.name,
+        published_at: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+        sectors: feed.sectors || [feed.sector || '글로벌'],
+        tags: feed.isTrump ? ['Trump', '트럼프', 'TruthSocial'] : [],
+        is_analyzed: false,
+      });
+      if (!error) results.saved++;
     }
   }
   return res.status(200).json(results);
@@ -167,7 +181,7 @@ async function fetchRSS(url) {
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-Site': 'none',
   };
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(6000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return parseRSS(await res.text());
 }
