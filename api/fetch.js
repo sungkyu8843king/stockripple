@@ -89,22 +89,30 @@ const KO_STOCK_KEYWORDS = [
   '삼성', 'SK', 'LG', '현대', '포스코', '카카오', '네이버', 'NAVER',
 ];
 const RSS_FEEDS = [
+  // 한국 — User-Agent 차단 우회 위해 mobile 헤더 추가
   { url: 'https://www.hankyung.com/feed/stock',                 name: '한국경제',     sectors: ['증권', '주식'],   isKorean: true },
   { url: 'https://www.hankyung.com/feed/finance',               name: '한국경제',     sectors: ['금융', '경제'],   isKorean: true },
   { url: 'https://www.edaily.co.kr/rss/rss.asp?sitetype=stock', name: '이데일리',     sectors: ['증권', '주식'],   isKorean: true },
-  { url: 'https://feeds.reuters.com/reuters/businessNews',      name: 'Reuters',      sectors: ['글로벌', '경제'] },
-  { url: 'https://feeds.reuters.com/reuters/technologyNews',    name: 'Reuters Tech', sectors: ['IT', '기술'] },
+  { url: 'https://www.mk.co.kr/rss/30000001/',                  name: '매일경제',     sectors: ['증권', '주식'],   isKorean: true },
+  { url: 'https://www.hani.co.kr/rss/economy/',                 name: '한겨레 경제',  sectors: ['경제', '주식'],   isKorean: true },
+
+  // 해외 — Reuters 대체 (feeds.reuters.com 폐쇄)
+  { url: 'http://feeds.bbci.co.uk/news/business/rss.xml',        name: 'BBC Business', sectors: ['글로벌', '경제'] },
   { url: 'https://feeds.marketwatch.com/marketwatch/topstories/', name: 'MarketWatch', sectors: ['주식', '글로벌'] },
-  { url: 'https://www.investing.com/rss/news_1.rss',            name: 'Investing.com',sectors: ['글로벌', '경제'] },
+  { url: 'https://www.investing.com/rss/news_25.rss',           name: 'Investing 주식',sectors: ['주식', '글로벌'] },
+  { url: 'https://www.investing.com/rss/news_301.rss',          name: 'Investing 경제',sectors: ['경제', '글로벌'] },
   { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', name: 'CNBC Markets', sectors: ['글로벌', '주식'] },
-  { url: 'https://truthsocial.com/@realDonaldTrump.rss',        name: 'Truth Social', sectors: ['정치·외교', '트럼프'], isTrump: true },
+  { url: 'https://www.cnbc.com/id/15839135/device/rss/rss.html', name: 'CNBC Top',    sectors: ['글로벌', '경제'] },
+  { url: 'https://seekingalpha.com/feed.xml',                    name: 'SeekingAlpha',sectors: ['주식', '분석'] },
+  { url: 'https://truthsocial.com/@realDonaldTrump.rss',         name: 'Truth Social',sectors: ['정치·외교', '트럼프'], isTrump: true },
 ];
 
 async function handleRss(res) {
-  const results = { fetched: 0, saved: 0, errors: [] };
+  const results = { fetched: 0, saved: 0, errors: [], feedStatus: {} };
   for (const feed of RSS_FEEDS) {
     try {
       const items = await fetchRSS(feed.url);
+      results.feedStatus[feed.name] = `ok (${items.length})`;
       for (const item of items) {
         if (!item.title || !item.link) continue;
         if (feed.isTrump && item.pubDate) {
@@ -135,31 +143,46 @@ async function handleRss(res) {
         if (!error) results.saved++;
       }
     } catch (err) {
-      results.errors.push(`${feed.name}: ${err.message}`);
+      const msg = err.message?.includes('fetch failed') ? 'DNS/네트워크 차단 (피드 폐쇄 가능성)'
+                : err.message?.includes('HTTP 403') ? 'HTTP 403 봇 차단'
+                : err.message?.includes('HTTP 404') ? 'HTTP 404 (URL 변경됨)'
+                : err.message || 'unknown';
+      results.feedStatus[feed.name] = `❌ ${msg}`;
+      results.errors.push(`${feed.name}: ${msg}`);
     }
   }
   return res.status(200).json(results);
 }
 
 async function fetchRSS(url) {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StockRipple/1.0)' },
-    signal: AbortSignal.timeout(8000),
-  });
+  // 봇 차단 우회: 실제 Chrome 브라우저처럼 헤더 위장
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9, */*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+  };
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return parseRSS(await res.text());
 }
 function parseRSS(xml) {
   const items = [];
-  const itemMatches = xml.matchAll(/<item>([\s\S]*?)<\/item>/gi);
-  for (const match of itemMatches) {
-    const block = match[1];
-    items.push({
-      title:       extractTag(block, 'title'),
-      link:        extractTag(block, 'link') || extractTag(block, 'guid'),
-      description: extractTag(block, 'description'),
-      pubDate:     extractTag(block, 'pubDate'),
-    });
+  if (!xml || typeof xml !== 'string') return items;
+  // RSS <item> 또는 Atom <entry>
+  const itemRe = /<(?:item|entry)[\s>][\s\S]*?<\/(?:item|entry)>/gi;
+  const matches = xml.match(itemRe) || [];
+  for (const block of matches) {
+    const title       = extractTag(block, 'title');
+    const link        = extractTag(block, 'link') || extractTag(block, 'guid') || extractTag(block, 'id');
+    const description = extractTag(block, 'description') || extractTag(block, 'summary') || extractTag(block, 'content');
+    const pubDate     = extractTag(block, 'pubDate') || extractTag(block, 'published') || extractTag(block, 'updated');
+    if (title) items.push({ title, link, description, pubDate });
     if (items.length >= 20) break;
   }
   return items;
