@@ -747,7 +747,7 @@ async function loadFundamentals(ticker, forceRefresh = false) {
     }
     const f = await r.json();
     if (!f.ok) {
-      renderFundamentalsError(wrap, ticker, f.error || '데이터 없음', f.hint);
+      renderFundamentalsError(wrap, ticker, f.error || '데이터 없음', f.hint, f.resetKst);
       return;
     }
     renderFundamentals(wrap, f, ticker);
@@ -756,7 +756,7 @@ async function loadFundamentals(ticker, forceRefresh = false) {
   }
 }
 
-function renderFundamentalsError(wrap, ticker, message, hint = '') {
+function renderFundamentalsError(wrap, ticker, message, hint = '', resetKst = '') {
   wrap.innerHTML = `
     <div class="fund-section">
       <div class="section-title">
@@ -766,8 +766,9 @@ function renderFundamentalsError(wrap, ticker, message, hint = '') {
       </div>
       <div class="fund-group" style="text-align:center;padding:32px">
         <div style="font-size:14px;color:var(--yellow);margin-bottom:8px">⚠️ ${escHtml(message)}</div>
-        ${hint ? `<div style="font-size:12px;color:var(--text3);margin-top:6px">${escHtml(hint)}</div>` : ''}
-        <div style="font-size:11px;color:var(--text3);margin-top:14px">위 "다시 시도" 버튼으로 강제 새로고침 가능 (캐시 무시)</div>
+        ${hint ? `<div style="font-size:12px;color:var(--text2);margin-top:6px">${escHtml(hint)}</div>` : ''}
+        ${resetKst ? `<div style="font-size:13px;color:var(--blue);margin-top:14px;padding:10px;background:var(--bg3);border-radius:6px;display:inline-block">⏰ FMP 한도 리셋: <b>${escHtml(resetKst)}</b></div>` : ''}
+        <div style="font-size:11px;color:var(--text3);margin-top:14px">기존에 한 번 가져온 종목은 캐시로 자동 표시됨 (한도와 무관)</div>
       </div>
     </div>`;
 }

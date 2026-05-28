@@ -100,7 +100,7 @@ async function handleFundamentals(req, res) {
     });
   }
 
-  // DB 캐시 확인 (nocache가 아니면 24h 이내 캐시 사용)
+  // DB 캐시 확인 — nocache가 아니면 캐시 있으면 무조건 사용 (FMP 절약)
   let cached = null;
   let cachedAge = null;
   try {
@@ -112,12 +112,15 @@ async function handleFundamentals(req, res) {
     if (data?.fundamentals && data?.fundamentals_updated_at) {
       cached = data.fundamentals;
       cachedAge = Date.now() - new Date(data.fundamentals_updated_at).getTime();
-      if (!nocache && cachedAge < FUND_CACHE_TTL_MS) {
+      // nocache=1이 아니면 캐시 있는 즉시 반환 (24h 넘었어도 stale 라벨로 표시)
+      if (!nocache) {
+        const isFresh = cachedAge < FUND_CACHE_TTL_MS;
         return res.status(200).json({
           ...cached,
-          source: 'db-cache',
+          source: isFresh ? 'db-cache' : 'db-cache-stale',
           cachedAt: data.fundamentals_updated_at,
           cacheAgeHours: Math.round(cachedAge / 3600000 * 10) / 10,
+          ...(isFresh ? {} : { warning: '캐시가 오래되었습니다. 🔄 새로고침으로 최신 데이터 가져오기' }),
         });
       }
     }
@@ -171,10 +174,19 @@ async function handleFundamentals(req, res) {
   }
   if (allFailed) {
     const is429 = Object.values(status).some(v => String(v).includes('429'));
+    // 다음 UTC 00:00 = 한국 시간 다음날 09:00
+    const now = new Date();
+    const nextReset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+    const minsUntilReset = Math.round((nextReset - now) / 60000);
+    const hoursUntilReset = Math.round(minsUntilReset / 60 * 10) / 10;
+    const resetKstStr = new Date(nextReset.getTime() + 9*3600*1000).toISOString().replace('T', ' ').slice(0, 16) + ' KST';
     return res.status(429).json({
       ok: false, ticker,
-      error: is429 ? 'FMP 일일 한도 초과 (250req/day)' : 'FMP API 호출 실패',
-      hint: is429 ? '내일 다시 시도하거나 FMP 유료 플랜으로 업그레이드' : '잠시 후 재시도',
+      error: is429 ? 'FMP 일일 한도 초과 (250req/day, 무료 티어)' : 'FMP API 호출 실패',
+      hint: is429 ? `${hoursUntilReset}시간 후 자동 리셋 (${resetKstStr})` : '잠시 후 재시도',
+      resetAt:  nextReset.toISOString(),
+      resetKst: resetKstStr,
+      minsUntilReset,
       endpointStatus: status,
     });
   }

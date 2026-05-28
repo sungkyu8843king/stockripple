@@ -300,6 +300,29 @@ async function fetchFundamentals(ticker) {
   if (!key) return null;
   if (/\.KS$|\.KQ$/i.test(ticker)) return null;  // 한국 주식은 FMP 무료에서 안 됨
 
+  // DB 캐시 확인 (24h 이내면 FMP 호출 안 함)
+  try {
+    const { data } = await supabase
+      .from('companies')
+      .select('fundamentals, fundamentals_updated_at')
+      .eq('ticker', ticker)
+      .maybeSingle();
+    if (data?.fundamentals && data?.fundamentals_updated_at) {
+      const age = Date.now() - new Date(data.fundamentals_updated_at).getTime();
+      if (age < 24 * 3600 * 1000) {
+        const f = data.fundamentals;
+        // 캐시된 데이터에서 필요한 필드만 추출 반환
+        return {
+          pe: f.pe, pb: f.pb,
+          roe: f.roe, operatingMargin: f.operatingMargin,
+          debtToEquity: f.debtToEquity, currentRatio: f.currentRatio,
+          revenueGrowthYoY: f.revenueGrowthYoY,
+          netIncomeGrowthYoY: f.netIncomeGrowthYoY,
+        };
+      }
+    }
+  } catch {}
+
   const fmp = (path) => fetch(`https://financialmodelingprep.com${path}${path.includes('?') ? '&' : '?'}apikey=${key}`,
     { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) })
     .then(r => r.ok ? r.json() : null).catch(() => null);

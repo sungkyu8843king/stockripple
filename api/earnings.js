@@ -147,7 +147,7 @@ async function handleEarnings() {
   const corsH = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
-    'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+    'Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=86400',
   };
 
   const fmpRes = await fetchFMP(TICKERS);
@@ -207,7 +207,7 @@ async function handleAnalyst() {
   const corsH = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
-    'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+    'Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=86400',
   };
 
   const ANALYST_TICKERS = ['AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AMD','QCOM','NFLX'];
