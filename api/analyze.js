@@ -204,17 +204,38 @@ async function analyzeIssue(issue) {
     // 이슈에서 테마 키워드 후보 추출
     const haystack = `${issue.title || ''} ${issue.summary || ''} ${(issue.sectors || []).join(' ')}`.toLowerCase();
     const THEME_KEYWORDS = [
-      'ai', '인공지능', 'llm', 'gpt', 'claude', 'anthropic', 'openai', 'gemini', 'grok',
-      '반도체', 'hbm', 'gpu', '메모리', '파운드리',
-      '로봇', '휴머노이드', 'boston dynamics', 'optimus',
-      '자율주행', 'waymo', 'robotaxi', '로보택시',
-      '우주', '위성', 'spacex', 'starlink', 'kuiper',
-      '바이오', 'cdmo', '의약품',
-      'ev', '전기차', '배터리', 'ess',
-      '원자력', 'smr', '데이터센터',
-      '클라우드', 'saas',
+      // AI / LLM
+      'ai', '인공지능', 'llm', 'gpt', 'claude', 'anthropic', 'openai', 'gemini', 'grok', 'mistral', 'cohere', 'agentforce', 'copilot',
+      // 반도체
+      '반도체', 'hbm', 'gpu', '메모리', '파운드리', 'asic', 'tpu',
+      // 로봇 / 자율주행
+      '로봇', '휴머노이드', 'boston dynamics', 'optimus', '자율주행', 'waymo', 'robotaxi', '로보택시', 'fsd',
+      // 우주 / 위성 / UAM
+      '우주', '위성', 'spacex', 'starlink', 'kuiper', '로켓', 'rocket lab', 'uam', 'evtol',
+      // 방산
+      '방산', '국방', '미사일', '전투기', '전차', 'k2 흑표', 'k9', 'f-35', 'patriot', 'thaad', '천궁',
+      // 바이오 / 제약 / GLP-1
+      '바이오', 'cdmo', '의약품', '제약', 'mrna', 'glp-1', 'glp1', '비만치료', 'wegovy', 'ozempic', 'mounjaro', '항암제', '알츠하이머', 'fda', '신약', '바이오시밀러',
+      // EV / 배터리 / 에너지
+      'ev', '전기차', '배터리', 'ess', '전고체', '리튬',
+      // 원자력
+      '원자력', 'smr', '데이터센터', '원전', '핵발전',
+      // 재생에너지
+      '재생에너지', '태양광', '풍력', '수소', '암모니아',
+      // 클라우드 / SaaS / 데이터
+      '클라우드', 'saas', 'aws', 'azure', 'oci', '데이터 플랫폼', 'snowflake', 'databricks',
+      // XR / 메타버스
       'xr', 'vr', 'ar', '메타버스',
-      '핀테크',
+      // 핀테크 / 결제 / 암호화폐
+      '핀테크', '결제', '암호화폐', '비트코인', 'btc', 'crypto', 'stablecoin', '스테이블코인', 'etf',
+      // 게임
+      '게임', 'mmorpg', 'pubg', '인조이', '나혼렙', '엔씨', '크래프톤', '넷마블',
+      // 콘텐츠 / 엔터 / K-팝
+      'k-팝', 'k팝', 'kpop', 'bts', 'blackpink', 'newjeans', '하이브', '스트리밍', 'netflix', 'disney',
+      // 이커머스 / 플랫폼
+      '이커머스', '쿠팡', 'coupang', 'shopify', 'amazon', '물류',
+      // K-뷰티 / 소비재
+      'k-뷰티', 'k뷰티', '화장품', '아모레', '코스맥스',
     ];
     const matched = THEME_KEYWORDS.filter(k => haystack.includes(k));
     if (matched.length) {
@@ -300,14 +321,27 @@ async function analyzeIssue(issue) {
 - 적자 기업이나 부채비율 3+인 부실 기업은 가능한 한 회피 (테마주/모멘텀 이슈가 명확하지 않은 경우)
 - 동일 섹터 내에서는 펀더멘털 우수 기업 우선 (단, 뉴스 임팩트가 압도적이면 예외 OK)
 
-⭐ 전략적 투자/지분 기반 간접 수혜 (선반영 논리):
-- 본업이 다른 분야인데 해당 테마 기업에 지분/투자를 보유한 경우도 적극 발굴하세요
-  · 예: SK텔레콤 → Anthropic 투자 보유 → Claude(AI) 성공 시 주가 선반영
-  · 예: 알파벳·아마존 → Anthropic 투자 → Claude 매출 성장 직접 수혜
-  · 예: 마이크로소프트 → OpenAI 투자 → GPT 성장 시 수혜
-  · 예: 현대차 → Boston Dynamics 80% 지분 → 휴머노이드 로봇 테마 직접 수혜
-- 이런 종목은 rationale에 "OO에 지분 보유 → 선반영" 논리를 한 줄로 명시 (예: "Anthropic 지분 보유 — Claude 성공 시 SOTP 가치 재평가")
-- 위에 ⭐ 표시된 항목은 가장 강한 연결고리. 우선 검토
+⭐ 전략적 투자/지분 기반 간접 수혜 (선반영 논리) — 반도체에만 국한되지 말 것:
+- 본업이 다른 분야인데 해당 테마에 전략적 지분/사업을 보유한 경우 적극 발굴
+  [AI]   SK텔레콤 → Anthropic 투자 → Claude 성공 시 선반영
+         알파벳·아마존 → Anthropic 투자 → Claude 매출 직접 수혜
+         마이크로소프트 → OpenAI → GPT/Sora 성장 시 수혜
+         Salesforce → Agentforce (엔터프라이즈 AI 에이전트)
+  [로봇] 현대차 → Boston Dynamics 80% → 휴머노이드 테마 수혜
+         삼성전자 → Rainbow Robotics 15% → 산업/서비스 로봇
+  [우주] 한화에어로스페이스 → 한화시스템 위성 → 저궤도 위성통신
+         RKLB → Neutron 로켓 → SpaceX 대안
+  [방산] 한화에어로/KAI/현대로템 → 폴란드·UAE 수주 → 지정학 리스크 시 선반영
+  [원전] 두산에너빌리티 → NuScale SMR 주기기 → AI 데이터센터 전력 테마
+         CEG·VST → MS·AWS 원전 PPA → AI 인프라 전력 공급
+  [비만/GLP-1] LLY/NVO → 비만치료제 글로벌 시장 / 한미약품 → MSD GLP-1 라이선스
+  [바이오] 셀트리온 → 미국 직판 / 알테오젠 → 키트루다 SC 변경 기술
+  [K-팝/콘텐츠] 하이브·SM·JYP·YG → 글로벌 팬덤 + 북미 진출
+  [핀테크] 코인베이스 → BTC ETF 커스터디 / MELI → 라틴 결제
+  [K-뷰티] 아모레·한국콜마 → 미국 Amazon/Sephora 직판
+  [게임] 엔씨 TL → 아마존 글로벌 퍼블리싱 / 크래프톤 인조이 → 생성형 AI 게임
+- 이런 종목은 rationale에 "OO에 지분 보유 → 선반영" 논리를 한 줄로 명시
+- 위 컨텍스트에 ⭐ 표시된 항목은 가장 강한 연결고리. 우선 검토
 
 ⭐ 회사명 정확성 (매우 중요 - 환각 금지):
 - name_en은 회사의 정식 영문 법인명 (예: LRCX → "Lam Research", AVGO → "Broadcom")
