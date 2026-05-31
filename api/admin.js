@@ -720,23 +720,57 @@ async function handleDartPoll(req, res) {
   }
 
   const items = listJson.list || [];
-  const results = { scanned: items.length, new: 0, updated: 0, skipped: 0, samples: [] };
+  const results = { scanned: items.length, new: 0, updated: 0, skipped: 0, samples: [], unmatchedReporters: [] };
+
+  // 신고자명 정규화: 주식회사/(주)/Co.,Ltd/외 N인 등 제거
+  const normalize = (s) => (s || '')
+    .replace(/\(주\)|㈜|주식회사/g, '')
+    .replace(/\s+Co\.?,?\s*Ltd\.?$/i, '')
+    .replace(/\s+Inc\.?$/i, '')
+    .replace(/외\s*\d+\s*인/g, '')   // "삼성전자 외 3인" → "삼성전자"
+    .replace(/['"\\%_]/g, '')
+    .trim();
 
   for (const it of items.slice(0, 50)) {
     const reporter = (it.flr_nm || '').trim();
     const target = (it.corp_name || '').trim();
     const targetTicker = (it.stock_code || '').trim();
-    if (!reporter || !target || !targetTicker) { results.skipped++; continue; }
+    if (!reporter || !target || !targetTicker) {
+      results.skipped++;
+      results.unmatchedReporters.push(`(필드누락) ${reporter || '?'} → ${target || '?'}`);
+      continue;
+    }
 
-    // 보고자가 상장사인지 companies 테이블에서 매칭
-    const safeReporter = reporter.replace(/['"\\%_]/g, '');
-    const { data: investorCo } = await supabase
+    const cleaned = normalize(reporter);
+    if (!cleaned || cleaned.length < 2) { results.skipped++; continue; }
+
+    // 1차: 정규화된 이름으로 매칭 (KR 시장)
+    let { data: investorCo } = await supabase
       .from('companies')
       .select('ticker, name_ko, name_en')
-      .or(`name_ko.ilike.%${safeReporter}%,name_en.ilike.%${safeReporter}%`)
+      .or(`name_ko.ilike.%${cleaned}%,name_en.ilike.%${cleaned}%`)
       .eq('market', 'KR').limit(1).maybeSingle();
 
-    if (!investorCo?.ticker) { results.skipped++; continue; }
+    // 2차: 첫 단어로만 매칭 (예: "한화에어로스페이스 외 1인" → "한화에어로스페이스")
+    if (!investorCo?.ticker) {
+      const firstToken = cleaned.split(/\s/)[0];
+      if (firstToken.length >= 2) {
+        const r2 = await supabase
+          .from('companies')
+          .select('ticker, name_ko, name_en')
+          .or(`name_ko.ilike.${firstToken}%,name_en.ilike.${firstToken}%`)
+          .eq('market', 'KR').limit(1).maybeSingle();
+        investorCo = r2.data;
+      }
+    }
+
+    if (!investorCo?.ticker) {
+      results.skipped++;
+      if (results.unmatchedReporters.length < 15) {
+        results.unmatchedReporters.push(`${reporter} → ${target}(${targetTicker})`);
+      }
+      continue;
+    }
 
     const detail = `DART 대량보유 신고 — ${reporter}가 ${target} 지분 5%+ 신고`;
     const sourceUrl = `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${it.rcept_no}`;

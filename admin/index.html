@@ -1607,8 +1607,11 @@ async function invDartPoll() {
     if (!r.ok) {
       document.getElementById('invStatusBox').textContent = '❌ ' + (j.error || 'DART 실패');
     } else {
-      document.getElementById('invStatusBox').textContent =
-        `✅ DART — 스캔 ${j.scanned} / 신규 ${j.new} / 업데이트 ${j.updated} / 스킵 ${j.skipped} (${j.period})`;
+      let msg = `✅ DART — 스캔 ${j.scanned} / 신규 ${j.new} / 업데이트 ${j.updated} / 스킵 ${j.skipped} (${j.period})`;
+      if (j.unmatchedReporters?.length) {
+        msg += `<br><span style="font-size:11px;color:var(--text3)">⚠️ 스킵된 신고자 (companies 테이블에 없음): ${j.unmatchedReporters.slice(0,10).map(escAttr).join(' · ')}${j.unmatchedReporters.length > 10 ? ' ...' : ''}</span>`;
+      }
+      document.getElementById('invStatusBox').innerHTML = msg;
       invLoad(1);
     }
   } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
