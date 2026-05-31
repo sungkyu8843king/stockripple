@@ -239,8 +239,9 @@ async function analyzeIssue(issue) {
     ];
     const matched = THEME_KEYWORDS.filter(k => haystack.includes(k));
     if (matched.length) {
-      const formatted = mod.formatThemeBetsForPrompt(matched, 12);
-      if (formatted) strategicCtx = `\n\n🎯 ${formatted}\n주의: 위 상장사들 중 뉴스 테마와 정말 부합하는 곳은 적극 포함시키되, "지분 보유 → 선반영" 논리는 rationale에 명시할 것. 단순 나열 금지.`;
+      // 하드코딩 + DB 자동누적 항목 병합
+      const formatted = await mod.formatMergedThemeBetsForPrompt(supabase, matched, 16);
+      if (formatted) strategicCtx = `\n\n🎯 ${formatted}\n주의: 위 상장사들 중 뉴스 테마와 정말 부합하는 곳은 적극 포함시키되, "지분 보유 → 선반영" 논리는 rationale에 명시할 것. [AI추출] 태그는 자동 누적된 것이라 더 보수적으로 검증. 단순 나열 금지.`;
     }
   } catch {}
 

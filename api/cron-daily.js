@@ -58,7 +58,11 @@ export default async function handler(req, res) {
   await new Promise(r => setTimeout(r, 500));
   log.analyze = await call('/api/analyze', { limit: 5 });
 
-  // 4. 정확도 체크
+  // 4. 전략 투자 자동 추출 (지난 48h 분석된 이슈에서 "X가 Y에 투자" 패턴 추출 → DB 누적)
+  await new Promise(r => setTimeout(r, 500));
+  log.extractInvestments = await call('/api/admin?action=extract-investments', { since_hours: 48, max: 25 });
+
+  // 5. 정확도 체크
   await new Promise(r => setTimeout(r, 500));
   log.accuracy = await call('/api/check-accuracy');
 

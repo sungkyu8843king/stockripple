@@ -4,6 +4,7 @@
  *  POST /api/admin?action=fix-names    → 회사명 일괄 보정 (fix-company-names)
  *  GET  /api/admin?action=stats        → 통계 + 백테스트
  *  GET  /api/admin?action=summary&ticker=X → 회사 AI 종합 분석 (인증 불필요)
+ *  POST /api/admin?action=extract-investments → 최근 분석된 이슈에서 전략 투자 패턴 추출 (cron 또는 admin)
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
@@ -35,11 +36,12 @@ export default async function handler(req, res) {
   const _a = await verifyAdmin(req.headers.authorization);
   if (!_a.ok) return res.status(401).json({ error: _a.error });
 
-  if (action === 'verify')    return res.status(200).json({ ok: true, mode: _a.mode, email: _a.email });
-  if (action === 'fix-names') return handleFixNames(req, res);
-  if (action === 'stats')     return handleStats(req, res);
+  if (action === 'verify')              return res.status(200).json({ ok: true, mode: _a.mode, email: _a.email });
+  if (action === 'fix-names')           return handleFixNames(req, res);
+  if (action === 'stats')               return handleStats(req, res);
+  if (action === 'extract-investments') return handleExtractInvestments(req, res);
 
-  return res.status(400).json({ error: 'Unknown action. Use ?action=verify|fix-names|stats|summary' });
+  return res.status(400).json({ error: 'Unknown action. Use ?action=verify|fix-names|stats|summary|extract-investments' });
 }
 
 // ════════════════════════════════════════════════════════════
@@ -74,11 +76,11 @@ async function handleSummary(req, res) {
       date: r.entry_date,
     }));
 
-    // 전략적 투자/지분 컨텍스트 주입 (AI/우주/로봇 등 미래 테마 노출도 고려)
+    // 전략적 투자/지분 컨텍스트 주입 (하드코딩 큐레이션 + AI 자동누적 DB 병합)
     let strategicCtx = null;
     try {
       const mod = await import('../lib/strategic-investments.js');
-      strategicCtx = mod.formatBetsForPrompt(ticker);
+      strategicCtx = await mod.formatMergedBetsForPrompt(supabase, ticker);
     } catch {}
 
     const prompt = `당신은 주식 분석 전문가입니다. 아래 회사에 대해 한국 투자자를 위한 종합 분석 보고서를 작성하세요.
@@ -401,4 +403,137 @@ function periodStats(rows, period, minAbs) {
     avgReturn: avg(verified.map(r => r[retKey])),
     winRate:   Math.round(verified.filter(r => r[retKey] > 0).length / verified.length * 100),
   };
+}
+
+// ════════════════════════════════════════════════════════════
+// 5) 전략 투자 자동 추출 (cron이 매일 호출)
+// ════════════════════════════════════════════════════════════
+// 최근 24~48h 내 분석된 이슈에서 "X가 Y에 투자/인수/지분" 패턴을 Claude로 추출
+// → strategic_investments 테이블에 upsert. 중복은 seen_count 증가 + last_seen 갱신.
+async function handleExtractInvestments(req, res) {
+  if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
+
+  const sinceHours = parseInt(req.body?.since_hours || req.query?.since_hours || 48, 10);
+  const maxIssues  = Math.min(parseInt(req.body?.max || req.query?.max || 30, 10), 60);
+
+  // 최근 분석된 이슈 수집
+  const sinceIso = new Date(Date.now() - sinceHours * 3600 * 1000).toISOString();
+  const { data: issues, error: issErr } = await supabase
+    .from('issues')
+    .select('id, title, summary, source_url')
+    .eq('is_analyzed', true)
+    .gte('published_at', sinceIso)
+    .order('published_at', { ascending: false })
+    .limit(maxIssues);
+  if (issErr) return res.status(500).json({ error: issErr.message });
+  if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, extracted: 0 });
+
+  const results = { scanned: 0, extracted: 0, new: 0, updated: 0, skipped: 0, errors: [] };
+
+  for (const issue of issues) {
+    results.scanned++;
+    try {
+      const prompt = `당신은 금융 뉴스 분석가입니다. 아래 뉴스에서 "상장사가 다른 기업/프로젝트에 투자·인수·지분 확보" 사실이 명시적으로 언급되었는지만 추출하세요.
+
+뉴스 제목: ${issue.title}
+요약: ${issue.summary || '없음'}
+
+엄격한 규칙:
+1. 명시적 사실만 추출. "할 수도 있다", "검토 중" 등 추측·계획은 제외
+2. 투자자는 반드시 상장사여야 함 (티커가 존재해야 함). 비상장 VC/펀드는 제외
+3. 단순 협력·MOU·공급계약은 제외. 지분 인수/투자/합작법인(JV)만
+4. 대상이 비상장이어도 OK (예: Anthropic, OpenAI, SpaceX, xAI)
+5. 한국 상장사는 6자리.KS 형식, 미국은 NYSE/NASDAQ 티커
+6. theme는 "AI", "AI 반도체", "로봇", "휴머노이드", "자율주행", "우주", "위성통신", "방산", "바이오", "GLP-1", "원자력", "SMR", "EV 배터리", "K-팝", "게임", "핀테크", "암호화폐", "K-뷰티", "클라우드", "메타버스" 중 적합한 것
+7. 여러 건이면 배열로. 해당 사실 없으면 빈 배열
+
+다음 JSON만 반환 (다른 텍스트 없이):
+{
+  "extractions": [
+    {
+      "investor_ticker": "017670.KS",
+      "investor_name": "SK텔레콤",
+      "target_name": "Anthropic",
+      "theme": "AI",
+      "detail": "추가 라운드 참여 — 한국 내 Claude 독점 파트너십",
+      "stake_info": "$100M",
+      "confidence": 85,
+      "highlight": true
+    }
+  ]
+}
+
+confidence 가이드:
+- 90+: 보도자료 수준 명시 사실
+- 70-89: 본문에서 명확히 언급
+- 50-69: 행간에 암시되나 확실
+- 50 미만은 추출 금지
+
+highlight=true 조건:
+- 핵심 사업과의 강한 연결 (예: SKT-Anthropic, 현대차-Boston Dynamics)
+- 단순 소수 지분은 false`;
+
+      const msg = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const text = msg.content[0].text.trim();
+      const m = text.match(/\{[\s\S]*\}/);
+      if (!m) { results.skipped++; continue; }
+      const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
+      const list = Array.isArray(parsed.extractions) ? parsed.extractions : [];
+      if (!list.length) { results.skipped++; continue; }
+
+      for (const ex of list) {
+        if (!ex.investor_ticker || !ex.target_name || !ex.theme || !ex.detail) continue;
+        if (typeof ex.confidence === 'number' && ex.confidence < 60) continue;
+
+        results.extracted++;
+        const ticker = ex.investor_ticker.toUpperCase().trim();
+        const target = ex.target_name.trim();
+
+        // 기존 항목 있는지 확인 (UNIQUE constraint 활용)
+        const { data: existing } = await supabase
+          .from('strategic_investments')
+          .select('id, seen_count, confidence')
+          .eq('investor_ticker', ticker)
+          .eq('target_name', target)
+          .maybeSingle();
+
+        if (existing) {
+          // 재등장 → seen_count++ + last_seen + confidence 평균
+          const newConf = Math.round(((existing.confidence || 70) + (ex.confidence || 70)) / 2);
+          await supabase.from('strategic_investments')
+            .update({
+              seen_count:   (existing.seen_count || 1) + 1,
+              last_seen_at: new Date().toISOString(),
+              confidence:   newConf,
+            })
+            .eq('id', existing.id);
+          results.updated++;
+        } else {
+          // 신규 삽입
+          const { error: insErr } = await supabase.from('strategic_investments').insert({
+            investor_ticker: ticker,
+            investor_name:   ex.investor_name || null,
+            target_name:     target,
+            theme:           ex.theme,
+            detail:          ex.detail.slice(0, 500),
+            stake_info:      ex.stake_info ? String(ex.stake_info).slice(0, 80) : null,
+            highlight:       !!ex.highlight,
+            confidence:      ex.confidence || 70,
+            source_issue_id: issue.id,
+            source_url:      issue.source_url || null,
+            source_title:    issue.title?.slice(0, 300) || null,
+          });
+          if (!insErr) results.new++;
+        }
+      }
+    } catch (e) {
+      results.errors.push({ issue_id: issue.id, error: e.message?.slice(0, 200) });
+    }
+  }
+
+  return res.status(200).json({ ok: true, ...results, ts: new Date().toISOString() });
 }
