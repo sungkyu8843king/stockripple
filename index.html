@@ -15,34 +15,34 @@
  * Pure-black canvas / elevated cards / no harsh borders
  * ───────────────────────────────────────────────────────────── */
 :root {
-  /* ── Canvas ─────────────────────────────── */
-  --bg:  #0a0a0a;          /* pure-black canvas */
-  --bg2: #161618;          /* elevated card surface */
-  --bg3: #1f1f23;          /* nested / hover surface */
-  --bg4: #2a2a2f;          /* highest elevation */
+  /* ── Canvas (Tesla Light) ───────────────── */
+  --bg:  #ffffff;          /* pure white canvas */
+  --bg2: #f6f6f8;          /* elevated card surface */
+  --bg3: #ececf0;          /* nested / hover surface */
+  --bg4: #dededf;          /* chip / highest elevation */
 
   /* ── Borders ────────────────────────────── */
-  --border:        #26262b;       /* subtle separator */
-  --border-strong: #3a3a40;       /* focused / hover */
-  --border-soft:   rgba(255,255,255,0.06);
+  --border:        #e5e5ea;       /* subtle separator */
+  --border-strong: #c4c4c9;       /* focused / hover */
+  --border-soft:   rgba(0,0,0,0.06);
 
   /* ── Text ───────────────────────────────── */
-  --text:  #f5f5f7;        /* primary */
-  --text2: #a8a8ad;        /* secondary */
-  --text3: #6e6e73;        /* tertiary / hint */
+  --text:  #0a0a0a;        /* primary near-black */
+  --text2: #4b4b52;        /* secondary */
+  --text3: #86868b;        /* tertiary / hint */
   --text-on-accent: #ffffff;
 
-  /* ── Accents (Tesla-tuned) ──────────────── */
-  --red:        #ff3b3b;          /* Tesla signature red */
-  --red-dim:    rgba(255,59,59,0.14);
-  --green:      #00d97e;          /* gains */
-  --green-dim:  rgba(0,217,126,0.14);
-  --blue:       #5ac8fa;          /* informational */
-  --blue-dim:   rgba(90,200,250,0.14);
-  --yellow:     #ffcc4d;
-  --yellow-dim: rgba(255,204,77,0.14);
-  --purple:     #bf6dff;
-  --purple-dim: rgba(191,109,255,0.14);
+  /* ── Accents (Tesla-tuned for light) ────── */
+  --red:        #e31937;          /* Tesla signature red */
+  --red-dim:    rgba(227,25,55,0.10);
+  --green:      #00873a;          /* gains */
+  --green-dim:  rgba(0,135,58,0.10);
+  --blue:       #0066cc;          /* informational */
+  --blue-dim:   rgba(0,102,204,0.10);
+  --yellow:     #b8860b;
+  --yellow-dim: rgba(184,134,11,0.12);
+  --purple:     #7c3aed;
+  --purple-dim: rgba(124,58,237,0.10);
 
   /* ── Radii ──────────────────────────────── */
   --r-xs: 6px;
@@ -62,11 +62,11 @@
   --s-7: 32px;
   --s-8: 40px;
 
-  /* ── Elevation (soft, no harsh ring) ────── */
-  --shadow-sm:    0 1px 2px rgba(0,0,0,0.4);
-  --shadow-card:  0 4px 24px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.5);
-  --shadow-pop:   0 20px 60px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
-  --shadow-focus: 0 0 0 3px rgba(90,200,250,0.25);
+  /* ── Elevation (soft, light-theme tuned) ── */
+  --shadow-sm:    0 1px 2px rgba(0,0,0,0.04);
+  --shadow-card:  0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+  --shadow-pop:   0 20px 60px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-focus: 0 0 0 3px rgba(0,102,204,0.18);
 
   /* ── Motion ─────────────────────────────── */
   --ease:  cubic-bezier(0.22, 1, 0.36, 1);
@@ -98,10 +98,10 @@ body {
   color: var(--text);
   min-height: 100vh;
   letter-spacing: -0.005em;
-  /* very subtle vignette for depth */
+  /* very subtle wash for warmth */
   background-image:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(90,200,250,0.04), transparent 60%),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(255,59,59,0.025), transparent 50%);
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,102,204,0.04), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(227,25,55,0.025), transparent 50%);
   background-attachment: fixed;
 }
 
@@ -194,7 +194,7 @@ code, pre, .mono { font-family: var(--font-mono); }
 
 /* ── Tesla 2.0 page-wide overrides for existing utilities ───── */
 .issue-card  { border-radius: var(--r-lg) !important; box-shadow: var(--shadow-card); border-color: var(--border-soft) !important; }
-.issue-card:hover { transform: translateY(-3px); border-color: var(--border-strong) !important; box-shadow: 0 12px 36px rgba(0,0,0,0.5); }
+.issue-card:hover { transform: translateY(-3px); border-color: var(--border-strong) !important; box-shadow: 0 12px 36px rgba(0,0,0,0.10); }
 .sidebar-card{ border-radius: var(--r-lg) !important; box-shadow: var(--shadow-card); border-color: var(--border-soft) !important; }
 .stat-card,
 .stats-strip > div { border-radius: var(--r-md) !important; }
@@ -206,7 +206,7 @@ button { font-family: inherit; }
 /* Header */
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(13,17,23,0.92); backdrop-filter: blur(12px);
+  background: rgba(255,255,255,0.85); backdrop-filter: blur(12px) saturate(180%);
   border-bottom: 1px solid var(--border);
   padding: 0 24px;
 }
@@ -296,7 +296,7 @@ button { font-family: inherit; }
   overflow: hidden; transition: all 0.2s; cursor: pointer;
   text-decoration: none; display: block; color: var(--text);
 }
-.issue-card:hover { border-color: var(--blue); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(47,129,247,0.12); }
+.issue-card:hover { border-color: var(--blue); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,102,204,0.10); }
 .card-header { padding: 16px 16px 0; display: flex; align-items: flex-start; gap: 12px; }
 .card-source { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
 .source-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
@@ -548,15 +548,20 @@ button { font-family: inherit; }
 
 /* 2-Column Layout */
 .layout-with-sidebar {
-  max-width: 1280px; margin: 0 auto; padding: 24px;
-  display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start;
+  max-width: 1440px; margin: 0 auto; padding: 28px 32px;
+  display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 28px; align-items: start;
 }
-@media (max-width: 1024px) { .layout-with-sidebar { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) {
+  .layout-with-sidebar { grid-template-columns: 1fr; padding: 20px 16px; gap: 20px; }
+  .sidebar { position: static !important; }
+}
 
 /* Sidebar */
-.sidebar { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 80px; }
+.sidebar { display: flex; flex-direction: column; gap: 18px; position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow-y: auto; padding-right: 4px; }
+.sidebar::-webkit-scrollbar { width: 6px; }
 .sidebar-card {
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  background: var(--bg2); border: 1px solid var(--border-soft); border-radius: var(--r-lg);
+  overflow: hidden; box-shadow: var(--shadow-card);
 }
 .sidebar-card-header {
   padding: 12px 16px; border-bottom: 1px solid var(--border);
@@ -915,7 +920,7 @@ button { font-family: inherit; }
           </div>
         </div>
       </div>
-      <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;min-height:80px">
+      <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;min-height:80px">
         <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
       </div>
     </div>
@@ -2905,14 +2910,27 @@ function renderEarningsCalTable(items) {
 // ─── 🔥 히트맵 ─────────────────────────────────────────────
 const HEATMAP_TICKERS = {
   us: [
-    'AAPL','MSFT','NVDA','GOOGL','AMZN','META','TSLA','AVGO','LLY','JPM',
-    'V','UNH','XOM','MA','HD','PG','COST','NFLX','AMD','PEP',
-    'KO','BAC','CSCO','ORCL','TMO','DIS','WMT','CRM','MCD','ABBV',
+    { t:'AAPL',  n:'Apple' },        { t:'MSFT',  n:'Microsoft' },   { t:'NVDA', n:'NVIDIA' },
+    { t:'GOOGL', n:'Alphabet' },     { t:'AMZN',  n:'Amazon' },      { t:'META', n:'Meta' },
+    { t:'TSLA',  n:'Tesla' },        { t:'AVGO',  n:'Broadcom' },    { t:'LLY',  n:'Eli Lilly' },
+    { t:'JPM',   n:'JPMorgan' },     { t:'V',     n:'Visa' },        { t:'UNH',  n:'UnitedHealth' },
+    { t:'XOM',   n:'ExxonMobil' },   { t:'MA',    n:'Mastercard' },  { t:'HD',   n:'Home Depot' },
+    { t:'PG',    n:'P&G' },          { t:'COST',  n:'Costco' },      { t:'NFLX', n:'Netflix' },
+    { t:'AMD',   n:'AMD' },          { t:'PEP',   n:'PepsiCo' },     { t:'KO',   n:'Coca-Cola' },
+    { t:'BAC',   n:'Bank of America'},{t:'CSCO',  n:'Cisco' },       { t:'ORCL', n:'Oracle' },
+    { t:'TMO',   n:'Thermo Fisher' },{ t:'DIS',   n:'Disney' },      { t:'WMT',  n:'Walmart' },
+    { t:'CRM',   n:'Salesforce' },   { t:'MCD',   n:'McDonald\'s' }, { t:'ABBV', n:'AbbVie' },
   ],
   kr: [
-    '005930.KS','000660.KS','373220.KS','207940.KS','005380.KS','035420.KS','005935.KS','068270.KS','105560.KS','035720.KS',
-    '055550.KS','012330.KS','028260.KS','005490.KS','329180.KS','066570.KS','003550.KS','015760.KS','032830.KS','017670.KS',
-    '086790.KS','138040.KS','009150.KS','010130.KS','011200.KS',
+    { t:'005930.KS', n:'삼성전자' },     { t:'000660.KS', n:'SK하이닉스' },   { t:'373220.KS', n:'LG에너지솔루션' },
+    { t:'207940.KS', n:'삼성바이오로직스' },{ t:'005380.KS', n:'현대차' },     { t:'035420.KS', n:'NAVER' },
+    { t:'005935.KS', n:'삼성전자우' },    { t:'068270.KS', n:'셀트리온' },    { t:'105560.KS', n:'KB금융' },
+    { t:'035720.KS', n:'카카오' },        { t:'055550.KS', n:'신한지주' },    { t:'012330.KS', n:'현대모비스' },
+    { t:'028260.KS', n:'삼성물산' },      { t:'005490.KS', n:'POSCO홀딩스' }, { t:'329180.KS', n:'HD현대중공업' },
+    { t:'066570.KS', n:'LG전자' },        { t:'003550.KS', n:'LG' },         { t:'015760.KS', n:'한국전력' },
+    { t:'032830.KS', n:'삼성생명' },      { t:'017670.KS', n:'SK텔레콤' },    { t:'086790.KS', n:'하나금융지주' },
+    { t:'138040.KS', n:'메리츠금융지주' },{ t:'009150.KS', n:'삼성전기' },    { t:'010130.KS', n:'고려아연' },
+    { t:'011200.KS', n:'HMM' },
   ],
 };
 let _hmMkt = 'us', _hmRange = '1d';
@@ -2939,7 +2957,9 @@ async function loadHeatmap() {
   const grid = document.getElementById('heatmapGrid');
   if (!grid) return;
   grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>';
-  const tickers = HEATMAP_TICKERS[_hmMkt] || [];
+  const list = HEATMAP_TICKERS[_hmMkt] || [];
+  const tickers = list.map(x => x.t);
+  const nameMap = Object.fromEntries(list.map(x => [x.t, x.n]));
   try {
     const r = await fetch(`/api/quotes?tickers=${tickers.join(',')}&range=${_hmRange}`);
     const j = await r.json();
@@ -2949,29 +2969,30 @@ async function loadHeatmap() {
       const d = data[t];
       if (!d) return null;
       const pct = _hmRange === '1mo' ? d.periodChangePercent : d.changePercent;
-      return { ticker: t, pct, price: d.price, name: d.shortName || t };
+      return { ticker: t, pct, price: d.price, name: nameMap[t] || d.shortName || t };
     }).filter(x => x && x.pct != null);
     items.sort((a, b) => (b.pct || 0) - (a.pct || 0));
+    // Tesla-light heatmap: opaque cells, white text, intensity from |pct|
     const colorFor = (pct) => {
       const v = Math.max(-5, Math.min(5, pct)) / 5; // -1 ~ +1
       if (v >= 0) {
-        const a = 0.15 + v * 0.55;
-        return `rgba(34,197,94,${a.toFixed(2)})`;
+        // green: light tint → solid #00873a
+        const a = 0.18 + v * 0.78;
+        return { bg: `rgba(0,135,58,${a.toFixed(2)})`, fg: v > 0.35 ? '#fff' : '#0a3d1a' };
       } else {
-        const a = 0.15 + (-v) * 0.55;
-        return `rgba(239,68,68,${a.toFixed(2)})`;
+        const a = 0.18 + (-v) * 0.78;
+        return { bg: `rgba(227,25,55,${a.toFixed(2)})`, fg: -v > 0.35 ? '#fff' : '#5a0a14' };
       }
     };
-    const cellHref = (t) => {
-      const clean = t.replace(/\.(KS|KQ)$/, '');
-      return `/company.html?ticker=${encodeURIComponent(t)}`;
-    };
+    const cellHref = (t) => `/company.html?ticker=${encodeURIComponent(t)}`;
     grid.innerHTML = items.map(it => {
       const sign = it.pct >= 0 ? '+' : '';
       const display = it.ticker.replace(/\.(KS|KQ)$/, '');
-      return `<a href="${cellHref(it.ticker)}" style="display:block;text-decoration:none;color:#fff;background:${colorFor(it.pct)};border-radius:8px;padding:10px 8px;text-align:center;transition:transform .12s" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-        <div style="font-size:12px;font-weight:700;letter-spacing:.3px">${display}</div>
-        <div style="font-size:13px;font-weight:700;margin-top:3px">${sign}${it.pct.toFixed(2)}%</div>
+      const c = colorFor(it.pct);
+      return `<a href="${cellHref(it.ticker)}" style="display:flex;flex-direction:column;justify-content:center;text-decoration:none;color:${c.fg};background:${c.bg};border-radius:12px;padding:10px 8px;text-align:center;transition:transform .12s var(--ease);min-height:74px;line-height:1.2;box-shadow:0 1px 2px rgba(0,0,0,0.05)" onmouseover="this.style.transform='translateY(-2px) scale(1.03)'" onmouseout="this.style.transform='translateY(0) scale(1)'" title="${it.name}">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.2px;opacity:.95">${display}</div>
+        <div style="font-size:10px;font-weight:500;opacity:.85;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.name}</div>
+        <div class="t-num" style="font-size:13px;font-weight:800;margin-top:3px">${sign}${it.pct.toFixed(2)}%</div>
       </a>`;
     }).join('') || '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">데이터 없음</div>';
   } catch (e) {

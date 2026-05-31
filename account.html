@@ -8,12 +8,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
-  --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
-  --blue: #2f81f7; --blue-dim: #1f4d8a;
-  --green: #3fb950; --green-dim: #1a4a26;
-  --red: #f85149; --red-dim: #4a1a1a;
-  --yellow: #d29922; --purple: #a371f7;
+  --bg: #ffffff; --bg2: #f6f6f8; --bg3: #ececf0; --bg4: #dededf;
+  --border: #e5e5ea; --border-strong: #c4c4c9; --border-soft: rgba(0,0,0,0.06);
+  --text: #0a0a0a; --text2: #4b4b52; --text3: #86868b;
+  --blue: #0066cc; --blue-dim: rgba(0,102,204,0.10);
+  --green: #00873a; --green-dim: rgba(0,135,58,0.10);
+  --red:   #e31937; --red-dim:   rgba(227,25,55,0.10);
+  --yellow:#b8860b; --purple:#7c3aed;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -21,7 +23,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 /* Header */
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(13,17,23,0.92); backdrop-filter: blur(12px);
+  background: rgba(255,255,255,0.85); backdrop-filter: blur(12px) saturate(180%);
   border-bottom: 1px solid var(--border); padding: 0 24px;
 }
 .header-inner {

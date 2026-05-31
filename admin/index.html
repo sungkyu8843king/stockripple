@@ -8,9 +8,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
-  --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
-  --blue: #2f81f7; --green: #3fb950; --red: #f85149; --yellow: #d29922;
+  --bg: #ffffff; --bg2: #f6f6f8; --bg3: #ececf0; --bg4: #dededf;
+  --border: #e5e5ea; --border-strong: #c4c4c9; --border-soft: rgba(0,0,0,0.06);
+  --text: #0a0a0a; --text2: #4b4b52; --text3: #86868b;
+  --blue: #0066cc; --green: #00873a; --red: #e31937; --yellow: #b8860b;
+  --blue-dim: rgba(0,102,204,0.10); --green-dim: rgba(0,135,58,0.10); --red-dim: rgba(227,25,55,0.10);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
@@ -40,7 +43,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 /* Main */
 .main { margin-left: 220px; flex: 1; min-height: 100vh; }
 .topbar {
-  background: rgba(13,17,23,0.95); border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.85); backdrop-filter: blur(12px) saturate(180%); border-bottom: 1px solid var(--border);
   padding: 0 24px; display: flex; align-items: center; gap: 16px; height: 56px;
   position: sticky; top: 0; z-index: 50;
 }
@@ -52,12 +55,12 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;
 }
 .btn-primary { background: var(--blue); color: #fff; }
-.btn-primary:hover { background: #388be8; }
-.btn-success { background: #1a4a26; color: var(--green); border: 1px solid #2d7a3a; }
-.btn-success:hover { background: #215930; }
-.btn-warn { background: #3d2e00; color: var(--yellow); border: 1px solid #6d4f00; }
-.btn-warn:hover { background: #4d3a00; }
-.btn-danger { background: #4a1a1a; color: var(--red); border: 1px solid #7a2a2a; }
+.btn-primary:hover { background: #0052a3; }
+.btn-success { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,135,58,0.25); }
+.btn-success:hover { background: rgba(0,135,58,0.18); }
+.btn-warn { background: rgba(184,134,11,0.12); color: var(--yellow); border: 1px solid rgba(184,134,11,0.30); }
+.btn-warn:hover { background: rgba(184,134,11,0.20); }
+.btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(227,25,55,0.25); }
 .btn-danger:hover { background: #5a2020; }
 .btn-ghost { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
 .btn-ghost:hover { color: var(--text); border-color: var(--text2); }
@@ -109,9 +112,9 @@ td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align:
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--bg3); }
 .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
-.badge-green { background: #1a4a26; color: var(--green); }
-.badge-yellow { background: #3d2e00; color: var(--yellow); }
-.badge-red { background: #4a1a1a; color: var(--red); }
+.badge-green { background: var(--green-dim); color: var(--green); }
+.badge-yellow { background: rgba(184,134,11,0.12); color: var(--yellow); }
+.badge-red { background: var(--red-dim); color: var(--red); }
 .badge-blue { background: #1f4d8a; color: #79c0ff; }
 .badge-gray { background: var(--bg3); color: var(--text2); }
 .ticker-cell { font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 700; color: var(--blue); }
@@ -119,7 +122,7 @@ tr:hover td { background: var(--bg3); }
 .row-actions { display: flex; gap: 6px; }
 .icon-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.15s; }
 .icon-btn:hover { background: var(--bg3); color: var(--text); }
-.icon-btn.danger:hover { background: #4a1a1a; color: var(--red); }
+.icon-btn.danger:hover { background: var(--red-dim); color: var(--red); }
 
 /* Input */
 .form-group { margin-bottom: 14px; }

@@ -9,19 +9,22 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
 :root {
-  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
-  --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
-  --blue: #2f81f7; --blue-dim: #1f4d8a;
-  --green: #3fb950; --green-dim: #1a4a26;
-  --red: #f85149; --red-dim: #4a1a1a;
-  --yellow: #d29922; --purple: #a371f7;
+  --bg: #ffffff; --bg2: #f6f6f8; --bg3: #ececf0; --bg4: #dededf;
+  --border: #e5e5ea; --border-strong: #c4c4c9; --border-soft: rgba(0,0,0,0.06);
+  --text: #0a0a0a; --text2: #4b4b52; --text3: #86868b;
+  --blue: #0066cc; --blue-dim: rgba(0,102,204,0.10);
+  --green: #00873a; --green-dim: rgba(0,135,58,0.10);
+  --red:   #e31937; --red-dim:   rgba(227,25,55,0.10);
+  --yellow:#b8860b; --purple:#7c3aed;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+  --r-lg: 20px; --r-md: 14px; --r-sm: 10px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(13,17,23,0.92); backdrop-filter: blur(12px);
+  background: rgba(255,255,255,0.85); backdrop-filter: blur(12px) saturate(180%);
   border-bottom: 1px solid var(--border); padding: 0 24px;
 }
 .header-inner {
@@ -50,14 +53,14 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .issue-summary { font-size: 14px; color: var(--text2); line-height: 1.7; margin-bottom: 16px; }
 .issue-sectors { display: flex; gap: 6px; flex-wrap: wrap; }
 .sector-tag { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
-.tag-semi { background: #1f2d4a; color: #79c0ff; }
-.tag-ev { background: #1a3d2e; color: #56d364; }
-.tag-ai { background: #2d1f5e; color: #c084fc; }
-.tag-bio { background: #3d1a1a; color: #ff7b7b; }
-.tag-fin { background: #2e2000; color: #f0b429; }
-.tag-cloud { background: #1f3540; color: #64c8ea; }
-.tag-robot { background: #2a2040; color: #b06bff; }
-.tag-energy { background: #2a3a1a; color: #8bc34a; }
+.tag-semi   { background: rgba(0,102,204,0.10); color: #0066cc; }
+.tag-ev     { background: rgba(0,135,58,0.10);  color: #00873a; }
+.tag-ai     { background: rgba(124,58,237,0.10);color: #7c3aed; }
+.tag-bio    { background: rgba(227,25,55,0.10); color: #e31937; }
+.tag-fin    { background: rgba(184,134,11,0.12);color: #b8860b; }
+.tag-cloud  { background: rgba(0,102,204,0.10); color: #0066cc; }
+.tag-robot  { background: rgba(124,58,237,0.10);color: #7c3aed; }
+.tag-energy { background: rgba(0,135,58,0.10);  color: #00873a; }
 .tag-default { background: var(--bg3); color: var(--text2); }
 
 /* AI Summary Card */
