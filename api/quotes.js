@@ -1,7 +1,8 @@
 /**
  * quotes.js — Vercel Edge Function
  * GET /api/quotes?tickers=AAPL,MSFT,NVDA,005930.KS
- * → { ok: true, data: { AAPL: {price, changePercent, ...}, ... } }
+ *   → { ok: true, data: { AAPL: {price, changePercent, preMarketPrice, postMarketPrice, ...}, ... } }
+ * GET /api/quotes?tickers=...&range=1mo  → 월간 변화율 (히트맵용)
  *
  * 여러 티커를 한 번에 병렬 조회. 60초 캐시 + stale-while-revalidate.
  */
@@ -21,7 +22,9 @@ export default async function handler(req) {
 
   const { searchParams } = new URL(req.url);
   const param = searchParams.get('tickers') || '';
-  const tickers = param.split(',').map(t => t.trim()).filter(Boolean).slice(0, 20);
+  const range = (searchParams.get('range') || '1d').toString();
+  const interval = range === '1mo' ? '1d' : range === '5d' ? '1d' : '1d';
+  const tickers = param.split(',').map(t => t.trim()).filter(Boolean).slice(0, 40);
 
   if (!tickers.length) {
     return new Response(JSON.stringify({ ok: false, error: 'tickers required', data: {} }), {
@@ -32,12 +35,13 @@ export default async function handler(req) {
   const fetchOne = async (ticker) => {
     try {
       const r = await fetch(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`,
-        { headers: HEADERS, signal: AbortSignal.timeout(4500) }
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`,
+        { headers: HEADERS, signal: AbortSignal.timeout(5000) }
       );
       if (!r.ok) return [ticker, null];
       const j = await r.json();
-      const meta = j.chart?.result?.[0]?.meta;
+      const result = j.chart?.result?.[0];
+      const meta = result?.meta;
       if (!meta) return [ticker, null];
 
       const price = meta.regularMarketPrice ?? meta.previousClose ?? null;
@@ -49,7 +53,15 @@ export default async function handler(req) {
         changePercent = (change / prev) * 100;
       }
 
-      // currentTradingPeriod로 마켓 상태 계산 (Yahoo는 marketState를 v8 chart에 안 줌)
+      // 프리/애프터 마켓
+      const preMarketPrice  = meta.preMarketPrice ?? null;
+      const preMarketChange = meta.preMarketChange ?? null;
+      const preMarketChangePercent = meta.preMarketChangePercent ?? null;
+      const postMarketPrice  = meta.postMarketPrice ?? null;
+      const postMarketChange = meta.postMarketChange ?? null;
+      const postMarketChangePercent = meta.postMarketChangePercent ?? null;
+
+      // currentTradingPeriod로 마켓 상태 계산
       const nowSec = Math.floor(Date.now() / 1000);
       const ctp = meta.currentTradingPeriod || {};
       const inRange = (p) => p && typeof p.start === 'number' && typeof p.end === 'number'
@@ -62,6 +74,15 @@ export default async function handler(req) {
         else                            marketState = 'CLOSED';
       }
 
+      // 기간 수익률 (range=1mo면 한 달, 5d면 5일치)
+      let periodChangePercent = null;
+      const closes = result.indicators?.quote?.[0]?.close;
+      if (Array.isArray(closes) && closes.length >= 2) {
+        const first = closes.find(v => v != null);
+        const last  = [...closes].reverse().find(v => v != null);
+        if (first && last) periodChangePercent = ((last - first) / first) * 100;
+      }
+
       return [ticker, {
         price,
         previousClose: prev,
@@ -69,6 +90,15 @@ export default async function handler(req) {
         changePercent: changePercent != null ? Math.round(changePercent * 100) / 100 : null,
         currency:      meta.currency || 'USD',
         marketState,
+        preMarketPrice,
+        preMarketChange:        preMarketChange != null ? Math.round(preMarketChange * 100) / 100 : null,
+        preMarketChangePercent: preMarketChangePercent != null ? Math.round(preMarketChangePercent * 100) / 100 : null,
+        postMarketPrice,
+        postMarketChange:        postMarketChange != null ? Math.round(postMarketChange * 100) / 100 : null,
+        postMarketChangePercent: postMarketChangePercent != null ? Math.round(postMarketChangePercent * 100) / 100 : null,
+        periodChangePercent: periodChangePercent != null ? Math.round(periodChangePercent * 100) / 100 : null,
+        exchangeName: meta.exchangeName || meta.fullExchangeName || null,
+        shortName:    meta.shortName || meta.longName || null,
       }];
     } catch {
       return [ticker, null];

@@ -723,6 +723,30 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
       <div id="insightsPanel"></div>
     </div>
 
+    <!-- 🔥 마켓 히트맵 -->
+    <div id="heatmapSection" style="margin-bottom:24px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">🔥</span>
+          <span style="font-size:16px;font-weight:700">마켓 히트맵</span>
+          <span style="font-size:11px;color:var(--text3)">티커별 등락률 시각화</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <div style="display:inline-flex;background:var(--bg3);border-radius:6px;padding:2px;gap:2px">
+            <button class="hm-tab hm-mkt active" data-mkt="us" onclick="switchHeatmap('us', null)" style="background:var(--bg2);border:none;color:var(--text);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">🇺🇸 미장</button>
+            <button class="hm-tab hm-mkt" data-mkt="kr" onclick="switchHeatmap('kr', null)" style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">🇰🇷 국장</button>
+          </div>
+          <div style="display:inline-flex;background:var(--bg3);border-radius:6px;padding:2px;gap:2px">
+            <button class="hm-tab hm-range active" data-range="1d" onclick="switchHeatmap(null, '1d')" style="background:var(--bg2);border:none;color:var(--text);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">일간</button>
+            <button class="hm-tab hm-range" data-range="1mo" onclick="switchHeatmap(null, '1mo')" style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">월간</button>
+          </div>
+        </div>
+      </div>
+      <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;min-height:80px">
+        <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
+      </div>
+    </div>
+
     <!-- 📰 최신 분석 이슈 섹션 헤더 -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-top:12px;border-top:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:8px">
@@ -765,6 +789,28 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); c
         <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('oil')">WTI 원유</span><span class="index-val" id="si-oil">—</span><span class="index-chg flat" id="si-oil-chg">—</span></div>
         <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('usdkrw')">USD/KRW</span><span class="index-val" id="si-usdkrw">—</span><span class="index-chg flat" id="si-usdkrw-chg">—</span></div>
         <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('vix')">VIX (공포지수)</span><span class="index-val" id="si-vix">—</span><span class="index-chg flat" id="si-vix-chg">—</span></div>
+      </div>
+    </div>
+
+    <!-- 시간외 호가 (프리/애프터 / NXT) -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">🌙 시간외 호가</span>
+        <span style="font-size:11px;color:var(--text3)" id="ahUpdatedAt">—</span>
+      </div>
+      <div style="padding:8px 16px 12px" id="afterHoursPanel">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:12px 0">로딩 중...</div>
+      </div>
+    </div>
+
+    <!-- 선물/옵션 만기일 -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">📅 만기일</span>
+        <span style="font-size:11px;color:var(--text3)">선물·옵션</span>
+      </div>
+      <div style="padding:8px 16px 12px" id="expiryPanel">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
       </div>
     </div>
 
@@ -2682,6 +2728,218 @@ function renderEarningsCalTable(items) {
   html += '</tbody></table>';
   body.innerHTML = html;
 }
+
+// ─── 🔥 히트맵 ─────────────────────────────────────────────
+const HEATMAP_TICKERS = {
+  us: [
+    'AAPL','MSFT','NVDA','GOOGL','AMZN','META','TSLA','AVGO','LLY','JPM',
+    'V','UNH','XOM','MA','HD','PG','COST','NFLX','AMD','PEP',
+    'KO','BAC','CSCO','ORCL','TMO','DIS','WMT','CRM','MCD','ABBV',
+  ],
+  kr: [
+    '005930.KS','000660.KS','373220.KS','207940.KS','005380.KS','035420.KS','005935.KS','068270.KS','105560.KS','035720.KS',
+    '055550.KS','012330.KS','028260.KS','005490.KS','329180.KS','066570.KS','003550.KS','015760.KS','032830.KS','017670.KS',
+    '086790.KS','138040.KS','009150.KS','010130.KS','011200.KS',
+  ],
+};
+let _hmMkt = 'us', _hmRange = '1d';
+
+function switchHeatmap(mkt, range) {
+  if (mkt) _hmMkt = mkt;
+  if (range) _hmRange = range;
+  document.querySelectorAll('.hm-mkt').forEach(b => {
+    const on = b.dataset.mkt === _hmMkt;
+    b.style.background = on ? 'var(--bg2)' : 'transparent';
+    b.style.color = on ? 'var(--text)' : 'var(--text2)';
+    b.style.fontWeight = on ? '600' : '400';
+  });
+  document.querySelectorAll('.hm-range').forEach(b => {
+    const on = b.dataset.range === _hmRange;
+    b.style.background = on ? 'var(--bg2)' : 'transparent';
+    b.style.color = on ? 'var(--text)' : 'var(--text2)';
+    b.style.fontWeight = on ? '600' : '400';
+  });
+  loadHeatmap();
+}
+
+async function loadHeatmap() {
+  const grid = document.getElementById('heatmapGrid');
+  if (!grid) return;
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>';
+  const tickers = HEATMAP_TICKERS[_hmMkt] || [];
+  try {
+    const r = await fetch(`/api/quotes?tickers=${tickers.join(',')}&range=${_hmRange}`);
+    const j = await r.json();
+    if (!j.ok) throw new Error('fetch failed');
+    const data = j.data || {};
+    const items = tickers.map(t => {
+      const d = data[t];
+      if (!d) return null;
+      const pct = _hmRange === '1mo' ? d.periodChangePercent : d.changePercent;
+      return { ticker: t, pct, price: d.price, name: d.shortName || t };
+    }).filter(x => x && x.pct != null);
+    items.sort((a, b) => (b.pct || 0) - (a.pct || 0));
+    const colorFor = (pct) => {
+      const v = Math.max(-5, Math.min(5, pct)) / 5; // -1 ~ +1
+      if (v >= 0) {
+        const a = 0.15 + v * 0.55;
+        return `rgba(34,197,94,${a.toFixed(2)})`;
+      } else {
+        const a = 0.15 + (-v) * 0.55;
+        return `rgba(239,68,68,${a.toFixed(2)})`;
+      }
+    };
+    const cellHref = (t) => {
+      const clean = t.replace(/\.(KS|KQ)$/, '');
+      return `/company.html?ticker=${encodeURIComponent(t)}`;
+    };
+    grid.innerHTML = items.map(it => {
+      const sign = it.pct >= 0 ? '+' : '';
+      const display = it.ticker.replace(/\.(KS|KQ)$/, '');
+      return `<a href="${cellHref(it.ticker)}" style="display:block;text-decoration:none;color:#fff;background:${colorFor(it.pct)};border-radius:8px;padding:10px 8px;text-align:center;transition:transform .12s" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.3px">${display}</div>
+        <div style="font-size:13px;font-weight:700;margin-top:3px">${sign}${it.pct.toFixed(2)}%</div>
+      </a>`;
+    }).join('') || '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">데이터 없음</div>';
+  } catch (e) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--red);font-size:12px;padding:20px">로드 실패: ${e.message}</div>`;
+  }
+}
+
+// ─── 🌙 시간외 호가 ─────────────────────────────────────────
+async function loadAfterHours() {
+  const panel = document.getElementById('afterHoursPanel');
+  if (!panel) return;
+  const tickers = ['AAPL','NVDA','MSFT','TSLA','META','GOOGL','AMZN','AMD','005930.KS','000660.KS'];
+  try {
+    const r = await fetch(`/api/quotes?tickers=${tickers.join(',')}`);
+    const j = await r.json();
+    if (!j.ok) throw new Error();
+    const data = j.data || {};
+    const rows = [];
+    let anyPrePost = false;
+    for (const t of tickers) {
+      const d = data[t];
+      if (!d) continue;
+      const isKr = /\.(KS|KQ)$/.test(t);
+      const disp = t.replace(/\.(KS|KQ)$/, '');
+      let label = '', price = null, pct = null, badge = '';
+      if (isKr) {
+        // Yahoo는 NXT 시간외 미지원 → 정규장 가격만
+        label = 'KRX';
+        price = d.price; pct = d.changePercent;
+        if (d.marketState && d.marketState !== 'REGULAR') {
+          badge = `<span style="font-size:9px;background:#6b7280;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px">시간외</span>`;
+        }
+      } else {
+        if (d.postMarketPrice != null) {
+          label = '애프터'; price = d.postMarketPrice; pct = d.postMarketChangePercent;
+          badge = `<span style="font-size:9px;background:#a855f7;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px">AH</span>`;
+          anyPrePost = true;
+        } else if (d.preMarketPrice != null) {
+          label = '프리'; price = d.preMarketPrice; pct = d.preMarketChangePercent;
+          badge = `<span style="font-size:9px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px">PRE</span>`;
+          anyPrePost = true;
+        } else {
+          label = '정규'; price = d.price; pct = d.changePercent;
+        }
+      }
+      if (price == null) continue;
+      const color = (pct ?? 0) >= 0 ? 'var(--green)' : 'var(--red)';
+      const sign = (pct ?? 0) >= 0 ? '+' : '';
+      const priceStr = isKr ? `₩${Math.round(price).toLocaleString()}` : `$${price.toFixed(2)}`;
+      rows.push(`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+        <span style="font-weight:600;color:var(--text)">${disp}${badge}</span>
+        <span style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+          <span style="color:var(--text2);font-size:11px">${priceStr}</span>
+          <span style="color:${color};font-size:11px;font-weight:600">${sign}${(pct ?? 0).toFixed(2)}%</span>
+        </span>
+      </div>`);
+    }
+    const note = !anyPrePost
+      ? `<div style="font-size:10px;color:var(--text3);text-align:center;padding:6px 0">정규장 외 호가는 미장 개장 전후만 표시 · 국장 NXT는 미지원</div>`
+      : '';
+    panel.innerHTML = rows.join('') + note;
+    document.getElementById('ahUpdatedAt').textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    panel.innerHTML = `<div style="color:var(--red);font-size:11px;text-align:center;padding:8px 0">로드 실패</div>`;
+  }
+}
+
+// ─── 📅 선물·옵션 만기일 ───────────────────────────────────
+function nthWeekdayOfMonth(year, month, weekday, n) {
+  // month: 0-11, weekday: 0(Sun)~6(Sat)
+  const first = new Date(year, month, 1);
+  const offset = (weekday - first.getDay() + 7) % 7;
+  return new Date(year, month, 1 + offset + (n - 1) * 7);
+}
+function loadExpiries() {
+  const panel = document.getElementById('expiryPanel');
+  if (!panel) return;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const items = [];
+
+  // 미국 옵션: 매월 셋째 금요일
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const exp = nthWeekdayOfMonth(d.getFullYear(), d.getMonth(), 5, 3);
+    if (exp >= today) {
+      const isQuad = [2,5,8,11].includes(exp.getMonth()); // 3,6,9,12월
+      items.push({
+        d: exp,
+        label: isQuad ? '🇺🇸 쿼드러플 위칭' : '🇺🇸 미국 옵션 만기',
+        sub: isQuad ? '선물·옵션·지수 동시만기' : '월간 옵션',
+      });
+      if (items.filter(x => x.label.startsWith('🇺🇸')).length >= 2) break;
+    }
+  }
+
+  // 한국 옵션: 매월 둘째 목요일
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const exp = nthWeekdayOfMonth(d.getFullYear(), d.getMonth(), 4, 2);
+    if (exp >= today) {
+      const isQuarter = [2,5,8,11].includes(exp.getMonth());
+      items.push({
+        d: exp,
+        label: isQuarter ? '🇰🇷 KOSPI200 쿼드' : '🇰🇷 KOSPI200 옵션',
+        sub: isQuarter ? '선물·옵션 동시만기' : '월간 옵션',
+      });
+      if (items.filter(x => x.label.startsWith('🇰🇷')).length >= 2) break;
+    }
+  }
+
+  items.sort((a, b) => a.d - b.d);
+  const fmtDate = (d) => `${d.getMonth()+1}/${d.getDate()} (${['일','월','화','수','목','금','토'][d.getDay()]})`;
+  const daysLeft = (d) => Math.ceil((d - today) / 86400000);
+
+  panel.innerHTML = items.slice(0, 5).map(it => {
+    const dl = daysLeft(it.d);
+    const urgent = dl <= 7;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-weight:600;color:var(--text)">${it.label}</span>
+        <span style="font-size:10px;color:var(--text3)">${it.sub} · ${fmtDate(it.d)}</span>
+      </div>
+      <span style="font-size:11px;font-weight:700;color:${urgent ? 'var(--red)' : 'var(--text2)'};white-space:nowrap">D-${dl}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--text3);font-size:11px;text-align:center;padding:8px 0">예정 없음</div>';
+}
+
+// 페이지 로드 후 신규 위젯 초기화
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    try { loadHeatmap();    } catch (e) { console.error('heatmap', e); }
+    try { loadAfterHours(); } catch (e) { console.error('afterhours', e); }
+    try { loadExpiries();   } catch (e) { console.error('expiries', e); }
+  }, 600);
+  // 60초마다 시간외 호가 + 히트맵 갱신
+  setInterval(() => {
+    try { loadAfterHours(); } catch {}
+    try { loadHeatmap();    } catch {}
+  }, 60000);
+});
 </script>
 <!-- 지수 차트 모달 -->
 <div id="indexChartModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.75);align-items:center;justify-content:center" onclick="closeIndexChart(event)">
