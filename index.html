@@ -557,8 +557,7 @@ button { font-family: inherit; }
 }
 
 /* Sidebar */
-.sidebar { display: flex; flex-direction: column; gap: 18px; position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow-y: auto; padding-right: 4px; }
-.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar { display: flex; flex-direction: column; gap: 18px; position: sticky; top: 76px; align-self: start; }
 .sidebar-card {
   background: var(--bg2); border: 1px solid var(--border-soft); border-radius: var(--r-lg);
   overflow: hidden; box-shadow: var(--shadow-card);
@@ -3096,15 +3095,22 @@ function loadExpiries() {
   }).join('') || '<div style="color:var(--text3);font-size:11px;text-align:center;padding:8px 0">예정 없음</div>';
 }
 
-// 페이지 로드 후 신규 위젯 초기화
-window.addEventListener('load', () => {
-  setTimeout(() => {
+// 신규 위젯 초기화 — load 이벤트 의존하지 않고 즉시 실행 (DOM은 이미 파싱됨)
+(function initNewWidgets() {
+  const kick = () => {
     try { loadHeatmap();  } catch (e) { console.error('heatmap', e); }
     try { loadExpiries(); } catch (e) { console.error('expiries', e); }
-  }, 600);
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', kick, { once: true });
+  } else {
+    kick();
+  }
   // 60초마다 히트맵 갱신
   setInterval(() => { try { loadHeatmap(); } catch {} }, 60000);
-});
+  // 만기일은 자정 지나면 갱신
+  setInterval(() => { try { loadExpiries(); } catch {} }, 3600000);
+})();
 </script>
 <!-- 지수 차트 모달 -->
 <div id="indexChartModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.75);align-items:center;justify-content:center" onclick="closeIndexChart(event)">
