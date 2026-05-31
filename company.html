@@ -1173,7 +1173,7 @@ function renderDartDetail(d) {
         const color = k === 'opIncome' || k === 'netIncome'
           ? (v == null ? 'var(--text3)' : v > 0 ? 'var(--green)' : 'var(--red)')
           : 'var(--text)';
-        return `<td style="padding:6px 10px;text-align:right;font-family:var(--font-mono,monospace);color:${color}">${fmt(v)}</td>`;
+        return `<td style="padding:6px 10px;text-align:right;color:${color}">${fmt(v)}</td>`;
       }).join('');
       return `<tr><td style="padding:6px 10px;color:var(--text2);font-weight:500">${labels[k]}</td>${cells}</tr>`;
     }).join('');
