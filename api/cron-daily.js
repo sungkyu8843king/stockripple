@@ -62,6 +62,14 @@ export default async function handler(req, res) {
   await new Promise(r => setTimeout(r, 500));
   log.extractInvestments = await call('/api/admin?action=extract-investments', { since_hours: 48, max: 25 });
 
+  // 4-b. 공시 폴링 (DART 매일, 13F는 월요일에만 — SEC EDGAR 부하 고려)
+  await new Promise(r => setTimeout(r, 500));
+  log.dart = await call('/api/admin?action=dart-poll', { days: 2 });
+  if (new Date().getDay() === 1) {  // 월요일
+    await new Promise(r => setTimeout(r, 500));
+    log.sec13f = await call('/api/admin?action=sec-13f-poll');
+  }
+
   // 5. 정확도 체크
   await new Promise(r => setTimeout(r, 500));
   log.accuracy = await call('/api/check-accuracy');

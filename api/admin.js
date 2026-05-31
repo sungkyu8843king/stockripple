@@ -5,6 +5,12 @@
  *  GET  /api/admin?action=stats        → 통계 + 백테스트
  *  GET  /api/admin?action=summary&ticker=X → 회사 AI 종합 분석 (인증 불필요)
  *  POST /api/admin?action=extract-investments → 최근 분석된 이슈에서 전략 투자 패턴 추출 (cron 또는 admin)
+ *  GET  /api/admin?action=list-investments    → 전략투자 목록 조회 (필터/페이지)
+ *  POST /api/admin?action=update-investment   → 항목 수정 (highlight/status)
+ *  POST /api/admin?action=delete-investment   → 항목 삭제 (status=rejected 소프트 삭제)
+ *  GET  /api/admin?action=investment-events   → 티커별 추출 이벤트 히스토리 (그래프용)
+ *  POST /api/admin?action=dart-poll           → DART 5%+ 지분공시 폴링 (한국 OpenDart API)
+ *  POST /api/admin?action=sec-13f-poll        → SEC EDGAR 13F 폴링 (미국 헤지펀드 보유)
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
@@ -31,6 +37,8 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
     return handleSummary(req, res);
   }
+  // investment-events 는 공개 조회 가능 (회사 페이지에서 사용)
+  if (action === 'investment-events') return handleInvestmentEvents(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -40,8 +48,13 @@ export default async function handler(req, res) {
   if (action === 'fix-names')           return handleFixNames(req, res);
   if (action === 'stats')               return handleStats(req, res);
   if (action === 'extract-investments') return handleExtractInvestments(req, res);
+  if (action === 'list-investments')    return handleListInvestments(req, res);
+  if (action === 'update-investment')   return handleUpdateInvestment(req, res);
+  if (action === 'delete-investment')   return handleDeleteInvestment(req, res);
+  if (action === 'dart-poll')           return handleDartPoll(req, res);
+  if (action === 'sec-13f-poll')        return handleSec13fPoll(req, res);
 
-  return res.status(400).json({ error: 'Unknown action. Use ?action=verify|fix-names|stats|summary|extract-investments' });
+  return res.status(400).json({ error: 'Unknown action' });
 }
 
 // ════════════════════════════════════════════════════════════
@@ -501,6 +514,9 @@ highlight=true 조건:
           .eq('target_name', target)
           .maybeSingle();
 
+        let investmentId = existing?.id;
+        let eventType = null;
+
         if (existing) {
           // 재등장 → seen_count++ + last_seen + confidence 평균
           const newConf = Math.round(((existing.confidence || 70) + (ex.confidence || 70)) / 2);
@@ -512,9 +528,10 @@ highlight=true 조건:
             })
             .eq('id', existing.id);
           results.updated++;
+          eventType = 'reextracted';
         } else {
           // 신규 삽입
-          const { error: insErr } = await supabase.from('strategic_investments').insert({
+          const { data: inserted, error: insErr } = await supabase.from('strategic_investments').insert({
             investor_ticker: ticker,
             investor_name:   ex.investor_name || null,
             target_name:     target,
@@ -526,8 +543,25 @@ highlight=true 조건:
             source_issue_id: issue.id,
             source_url:      issue.source_url || null,
             source_title:    issue.title?.slice(0, 300) || null,
+          }).select('id').single();
+          if (!insErr) {
+            results.new++;
+            investmentId = inserted?.id;
+            eventType = 'extracted';
+          }
+        }
+
+        // 이벤트 로그 (그래프용)
+        if (investmentId && eventType) {
+          await supabase.from('strategic_investment_events').insert({
+            investment_id:   investmentId,
+            investor_ticker: ticker,
+            target_name:     target,
+            event_type:      eventType,
+            confidence:      ex.confidence || 70,
+            source_issue_id: issue.id,
+            source_url:      issue.source_url || null,
           });
-          if (!insErr) results.new++;
         }
       }
     } catch (e) {
@@ -536,4 +570,296 @@ highlight=true 조건:
   }
 
   return res.status(200).json({ ok: true, ...results, ts: new Date().toISOString() });
+}
+
+// ════════════════════════════════════════════════════════════
+// 6) 전략투자 목록 조회 (admin UI)
+// ════════════════════════════════════════════════════════════
+async function handleListInvestments(req, res) {
+  const status   = (req.query?.status || 'active').toString();
+  const ticker   = (req.query?.ticker || '').toString().toUpperCase().trim();
+  const theme    = (req.query?.theme || '').toString().trim();
+  const search   = (req.query?.q || '').toString().trim();
+  const page     = Math.max(1, parseInt(req.query?.page || 1, 10));
+  const pageSize = Math.min(100, parseInt(req.query?.page_size || 50, 10));
+
+  let q = supabase.from('strategic_investments')
+    .select('id, investor_ticker, investor_name, target_name, theme, detail, stake_info, highlight, confidence, seen_count, source_issue_id, source_url, source_title, status, extracted_at, last_seen_at', { count: 'exact' })
+    .order('highlight', { ascending: false })
+    .order('seen_count', { ascending: false })
+    .order('extracted_at', { ascending: false });
+
+  if (status !== 'all') q = q.eq('status', status);
+  if (ticker)           q = q.eq('investor_ticker', ticker);
+  if (theme)            q = q.ilike('theme', `%${theme}%`);
+  if (search)           q = q.or(`investor_name.ilike.%${search}%,target_name.ilike.%${search}%,detail.ilike.%${search}%`);
+
+  const { data, count, error } = await q.range((page - 1) * pageSize, page * pageSize - 1);
+  if (error) return res.status(500).json({ error: error.message });
+
+  // 티커별 그룹 카운트 (요약용)
+  const { data: byTicker } = await supabase
+    .from('strategic_investments')
+    .select('investor_ticker, investor_name')
+    .eq('status', 'active');
+  const tickerCounts = {};
+  for (const row of (byTicker || [])) {
+    const k = row.investor_ticker;
+    if (!tickerCounts[k]) tickerCounts[k] = { ticker: k, name: row.investor_name, count: 0 };
+    tickerCounts[k].count++;
+  }
+  const topTickers = Object.values(tickerCounts).sort((a, b) => b.count - a.count).slice(0, 20);
+
+  return res.status(200).json({ ok: true, items: data || [], total: count || 0, page, pageSize, topTickers });
+}
+
+// ════════════════════════════════════════════════════════════
+// 7) 전략투자 수정 (highlight / status / detail)
+// ════════════════════════════════════════════════════════════
+async function handleUpdateInvestment(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const id = parseInt(req.body?.id, 10);
+  if (!id) return res.status(400).json({ error: 'id required' });
+
+  const update = {};
+  if (typeof req.body?.highlight === 'boolean') update.highlight = req.body.highlight;
+  if (typeof req.body?.status === 'string')     update.status = req.body.status;
+  if (typeof req.body?.detail === 'string')     update.detail = req.body.detail.slice(0, 500);
+  if (typeof req.body?.theme === 'string')      update.theme = req.body.theme.slice(0, 80);
+  if (typeof req.body?.stake_info === 'string') update.stake_info = req.body.stake_info.slice(0, 80);
+  if (typeof req.body?.confidence === 'number') update.confidence = Math.max(0, Math.min(100, req.body.confidence));
+  if (!Object.keys(update).length) return res.status(400).json({ error: 'no fields to update' });
+
+  const { data, error } = await supabase
+    .from('strategic_investments')
+    .update(update).eq('id', id).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+
+  let evType = null;
+  if (update.status === 'rejected') evType = 'rejected';
+  else if (update.status === 'active' && req.body?._from_pending) evType = 'approved';
+  if (evType) {
+    await supabase.from('strategic_investment_events').insert({
+      investment_id: id, investor_ticker: data.investor_ticker,
+      target_name: data.target_name, event_type: evType, confidence: data.confidence,
+    });
+  }
+  return res.status(200).json({ ok: true, item: data });
+}
+
+// ════════════════════════════════════════════════════════════
+// 8) 전략투자 삭제 (소프트=rejected / hard=DELETE)
+// ════════════════════════════════════════════════════════════
+async function handleDeleteInvestment(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const id = parseInt(req.body?.id, 10);
+  const hard = !!req.body?.hard;
+  if (!id) return res.status(400).json({ error: 'id required' });
+
+  if (hard) {
+    const { error } = await supabase.from('strategic_investments').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ ok: true, deleted: 'hard' });
+  }
+  const { error } = await supabase.from('strategic_investments')
+    .update({ status: 'rejected' }).eq('id', id);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, deleted: 'soft' });
+}
+
+// ════════════════════════════════════════════════════════════
+// 9) 전략투자 이벤트 히스토리 (그래프용 — 인증 불필요)
+// ════════════════════════════════════════════════════════════
+async function handleInvestmentEvents(req, res) {
+  const ticker = (req.query?.ticker || '').toString().toUpperCase().trim();
+  if (!ticker) return res.status(400).json({ error: 'ticker required' });
+
+  const { data: events } = await supabase
+    .from('strategic_investment_events')
+    .select('target_name, event_type, confidence, occurred_at, source_url')
+    .eq('investor_ticker', ticker)
+    .order('occurred_at', { ascending: true })
+    .limit(500);
+
+  const byTarget = {};
+  for (const e of (events || [])) {
+    if (!byTarget[e.target_name]) byTarget[e.target_name] = [];
+    byTarget[e.target_name].push(e);
+  }
+  const series = Object.entries(byTarget).map(([target, evts]) => ({
+    target,
+    points: evts.map((e, i) => ({ t: e.occurred_at, cumulative: i + 1, type: e.event_type, confidence: e.confidence })),
+  }));
+
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+  return res.status(200).json({ ok: true, ticker, events: events || [], series });
+}
+
+// ════════════════════════════════════════════════════════════
+// 10) DART 5%+ 지분공시 폴링 (한국 OpenDart)
+// ════════════════════════════════════════════════════════════
+async function handleDartPoll(req, res) {
+  const apiKey = process.env.DART_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'DART_API_KEY env not set. Get free key at opendart.fss.or.kr' });
+
+  const days = Math.min(30, parseInt(req.body?.days || req.query?.days || 7, 10));
+  const begin = new Date(Date.now() - days * 86400 * 1000).toISOString().slice(0, 10).replace(/-/g, '');
+  const end   = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+
+  // pblntf_detail_ty=D003: 주식등의 대량보유상황보고서
+  const url = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${apiKey}&bgn_de=${begin}&end_de=${end}&pblntf_detail_ty=D003&page_count=100`;
+  let listJson;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    listJson = await r.json();
+  } catch (e) {
+    return res.status(500).json({ error: 'DART list fetch failed: ' + e.message });
+  }
+  if (listJson.status && listJson.status !== '000') {
+    return res.status(500).json({ error: `DART API: ${listJson.message || listJson.status}` });
+  }
+
+  const items = listJson.list || [];
+  const results = { scanned: items.length, new: 0, updated: 0, skipped: 0, samples: [] };
+
+  for (const it of items.slice(0, 50)) {
+    const reporter = (it.flr_nm || '').trim();
+    const target = (it.corp_name || '').trim();
+    const targetTicker = (it.stock_code || '').trim();
+    if (!reporter || !target || !targetTicker) { results.skipped++; continue; }
+
+    // 보고자가 상장사인지 companies 테이블에서 매칭
+    const safeReporter = reporter.replace(/['"\\%_]/g, '');
+    const { data: investorCo } = await supabase
+      .from('companies')
+      .select('ticker, name_ko, name_en')
+      .or(`name_ko.ilike.%${safeReporter}%,name_en.ilike.%${safeReporter}%`)
+      .eq('market', 'KR').limit(1).maybeSingle();
+
+    if (!investorCo?.ticker) { results.skipped++; continue; }
+
+    const detail = `DART 대량보유 신고 — ${reporter}가 ${target} 지분 5%+ 신고`;
+    const sourceUrl = `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${it.rcept_no}`;
+    const { data: existing } = await supabase
+      .from('strategic_investments')
+      .select('id, seen_count, confidence')
+      .eq('investor_ticker', investorCo.ticker)
+      .eq('target_name', target).maybeSingle();
+
+    let invId;
+    if (existing) {
+      await supabase.from('strategic_investments').update({
+        seen_count: (existing.seen_count || 1) + 1,
+        last_seen_at: new Date().toISOString(),
+        confidence: Math.max(existing.confidence || 70, 92),
+      }).eq('id', existing.id);
+      invId = existing.id; results.updated++;
+    } else {
+      const { data: ins } = await supabase.from('strategic_investments').insert({
+        investor_ticker: investorCo.ticker,
+        investor_name: investorCo.name_ko || investorCo.name_en,
+        target_name: target, theme: '지분투자 (DART)',
+        detail, stake_info: '5%+', highlight: false, confidence: 92,
+        source_url: sourceUrl, source_title: it.report_nm, status: 'active',
+      }).select('id').single();
+      invId = ins?.id; if (invId) results.new++;
+    }
+    if (invId) {
+      await supabase.from('strategic_investment_events').insert({
+        investment_id: invId, investor_ticker: investorCo.ticker,
+        target_name: target, event_type: 'dart', confidence: 92, source_url: sourceUrl,
+      });
+    }
+    if (results.samples.length < 5) results.samples.push({ reporter, target, targetTicker });
+  }
+  return res.status(200).json({ ok: true, ...results, period: `${begin} ~ ${end}` });
+}
+
+// ════════════════════════════════════════════════════════════
+// 11) SEC EDGAR 13F 폴링 (미국 헤지펀드/기관 보유)
+// ════════════════════════════════════════════════════════════
+// env SEC_13F_FILERS: CIK 콤마 구분 (기본: BRK, BlackRock 등)
+async function handleSec13fPoll(req, res) {
+  const filersEnv = process.env.SEC_13F_FILERS || '0001067983,0001364742';
+  const ciks = filersEnv.split(',').map(s => s.trim().padStart(10, '0')).filter(Boolean).slice(0, 10);
+  const ua = `StockRipple/1.0 (${(process.env.ADMIN_EMAILS || 'noreply@example.com').split(',')[0]})`;
+  const results = { fetched: 0, new: 0, updated: 0, errors: [] };
+
+  for (const cik of ciks) {
+    try {
+      const subUrl = `https://data.sec.gov/submissions/CIK${cik}.json`;
+      const sr = await fetch(subUrl, { headers: { 'User-Agent': ua }, signal: AbortSignal.timeout(10000) });
+      if (!sr.ok) { results.errors.push(`CIK ${cik}: HTTP ${sr.status}`); continue; }
+      const subData = await sr.json();
+      const recent = subData.filings?.recent;
+      if (!recent) continue;
+
+      let acc = null;
+      const filerName = subData.name || `CIK ${cik}`;
+      for (let i = 0; i < (recent.form || []).length; i++) {
+        if (recent.form[i] === '13F-HR') { acc = recent.accessionNumber[i].replace(/-/g, ''); break; }
+      }
+      if (!acc) { results.errors.push(`${filerName}: no 13F-HR`); continue; }
+
+      const filingsUrl = `https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${acc}/`;
+      const idx = await fetch(filingsUrl + 'index.json', { headers: { 'User-Agent': ua }, signal: AbortSignal.timeout(10000) });
+      if (!idx.ok) continue;
+      const idxJson = await idx.json();
+      const xmlFile = (idxJson.directory?.item || []).find(f => f.name.endsWith('.xml') && f.name.toLowerCase().includes('infotable'));
+      if (!xmlFile) { results.errors.push(`${filerName}: no infotable.xml`); continue; }
+
+      const xmlRes = await fetch(filingsUrl + xmlFile.name, { headers: { 'User-Agent': ua }, signal: AbortSignal.timeout(15000) });
+      const xml = await xmlRes.text();
+      results.fetched++;
+
+      const blocks = xml.match(/<infoTable>[\s\S]*?<\/infoTable>/g) || [];
+      const holdings = blocks.map(b => ({
+        name:  (b.match(/<nameOfIssuer>([\s\S]*?)<\/nameOfIssuer>/)?.[1] || '').trim(),
+        value: parseInt((b.match(/<value>([\s\S]*?)<\/value>/)?.[1] || '0').replace(/\D/g, ''), 10),
+      })).filter(h => h.name && h.value).sort((a, b) => b.value - a.value).slice(0, 10);
+
+      // 매니저(헤지펀드)가 상장사인지 매핑 (Berkshire 등)
+      const firstWord = filerName.split(/[\s.,]/)[0].replace(/['"\\%_]/g, '');
+      const { data: investorCo } = await supabase.from('companies')
+        .select('ticker, name_ko, name_en')
+        .or(`name_en.ilike.%${firstWord}%,name_ko.ilike.%${firstWord}%`)
+        .limit(1).maybeSingle();
+      if (!investorCo?.ticker) { results.errors.push(`${filerName}: not listed in companies`); continue; }
+
+      for (const h of holdings) {
+        const detail = `13F 분기공시 — ${filerName} 보유 ($${(h.value / 1000).toFixed(1)}M)`;
+        const { data: existing } = await supabase.from('strategic_investments')
+          .select('id, seen_count').eq('investor_ticker', investorCo.ticker)
+          .eq('target_name', h.name).maybeSingle();
+        let invId;
+        if (existing) {
+          await supabase.from('strategic_investments').update({
+            seen_count: (existing.seen_count || 1) + 1,
+            last_seen_at: new Date().toISOString(),
+            stake_info: `$${(h.value / 1000).toFixed(1)}M`, confidence: 88,
+          }).eq('id', existing.id);
+          invId = existing.id; results.updated++;
+        } else {
+          const { data: ins } = await supabase.from('strategic_investments').insert({
+            investor_ticker: investorCo.ticker, investor_name: investorCo.name_en || filerName,
+            target_name: h.name, theme: '지분투자 (13F)', detail,
+            stake_info: `$${(h.value / 1000).toFixed(1)}M`, confidence: 88,
+            source_url: filingsUrl + xmlFile.name, source_title: `13F-HR ${filerName}`,
+            status: 'active',
+          }).select('id').single();
+          invId = ins?.id; if (invId) results.new++;
+        }
+        if (invId) {
+          await supabase.from('strategic_investment_events').insert({
+            investment_id: invId, investor_ticker: investorCo.ticker,
+            target_name: h.name, event_type: 'sec13f', confidence: 88,
+            source_url: filingsUrl + xmlFile.name,
+          });
+        }
+      }
+    } catch (e) {
+      results.errors.push(`CIK ${cik}: ${e.message?.slice(0, 150)}`);
+    }
+  }
+  return res.status(200).json({ ok: true, ...results });
 }

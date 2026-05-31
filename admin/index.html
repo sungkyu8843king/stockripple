@@ -237,6 +237,10 @@ tr:hover td { background: var(--bg3); }
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
       기업 데이터
     </button>
+    <button class="nav-item" data-panel="investments">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5 12 2"/></svg>
+      🌟 전략투자
+    </button>
     <div class="nav-section">설정</div>
     <button class="nav-item" data-panel="accuracy">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -389,6 +393,48 @@ tr:hover td { background: var(--bg3); }
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- Strategic Investments -->
+    <div class="panel-section" id="panel-investments">
+      <div class="section-header">
+        <h2>🌟 전략투자 관리</h2>
+        <p>뉴스에서 자동 추출된 기업 간 전략적 지분/투자 사실 — 승인·거부·하이라이트 관리</p>
+      </div>
+
+      <!-- 액션 바 -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="invExtractNow()">🔄 즉시 추출 (지난 1주)</button>
+        <button class="btn btn-ghost"   onclick="invDartPoll()">📊 DART 5%+ 폴링</button>
+        <button class="btn btn-ghost"   onclick="invSec13fPoll()">🇺🇸 SEC 13F 폴링</button>
+        <span style="flex:1"></span>
+        <select id="invStatusFilter" onchange="invLoad()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          <option value="active">활성</option>
+          <option value="rejected">거부됨</option>
+          <option value="all">전체</option>
+        </select>
+        <input id="invSearch" placeholder="검색 (회사/대상/설명)" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;width:200px"
+               onkeydown="if(event.key==='Enter')invLoad()">
+        <button class="btn btn-ghost" onclick="invLoad()">검색</button>
+      </div>
+
+      <div id="invStatusBox" style="font-size:12px;color:var(--text2);margin-bottom:12px"></div>
+
+      <!-- 티커별 그래프 -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <div style="font-weight:700;font-size:14px">📈 티커별 누적 추출 추이</div>
+          <select id="invChartTicker" onchange="invLoadChart()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;min-width:200px">
+            <option value="">티커 선택...</option>
+          </select>
+        </div>
+        <div style="position:relative;height:240px"><canvas id="invChart"></canvas></div>
+        <div id="invChartHint" style="font-size:11px;color:var(--text3);margin-top:8px">상단의 티커를 선택하면 추출 이벤트 누적 추이가 표시됩니다.</div>
+      </div>
+
+      <!-- 목록 -->
+      <div id="invList" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div id="invPagination" style="display:flex;justify-content:center;gap:8px;margin-top:18px"></div>
     </div>
 
     <!-- Accuracy -->
@@ -653,12 +699,14 @@ tr:hover td { background: var(--bg3); }
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
 const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -672,7 +720,11 @@ function showPanel(name) {
   if (name === 'companies') loadCompaniesTable();
   if (name === 'accuracy') loadAccuracy();
   if (name === 'backtest' && !window._btLoaded) { window._btLoaded = true; loadBacktest(); }
+  if (name === 'investments') invLoad();
 }
+
+// panels 라벨도 추가
+window._panelsExtra = { investments: '🌟 전략투자 관리' };
 
 document.querySelectorAll('[data-panel]').forEach(btn => {
   btn.addEventListener('click', () => showPanel(btn.dataset.panel));
@@ -1401,6 +1453,250 @@ function retColor(v) {
 function fmtPctVal(v) {
   if (v == null) return '—';
   return (v > 0 ? '+' : '') + v + '%';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 🌟 전략투자 관리 패널
+// ═══════════════════════════════════════════════════════════════
+let _invPage = 1;
+const _invPageSize = 30;
+let _invChart = null;
+
+async function invLoad(page = 1) {
+  _invPage = page;
+  const status = document.getElementById('invStatusFilter').value;
+  const q = document.getElementById('invSearch').value.trim();
+  const params = new URLSearchParams({ action: 'list-investments', status, page, page_size: _invPageSize });
+  if (q) params.set('q', q);
+
+  const box = document.getElementById('invList');
+  box.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">불러오는 중...</div>';
+
+  try {
+    const r = await fetch('/api/admin?' + params.toString(), {
+      headers: { Authorization: 'Bearer ' + (await getAuthToken()) },
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'list failed');
+
+    // 티커 셀렉트 옵션 업데이트
+    const sel = document.getElementById('invChartTicker');
+    const curVal = sel.value;
+    sel.innerHTML = '<option value="">티커 선택...</option>' +
+      (j.topTickers || []).map(t => `<option value="${t.ticker}" ${t.ticker===curVal?'selected':''}>${t.ticker} · ${t.name||''} (${t.count})</option>`).join('');
+
+    // 목록 렌더
+    if (!j.items.length) {
+      box.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:30px;text-align:center;background:var(--bg2);border-radius:10px">아직 추출된 항목이 없습니다. "즉시 추출" 또는 "DART 폴링" 버튼을 눌러 시작하세요.</div>';
+    } else {
+      box.innerHTML = j.items.map(invRowHtml).join('');
+    }
+
+    // 페이지네이션
+    const totalPages = Math.ceil(j.total / _invPageSize);
+    const pg = document.getElementById('invPagination');
+    if (totalPages <= 1) { pg.innerHTML = ''; }
+    else {
+      let html = `<button class="btn btn-ghost" ${_invPage===1?'disabled':''} onclick="invLoad(${_invPage-1})">← 이전</button>`;
+      html += `<span style="padding:6px 12px;color:var(--text2);font-size:13px">${_invPage} / ${totalPages} · 총 ${j.total}건</span>`;
+      html += `<button class="btn btn-ghost" ${_invPage===totalPages?'disabled':''} onclick="invLoad(${_invPage+1})">다음 →</button>`;
+      pg.innerHTML = html;
+    }
+  } catch (e) {
+    box.innerHTML = `<div style="color:var(--red);padding:20px">로드 실패: ${e.message}</div>`;
+  }
+}
+
+function invRowHtml(it) {
+  const date = it.last_seen_at ? new Date(it.last_seen_at).toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+  const confColor = it.confidence >= 85 ? 'var(--green)' : it.confidence >= 70 ? 'var(--blue)' : 'var(--yellow)';
+  const statusBadge = it.status === 'active'
+    ? '<span class="t-pill t-pill-green" style="font-size:10px">활성</span>'
+    : `<span style="font-size:10px;padding:2px 8px;border-radius:999px;background:var(--bg3);color:var(--text3)">${it.status}</span>`;
+  const themeBadge = `<span style="font-size:10px;padding:2px 8px;border-radius:999px;background:var(--blue-dim);color:var(--blue)">${escAttr(it.theme)}</span>`;
+
+  return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px" id="inv-${it.id}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+          ${it.highlight ? '<span style="color:#b8860b">⭐</span>' : ''}
+          <span style="font-weight:700;font-family:'JetBrains Mono',monospace;font-size:13px">${escAttr(it.investor_ticker)}</span>
+          <span style="font-weight:600;font-size:13px">${escAttr(it.investor_name||'')}</span>
+          <span style="color:var(--text3)">→</span>
+          <span style="font-weight:600;font-size:13px">${escAttr(it.target_name)}</span>
+          ${themeBadge}
+          ${statusBadge}
+        </div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5">${escAttr(it.detail)}</div>
+        <div style="display:flex;gap:14px;font-size:11px;color:var(--text3);margin-top:4px;flex-wrap:wrap">
+          ${it.stake_info ? `<span>💰 ${escAttr(it.stake_info)}</span>` : ''}
+          <span>👁 누적 ${it.seen_count}회</span>
+          <span style="color:${confColor}">신뢰도 ${it.confidence}%</span>
+          <span>📅 ${date}</span>
+          ${it.source_url ? `<a href="${escAttr(it.source_url)}" target="_blank" style="color:var(--blue);text-decoration:none">📰 출처 →</a>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="invToggleHighlight(${it.id}, ${!it.highlight})">${it.highlight ? '⭐ 해제' : '☆ 하이라이트'}</button>
+        ${it.status === 'active'
+          ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="invReject(${it.id})">✕ 거부</button>`
+          : `<button class="btn btn-success" style="padding:4px 10px;font-size:11px" onclick="invApprove(${it.id})">✓ 복구</button>`}
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red)" onclick="invHardDelete(${it.id})" title="완전 삭제">🗑</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function invToggleHighlight(id, val) {
+  await invUpdate({ id, highlight: val });
+  invLoad(_invPage);
+}
+async function invReject(id) {
+  if (!confirm('이 항목을 거부 처리하시겠습니까? (소프트 삭제 — 복구 가능)')) return;
+  await invUpdate({ id, status: 'rejected' });
+  invLoad(_invPage);
+}
+async function invApprove(id) {
+  await invUpdate({ id, status: 'active', _from_pending: true });
+  invLoad(_invPage);
+}
+async function invHardDelete(id) {
+  if (!confirm('완전 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+  const r = await fetch('/api/admin?action=delete-investment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+    body: JSON.stringify({ id, hard: true }),
+  });
+  if (r.ok) { showToast('삭제 완료', 'success'); invLoad(_invPage); }
+  else showToast('삭제 실패', 'error');
+}
+async function invUpdate(body) {
+  const r = await fetch('/api/admin?action=update-investment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) showToast('업데이트 실패', 'error');
+}
+
+async function invExtractNow() {
+  document.getElementById('invStatusBox').textContent = '🔄 추출 중... (수십초 소요)';
+  try {
+    const r = await fetch('/api/admin?action=extract-investments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({ since_hours: 168, max: 50 }),
+    });
+    const j = await r.json();
+    document.getElementById('invStatusBox').textContent =
+      `✅ 완료 — 스캔 ${j.scanned}건 / 신규 ${j.new} / 업데이트 ${j.updated} / 스킵 ${j.skipped}${j.errors?.length ? ' / 오류 ' + j.errors.length : ''}`;
+    invLoad(1);
+  } catch (e) {
+    document.getElementById('invStatusBox').textContent = '❌ 실패: ' + e.message;
+  }
+}
+async function invDartPoll() {
+  document.getElementById('invStatusBox').textContent = '🔄 DART 폴링 중...';
+  try {
+    const r = await fetch('/api/admin?action=dart-poll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({ days: 7 }),
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      document.getElementById('invStatusBox').textContent = '❌ ' + (j.error || 'DART 실패');
+    } else {
+      document.getElementById('invStatusBox').textContent =
+        `✅ DART — 스캔 ${j.scanned} / 신규 ${j.new} / 업데이트 ${j.updated} / 스킵 ${j.skipped} (${j.period})`;
+      invLoad(1);
+    }
+  } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
+}
+async function invSec13fPoll() {
+  document.getElementById('invStatusBox').textContent = '🔄 SEC 13F 폴링 중... (느릴 수 있음)';
+  try {
+    const r = await fetch('/api/admin?action=sec-13f-poll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({}),
+    });
+    const j = await r.json();
+    document.getElementById('invStatusBox').textContent =
+      `✅ 13F — fetched ${j.fetched} / 신규 ${j.new} / 업데이트 ${j.updated}${j.errors?.length ? ' / 오류 ' + j.errors.length : ''}`;
+    invLoad(1);
+  } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
+}
+
+async function invLoadChart() {
+  const ticker = document.getElementById('invChartTicker').value;
+  const hint = document.getElementById('invChartHint');
+  if (!ticker) { hint.textContent = '상단의 티커를 선택하면 추출 이벤트 누적 추이가 표시됩니다.'; return; }
+  hint.textContent = '로딩 중...';
+
+  try {
+    const r = await fetch('/api/admin?action=investment-events&ticker=' + encodeURIComponent(ticker));
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'fetch failed');
+
+    const series = j.series || [];
+    if (!series.length) {
+      hint.textContent = '이 티커의 이벤트가 아직 없습니다.';
+      if (_invChart) { _invChart.destroy(); _invChart = null; }
+      return;
+    }
+
+    const palette = ['#0066cc','#e31937','#00873a','#7c3aed','#b8860b','#06b6d4','#ec4899','#f97316','#84cc16','#a855f7'];
+    const datasets = series.slice(0, 10).map((s, i) => ({
+      label: s.target,
+      data: s.points.map(p => ({ x: p.t, y: p.cumulative })),
+      borderColor: palette[i % palette.length],
+      backgroundColor: palette[i % palette.length] + '22',
+      borderWidth: 2, pointRadius: 3, tension: 0.2, stepped: 'before',
+    }));
+
+    const ctx = document.getElementById('invChart');
+    if (_invChart) _invChart.destroy();
+    _invChart = new Chart(ctx, {
+      type: 'line',
+      data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#4b4b52', boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            backgroundColor: '#fff', borderColor: '#e5e5ea', borderWidth: 1,
+            titleColor: '#0a0a0a', bodyColor: '#4b4b52',
+            callbacks: {
+              title: (items) => new Date(items[0].parsed.x).toLocaleString('ko-KR'),
+              label: (item) => `${item.dataset.label}: ${item.parsed.y}회`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { unit: 'day', displayFormats: { day: 'MM/dd' } },
+            ticks: { color: '#86868b', font: { size: 10 } },
+            grid: { color: '#e5e5ea' },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#86868b', font: { size: 10 }, stepSize: 1 },
+            grid: { color: '#e5e5ea' },
+            title: { display: true, text: '누적 추출 횟수', color: '#4b4b52', font: { size: 11 } },
+          },
+        },
+      },
+    });
+    hint.textContent = `${ticker}: ${series.length}개 대상, 총 ${j.events.length}개 이벤트`;
+  } catch (e) {
+    hint.textContent = '❌ ' + e.message;
+  }
+}
+
+if (typeof escAttr !== 'function') {
+  window.escAttr = function(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
 }
 </script>
 </body>
