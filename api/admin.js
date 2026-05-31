@@ -74,6 +74,13 @@ async function handleSummary(req, res) {
       date: r.entry_date,
     }));
 
+    // 전략적 투자/지분 컨텍스트 주입 (AI/우주/로봇 등 미래 테마 노출도 고려)
+    let strategicCtx = null;
+    try {
+      const mod = await import('../lib/strategic-investments.js');
+      strategicCtx = mod.formatBetsForPrompt(ticker);
+    } catch {}
+
     const prompt = `당신은 주식 분석 전문가입니다. 아래 회사에 대해 한국 투자자를 위한 종합 분석 보고서를 작성하세요.
 
 회사 정보:
@@ -82,19 +89,24 @@ async function handleSummary(req, res) {
 - 영문명: ${company.name_en || '없음'}
 - 시장: ${company.market === 'KR' ? '한국' : '미국'}
 
+${strategicCtx ? `🎯 전략적 투자/지분 (본업 외 미래 성장축 — 매우 중요):\n${strategicCtx}\n\n이 정보는 주가 선반영 논리의 핵심 단서입니다. 예: SK텔레콤이 Anthropic에 투자했다면 Claude(AI) 성공 → SKT 주가 선반영. 종합 근거(thesis)와 전략적 노출(strategic_exposure) 작성 시 반드시 반영.\n` : ''}
 최근 AI 분석들 (${analyses.length}건):
 ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   - 섹터: ${a.sector||'미분류'}, 예상 상승: ${a.upside??'?'}%, 신뢰도: ${a.confidence??'?'}%\n   - 근거: ${a.rationale.slice(0, 200)}`).join('\n')}
 
 다음 JSON만 반환하세요 (다른 텍스트 없이):
 {
   "overview": "회사 개요 - 어떤 사업을 하는지, 주력 제품/서비스, 시장 점유율 (2-3문장, 150자 내외)",
-  "thesis": "현재 매수 후보로 거론되는 종합 근거 (위 분석들 통합) (2-3문장, 200자 내외)",
+  "thesis": "현재 매수 후보로 거론되는 종합 근거 (위 분석들 + 전략적 투자 통합) (2-3문장, 200자 내외)",
+  "strategic_exposure": "본업 외 보유한 전략적 지분/투자로 인한 간접 노출 (예: 'Anthropic 지분 보유 → Claude AI 성공이 주가에 선반영 중'). 해당 없으면 빈 문자열. (1-3문장, 250자 내외)",
   "key_risks": ["주요 리스크 1", "주요 리스크 2"],
-  "competitive_position": "시장 내 경쟁 우위 또는 약점 (1-2문장)",
-  "watch_points": ["주시 포인트 1", "주시 포인트 2"]
+  "competitive_position": "시장 내 경쟁 우위 또는 약점 — 전략적 투자가 만든 차별화 포지션 포함 (1-2문장)",
+  "watch_points": ["주시 포인트 1 — 전략적 지분 가치를 끌어올릴 만한 이벤트 1개 이상 포함", "주시 포인트 2"]
 }
 
-규칙: 사실 기반, 한국어, 객관적, 추측 금지.`;
+규칙:
+- 사실 기반, 한국어, 객관적, 추측 금지
+- 위에 제공된 "전략적 투자/지분" 정보가 있다면 thesis와 strategic_exposure에 반드시 활용 (특히 ⭐ 표시된 항목)
+- 전략적 투자 정보가 없으면 strategic_exposure는 빈 문자열 ""로 반환`;
 
     const msg = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',

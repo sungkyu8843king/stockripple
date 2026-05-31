@@ -197,11 +197,37 @@ async function sendNotify(message, req) {
 }
 
 async function analyzeIssue(issue) {
+  // 전략적 투자 노출 컨텍스트: 이슈의 섹터·제목·요약에서 키워드 뽑아 관련 상장사 후보 제시
+  let strategicCtx = '';
+  try {
+    const mod = await import('../lib/strategic-investments.js');
+    // 이슈에서 테마 키워드 후보 추출
+    const haystack = `${issue.title || ''} ${issue.summary || ''} ${(issue.sectors || []).join(' ')}`.toLowerCase();
+    const THEME_KEYWORDS = [
+      'ai', '인공지능', 'llm', 'gpt', 'claude', 'anthropic', 'openai', 'gemini', 'grok',
+      '반도체', 'hbm', 'gpu', '메모리', '파운드리',
+      '로봇', '휴머노이드', 'boston dynamics', 'optimus',
+      '자율주행', 'waymo', 'robotaxi', '로보택시',
+      '우주', '위성', 'spacex', 'starlink', 'kuiper',
+      '바이오', 'cdmo', '의약품',
+      'ev', '전기차', '배터리', 'ess',
+      '원자력', 'smr', '데이터센터',
+      '클라우드', 'saas',
+      'xr', 'vr', 'ar', '메타버스',
+      '핀테크',
+    ];
+    const matched = THEME_KEYWORDS.filter(k => haystack.includes(k));
+    if (matched.length) {
+      const formatted = mod.formatThemeBetsForPrompt(matched, 12);
+      if (formatted) strategicCtx = `\n\n🎯 ${formatted}\n주의: 위 상장사들 중 뉴스 테마와 정말 부합하는 곳은 적극 포함시키되, "지분 보유 → 선반영" 논리는 rationale에 명시할 것. 단순 나열 금지.`;
+    }
+  } catch {}
+
   const prompt = `당신은 글로벌 주식시장 분석 전문가입니다. 다음 뉴스/이슈를 분석하여 파급효과와 수혜 기업을 찾아주세요.
 
 이슈 제목: ${issue.title}
 요약: ${issue.summary || '없음'}
-관련 섹터: ${issue.sectors?.join(', ') || '미분류'}
+관련 섹터: ${issue.sectors?.join(', ') || '미분류'}${strategicCtx}
 
 다음 형식으로 JSON만 반환하세요 (다른 텍스트 없이):
 {
@@ -273,6 +299,15 @@ async function analyzeIssue(issue) {
 - 시스템이 자동으로 PE/PB/ROE/부채비율/유동비율/매출성장 데이터를 가져와 confidence를 조정합니다
 - 적자 기업이나 부채비율 3+인 부실 기업은 가능한 한 회피 (테마주/모멘텀 이슈가 명확하지 않은 경우)
 - 동일 섹터 내에서는 펀더멘털 우수 기업 우선 (단, 뉴스 임팩트가 압도적이면 예외 OK)
+
+⭐ 전략적 투자/지분 기반 간접 수혜 (선반영 논리):
+- 본업이 다른 분야인데 해당 테마 기업에 지분/투자를 보유한 경우도 적극 발굴하세요
+  · 예: SK텔레콤 → Anthropic 투자 보유 → Claude(AI) 성공 시 주가 선반영
+  · 예: 알파벳·아마존 → Anthropic 투자 → Claude 매출 성장 직접 수혜
+  · 예: 마이크로소프트 → OpenAI 투자 → GPT 성장 시 수혜
+  · 예: 현대차 → Boston Dynamics 80% 지분 → 휴머노이드 로봇 테마 직접 수혜
+- 이런 종목은 rationale에 "OO에 지분 보유 → 선반영" 논리를 한 줄로 명시 (예: "Anthropic 지분 보유 — Claude 성공 시 SOTP 가치 재평가")
+- 위에 ⭐ 표시된 항목은 가장 강한 연결고리. 우선 검토
 
 ⭐ 회사명 정확성 (매우 중요 - 환각 금지):
 - name_en은 회사의 정식 영문 법인명 (예: LRCX → "Lam Research", AVGO → "Broadcom")

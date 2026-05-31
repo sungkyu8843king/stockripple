@@ -736,6 +736,15 @@ async function loadAiSummary(ticker, displayName) {
           <div class="ai-block-text">${escHtml(d.thesis)}</div>
         </div>` : ''}
 
+        ${d.strategic_exposure && d.strategic_exposure.trim() ? `
+        <div class="ai-block" style="background:linear-gradient(135deg,rgba(124,58,237,0.06),rgba(0,102,204,0.04));border:1px solid rgba(124,58,237,0.20);border-radius:14px;padding:14px 16px;margin-top:4px">
+          <div class="ai-block-label" style="color:#7c3aed;display:flex;align-items:center;gap:6px">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#7c3aed"></span>
+            🌟 전략적 노출 · 선반영 논리
+          </div>
+          <div class="ai-block-text" style="margin-top:6px">${escHtml(d.strategic_exposure)}</div>
+        </div>` : ''}
+
         ${d.competitive_position ? `
         <div class="ai-block">
           <div class="ai-block-label">🎯 시장 포지션</div>
