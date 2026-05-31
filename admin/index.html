@@ -409,6 +409,7 @@ tr:hover td { background: var(--bg3); }
         <button class="btn btn-ghost"   onclick="invSec13fPoll()">🇺🇸 SEC 13F 폴링</button>
         <button class="btn btn-ghost"   onclick="invDartSyncCorpCodes()" title="DART corp_code 자동 동기화 (Vercel→한국 네트워크 느려서 timeout 가능)">🔗 DART 자동 동기화</button>
         <button class="btn btn-ghost"   onclick="invDartUploadCorpCodes()" title="자동 동기화 timeout 시 한국에서 직접 받은 CSV를 붙여넣기">📥 DART CSV 업로드</button>
+        <button class="btn btn-ghost"   onclick="invVerifyKrNames()" title="DART 공식 회사명과 DB 이름 대조 → 자동 보정">🇰🇷 KR 종목명 검증·보정</button>
         <span style="flex:1"></span>
         <select id="invStatusFilter" onchange="invLoad()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
           <option value="active">활성</option>
@@ -1680,6 +1681,27 @@ async function invDartUploadCorpCodes() {
       document.getElementById('invStatusBox').textContent =
         `✅ CSV 적용 완료 — 매핑 ${j.mapping_size}개 / KR 종목 ${j.total_kr_companies} / 업데이트 ${j.updated} / 기존 일치 ${j.alreadySet} / 매핑 없음 ${j.notFound}`;
     }
+  } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
+}
+
+async function invVerifyKrNames() {
+  const mode = confirm('Dry-run으로 먼저 확인할까요?\n\n[확인] dry-run (DB 변경 없이 불일치만 표시)\n[취소] 실제 적용 (DART 공식명으로 자동 보정)');
+  document.getElementById('invStatusBox').textContent = '🔄 DART 공식명과 대조 중... (KR 종목 수에 비례 — 30초~)';
+  try {
+    const r = await fetch('/api/admin?action=verify-kr-names', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({ dry_run: mode }),
+    });
+    const j = await r.json();
+    if (!r.ok) { document.getElementById('invStatusBox').textContent = '❌ ' + (j.error || '검증 실패'); return; }
+    let msg = `✅ ${j.dry_run ? '[DRY-RUN]' : '[실제 적용]'} 스캔 ${j.scanned} / 일치 ${j.matches} / 불일치 ${j.mismatches} / 수정 ${j.fixed} / 오류 ${j.errors}`;
+    if (j.samples?.length) {
+      msg += '<br><br><b>불일치 예시:</b><br><div style="font-size:11px;font-family:monospace;background:var(--bg3);padding:8px;border-radius:6px;max-height:200px;overflow-y:auto">' +
+        j.samples.map(s => `${s.ticker}: <span style="color:var(--red)">"${escAttr(s.db_name_ko)}"</span> → <span style="color:var(--green)">"${escAttr(s.dart_name_ko)}"</span>`).join('<br>') +
+        '</div>';
+    }
+    document.getElementById('invStatusBox').innerHTML = msg;
   } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
 }
 

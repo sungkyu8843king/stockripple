@@ -13,6 +13,7 @@
  *  POST /api/admin?action=sec-13f-poll        → SEC EDGAR 13F 폴링 (미국 헤지펀드 보유)
  *  POST /api/admin?action=dart-sync-corp-codes → DART corpCode.xml.zip 다운로드 & companies 매핑 (느릴 수 있음)
  *  POST /api/admin?action=dart-upload-corp-codes → CSV 수동 업로드 (Vercel→한국 네트워크 느릴 때 fallback)
+ *  POST /api/admin?action=verify-kr-names → DART corp_code 기반 KR 종목명 검증 + 자동 수정
  *  GET  /api/admin?action=dart-company-detail&ticker=005930.KS → DART 상세 (주주/임원/재무)
  */
 import Anthropic from '@anthropic-ai/sdk';
@@ -63,6 +64,7 @@ export default async function handler(req, res) {
   if (action === 'sec-13f-poll')        return handleSec13fPoll(req, res);
   if (action === 'dart-sync-corp-codes') return handleDartSyncCorpCodes(req, res);
   if (action === 'dart-upload-corp-codes') return handleDartUploadCorpCodes(req, res);
+  if (action === 'verify-kr-names') return handleVerifyKrNames(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -1182,4 +1184,70 @@ async function handleDartUploadCorpCodes(req, res) {
     mapping_size: mappingSize,
     updated, alreadySet, notFound,
   });
+}
+
+// ════════════════════════════════════════════════════════════
+// 15) KR 종목명 일괄 검증 (DART 공식 회사명 vs DB 이름 대조)
+// ════════════════════════════════════════════════════════════
+// 우리 companies 테이블의 KR 종목들에 대해, DART에 등록된 공식 corp_name을 가져와서
+// name_ko와 다르면 자동 보정. 잘못된 ticker→name 매핑(예: 001200.KS=삼성전기 같은 오류) 해결.
+async function handleVerifyKrNames(req, res) {
+  const apiKey = process.env.DART_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'DART_API_KEY env not set' });
+  const dryRun = req.body?.dry_run === true;
+
+  const { data: krCompanies, error: listErr } = await supabase
+    .from('companies')
+    .select('id, ticker, name_ko, name_en, dart_corp_code')
+    .eq('market', 'KR')
+    .not('dart_corp_code', 'is', null);
+  if (listErr) return res.status(500).json({ error: listErr.message });
+
+  const results = { scanned: 0, matches: 0, mismatches: 0, fixed: 0, errors: 0, samples: [] };
+
+  // 동시성 8로 제한해서 DART에 너무 많이 안 두드리게
+  const CONCURRENCY = 8;
+  for (let i = 0; i < krCompanies.length; i += CONCURRENCY) {
+    const batch = krCompanies.slice(i, i + CONCURRENCY);
+    await Promise.all(batch.map(async (c) => {
+      try {
+        const url = `https://opendart.fss.or.kr/api/company.json?crtfc_key=${apiKey}&corp_code=${c.dart_corp_code}`;
+        const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) { results.errors++; return; }
+        const j = await r.json();
+        if (j.status !== '000') { results.errors++; return; }
+
+        results.scanned++;
+        const officialName = (j.corp_name || '').trim();
+        const officialEn = (j.corp_name_eng || '').trim();
+        if (!officialName) return;
+
+        if (officialName === (c.name_ko || '').trim()) {
+          results.matches++;
+          return;
+        }
+
+        // 불일치 발견
+        results.mismatches++;
+        if (results.samples.length < 30) {
+          results.samples.push({
+            ticker: c.ticker,
+            db_name_ko: c.name_ko,
+            db_name_en: c.name_en,
+            dart_name_ko: officialName,
+            dart_name_en: officialEn,
+          });
+        }
+
+        if (!dryRun) {
+          const update = { name_ko: officialName };
+          if (officialEn) update.name_en = officialEn;
+          const { error: upErr } = await supabase.from('companies').update(update).eq('id', c.id);
+          if (!upErr) results.fixed++;
+        }
+      } catch { results.errors++; }
+    }));
+  }
+
+  return res.status(200).json({ ok: true, dry_run: dryRun, ...results });
 }
