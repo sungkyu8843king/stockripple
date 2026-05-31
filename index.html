@@ -1619,21 +1619,71 @@ document.querySelectorAll('[data-sector]').forEach(btn => {
   });
 });
 
-// 검색창에 티커 입력 후 Enter → 직접 조회 (DB 없으면 Yahoo에서 자동 등록)
-function tryDirectLookup(input) {
-  const raw = (input || '').trim().toUpperCase();
+// 검색창에 입력 후 Enter → 직접 조회
+// 1) 티커 패턴이면 바로 종목 페이지로
+// 2) 한글/영문 회사명이면 companies 테이블에서 매칭 (단일/다중 결과 처리)
+// 3) 그래도 안 잡히면 일반 이슈 검색
+async function tryDirectLookup(input) {
+  const raw = (input || '').trim();
   if (!raw) return;
-  // 티커 패턴: 영문 대문자 1-6자 + 선택적 .KS/.KQ
+  const upper = raw.toUpperCase();
   const tickerPattern = /^[A-Z][A-Z0-9.\-]{0,9}$/;
-  const isKrTicker    = /^\d{6}\.K[SQ]$/i.test(raw);
-  const isUsTicker    = tickerPattern.test(raw) && !/^\d/.test(raw);
+  const isKrTicker    = /^\d{6}\.K[SQ]$/i.test(upper);
+  const isUsTicker    = tickerPattern.test(upper) && !/^\d/.test(upper);
+  const isKrCode6     = /^\d{6}$/.test(upper);   // 6자리 숫자만 — KS 자동 부착
 
   if (isKrTicker || isUsTicker) {
-    location.href = `/company.html?ticker=${encodeURIComponent(raw)}`;
+    location.href = `/company.html?ticker=${encodeURIComponent(upper)}`;
     return;
   }
-  // 티커 패턴 아니면 일반 검색 (이슈 필터링 그대로 동작)
-  showToast(`"${input}" 검색 중... 티커는 영문 대문자만 (예: AAPL, NVDA, 005930.KS)`, 'info');
+  if (isKrCode6) {
+    location.href = `/company.html?ticker=${encodeURIComponent(upper + '.KS')}`;
+    return;
+  }
+
+  // 회사명 검색 (한글/영문)
+  showToast(`"${raw}" 검색 중...`, 'info');
+  try {
+    const safe = raw.replace(/[%_'"\\]/g, '');
+    const { data: matches } = await sb
+      .from('companies')
+      .select('ticker, name_ko, name_en, market')
+      .or(`name_ko.ilike.%${safe}%,name_en.ilike.%${safe}%`)
+      .limit(8);
+
+    if (matches?.length === 1) {
+      location.href = `/company.html?ticker=${encodeURIComponent(matches[0].ticker)}`;
+      return;
+    }
+    if (matches?.length > 1) {
+      // 정확 매칭 우선
+      const exact = matches.find(m =>
+        m.name_ko === raw || m.name_en?.toLowerCase() === raw.toLowerCase()
+      );
+      if (exact) {
+        location.href = `/company.html?ticker=${encodeURIComponent(exact.ticker)}`;
+        return;
+      }
+      // 여러 개면 선택 다이얼로그
+      const list = matches.map((m, i) => `${i+1}. ${m.name_ko || m.name_en} (${m.ticker})`).join('\n');
+      const pick = prompt(`"${raw}" 검색 결과 ${matches.length}건:\n\n${list}\n\n번호 입력:`, '1');
+      const idx = parseInt(pick, 10) - 1;
+      if (idx >= 0 && idx < matches.length) {
+        location.href = `/company.html?ticker=${encodeURIComponent(matches[idx].ticker)}`;
+        return;
+      }
+      return;
+    }
+
+    // 매칭 없음 → 일반 이슈 검색으로 fallback
+    showToast(`"${raw}" 종목 매칭 없음 — 이슈 제목에서 검색`, 'info');
+    document.getElementById('searchInput').value = raw;
+    searchQuery = raw;
+    currentPage = 1;
+    loadIssues();
+  } catch (e) {
+    showToast('검색 실패: ' + e.message, 'error');
+  }
 }
 
 let searchTimeout;
