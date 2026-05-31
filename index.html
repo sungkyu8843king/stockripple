@@ -1216,13 +1216,27 @@ async function loadIssues() {
     query = query.or(catFilters[currentCategory]);
   }
 
+  // 전체 카운트를 위한 병렬 쿼리 (조인 없이 issues 테이블만, 동일 필터 적용)
+  let countQuery = sb.from('issues')
+    .select('id', { count: 'exact', head: true })
+    .eq('is_analyzed', true);
+  if (currentSector !== 'all') countQuery = countQuery.contains('sectors', [currentSector]);
+  if (searchQuery) countQuery = countQuery.ilike('title', `%${searchQuery}%`);
+  if (currentCategory !== 'all' && catFilters[currentCategory]) {
+    countQuery = countQuery.or(catFilters[currentCategory]);
+  }
+
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 15000);
   let data, error;
   try {
-    ({ data, error } = await query
-      .abortSignal(ac.signal)
-      .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1));
+    const [pageRes, countRes] = await Promise.all([
+      query.abortSignal(ac.signal)
+           .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1),
+      countQuery,
+    ]);
+    ({ data, error } = pageRes);
+    if (typeof countRes?.count === 'number') totalCount = countRes.count;
   } catch (e) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">💤</div><p class="empty-title">DB 응답 없음</p><p class="empty-sub">Supabase DB가 슬립 상태일 수 있습니다. 잠시 후 다시 시도해주세요.</p><button class="empty-btn" onclick="loadIssues()">다시 시도</button></div>`;
     return;
@@ -1360,6 +1374,9 @@ function renderPagination() {
 function changePage(p) {
   currentPage = p;
   loadIssues();
+  // 페이지 이동 시 이슈 섹션 상단으로 스크롤
+  const issuesTop = document.getElementById('issuesContainer');
+  if (issuesTop) issuesTop.scrollIntoView({ behavior: 'smooth', block: 'start' });
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
