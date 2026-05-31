@@ -115,7 +115,7 @@ tr:hover td { background: var(--bg3); }
 .badge-green { background: var(--green-dim); color: var(--green); }
 .badge-yellow { background: rgba(184,134,11,0.12); color: var(--yellow); }
 .badge-red { background: var(--red-dim); color: var(--red); }
-.badge-blue { background: #1f4d8a; color: #79c0ff; }
+.badge-blue { background: var(--blue-dim); color: var(--blue); }
 .badge-gray { background: var(--bg3); color: var(--text2); }
 .ticker-cell { font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 700; color: var(--blue); }
 .truncate { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1360,7 +1360,7 @@ function renderBacktest(d) {
   // 위너/루저 테이블
   const renderTickerRow = t => `
     <tr>
-      <td><code style="color:${t.market === 'KR' ? '#64c8ea' : '#79c0ff'};font-size:11px">${escHtml(t.ticker)}</code></td>
+      <td><code style="color:${t.market === 'KR' ? '#0066cc' : '#7c3aed'};font-size:11px">${escHtml(t.ticker)}</code></td>
       <td style="font-size:12px">${escHtml(t.name)}</td>
       <td>${t.n}</td>
       <td style="color:${retColor(t.avg)}">${fmtPctVal(t.avg)}</td>

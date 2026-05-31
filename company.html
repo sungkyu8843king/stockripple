@@ -130,22 +130,23 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 
 /* AI Summary */
 .ai-summary-card {
-  background: linear-gradient(135deg, rgba(0,102,204,0.08) 0%, rgba(0,102,204,0.02) 100%);
-  border: 1px solid rgba(0,102,204,0.18);
-  border: 1px solid #2d4a7a; border-radius: 12px; padding: 22px; margin-bottom: 24px;
+  background: linear-gradient(135deg, rgba(0,102,204,0.06) 0%, rgba(0,102,204,0.015) 100%);
+  border: 1px solid rgba(0,102,204,0.20);
+  border-radius: var(--r-lg, 20px); padding: 22px; margin-bottom: 24px;
+  box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.04));
 }
-.ai-badge-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.ai-badge-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .ai-badge { font-size: 11px; color: #0066cc; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
-.ai-dot { width: 6px; height: 6px; border-radius: 50%; background: #0066cc; animation: pulse 2s infinite; }
+.ai-dot { width: 7px; height: 7px; border-radius: 50%; background: #0066cc; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-.ai-block { margin-bottom: 14px; }
+.ai-block { margin-bottom: 16px; }
 .ai-block:last-child { margin-bottom: 0; }
-.ai-block-label { font-size: 11px; color: var(--text3); font-weight: 600; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
-.ai-block-text { font-size: 14px; line-height: 1.65; color: #c9d1d9; }
+.ai-block-label { font-size: 12px; color: var(--text2); font-weight: 700; margin-bottom: 6px; letter-spacing: 0.2px; }
+.ai-block-text { font-size: 14px; line-height: 1.7; color: var(--text); }
 .ai-risks { display: flex; flex-direction: column; gap: 6px; }
-.ai-risk-item { font-size: 13px; color: #f0b429; line-height: 1.5; padding-left: 16px; position: relative; }
+.ai-risk-item { font-size: 13.5px; color: #a25b00; line-height: 1.55; padding-left: 18px; position: relative; font-weight: 500; }
 .ai-risk-item::before { content: '⚠️'; position: absolute; left: -2px; }
-.ai-watch-item { font-size: 13px; color: #00873a; line-height: 1.5; padding-left: 16px; position: relative; }
+.ai-watch-item { font-size: 13.5px; color: #006b2e; line-height: 1.55; padding-left: 18px; position: relative; font-weight: 500; }
 .ai-watch-item::before { content: '👁'; position: absolute; left: -2px; }
 
 /* Trade box */
@@ -284,7 +285,7 @@ function renderLineChart(data) {
   const first = values[0];
   const last = currentPrice || values[values.length - 1];
   const isUp = last >= first;
-  const lineColor = isUp ? '#3fb950' : '#f85149';
+  const lineColor = isUp ? '#00873a' : '#e31937';
 
   if (_lineChart) { _lineChart.destroy(); _lineChart = null; }
   _lineChart = new Chart(ctx, {
@@ -300,8 +301,8 @@ function renderLineChart(data) {
         fill: true,
         backgroundColor: (ctx2) => {
           const g = ctx2.chart.ctx.createLinearGradient(0, 0, 0, ctx2.chart.height);
-          g.addColorStop(0, isUp ? 'rgba(63,185,80,0.25)' : 'rgba(248,81,73,0.25)');
-          g.addColorStop(1, 'rgba(0,0,0,0)');
+          g.addColorStop(0, isUp ? 'rgba(0,135,58,0.18)' : 'rgba(227,25,55,0.18)');
+          g.addColorStop(1, 'rgba(255,255,255,0)');
           return g;
         },
       }]
@@ -322,24 +323,24 @@ function renderLineChart(data) {
               return ' ' + fmt.format(v);
             }
           },
-          backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1,
-          titleColor: '#8b949e', bodyColor: '#e6edf3',
+          backgroundColor: '#ffffff', borderColor: '#e5e5ea', borderWidth: 1,
+          titleColor: '#4b4b52', bodyColor: '#0a0a0a',
         }
       },
       scales: {
         x: {
           ticks: {
-            color: '#8b949e', font: { size: 10 }, maxTicksLimit: 6,
+            color: '#4b4b52', font: { size: 10 }, maxTicksLimit: 6,
             callback(val, i) { return labels[i]?.slice(5); }
           },
-          grid: { color: '#21262d' }
+          grid: { color: '#e5e5ea' }
         },
         y: {
           ticks: {
-            color: '#8b949e', font: { size: 10 },
+            color: '#4b4b52', font: { size: 10 },
             callback: v => currency === 'KRW' ? v.toLocaleString('ko-KR') : v.toFixed(0)
           },
-          grid: { color: '#21262d' }
+          grid: { color: '#e5e5ea' }
         }
       }
     }
@@ -495,7 +496,8 @@ function renderPage(company, records, priceData) {
     <!-- 펀더멘털 (밸류에이션/수익성/재무 안정성/실적) -->
     <div id="fundamentalsWrap"></div>
 
-    <!-- TradingView 캔들 차트 + 거래량 -->
+    <!-- TradingView 캔들 차트 + 거래량 (미장만 제공) -->
+    ${isKr ? '' : `
     <div class="tv-wrap">
       <div class="tv-header">
         <div class="section-title" style="margin:0;padding:0">
@@ -511,6 +513,7 @@ function renderPage(company, records, priceData) {
       </div>
       <iframe id="tvFrame" class="tv-frame" src="" loading="lazy"></iframe>
     </div>
+    `}
 
     <!-- 라인 차트 (기존) -->
     <div class="chart-section">
@@ -556,9 +559,11 @@ function renderPage(company, records, priceData) {
 
   document.getElementById('pageWrap').innerHTML = html;
 
-  // TradingView 차트 로드
-  _tvSymbol = buildTvSymbol(ticker, company.market);
-  loadTradingView('D');
+  // TradingView 차트 로드 (미장만 — KRX는 TradingView 무료 임베드에서 미지원)
+  if (!isKr) {
+    _tvSymbol = buildTvSymbol(ticker, company.market);
+    loadTradingView('D');
+  }
 
   // 매매 정보 (rationale [TRADE] 마커)
   renderTradeBox(records);
@@ -601,7 +606,7 @@ function loadTradingView(interval) {
   if (!frame || !_tvSymbol) return;
   const sym = encodeURIComponent(_tvSymbol);
   // hide_side_toolbar=0 → 거래량/지표 도구 표시
-  frame.src = `https://www.tradingview.com/widgetembed/?symbol=${sym}&interval=${interval}&theme=dark&style=1&timezone=Asia%2FSeoul&locale=kr&hide_side_toolbar=0&allow_symbol_change=0&studies=Volume%40tv-basicstudies&save_image=0`;
+  frame.src = `https://www.tradingview.com/widgetembed/?symbol=${sym}&interval=${interval}&theme=light&style=1&timezone=Asia%2FSeoul&locale=kr&hide_side_toolbar=0&allow_symbol_change=0&studies=Volume%40tv-basicstudies&save_image=0`;
 }
 
 function setTvInterval(interval, btn) {
@@ -647,7 +652,7 @@ function renderTradeBox(records) {
       </div>
     </div>
     ${trade.th ? `<div style="font-size:13px;color:#00873a;margin-bottom:6px;line-height:1.55"><b>💡 매수 근거:</b> ${escHtml(trade.th)}</div>` : ''}
-    ${trade.rk ? `<div style="font-size:13px;color:#f0b429;margin-bottom:16px;line-height:1.55"><b>⚠️ 리스크:</b> ${escHtml(trade.rk)}</div>` : ''}
+    ${trade.rk ? `<div style="font-size:13px;color:#a25b00;margin-bottom:16px;line-height:1.55;font-weight:500"><b>⚠️ 리스크:</b> ${escHtml(trade.rk)}</div>` : ''}
   `;
 }
 
