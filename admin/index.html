@@ -527,10 +527,11 @@ tr:hover td { background: var(--bg3); }
           <div class="stat-card"><div class="stat-label">총 거래</div><div class="stat-value blue" id="btTrades">—</div></div>
           <div class="stat-card"><div class="stat-label">승률</div><div class="stat-value green" id="btWinRate">—</div></div>
           <div class="stat-card"><div class="stat-label">평균 수익률</div><div class="stat-value yellow" id="btAvgRet">—</div></div>
-          <div class="stat-card"><div class="stat-label">누적 수익률</div><div class="stat-value green" id="btCumRet">—</div></div>
+          <div class="stat-card"><div class="stat-label">복리 누적 수익률</div><div class="stat-value green" id="btCumRet">—</div></div>
         </div>
-        <p style="font-size:11px;color:var(--text3);margin-top:10px">
-          ⚠️ 누적 수익률 = 모든 거래의 수익률 단순 합산 (이론치). 실제 투자에는 수수료/세금/슬리피지가 추가됨.
+        <p style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.55">
+          📐 <b>복리 누적</b> = 모든 추천을 동일 비중·순차 보유했을 때 자본 변화율 <code style="background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:10px">(1+r₁)(1+r₂)...(1+rₙ) - 1</code><br>
+          ⚠️ 실제 투자에는 수수료/세금/슬리피지/동시보유 제약 등이 추가됨. 단순 백테스트 지표이며 실현 수익을 보장하지 않음.
         </p>
       </div>
 
@@ -559,19 +560,26 @@ tr:hover td { background: var(--bg3); }
       <!-- 종목별 Top -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div class="card">
-          <div class="card-title">🏆 누적 수익률 TOP 10</div>
+          <div class="card-title">🏆 누적 수익 TOP 10 <span style="font-size:11px;color:var(--text3);font-weight:400">(거래 3회 이상)</span></div>
+          <div style="font-size:11px;color:var(--text3);padding:6px 12px 8px;line-height:1.5">
+            <b>거래수</b>: 동일 종목 추천 횟수 · <b>평균</b>: 7일 수익률 단순평균 ·
+            <b>누적</b>: <span style="color:var(--blue)">복리</span> 누적 수익률 (모든 거래를 동일 비중·순차 보유 시 자본 변화율)
+          </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>티커</th><th>이름</th><th>거래</th><th>평균</th><th>누적</th></tr></thead>
+              <thead><tr><th>티커</th><th>이름</th><th>거래</th><th>평균 (1회)</th><th>복리 누적</th></tr></thead>
               <tbody id="btWinnersTable"><tr><td colspan="5" class="loading-row">—</td></tr></tbody>
             </table>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">📉 누적 손실 BOTTOM 10</div>
+          <div class="card-title">📉 누적 손실 BOTTOM 10 <span style="font-size:11px;color:var(--text3);font-weight:400">(거래 3회 이상)</span></div>
+          <div style="font-size:11px;color:var(--text3);padding:6px 12px 8px;line-height:1.5">
+            ※ 단일 거래(n=1)는 노이즈로 제외 — 통계적 의미가 있는 3회 이상만 표시
+          </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>티커</th><th>이름</th><th>거래</th><th>평균</th><th>누적</th></tr></thead>
+              <thead><tr><th>티커</th><th>이름</th><th>거래</th><th>평균 (1회)</th><th>복리 누적</th></tr></thead>
               <tbody id="btLosersTable"><tr><td colspan="5" class="loading-row">—</td></tr></tbody>
             </table>
           </div>
@@ -1379,10 +1387,10 @@ function renderBacktest(d) {
   const bt = d.backtest || {};
   document.getElementById('btTrades').textContent = (bt.totalTrades || 0).toLocaleString();
   document.getElementById('btWinRate').textContent = `${bt.winRate || 0}%`;
-  document.getElementById('btAvgRet').textContent = bt.avgReturn != null ? `${bt.avgReturn > 0 ? '+' : ''}${bt.avgReturn}%` : '—';
+  document.getElementById('btAvgRet').textContent = fmtPctVal(bt.avgReturn);
   const cumColor = (bt.cumulativeReturn || 0) >= 0 ? 'var(--green)' : 'var(--red)';
   const cumEl = document.getElementById('btCumRet');
-  cumEl.textContent = bt.cumulativeReturn != null ? `${bt.cumulativeReturn > 0 ? '+' : ''}${Math.round(bt.cumulativeReturn)}%` : '—';
+  cumEl.textContent = fmtPctVal(bt.cumulativeReturn);
   cumEl.style.color = cumColor;
 
   // 신뢰도 버킷 테이블
@@ -1409,17 +1417,18 @@ function renderBacktest(d) {
     </tr>
   `).join('');
 
-  // 위너/루저 테이블
+  // 위너/루저 테이블 (복리 누적 기준)
   const renderTickerRow = t => `
     <tr>
       <td><code style="color:${t.market === 'KR' ? '#0066cc' : '#7c3aed'};font-size:11px">${escHtml(t.ticker)}</code></td>
       <td style="font-size:12px">${escHtml(t.name)}</td>
       <td>${t.n}</td>
       <td style="color:${retColor(t.avg)}">${fmtPctVal(t.avg)}</td>
-      <td style="color:${retColor(t.total)};font-weight:700">${fmtPctVal(t.total)}</td>
+      <td style="color:${retColor(t.compounded)};font-weight:700">${fmtPctVal(t.compounded)}</td>
     </tr>`;
-  document.getElementById('btWinnersTable').innerHTML = (bt.topWinners || []).map(renderTickerRow).join('') || '<tr><td colspan="5">—</td></tr>';
-  document.getElementById('btLosersTable').innerHTML  = (bt.topLosers  || []).map(renderTickerRow).join('') || '<tr><td colspan="5">—</td></tr>';
+  const emptyRow = `<tr><td colspan="5" style="color:var(--text3);text-align:center;padding:14px">3회 이상 추천된 종목이 부족합니다 (분석 누적 필요)</td></tr>`;
+  document.getElementById('btWinnersTable').innerHTML = (bt.topWinners || []).length ? bt.topWinners.map(renderTickerRow).join('') : emptyRow;
+  document.getElementById('btLosersTable').innerHTML  = (bt.topLosers  || []).length ? bt.topLosers.map(renderTickerRow).join('')  : emptyRow;
 
   // 기간별 비교
   const bp = bt.byPeriod || {};
@@ -1451,8 +1460,9 @@ function retColor(v) {
   return 'var(--text2)';
 }
 function fmtPctVal(v) {
-  if (v == null) return '—';
-  return (v > 0 ? '+' : '') + v + '%';
+  if (v == null || isNaN(v)) return '—';
+  const rounded = Math.round(v * 100) / 100;  // floating point 정리
+  return (rounded > 0 ? '+' : '') + rounded.toFixed(2) + '%';
 }
 
 // ═══════════════════════════════════════════════════════════════

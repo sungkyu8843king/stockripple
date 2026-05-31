@@ -344,21 +344,34 @@ async function handleStats(req, res) {
       };
       byTickerMap[t].returns.push(r.actual_return_7d);
     }
+    // 복리 누적 수익률 (1+r1)(1+r2)...(1+rn) - 1
+    // 단순 합산은 의미 없음 (46거래 × 22% = 1040% 같은 비현실적 수치)
+    const compound = (rets) => {
+      const v = rets.reduce((acc, r) => acc * (1 + (r || 0) / 100), 1) - 1;
+      return Math.round(v * 10000) / 100;  // % 소수 둘째자리
+    };
+    const r2 = (x) => x == null ? null : Math.round(x * 100) / 100;
+
+    const MIN_TRADES = 3;  // 표본 1-2개는 노이즈 → 제외
     const byTicker = Object.values(byTickerMap).map(t => ({
       ...t, n: t.returns.length,
-      avg: avg(t.returns),
-      total: t.returns.reduce((s, v) => s + v, 0),
+      avg:        r2(avg(t.returns)),
+      compounded: compound(t.returns),  // 복리 누적
     }));
-    const topWinners = [...byTicker].sort((a, b) => b.total - a.total).slice(0, 10);
-    const topLosers  = [...byTicker].sort((a, b) => a.total - b.total).slice(0, 10);
+    const significant = byTicker.filter(t => t.n >= MIN_TRADES);
+    const topWinners = [...significant].sort((a, b) => b.compounded - a.compounded).slice(0, 10);
+    const topLosers  = [...significant].sort((a, b) => a.compounded - b.compounded).slice(0, 10);
 
+    const verified7dRets = verified7d.map(r => r.actual_return_7d).filter(v => v != null);
     const backtest = {
       totalTrades: verified7d.length,
       winRate:     verified7d.length ? Math.round(winners.length / verified7d.length * 100) : 0,
-      avgReturn:   avg(verified7d.map(r => r.actual_return_7d)),
-      bestTrade:   verified7d.length ? Math.max(...verified7d.map(r => r.actual_return_7d)) : 0,
-      worstTrade:  verified7d.length ? Math.min(...verified7d.map(r => r.actual_return_7d)) : 0,
-      cumulativeReturn: verified7d.reduce((s, r) => s + r.actual_return_7d, 0),
+      avgReturn:   r2(avg(verified7dRets)),
+      bestTrade:   verified7dRets.length ? r2(Math.max(...verified7dRets)) : 0,
+      worstTrade:  verified7dRets.length ? r2(Math.min(...verified7dRets)) : 0,
+      // 복리 누적: 모든 거래를 동일 비중으로 순차 보유했을 때 자본 변화율
+      cumulativeReturn: compound(verified7dRets),
+      minTradesFilter: MIN_TRADES,
       byPeriod: {
         '1d':  periodStats(rows, '1d',  0.3),
         '7d':  periodStats(rows, '7d',  1.5),
