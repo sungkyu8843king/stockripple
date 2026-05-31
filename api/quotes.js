@@ -24,7 +24,7 @@ export default async function handler(req) {
   const param = searchParams.get('tickers') || '';
   const range = (searchParams.get('range') || '1d').toString();
   const interval = range === '1mo' ? '1d' : range === '5d' ? '1d' : '1d';
-  const tickers = param.split(',').map(t => t.trim()).filter(Boolean).slice(0, 40);
+  const tickers = param.split(',').map(t => t.trim()).filter(Boolean).slice(0, 80);
 
   if (!tickers.length) {
     return new Response(JSON.stringify({ ok: false, error: 'tickers required', data: {} }), {

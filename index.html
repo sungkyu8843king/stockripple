@@ -3021,18 +3021,38 @@ function renderEarningsCalTable(items) {
 // ─── 🔥 히트맵 ─────────────────────────────────────────────
 const HEATMAP_TICKERS = {
   us: [
+    // Mega cap (시총 1조+ )
     { t:'AAPL',  n:'Apple' },        { t:'MSFT',  n:'Microsoft' },   { t:'NVDA', n:'NVIDIA' },
     { t:'GOOGL', n:'Alphabet' },     { t:'AMZN',  n:'Amazon' },      { t:'META', n:'Meta' },
-    { t:'TSLA',  n:'Tesla' },        { t:'AVGO',  n:'Broadcom' },    { t:'LLY',  n:'Eli Lilly' },
-    { t:'JPM',   n:'JPMorgan' },     { t:'V',     n:'Visa' },        { t:'UNH',  n:'UnitedHealth' },
-    { t:'XOM',   n:'ExxonMobil' },   { t:'MA',    n:'Mastercard' },  { t:'HD',   n:'Home Depot' },
-    { t:'PG',    n:'P&G' },          { t:'COST',  n:'Costco' },      { t:'NFLX', n:'Netflix' },
-    { t:'AMD',   n:'AMD' },          { t:'PEP',   n:'PepsiCo' },     { t:'KO',   n:'Coca-Cola' },
-    { t:'BAC',   n:'Bank of America'},{t:'CSCO',  n:'Cisco' },       { t:'ORCL', n:'Oracle' },
-    { t:'TMO',   n:'Thermo Fisher' },{ t:'DIS',   n:'Disney' },      { t:'WMT',  n:'Walmart' },
-    { t:'CRM',   n:'Salesforce' },   { t:'MCD',   n:'McDonald\'s' }, { t:'ABBV', n:'AbbVie' },
+    { t:'TSLA',  n:'Tesla' },        { t:'AVGO',  n:'Broadcom' },    { t:'BRK-B',n:'Berkshire' },
+    { t:'LLY',   n:'Eli Lilly' },    { t:'JPM',   n:'JPMorgan' },    { t:'V',    n:'Visa' },
+    { t:'UNH',   n:'UnitedHealth' }, { t:'XOM',   n:'ExxonMobil' },  { t:'MA',   n:'Mastercard' },
+    { t:'WMT',   n:'Walmart' },      { t:'JNJ',   n:'Johnson&Johnson'},{t:'PG',   n:'P&G' },
+    { t:'ORCL',  n:'Oracle' },       { t:'COST',  n:'Costco' },      { t:'HD',   n:'Home Depot' },
+    // Tech & growth
+    { t:'AMD',   n:'AMD' },          { t:'NFLX',  n:'Netflix' },     { t:'CRM',  n:'Salesforce' },
+    { t:'ADBE',  n:'Adobe' },        { t:'CSCO',  n:'Cisco' },       { t:'INTC', n:'Intel' },
+    { t:'QCOM',  n:'Qualcomm' },     { t:'TXN',   n:'Texas Instr' }, { t:'MU',   n:'Micron' },
+    { t:'PLTR',  n:'Palantir' },     { t:'SNOW',  n:'Snowflake' },   { t:'NOW',  n:'ServiceNow' },
+    // Finance
+    { t:'BAC',   n:'BofA' },         { t:'WFC',   n:'Wells Fargo' }, { t:'GS',   n:'Goldman Sachs'},
+    { t:'MS',    n:'Morgan Stanley'},{ t:'BLK',   n:'BlackRock' },   { t:'AXP',  n:'AmEx' },
+    // Healthcare / Pharma
+    { t:'ABBV',  n:'AbbVie' },       { t:'MRK',   n:'Merck' },       { t:'TMO',  n:'Thermo Fisher'},
+    { t:'NVO',   n:'Novo Nordisk' }, { t:'PFE',   n:'Pfizer' },
+    // Energy / industrial
+    { t:'CVX',   n:'Chevron' },      { t:'BA',    n:'Boeing' },      { t:'CAT',  n:'Caterpillar' },
+    { t:'GE',    n:'GE' },           { t:'LMT',   n:'Lockheed' },    { t:'CEG',  n:'Constellation' },
+    // Consumer / media
+    { t:'DIS',   n:'Disney' },       { t:'MCD',   n:'McDonald\'s' }, { t:'NKE',  n:'Nike' },
+    { t:'PEP',   n:'PepsiCo' },      { t:'KO',    n:'Coca-Cola' },   { t:'SBUX', n:'Starbucks' },
+    // Crypto / fintech
+    { t:'COIN',  n:'Coinbase' },     { t:'SQ',    n:'Block' },
+    // Auto
+    { t:'F',     n:'Ford' },         { t:'GM',    n:'General Motors'},{t:'RIVN',  n:'Rivian' },
   ],
   kr: [
+    // 시총 Top 30
     { t:'005930.KS', n:'삼성전자' },     { t:'000660.KS', n:'SK하이닉스' },   { t:'373220.KS', n:'LG에너지솔루션' },
     { t:'207940.KS', n:'삼성바이오로직스' },{ t:'005380.KS', n:'현대차' },     { t:'035420.KS', n:'NAVER' },
     { t:'005935.KS', n:'삼성전자우' },    { t:'068270.KS', n:'셀트리온' },    { t:'105560.KS', n:'KB금융' },
@@ -3041,7 +3061,30 @@ const HEATMAP_TICKERS = {
     { t:'066570.KS', n:'LG전자' },        { t:'003550.KS', n:'LG' },         { t:'015760.KS', n:'한국전력' },
     { t:'032830.KS', n:'삼성생명' },      { t:'017670.KS', n:'SK텔레콤' },    { t:'086790.KS', n:'하나금융지주' },
     { t:'138040.KS', n:'메리츠금융지주' },{ t:'009150.KS', n:'삼성전기' },    { t:'010130.KS', n:'고려아연' },
-    { t:'011200.KS', n:'HMM' },
+    { t:'006400.KS', n:'삼성SDI' },       { t:'051910.KS', n:'LG화학' },     { t:'096770.KS', n:'SK이노베이션' },
+    { t:'000270.KS', n:'기아' },          { t:'003670.KS', n:'포스코퓨처엠' },{ t:'010140.KS', n:'삼성중공업' },
+    // 방산·우주·조선
+    { t:'012450.KS', n:'한화에어로스페이스' }, { t:'047810.KS', n:'KAI' },
+    { t:'079550.KS', n:'LIG넥스원' },        { t:'064350.KS', n:'현대로템' },
+    { t:'009540.KS', n:'HD한국조선해양' },    { t:'042660.KS', n:'한화오션' },
+    // 바이오·제약
+    { t:'326030.KS', n:'SK바이오팜' },   { t:'196170.KQ', n:'알테오젠' },    { t:'128940.KS', n:'한미약품' },
+    // 게임·콘텐츠·엔터
+    { t:'259960.KS', n:'크래프톤' },     { t:'036570.KS', n:'엔씨소프트' },   { t:'251270.KS', n:'넷마블' },
+    { t:'352820.KS', n:'하이브' },       { t:'041510.KQ', n:'SM' },          { t:'122870.KS', n:'YG' },
+    // 핀테크·금융
+    { t:'323410.KS', n:'카카오뱅크' },   { t:'316140.KS', n:'우리금융지주' }, { t:'024110.KS', n:'기업은행' },
+    // 화학·정유·소재
+    { t:'011170.KS', n:'롯데케미칼' },   { t:'247540.KQ', n:'에코프로비엠' }, { t:'086520.KQ', n:'에코프로' },
+    // 통신·플랫폼
+    { t:'030200.KS', n:'KT' },           { t:'032640.KS', n:'LG유플러스' },
+    // K-뷰티·소비재
+    { t:'090430.KS', n:'아모레퍼시픽' }, { t:'161890.KS', n:'한국콜마' },
+    // 유통
+    { t:'139480.KS', n:'이마트' },       { t:'023530.KS', n:'롯데쇼핑' },    { t:'097950.KS', n:'CJ제일제당' },
+    // 기타 시총 상위
+    { t:'011200.KS', n:'HMM' },          { t:'086280.KS', n:'현대글로비스' },
+    { t:'042700.KS', n:'한미반도체' },   { t:'009830.KS', n:'한화솔루션' },
   ],
 };
 let _hmMkt = 'us', _hmRange = '1d';
