@@ -11,6 +11,8 @@
  *  GET  /api/admin?action=investment-events   → 티커별 추출 이벤트 히스토리 (그래프용)
  *  POST /api/admin?action=dart-poll           → DART 5%+ 지분공시 폴링 (한국 OpenDart API)
  *  POST /api/admin?action=sec-13f-poll        → SEC EDGAR 13F 폴링 (미국 헤지펀드 보유)
+ *  POST /api/admin?action=dart-sync-corp-codes → DART corpCode.xml.zip 다운로드 & companies 매핑
+ *  GET  /api/admin?action=dart-company-detail&ticker=005930.KS → DART 상세 (주주/임원/재무)
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
@@ -39,6 +41,8 @@ export default async function handler(req, res) {
   }
   // investment-events 는 공개 조회 가능 (회사 페이지에서 사용)
   if (action === 'investment-events') return handleInvestmentEvents(req, res);
+  // dart-company-detail 도 공개 (캐시된 데이터 조회)
+  if (action === 'dart-company-detail') return handleDartCompanyDetail(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -53,6 +57,7 @@ export default async function handler(req, res) {
   if (action === 'delete-investment')   return handleDeleteInvestment(req, res);
   if (action === 'dart-poll')           return handleDartPoll(req, res);
   if (action === 'sec-13f-poll')        return handleSec13fPoll(req, res);
+  if (action === 'dart-sync-corp-codes') return handleDartSyncCorpCodes(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -931,4 +936,178 @@ async function handleSec13fPoll(req, res) {
     }
   }
   return res.status(200).json({ ok: true, ...results });
+}
+
+// ════════════════════════════════════════════════════════════
+// 12) DART corp_code 동기화 (1회 실행 / 종종 갱신)
+// ════════════════════════════════════════════════════════════
+// DART OpenAPI의 corpCode.xml.zip 다운로드 → 6자리 stock_code → 8자리 corp_code 매핑
+// companies 테이블의 KR 종목에 dart_corp_code 채워넣음
+async function handleDartSyncCorpCodes(req, res) {
+  const apiKey = process.env.DART_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'DART_API_KEY env not set' });
+
+  try {
+    const AdmZip = (await import('adm-zip')).default;
+    const r = await fetch(`https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=${apiKey}`, {
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!r.ok) return res.status(500).json({ error: `DART zip HTTP ${r.status}` });
+    const buf = Buffer.from(await r.arrayBuffer());
+    const zip = new AdmZip(buf);
+    const entry = zip.getEntries().find(e => e.entryName.toLowerCase().endsWith('.xml'));
+    if (!entry) return res.status(500).json({ error: 'No XML in DART zip' });
+    const xml = entry.getData().toString('utf8');
+
+    // <list><corp_code>...</corp_code><corp_name>...</corp_name><stock_code>...</stock_code><modify_date>...</modify_date></list>
+    const lists = xml.match(/<list>[\s\S]*?<\/list>/g) || [];
+    const mapping = {};   // stock_code (6자리, .KS 제외) → corp_code (8자리)
+    for (const block of lists) {
+      const stockCode = (block.match(/<stock_code>([\s\S]*?)<\/stock_code>/)?.[1] || '').trim();
+      const corpCode  = (block.match(/<corp_code>([\s\S]*?)<\/corp_code>/)?.[1] || '').trim();
+      if (stockCode && /^\d{6}$/.test(stockCode) && corpCode) mapping[stockCode] = corpCode;
+    }
+
+    // KR 종목들의 dart_corp_code 업데이트
+    const { data: krCompanies } = await supabase
+      .from('companies')
+      .select('id, ticker, dart_corp_code')
+      .eq('market', 'KR');
+
+    let updated = 0, alreadySet = 0, notFound = 0;
+    for (const c of (krCompanies || [])) {
+      const stockCode = c.ticker?.replace(/\.(KS|KQ)$/i, '');
+      const corpCode = mapping[stockCode];
+      if (!corpCode) { notFound++; continue; }
+      if (c.dart_corp_code === corpCode) { alreadySet++; continue; }
+      const { error } = await supabase.from('companies').update({ dart_corp_code: corpCode }).eq('id', c.id);
+      if (!error) updated++;
+    }
+
+    return res.status(200).json({
+      ok: true,
+      total_kr_companies: (krCompanies || []).length,
+      mapping_size: Object.keys(mapping).length,
+      updated, alreadySet, notFound,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: 'DART sync failed: ' + e.message });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// 13) DART 회사 상세 (주주/임원/재무) — 24h 캐시
+// ════════════════════════════════════════════════════════════
+async function handleDartCompanyDetail(req, res) {
+  const apiKey = process.env.DART_API_KEY;
+  const ticker = (req.query?.ticker || '').toString().trim().toUpperCase();
+  if (!ticker) return res.status(400).json({ error: 'ticker required' });
+  if (!apiKey) return res.status(500).json({ error: 'DART_API_KEY env not set' });
+  if (!/\.K[SQ]$/i.test(ticker)) return res.status(400).json({ error: 'KR ticker only (.KS/.KQ)' });
+
+  // 1. companies에서 corp_code 조회
+  const { data: company } = await supabase
+    .from('companies').select('dart_corp_code, name_ko, ticker')
+    .eq('ticker', ticker).maybeSingle();
+  const corpCode = company?.dart_corp_code;
+  if (!corpCode) {
+    return res.status(404).json({ error: 'dart_corp_code not synced. Run ?action=dart-sync-corp-codes first.' });
+  }
+
+  // 2. 24h 캐시 확인
+  const { data: cached } = await supabase
+    .from('dart_company_cache').select('*').eq('corp_code', corpCode).maybeSingle();
+  if (cached && (Date.now() - new Date(cached.updated_at).getTime()) < 86400 * 1000) {
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+    return res.status(200).json({ ok: true, cached: true, ...cached });
+  }
+
+  // 3. 최근 사업보고서 연도 (작년 또는 재작년)
+  const now = new Date();
+  // 사업보고서는 보통 3월말~4월초 공시. 5월 이후라면 작년, 그 이전이면 재작년
+  const bsnsYear = (now.getMonth() >= 4 ? now.getFullYear() - 1 : now.getFullYear() - 2).toString();
+  const reprtCode = '11011'; // 사업보고서
+
+  const dartFetch = async (endpoint, extra = {}) => {
+    const params = new URLSearchParams({
+      crtfc_key: apiKey, corp_code: corpCode, bsns_year: bsnsYear, reprt_code: reprtCode, ...extra,
+    });
+    try {
+      const r = await fetch(`https://opendart.fss.or.kr/api/${endpoint}?${params.toString()}`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!r.ok) return null;
+      const j = await r.json();
+      if (j.status !== '000' && j.status !== '013') return null;  // 013: 조회결과 없음
+      return j.list || [];
+    } catch { return null; }
+  };
+
+  // 4. 4개 엔드포인트 병렬 호출
+  const [majorHolders, shareholders, officers, financials] = await Promise.all([
+    dartFetch('hyslrSttus.json'),       // 임원·주요주주 소유주식 변동
+    dartFetch('mrhlSttus.json'),        // 최대주주 현황
+    dartFetch('exctvSttus.json'),       // 임원 현황
+    dartFetch('fnlttSinglAcntAll.json', { fs_div: 'CFS' }), // 연결재무제표 전체
+  ]);
+
+  // 재무는 최근 3년 추이도 가져오자 (작년/재작년)
+  const yearsBack = [];
+  for (let i = 0; i < 3; i++) {
+    const y = (parseInt(bsnsYear, 10) - i).toString();
+    yearsBack.push(y);
+  }
+  const financialsByYear = {};
+  await Promise.all(yearsBack.map(async (y) => {
+    const params = new URLSearchParams({
+      crtfc_key: apiKey, corp_code: corpCode, bsns_year: y, reprt_code: '11011', fs_div: 'CFS',
+    });
+    try {
+      const r = await fetch(`https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json?${params.toString()}`, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (j.status === '000') financialsByYear[y] = j.list;
+    } catch {}
+  }));
+
+  // 5. 핵심 재무지표만 추출 (매출액, 영업이익, 당기순이익, 자산총계, 부채총계)
+  const extractMetrics = (rows) => {
+    if (!Array.isArray(rows)) return null;
+    const find = (keywords) => {
+      for (const row of rows) {
+        const name = (row.account_nm || '').replace(/\s/g, '');
+        if (keywords.some(k => name.includes(k))) {
+          const v = parseFloat((row.thstrm_amount || '0').replace(/,/g, ''));
+          return isNaN(v) ? null : v;
+        }
+      }
+      return null;
+    };
+    return {
+      revenue:   find(['매출액', '수익(매출액)', '영업수익']),
+      opIncome:  find(['영업이익', '영업손실']),
+      netIncome: find(['당기순이익', '당기순손실']),
+      assets:    find(['자산총계']),
+      liabilities: find(['부채총계']),
+      equity:    find(['자본총계']),
+    };
+  };
+  const annualFinancials = Object.fromEntries(
+    Object.entries(financialsByYear).map(([y, rows]) => [y, extractMetrics(rows)])
+  );
+
+  // 6. 캐시에 저장
+  const cacheRow = {
+    corp_code: corpCode, ticker,
+    major_holders: majorHolders || [],
+    shareholders: shareholders || [],
+    officers: officers || [],
+    financials: annualFinancials,
+    treasury_stock: null,   // 추후 추가
+    updated_at: new Date().toISOString(),
+  };
+  await supabase.from('dart_company_cache').upsert(cacheRow, { onConflict: 'corp_code' });
+
+  res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+  return res.status(200).json({ ok: true, cached: false, ...cacheRow });
 }

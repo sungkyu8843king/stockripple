@@ -496,6 +496,9 @@ function renderPage(company, records, priceData) {
     <!-- 펀더멘털 (밸류에이션/수익성/재무 안정성/실적) -->
     <div id="fundamentalsWrap"></div>
 
+    <!-- 🇰🇷 DART 상세 (주주/임원/재무) — KR 종목만 -->
+    <div id="dartDetailWrap"></div>
+
     <!-- TradingView 캔들 차트 + 거래량 (미장만 제공) -->
     ${isKr ? '' : `
     <div class="tv-wrap">
@@ -576,6 +579,9 @@ function renderPage(company, records, priceData) {
 
   // 펀더멘털 (병렬)
   loadFundamentals(ticker);
+
+  // KR 종목: DART 상세 데이터 로드
+  if (isKr) loadDartDetail(ticker);
 
   // Load line chart
   loadChartData(ticker, _currentRange).then(data => {
@@ -1024,6 +1030,151 @@ async function init() {
 }
 
 init();
+
+// ─── 🇰🇷 DART 상세 (KR 종목) ───────────────────────────────
+async function loadDartDetail(ticker) {
+  const wrap = document.getElementById('dartDetailWrap');
+  if (!wrap) return;
+  wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:24px">
+    <div style="font-size:14px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px">
+      🇰🇷 DART 상세 공시 데이터 <span class="spinner" style="width:12px;height:12px;border-width:2px"></span>
+    </div>
+  </div>`;
+
+  try {
+    const r = await fetch('/api/admin?action=dart-company-detail&ticker=' + encodeURIComponent(ticker));
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:12px;color:var(--text3)">
+        🇰🇷 DART 상세 데이터 사용 불가 — ${escHtml(j.error || 'unknown')}
+        ${j.error?.includes('not synced') ? '<div style="margin-top:6px;color:var(--blue)">관리자가 <code>?action=dart-sync-corp-codes</code>를 실행해야 합니다.</div>' : ''}
+      </div>`;
+      return;
+    }
+    const d = await r.json();
+    wrap.innerHTML = renderDartDetail(d);
+  } catch (e) {
+    wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:12px;color:var(--red)">DART 로드 실패: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderDartDetail(d) {
+  const sections = [];
+
+  // 1. 최대주주 현황
+  if (d.major_holders?.length) {
+    const rows = d.major_holders.slice(0, 10).map(h => {
+      const stake = h.trmend_psn_stock_co || h.trmend_qy || '';
+      const stakeRt = h.trmend_qota_rt || '';
+      return `<tr>
+        <td style="padding:6px 10px">${escHtml(h.nm || h.nm1 || '—')}</td>
+        <td style="padding:6px 10px;color:var(--text2)">${escHtml(h.relate || h.relt || '—')}</td>
+        <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono,monospace)">${escHtml(stake.toLocaleString?.() || stake || '—')}</td>
+        <td style="padding:6px 10px;text-align:right;color:var(--blue);font-weight:600;font-family:var(--font-mono,monospace)">${escHtml(stakeRt)}${stakeRt && !stakeRt.includes('%') ? '%' : ''}</td>
+      </tr>`;
+    }).join('');
+    sections.push(`
+      <div style="margin-bottom:18px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          👥 최대주주 현황 <span style="font-size:11px;color:var(--text3);font-weight:400">(${d.major_holders.length}명)</span>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead style="background:var(--bg3)">
+              <tr><th style="padding:6px 10px;text-align:left">성명/법인</th><th style="padding:6px 10px;text-align:left">관계</th><th style="padding:6px 10px;text-align:right">보유주식</th><th style="padding:6px 10px;text-align:right">지분율</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`);
+  }
+
+  // 2. 5%+ 주요주주 (임원·주요주주 소유주식 변동)
+  if (d.shareholders?.length) {
+    const rows = d.shareholders.slice(0, 10).map(s => `<tr>
+      <td style="padding:6px 10px">${escHtml(s.nm || s.repror || '—')}</td>
+      <td style="padding:6px 10px;color:var(--text2)">${escHtml(s.isu_exctv_rgist_at || s.relat || s.isu_exctv_ofcps || '—')}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:var(--font-mono,monospace)">${escHtml((s.sp_stock_lmp_cnt || s.posesn_stock_co || '—').toString())}</td>
+    </tr>`).join('');
+    sections.push(`
+      <div style="margin-bottom:18px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">📊 임원·주요주주 보유 변동</div>
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead style="background:var(--bg3)"><tr><th style="padding:6px 10px;text-align:left">성명</th><th style="padding:6px 10px;text-align:left">직위/관계</th><th style="padding:6px 10px;text-align:right">보유 (주)</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`);
+  }
+
+  // 3. 임원 현황
+  if (d.officers?.length) {
+    const rows = d.officers.slice(0, 15).map(o => `<tr>
+      <td style="padding:6px 10px">${escHtml(o.nm || '—')}</td>
+      <td style="padding:6px 10px;color:var(--text2)">${escHtml(o.ofcps || '—')}</td>
+      <td style="padding:6px 10px;color:var(--text3);font-size:11px">${escHtml(o.chrg_job || o.main_career || '—')}</td>
+      <td style="padding:6px 10px;color:var(--text3);font-size:11px">${escHtml(o.tenure_end_on || o.term_finish_dt || '—')}</td>
+    </tr>`).join('');
+    sections.push(`
+      <div style="margin-bottom:18px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">🧑‍💼 임원 현황 <span style="font-size:11px;color:var(--text3);font-weight:400">(${d.officers.length}명)</span></div>
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;max-height:340px;overflow-y:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead style="background:var(--bg3);position:sticky;top:0"><tr><th style="padding:6px 10px;text-align:left">성명</th><th style="padding:6px 10px;text-align:left">직위</th><th style="padding:6px 10px;text-align:left">담당업무/경력</th><th style="padding:6px 10px;text-align:left">임기만료</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`);
+  }
+
+  // 4. 재무지표 연간 추이
+  if (d.financials && Object.keys(d.financials).length) {
+    const years = Object.keys(d.financials).sort((a, b) => b.localeCompare(a)); // 최신년도 먼저
+    const fmt = (v) => {
+      if (v == null) return '—';
+      const abs = Math.abs(v);
+      if (abs >= 1e12) return (v / 1e12).toFixed(2) + '조';
+      if (abs >= 1e8)  return (v / 1e8).toFixed(0) + '억';
+      if (abs >= 1e4)  return (v / 1e4).toFixed(0) + '만';
+      return v.toLocaleString();
+    };
+    const rows = ['revenue', 'opIncome', 'netIncome', 'assets', 'liabilities', 'equity'].map(k => {
+      const labels = { revenue: '매출액', opIncome: '영업이익', netIncome: '당기순이익', assets: '자산총계', liabilities: '부채총계', equity: '자본총계' };
+      const cells = years.map(y => {
+        const v = d.financials[y]?.[k];
+        const color = k === 'opIncome' || k === 'netIncome'
+          ? (v == null ? 'var(--text3)' : v > 0 ? 'var(--green)' : 'var(--red)')
+          : 'var(--text)';
+        return `<td style="padding:6px 10px;text-align:right;font-family:var(--font-mono,monospace);color:${color}">${fmt(v)}</td>`;
+      }).join('');
+      return `<tr><td style="padding:6px 10px;color:var(--text2);font-weight:500">${labels[k]}</td>${cells}</tr>`;
+    }).join('');
+    sections.push(`
+      <div style="margin-bottom:8px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">📈 재무지표 연간 추이</div>
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead style="background:var(--bg3)"><tr><th style="padding:6px 10px;text-align:left">항목</th>${years.map(y => `<th style="padding:6px 10px;text-align:right">${y}</th>`).join('')}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`);
+  }
+
+  const cached = d.cached ? `<span style="color:var(--text3);font-size:10px;margin-left:8px">(캐시 · ${new Date(d.updated_at).toLocaleDateString('ko-KR')})</span>` : '';
+  const empty = !sections.length
+    ? '<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">DART 데이터가 비어있습니다 (사업보고서 미공시 또는 비상장)</div>'
+    : sections.join('');
+
+  return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:24px;box-shadow:var(--shadow-card)">
+    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+      🇰🇷 DART 상세 공시 데이터${cached}
+      <span style="margin-left:auto;font-size:11px;color:var(--text3);font-weight:400">출처: 전자공시시스템 (opendart.fss.or.kr)</span>
+    </div>
+    ${empty}
+  </div>`;
+}
 </script>
 </body>
 </html>
