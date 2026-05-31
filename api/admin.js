@@ -951,16 +951,23 @@ async function handleDartSyncCorpCodes(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'DART_API_KEY env not set' });
 
   try {
+    const t0 = Date.now();
     const AdmZip = (await import('adm-zip')).default;
     const r = await fetch(`https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=${apiKey}`, {
-      signal: AbortSignal.timeout(50000),
+      signal: AbortSignal.timeout(40000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/zip, application/octet-stream, */*',
+      },
     });
     if (!r.ok) return res.status(500).json({ error: `DART zip HTTP ${r.status}` });
     const buf = Buffer.from(await r.arrayBuffer());
+    const tFetch = Date.now() - t0;
     const zip = new AdmZip(buf);
     const entry = zip.getEntries().find(e => e.entryName.toLowerCase().endsWith('.xml'));
     if (!entry) return res.status(500).json({ error: 'No XML in DART zip' });
     const xml = entry.getData().toString('utf8');
+    const tUnzip = Date.now() - t0 - tFetch;
 
     // <list><corp_code>...</corp_code><corp_name>...</corp_name><stock_code>...</stock_code><modify_date>...</modify_date></list>
     const lists = xml.match(/<list>[\s\S]*?<\/list>/g) || [];
@@ -977,21 +984,32 @@ async function handleDartSyncCorpCodes(req, res) {
       .select('id, ticker, dart_corp_code')
       .eq('market', 'KR');
 
+    // 병렬 업데이트 (10개씩 chunked)
     let updated = 0, alreadySet = 0, notFound = 0;
+    const todo = [];
     for (const c of (krCompanies || [])) {
       const stockCode = c.ticker?.replace(/\.(KS|KQ)$/i, '');
       const corpCode = mapping[stockCode];
       if (!corpCode) { notFound++; continue; }
       if (c.dart_corp_code === corpCode) { alreadySet++; continue; }
-      const { error } = await supabase.from('companies').update({ dart_corp_code: corpCode }).eq('id', c.id);
-      if (!error) updated++;
+      todo.push({ id: c.id, corpCode });
     }
+    // 10개씩 batched parallel update
+    for (let i = 0; i < todo.length; i += 10) {
+      const batch = todo.slice(i, i + 10);
+      await Promise.all(batch.map(async t => {
+        const { error } = await supabase.from('companies').update({ dart_corp_code: t.corpCode }).eq('id', t.id);
+        if (!error) updated++;
+      }));
+    }
+    const tTotal = Date.now() - t0;
 
     return res.status(200).json({
       ok: true,
       total_kr_companies: (krCompanies || []).length,
       mapping_size: Object.keys(mapping).length,
       updated, alreadySet, notFound,
+      timing: { fetch_ms: tFetch, unzip_parse_ms: tUnzip, total_ms: tTotal },
     });
   } catch (e) {
     return res.status(500).json({ error: 'DART sync failed: ' + e.message });
