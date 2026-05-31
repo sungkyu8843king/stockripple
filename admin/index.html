@@ -407,6 +407,7 @@ tr:hover td { background: var(--bg3); }
         <button class="btn btn-primary" onclick="invExtractNow()">🔄 즉시 추출 (지난 1주)</button>
         <button class="btn btn-ghost"   onclick="invDartPoll()">📊 DART 5%+ 폴링</button>
         <button class="btn btn-ghost"   onclick="invSec13fPoll()">🇺🇸 SEC 13F 폴링</button>
+        <button class="btn btn-ghost"   onclick="invDartSyncCorpCodes()" title="DART corp_code 매핑 동기화 (한 번만 실행하면 됨)">🔗 DART corp_code 동기화</button>
         <span style="flex:1"></span>
         <select id="invStatusFilter" onchange="invLoad()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
           <option value="active">활성</option>
@@ -1629,6 +1630,24 @@ async function invDartPoll() {
     }
   } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
 }
+async function invDartSyncCorpCodes() {
+  if (!confirm('DART corp_code 동기화는 보통 처음 한 번만 실행합니다. 진행할까요?')) return;
+  document.getElementById('invStatusBox').textContent = '🔄 DART corp_code ZIP 다운로드 + 매핑 중... (10-30초)';
+  try {
+    const r = await fetch('/api/admin?action=dart-sync-corp-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      document.getElementById('invStatusBox').textContent = '❌ ' + (j.error || '동기화 실패');
+    } else {
+      document.getElementById('invStatusBox').textContent =
+        `✅ DART corp_code 매핑 완료 — KR 종목 ${j.total_kr_companies}개 / 매핑 사전 ${j.mapping_size} / 업데이트 ${j.updated} / 기존 일치 ${j.alreadySet} / 매핑 실패 ${j.notFound}`;
+    }
+  } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
+}
+
 async function invSec13fPoll() {
   document.getElementById('invStatusBox').textContent = '🔄 SEC 13F 폴링 중... (느릴 수 있음)';
   try {
