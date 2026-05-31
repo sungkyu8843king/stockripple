@@ -903,12 +903,14 @@ button { font-family: inherit; }
     <!-- 🔥 마켓 히트맵 -->
     <div id="heatmapSection" style="margin-bottom:24px;padding-top:12px;border-top:1px solid var(--border)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-size:18px">🔥</span>
           <span style="font-size:16px;font-weight:700">마켓 히트맵</span>
-          <span style="font-size:11px;color:var(--text3)">티커별 등락률 시각화</span>
+          <span id="heatmapUpdatedAt" style="font-size:11px;color:var(--text3)">—</span>
+          <span id="heatmapMarketStatus" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px"></span>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <button onclick="loadHeatmap()" title="수동 새로고침" style="background:var(--bg3);border:none;color:var(--text2);padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer">🔄</button>
           <div style="display:inline-flex;background:var(--bg3);border-radius:6px;padding:2px;gap:2px">
             <button class="hm-tab hm-mkt active" data-mkt="us" onclick="switchHeatmap('us', null)" style="background:var(--bg2);border:none;color:var(--text);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">🇺🇸 미장</button>
             <button class="hm-tab hm-mkt" data-mkt="kr" onclick="switchHeatmap('kr', null)" style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">🇰🇷 국장</button>
@@ -3104,6 +3106,18 @@ async function loadHeatmap() {
         <div class="t-num" style="font-size:13px;font-weight:800;margin-top:3px">${sign}${it.pct.toFixed(2)}%</div>
       </a>`;
     }).join('') || '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">데이터 없음</div>';
+
+    // 마지막 갱신 시각 + 마켓 상태 표시
+    const now = new Date();
+    const upEl = document.getElementById('heatmapUpdatedAt');
+    if (upEl) upEl.textContent = `${now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })} 기준`;
+    const statusEl = document.getElementById('heatmapMarketStatus');
+    if (statusEl) {
+      const status = computeMarketStatus(_hmMkt);
+      statusEl.textContent = status.label;
+      statusEl.style.background = status.bg;
+      statusEl.style.color = status.fg;
+    }
   } catch (e) {
     grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--red);font-size:12px;padding:20px">로드 실패: ${e.message}</div>`;
   }
@@ -3170,6 +3184,30 @@ function loadExpiries() {
   }).join('') || '<div style="color:var(--text3);font-size:11px;text-align:center;padding:8px 0">예정 없음</div>';
 }
 
+// 마켓 개장 상태 계산 (한국 시간 기준)
+function computeMarketStatus(market) {
+  const now = new Date();
+  const kst = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600 * 1000));
+  const day = kst.getUTCDay();
+  const h = kst.getUTCHours(), m = kst.getUTCMinutes();
+  const minOfDay = h * 60 + m;
+  const isWeekend = day === 0 || day === 6;
+
+  if (market === 'kr') {
+    if (isWeekend) return { label: '🔴 휴장', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
+    if (minOfDay < 510)  return { label: `🟡 개장 전 (9:00 시작, ${510 - minOfDay}분 후)`, bg: 'var(--yellow-dim)', fg: 'var(--yellow)' };
+    if (minOfDay < 930)  return { label: '🟢 정규장 진행 중', bg: 'var(--green-dim)', fg: 'var(--green)' };
+    if (minOfDay < 1080) return { label: '🟠 시간외', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };
+    return { label: '⚪ 마감', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
+  }
+  if (isWeekend) return { label: '🔴 휴장 (주말)', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
+  const inRegular = (minOfDay >= 22 * 60 + 30) || (minOfDay < 5 * 60);
+  if (inRegular) return { label: '🟢 미국 정규장', bg: 'var(--green-dim)', fg: 'var(--green)' };
+  if (minOfDay >= 17 * 60 && minOfDay < 22 * 60 + 30) return { label: '🟡 미국 프리장', bg: 'var(--yellow-dim)', fg: 'var(--yellow)' };
+  if (minOfDay >= 5 * 60 && minOfDay < 9 * 60) return { label: '🟠 미국 애프터', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };
+  return { label: '⚪ 마감', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
+}
+
 // 신규 위젯 초기화 — load 이벤트 의존하지 않고 즉시 실행 (DOM은 이미 파싱됨)
 (function initNewWidgets() {
   const kick = () => {
@@ -3181,8 +3219,8 @@ function loadExpiries() {
   } else {
     kick();
   }
-  // 60초마다 히트맵 갱신
-  setInterval(() => { try { loadHeatmap(); } catch {} }, 60000);
+  // 30초마다 히트맵 갱신 (장 중 반응성)
+  setInterval(() => { try { loadHeatmap(); } catch {} }, 30000);
   // 만기일은 자정 지나면 갱신
   setInterval(() => { try { loadExpiries(); } catch {} }, 3600000);
 })();
