@@ -720,29 +720,51 @@ async function handleDartPoll(req, res) {
   }
 
   const items = listJson.list || [];
-  const results = { scanned: items.length, new: 0, updated: 0, skipped: 0, samples: [], unmatchedReporters: [] };
+  const results = {
+    scanned: items.length, new: 0, updated: 0,
+    skippedSelf: 0,        // 자기지분 (보고자 == 대상)
+    skippedIndividual: 0,  // 개인 (2-4자 한글이름)
+    skippedUnmatched: 0,   // 법인이지만 companies 테이블에 없음
+    skippedMissing: 0,
+    samples: [], unmatchedReporters: [],
+  };
 
-  // 신고자명 정규화: 주식회사/(주)/Co.,Ltd/외 N인 등 제거
+  // 신고자명 정규화
   const normalize = (s) => (s || '')
     .replace(/\(주\)|㈜|주식회사/g, '')
     .replace(/\s+Co\.?,?\s*Ltd\.?$/i, '')
     .replace(/\s+Inc\.?$/i, '')
-    .replace(/외\s*\d+\s*인/g, '')   // "삼성전자 외 3인" → "삼성전자"
+    .replace(/외\s*\d+\s*인/g, '')
     .replace(/['"\\%_]/g, '')
     .trim();
+
+  // 개인 이름 추정: 한글 2-4자, 회사/리츠/스튜디오/홀딩스/그룹 등 키워드 없음
+  const isIndividual = (s) => {
+    const t = normalize(s);
+    if (!/^[가-힣]{2,4}$/.test(t)) return false;
+    // 한글 2-4자 + 단어가 일반적인 회사 키워드 안 포함 → 개인 추정
+    if (/리츠|스튜디오|홀딩스|그룹|증권|투자|자산운용|에너지|건설|전자|화학|중공업|제약|바이오|반도체|모터스|텔레콤/.test(t)) return false;
+    return true;
+  };
 
   for (const it of items.slice(0, 50)) {
     const reporter = (it.flr_nm || '').trim();
     const target = (it.corp_name || '').trim();
     const targetTicker = (it.stock_code || '').trim();
-    if (!reporter || !target || !targetTicker) {
-      results.skipped++;
-      results.unmatchedReporters.push(`(필드누락) ${reporter || '?'} → ${target || '?'}`);
-      continue;
+    if (!reporter || !target || !targetTicker) { results.skippedMissing++; continue; }
+
+    // 자기지분 신고 (보고자 == 대상) — 의미 없음
+    const reporterClean = normalize(reporter);
+    const targetClean = normalize(target);
+    if (reporterClean && targetClean && (reporterClean === targetClean || reporterClean.includes(targetClean) || targetClean.includes(reporterClean))) {
+      results.skippedSelf++; continue;
     }
 
-    const cleaned = normalize(reporter);
-    if (!cleaned || cleaned.length < 2) { results.skipped++; continue; }
+    // 개인 주주 신고 — 우리 목적 (기업→기업)과 무관
+    if (isIndividual(reporter)) { results.skippedIndividual++; continue; }
+
+    const cleaned = reporterClean;
+    if (!cleaned || cleaned.length < 2) { results.skippedUnmatched++; continue; }
 
     // 1차: 정규화된 이름으로 매칭 (KR 시장)
     let { data: investorCo } = await supabase
@@ -765,7 +787,7 @@ async function handleDartPoll(req, res) {
     }
 
     if (!investorCo?.ticker) {
-      results.skipped++;
+      results.skippedUnmatched++;
       if (results.unmatchedReporters.length < 15) {
         results.unmatchedReporters.push(`${reporter} → ${target}(${targetTicker})`);
       }

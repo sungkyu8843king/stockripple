@@ -1607,9 +1607,12 @@ async function invDartPoll() {
     if (!r.ok) {
       document.getElementById('invStatusBox').textContent = '❌ ' + (j.error || 'DART 실패');
     } else {
-      let msg = `✅ DART — 스캔 ${j.scanned} / 신규 ${j.new} / 업데이트 ${j.updated} / 스킵 ${j.skipped} (${j.period})`;
+      const total = j.scanned;
+      const ss = j.skippedSelf || 0, si = j.skippedIndividual || 0, su = j.skippedUnmatched || 0, sm = j.skippedMissing || 0;
+      let msg = `✅ DART — 스캔 ${total} / 신규 ${j.new} / 업데이트 ${j.updated} <span style="color:var(--text3)">(${j.period})</span>`;
+      msg += `<br><span style="font-size:11px;color:var(--text3)">스킵 분류: 자기지분 ${ss} · 개인주주 ${si} · 미매칭 법인 ${su}${sm ? ' · 필드누락 ' + sm : ''}</span>`;
       if (j.unmatchedReporters?.length) {
-        msg += `<br><span style="font-size:11px;color:var(--text3)">⚠️ 스킵된 신고자 (companies 테이블에 없음): ${j.unmatchedReporters.slice(0,10).map(escAttr).join(' · ')}${j.unmatchedReporters.length > 10 ? ' ...' : ''}</span>`;
+        msg += `<br><span style="font-size:11px;color:var(--text3)">⚠️ 미매칭 법인 (companies 테이블에 없음): ${j.unmatchedReporters.slice(0,8).map(escAttr).join(' · ')}${j.unmatchedReporters.length > 8 ? ' ...' : ''}</span>`;
       }
       document.getElementById('invStatusBox').innerHTML = msg;
       invLoad(1);
