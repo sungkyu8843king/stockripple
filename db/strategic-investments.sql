@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS strategic_investments (
   stake_info        TEXT,                                -- 지분율/투자금 (예: $100M, 15%)
   highlight         BOOLEAN DEFAULT FALSE,               -- 핵심 연결 여부 (⭐)
   confidence        INT DEFAULT 70,                      -- AI 추출 신뢰도 0-100
-  source_issue_id   BIGINT REFERENCES issues(id) ON DELETE SET NULL,
+  source_issue_id   UUID REFERENCES issues(id) ON DELETE SET NULL,
   source_url        TEXT,                                -- 원문 URL
   source_title      TEXT,                                -- 원문 제목
   extracted_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
