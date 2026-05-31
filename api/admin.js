@@ -18,6 +18,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAdmin } from '../lib/auth.js';
 
+// 일부 액션(dart-sync, sec-13f, extract-investments)은 무거우므로 최대 60초 허용
+export const config = { maxDuration: 60 };
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -950,7 +953,7 @@ async function handleDartSyncCorpCodes(req, res) {
   try {
     const AdmZip = (await import('adm-zip')).default;
     const r = await fetch(`https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=${apiKey}`, {
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(50000),
     });
     if (!r.ok) return res.status(500).json({ error: `DART zip HTTP ${r.status}` });
     const buf = Buffer.from(await r.arrayBuffer());
