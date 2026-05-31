@@ -257,8 +257,11 @@ let _isKr = false;
 
 async function loadPrice(ticker) {
   try {
-    const res = await fetch(`/api/stock-price?ticker=${encodeURIComponent(ticker)}`);
-    return await res.json();
+    // /api/quotes는 정규장 + pre/post + marketState까지 한 번에 제공
+    const res = await fetch(`/api/quotes?tickers=${encodeURIComponent(ticker)}`);
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j?.data?.[ticker] || null;
   } catch(e) { return null; }
 }
 
@@ -378,18 +381,43 @@ function renderPage(company, records, priceData) {
   const name = company.name_ko || company.name_en || ticker;
   const sector = company.sector || '';
 
-  // Price block
+  // Price block — regular + pre/after-market
   let priceHtml = '<span class="price-loading">주가 로딩 중...</span>';
   if (priceData && priceData.price) {
     const fmt = new Intl.NumberFormat('en-US', {
       style: 'currency', currency: priceData.currency || 'USD',
       maximumFractionDigits: priceData.currency === 'KRW' ? 0 : 2
     });
-    priceHtml = `<div class="current-price">${fmt.format(priceData.price)}</div>`;
+    const stateMap = {
+      REGULAR: { label: '🟢 정규장', color: 'var(--green)' },
+      PRE:     { label: '🟡 프리장', color: 'var(--yellow)' },
+      POST:    { label: '🟣 애프터장', color: 'var(--purple)' },
+      CLOSED:  { label: '⚪ 마감',   color: 'var(--text3)' },
+    };
+    const st = stateMap[priceData.marketState] || stateMap.CLOSED;
+    priceHtml = `<div style="font-size:11px;color:${st.color};font-weight:600;margin-bottom:3px">${st.label}</div>`;
+    priceHtml += `<div class="current-price">${fmt.format(priceData.price)}</div>`;
     if (priceData.changePercent != null) {
       const sign = priceData.changePercent >= 0 ? '+' : '';
       const cls = priceData.changePercent >= 0 ? 'pos' : 'neg';
-      priceHtml += `<div class="price-change ${cls}">${sign}${Number(priceData.changePercent).toFixed(2)}%</div>`;
+      priceHtml += `<div class="price-change ${cls}">${sign}${Number(priceData.changePercent).toFixed(2)}% <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span></div>`;
+    }
+    // 시간외 호가 (프리/애프터) — 미장만
+    let ahLabel = null, ahPrice = null, ahPct = null, ahColor = 'var(--purple)';
+    if (priceData.postMarketPrice != null && priceData.postMarketChangePercent != null) {
+      ahLabel = '애프터장'; ahPrice = priceData.postMarketPrice; ahPct = priceData.postMarketChangePercent; ahColor = 'var(--purple)';
+    } else if (priceData.preMarketPrice != null && priceData.preMarketChangePercent != null) {
+      ahLabel = '프리장'; ahPrice = priceData.preMarketPrice; ahPct = priceData.preMarketChangePercent; ahColor = 'var(--yellow)';
+    }
+    if (ahLabel) {
+      const ahSign = ahPct >= 0 ? '+' : '';
+      const ahChgColor = ahPct >= 0 ? 'var(--green)' : 'var(--red)';
+      priceHtml += `
+        <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);text-align:right">
+          <div style="display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:${ahColor === 'var(--purple)' ? 'var(--purple-dim)' : 'var(--yellow-dim)'};color:${ahColor};margin-bottom:3px">⏱ ${ahLabel}</div>
+          <div style="font-size:18px;font-weight:700;color:var(--text);font-family:var(--font-mono,'SF Mono',monospace)">${fmt.format(ahPrice)}</div>
+          <div style="font-size:12px;font-weight:700;color:${ahChgColor}">${ahSign}${ahPct.toFixed(2)}%</div>
+        </div>`;
     }
   }
 

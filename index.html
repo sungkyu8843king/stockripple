@@ -970,17 +970,6 @@ button { font-family: inherit; }
       </div>
     </div>
 
-    <!-- 시간외 호가 (프리/애프터 / NXT) -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">🌙 시간외 호가</span>
-        <span style="font-size:11px;color:var(--text3)" id="ahUpdatedAt">—</span>
-      </div>
-      <div style="padding:8px 16px 12px" id="afterHoursPanel">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:12px 0">로딩 중...</div>
-      </div>
-    </div>
-
     <!-- 선물/옵션 만기일 -->
     <div class="sidebar-card">
       <div class="sidebar-card-header">
@@ -1948,7 +1937,7 @@ async function loadInsights() {
               <span style="font-size:24px;font-weight:800;color:var(--text3);min-width:28px">${i+1}</span>
               <div style="flex:1;min-width:0">
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
-                  <span style="font-family:'SF Mono',monospace;font-size:12px;font-weight:700;color:${isKr?'#64c8ea':'#79c0ff'};background:${isKr?'#1f3540':'#1f2d4a'};padding:2px 8px;border-radius:5px">${escHtml(s.ticker)}</span>
+                  <span style="font-family:var(--font-mono,'SF Mono',monospace);font-size:12px;font-weight:700;color:${isKr?'#0066cc':'#7c3aed'};background:${isKr?'rgba(0,102,204,0.10)':'rgba(124,58,237,0.10)'};padding:2px 8px;border-radius:5px">${escHtml(s.ticker)}</span>
                   <span style="font-size:15px;font-weight:700">${escHtml(s.name)}</span>
                 </div>
                 <div style="display:flex;gap:8px;font-size:10px;align-items:center">
@@ -1962,10 +1951,17 @@ async function loadInsights() {
             </div>
 
             <!-- 실시간 시세 -->
-            <div class="ins-quote" data-quote-ticker="${escHtml(s.ticker)}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-radius:8px;font-family:'SF Mono',monospace">
-              <span style="font-size:10px;color:var(--text3);font-family:inherit;display:inline-flex;align-items:center"><span class="live-pulse-dot"></span><span class="live-state-label">LIVE</span></span>
-              <span class="ins-q-price" style="font-size:15px;font-weight:700;color:var(--text2)">—</span>
-              <span class="ins-q-chg" style="font-size:13px;font-weight:700;color:var(--text3);min-width:64px;text-align:right">—</span>
+            <div class="ins-quote" data-quote-ticker="${escHtml(s.ticker)}" style="display:flex;flex-direction:column;gap:4px;padding:8px 12px;background:var(--bg3);border-radius:10px;font-family:var(--font-mono,'SF Mono',monospace)">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <span style="font-size:10px;color:var(--text3);font-family:inherit;display:inline-flex;align-items:center"><span class="live-pulse-dot"></span><span class="live-state-label">LIVE</span></span>
+                <span class="ins-q-price" style="font-size:15px;font-weight:700;color:var(--text2)">—</span>
+                <span class="ins-q-chg" style="font-size:13px;font-weight:700;color:var(--text3);min-width:64px;text-align:right">—</span>
+              </div>
+              <div class="ins-q-ah" style="display:none;align-items:center;justify-content:space-between;gap:8px;padding-top:4px;border-top:1px dashed var(--border)">
+                <span class="ins-q-ah-label" style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--purple-dim);color:var(--purple);font-family:inherit"></span>
+                <span class="ins-q-ah-price" style="font-size:13px;font-weight:600;color:var(--text2)"></span>
+                <span class="ins-q-ah-chg" style="font-size:12px;font-weight:700;min-width:64px;text-align:right"></span>
+              </div>
             </div>
 
             <!-- 기술 시그널 chips (technicals 로드되면 채워짐) -->
@@ -2151,6 +2147,45 @@ async function refreshInsightQuotes() {
 
       if (priceEl) { priceEl.textContent = priceStr; priceEl.style.color = 'var(--text)'; }
       if (chgEl)   { chgEl.textContent = chgStr; chgEl.style.color = chgColor; }
+
+      // 시간외(프리/애프터) 호가 — 미장만 (Yahoo는 한국 NXT 미지원)
+      const ahRow = node.querySelector('.ins-q-ah');
+      if (ahRow) {
+        let ahLabel = '', ahPrice = null, ahPct = null, ahCls = '';
+        if (q.postMarketPrice != null && q.postMarketChangePercent != null) {
+          ahLabel = '애프터'; ahPrice = q.postMarketPrice; ahPct = q.postMarketChangePercent; ahCls = 'ah-post';
+        } else if (q.preMarketPrice != null && q.preMarketChangePercent != null) {
+          ahLabel = '프리장'; ahPrice = q.preMarketPrice; ahPct = q.preMarketChangePercent; ahCls = 'ah-pre';
+        }
+        if (ahPrice != null) {
+          ahRow.style.display = 'flex';
+          const ahLabelEl = ahRow.querySelector('.ins-q-ah-label');
+          const ahPriceEl = ahRow.querySelector('.ins-q-ah-price');
+          const ahChgEl   = ahRow.querySelector('.ins-q-ah-chg');
+          if (ahLabelEl) {
+            ahLabelEl.textContent = ahLabel;
+            // 프리/애프터 색상 구분
+            if (ahCls === 'ah-pre') {
+              ahLabelEl.style.background = 'var(--yellow-dim)';
+              ahLabelEl.style.color = 'var(--yellow)';
+            } else {
+              ahLabelEl.style.background = 'var(--purple-dim)';
+              ahLabelEl.style.color = 'var(--purple)';
+            }
+          }
+          const ahCur = q.currency === 'KRW' ? '₩' : '$';
+          const ahPriceStr = ahCur + Number(ahPrice).toLocaleString(q.currency === 'KRW' ? 'ko-KR' : 'en-US',
+            { maximumFractionDigits: q.currency === 'KRW' ? 0 : 2 });
+          const ahSign = ahPct > 0 ? '+' : '';
+          if (ahPriceEl) ahPriceEl.textContent = ahPriceStr;
+          if (ahChgEl) {
+            ahChgEl.textContent = `${ahSign}${ahPct.toFixed(2)}%`;
+            ahChgEl.style.color = ahPct > 0 ? 'var(--green)' : ahPct < 0 ? 'var(--red)' : 'var(--text2)';
+          }
+        } else {
+          ahRow.style.display = 'none';
+        }
+      }
 
       // 시세가 변동했을 때만 flash 효과
       if (direction) {
@@ -3000,66 +3035,6 @@ async function loadHeatmap() {
   }
 }
 
-// ─── 🌙 시간외 호가 ─────────────────────────────────────────
-async function loadAfterHours() {
-  const panel = document.getElementById('afterHoursPanel');
-  if (!panel) return;
-  const tickers = ['AAPL','NVDA','MSFT','TSLA','META','GOOGL','AMZN','AMD','005930.KS','000660.KS'];
-  try {
-    const r = await fetch(`/api/quotes?tickers=${tickers.join(',')}`);
-    const j = await r.json();
-    if (!j.ok) throw new Error();
-    const data = j.data || {};
-    const rows = [];
-    let anyPrePost = false;
-    for (const t of tickers) {
-      const d = data[t];
-      if (!d) continue;
-      const isKr = /\.(KS|KQ)$/.test(t);
-      const disp = t.replace(/\.(KS|KQ)$/, '');
-      let label = '', price = null, pct = null, badge = '';
-      if (isKr) {
-        // Yahoo는 NXT 시간외 미지원 → 정규장 가격만
-        label = 'KRX';
-        price = d.price; pct = d.changePercent;
-        if (d.marketState && d.marketState !== 'REGULAR') {
-          badge = `<span style="font-size:9px;background:#6b7280;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px">시간외</span>`;
-        }
-      } else {
-        if (d.postMarketPrice != null) {
-          label = '애프터'; price = d.postMarketPrice; pct = d.postMarketChangePercent;
-          badge = `<span style="font-size:9px;background:#a855f7;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px">AH</span>`;
-          anyPrePost = true;
-        } else if (d.preMarketPrice != null) {
-          label = '프리'; price = d.preMarketPrice; pct = d.preMarketChangePercent;
-          badge = `<span style="font-size:9px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px">PRE</span>`;
-          anyPrePost = true;
-        } else {
-          label = '정규'; price = d.price; pct = d.changePercent;
-        }
-      }
-      if (price == null) continue;
-      const color = (pct ?? 0) >= 0 ? 'var(--green)' : 'var(--red)';
-      const sign = (pct ?? 0) >= 0 ? '+' : '';
-      const priceStr = isKr ? `₩${Math.round(price).toLocaleString()}` : `$${price.toFixed(2)}`;
-      rows.push(`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
-        <span style="font-weight:600;color:var(--text)">${disp}${badge}</span>
-        <span style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
-          <span style="color:var(--text2);font-size:11px">${priceStr}</span>
-          <span style="color:${color};font-size:11px;font-weight:600">${sign}${(pct ?? 0).toFixed(2)}%</span>
-        </span>
-      </div>`);
-    }
-    const note = !anyPrePost
-      ? `<div style="font-size:10px;color:var(--text3);text-align:center;padding:6px 0">정규장 외 호가는 미장 개장 전후만 표시 · 국장 NXT는 미지원</div>`
-      : '';
-    panel.innerHTML = rows.join('') + note;
-    document.getElementById('ahUpdatedAt').textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-  } catch (e) {
-    panel.innerHTML = `<div style="color:var(--red);font-size:11px;text-align:center;padding:8px 0">로드 실패</div>`;
-  }
-}
-
 // ─── 📅 선물·옵션 만기일 ───────────────────────────────────
 function nthWeekdayOfMonth(year, month, weekday, n) {
   // month: 0-11, weekday: 0(Sun)~6(Sat)
@@ -3124,15 +3099,11 @@ function loadExpiries() {
 // 페이지 로드 후 신규 위젯 초기화
 window.addEventListener('load', () => {
   setTimeout(() => {
-    try { loadHeatmap();    } catch (e) { console.error('heatmap', e); }
-    try { loadAfterHours(); } catch (e) { console.error('afterhours', e); }
-    try { loadExpiries();   } catch (e) { console.error('expiries', e); }
+    try { loadHeatmap();  } catch (e) { console.error('heatmap', e); }
+    try { loadExpiries(); } catch (e) { console.error('expiries', e); }
   }, 600);
-  // 60초마다 시간외 호가 + 히트맵 갱신
-  setInterval(() => {
-    try { loadAfterHours(); } catch {}
-    try { loadHeatmap();    } catch {}
-  }, 60000);
+  // 60초마다 히트맵 갱신
+  setInterval(() => { try { loadHeatmap(); } catch {} }, 60000);
 });
 </script>
 <!-- 지수 차트 모달 -->
