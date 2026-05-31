@@ -63,22 +63,36 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .tag-energy { background: rgba(0,135,58,0.10);  color: #00873a; }
 .tag-default { background: var(--bg3); color: var(--text2); }
 
-/* AI Summary Card */
+/* AI Summary Card — Tesla-light */
 .ai-card {
-  background: linear-gradient(135deg, #1f2d4a 0%, #162234 100%);
-  border: 1px solid #2d4a7a; border-radius: 12px; padding: 20px; margin-bottom: 32px;
+  position: relative;
+  background:
+    radial-gradient(ellipse 80% 100% at 0% 0%, rgba(0,102,204,0.06), transparent 60%),
+    radial-gradient(ellipse 70% 100% at 100% 100%, rgba(124,58,237,0.06), transparent 60%),
+    #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 20px);
+  padding: 24px 26px;
+  margin-bottom: 32px;
+  box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06));
 }
-.ai-badge { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #0066cc; font-weight: 600; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-.ai-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #0066cc; animation: pulse 2s infinite; }
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-.ai-text { font-size: 14px; line-height: 1.7; color: var(--text); }
+.ai-card::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; border-radius: var(--r-lg, 20px) 0 0 var(--r-lg, 20px);
+  background: linear-gradient(180deg, var(--blue), var(--purple));
+}
+.ai-badge { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--blue); font-weight: 700; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.6px; }
+.ai-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); animation: pulse 2s infinite; box-shadow: 0 0 0 3px rgba(0,102,204,0.18); }
+@keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+.ai-text { font-size: 14.5px; line-height: 1.75; color: var(--text); font-weight: 400; }
 
 /* Confidence */
-.confidence-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
-.conf-label { font-size: 11px; color: #0066cc; white-space: nowrap; }
-.conf-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
-.conf-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #2f81f7, #a371f7); transition: width 1s; }
-.conf-pct { font-size: 12px; font-weight: 700; color: var(--blue); }
+.confidence-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.conf-label { font-size: 11px; color: var(--text2); font-weight: 600; white-space: nowrap; }
+.conf-bar { flex: 1; height: 6px; background: var(--bg3); border-radius: 999px; overflow: hidden; }
+.conf-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--blue), var(--purple)); transition: width 1s var(--ease, ease); box-shadow: 0 0 8px rgba(0,102,204,0.25); }
+.conf-pct { font-size: 13px; font-weight: 800; color: var(--blue); font-family: var(--font-mono, monospace); }
 
 /* Section Headers */
 .section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
