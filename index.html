@@ -1664,14 +1664,8 @@ async function tryDirectLookup(input) {
         location.href = `/company.html?ticker=${encodeURIComponent(exact.ticker)}`;
         return;
       }
-      // 여러 개면 선택 다이얼로그
-      const list = matches.map((m, i) => `${i+1}. ${m.name_ko || m.name_en} (${m.ticker})`).join('\n');
-      const pick = prompt(`"${raw}" 검색 결과 ${matches.length}건:\n\n${list}\n\n번호 입력:`, '1');
-      const idx = parseInt(pick, 10) - 1;
-      if (idx >= 0 && idx < matches.length) {
-        location.href = `/company.html?ticker=${encodeURIComponent(matches[idx].ticker)}`;
-        return;
-      }
+      // 여러 개면 카드 모달 표시
+      openSearchPicker(raw, matches);
       return;
     }
 
@@ -3178,7 +3172,81 @@ function loadExpiries() {
   // 만기일은 자정 지나면 갱신
   setInterval(() => { try { loadExpiries(); } catch {} }, 3600000);
 })();
+
+// ─── 종목 검색 결과 카드 모달 ─────────────────────────────
+function openSearchPicker(query, matches) {
+  const modal = document.getElementById('searchPickerModal');
+  const grid  = document.getElementById('searchPickerGrid');
+  document.getElementById('searchPickerQuery').textContent = query;
+  document.getElementById('searchPickerCount').textContent = `${matches.length}건`;
+
+  grid.innerHTML = matches.map(m => {
+    const isKr = m.market === 'KR' || /\.K[SQ]$/i.test(m.ticker);
+    const tickerStripped = m.ticker.replace(/\.(KS|KQ)$/i, '');
+    const badgeColor = isKr ? 'rgba(0,102,204,0.10)' : 'rgba(124,58,237,0.10)';
+    const badgeText  = isKr ? '#0066cc' : '#7c3aed';
+    return `<a href="/company.html?ticker=${encodeURIComponent(m.ticker)}" class="sp-card">
+      <div class="sp-card-top">
+        <span class="sp-ticker" style="background:${badgeColor};color:${badgeText}">${escHtml(tickerStripped)}</span>
+        <span class="sp-market">${isKr ? '🇰🇷 KR' : '🇺🇸 US'}</span>
+      </div>
+      <div class="sp-name">${escHtml(m.name_ko || m.name_en || m.ticker)}</div>
+      ${m.name_en && m.name_ko !== m.name_en ? `<div class="sp-name-sub">${escHtml(m.name_en)}</div>` : ''}
+      <div class="sp-arrow">상세 페이지로 이동 →</div>
+    </a>`;
+  }).join('');
+  modal.style.display = 'flex';
+}
+function closeSearchPicker(event) {
+  if (event && event.target.id !== 'searchPickerModal') return;
+  document.getElementById('searchPickerModal').style.display = 'none';
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSearchPicker({ target: { id: 'searchPickerModal' } });
+});
 </script>
+
+<style>
+.sp-card {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px 16px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  text-decoration: none; color: var(--text);
+  transition: transform .12s var(--ease), border-color .12s, box-shadow .12s;
+}
+.sp-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--blue);
+  box-shadow: 0 8px 24px rgba(0,102,204,0.10);
+}
+.sp-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.sp-ticker {
+  font-family: var(--font-mono, 'SF Mono', monospace);
+  font-size: 12px; font-weight: 700;
+  padding: 3px 9px; border-radius: 6px; letter-spacing: .3px;
+}
+.sp-market { font-size: 11px; color: var(--text3); font-weight: 500; }
+.sp-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.sp-name-sub { font-size: 11px; color: var(--text3); font-weight: 400; }
+.sp-arrow { font-size: 11px; color: var(--blue); margin-top: 4px; font-weight: 500; }
+</style>
+
+<!-- 종목 검색 결과 카드 모달 -->
+<div id="searchPickerModal" style="display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px" onclick="closeSearchPicker(event)">
+  <div style="background:var(--bg);border-radius:var(--r-lg,20px);width:min(820px,96vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-pop,0 20px 60px rgba(0,0,0,.18))">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <span style="font-weight:700;font-size:17px">🔍 "<span id="searchPickerQuery"></span>" 검색 결과</span>
+        <span id="searchPickerCount" style="font-size:12px;color:var(--text3)"></span>
+      </div>
+      <button onclick="closeSearchPicker({target:{id:'searchPickerModal'}})" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;line-height:1;padding:2px 8px">&times;</button>
+    </div>
+    <div id="searchPickerGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;padding:18px 22px;overflow-y:auto"></div>
+  </div>
+</div>
+
 <!-- 지수 차트 모달 -->
 <div id="indexChartModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.75);align-items:center;justify-content:center" onclick="closeIndexChart(event)">
   <div style="background:var(--card);border-radius:14px;width:min(860px,96vw);height:min(540px,85vh);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6)">
