@@ -11,7 +11,8 @@
  *  GET  /api/admin?action=investment-events   → 티커별 추출 이벤트 히스토리 (그래프용)
  *  POST /api/admin?action=dart-poll           → DART 5%+ 지분공시 폴링 (한국 OpenDart API)
  *  POST /api/admin?action=sec-13f-poll        → SEC EDGAR 13F 폴링 (미국 헤지펀드 보유)
- *  POST /api/admin?action=dart-sync-corp-codes → DART corpCode.xml.zip 다운로드 & companies 매핑
+ *  POST /api/admin?action=dart-sync-corp-codes → DART corpCode.xml.zip 다운로드 & companies 매핑 (느릴 수 있음)
+ *  POST /api/admin?action=dart-upload-corp-codes → CSV 수동 업로드 (Vercel→한국 네트워크 느릴 때 fallback)
  *  GET  /api/admin?action=dart-company-detail&ticker=005930.KS → DART 상세 (주주/임원/재무)
  */
 import Anthropic from '@anthropic-ai/sdk';
@@ -61,6 +62,7 @@ export default async function handler(req, res) {
   if (action === 'dart-poll')           return handleDartPoll(req, res);
   if (action === 'sec-13f-poll')        return handleSec13fPoll(req, res);
   if (action === 'dart-sync-corp-codes') return handleDartSyncCorpCodes(req, res);
+  if (action === 'dart-upload-corp-codes') return handleDartUploadCorpCodes(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -1131,4 +1133,53 @@ async function handleDartCompanyDetail(req, res) {
 
   res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
   return res.status(200).json({ ok: true, cached: false, ...cacheRow });
+}
+
+// ════════════════════════════════════════════════════════════
+// 14) DART corp_code 수동 업로드 (CSV 페이스트)
+// ════════════════════════════════════════════════════════════
+// Vercel ↔ 한국 네트워크가 느려 자동 다운로드 timeout 시 사용
+// body: { csv: "005930,00126380\n000660,00164779\n..." } 또는 { mapping: { "005930": "00126380", ... } }
+async function handleDartUploadCorpCodes(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  let mapping = {};
+  if (req.body?.mapping && typeof req.body.mapping === 'object') {
+    mapping = req.body.mapping;
+  } else if (typeof req.body?.csv === 'string') {
+    for (const line of req.body.csv.split(/\r?\n/)) {
+      const m = line.match(/(\d{6})\s*[,;\t|]\s*(\d{8})/);
+      if (m) mapping[m[1]] = m[2];
+    }
+  } else {
+    return res.status(400).json({ error: 'Provide body.csv (text) or body.mapping (object)' });
+  }
+  const mappingSize = Object.keys(mapping).length;
+  if (!mappingSize) return res.status(400).json({ error: 'No valid stock_code,corp_code pairs found' });
+
+  const { data: krCompanies } = await supabase
+    .from('companies').select('id, ticker, dart_corp_code').eq('market', 'KR');
+
+  let updated = 0, alreadySet = 0, notFound = 0;
+  const todo = [];
+  for (const c of (krCompanies || [])) {
+    const stockCode = c.ticker?.replace(/\.(KS|KQ)$/i, '');
+    const corpCode = mapping[stockCode];
+    if (!corpCode) { notFound++; continue; }
+    if (c.dart_corp_code === corpCode) { alreadySet++; continue; }
+    todo.push({ id: c.id, corpCode });
+  }
+  for (let i = 0; i < todo.length; i += 20) {
+    await Promise.all(todo.slice(i, i + 20).map(async t => {
+      const { error } = await supabase.from('companies').update({ dart_corp_code: t.corpCode }).eq('id', t.id);
+      if (!error) updated++;
+    }));
+  }
+
+  return res.status(200).json({
+    ok: true,
+    total_kr_companies: (krCompanies || []).length,
+    mapping_size: mappingSize,
+    updated, alreadySet, notFound,
+  });
 }
