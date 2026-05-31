@@ -6,29 +6,202 @@
 <title>StockRipple — 파급효과 주식 전망</title>
 <meta name="description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* ─────────────────────────────────────────────────────────────
+ * Tesla 2.0 Design System — Phase 1
+ * Dark, minimal, generous radii, subtle elevation
+ * Pure-black canvas / elevated cards / no harsh borders
+ * ───────────────────────────────────────────────────────────── */
 :root {
-  --bg: #0d1117;
-  --bg2: #161b22;
-  --bg3: #21262d;
-  --border: #30363d;
-  --text: #e6edf3;
-  --text2: #8b949e;
-  --text3: #6e7681;
-  --blue: #2f81f7;
-  --blue-dim: #1f4d8a;
-  --green: #3fb950;
-  --green-dim: #1a4a26;
-  --red: #f85149;
-  --red-dim: #4a1a1a;
-  --yellow: #d29922;
-  --yellow-dim: #3d2e00;
-  --purple: #a371f7;
-  --purple-dim: #2d1f5e;
+  /* ── Canvas ─────────────────────────────── */
+  --bg:  #0a0a0a;          /* pure-black canvas */
+  --bg2: #161618;          /* elevated card surface */
+  --bg3: #1f1f23;          /* nested / hover surface */
+  --bg4: #2a2a2f;          /* highest elevation */
+
+  /* ── Borders ────────────────────────────── */
+  --border:        #26262b;       /* subtle separator */
+  --border-strong: #3a3a40;       /* focused / hover */
+  --border-soft:   rgba(255,255,255,0.06);
+
+  /* ── Text ───────────────────────────────── */
+  --text:  #f5f5f7;        /* primary */
+  --text2: #a8a8ad;        /* secondary */
+  --text3: #6e6e73;        /* tertiary / hint */
+  --text-on-accent: #ffffff;
+
+  /* ── Accents (Tesla-tuned) ──────────────── */
+  --red:        #ff3b3b;          /* Tesla signature red */
+  --red-dim:    rgba(255,59,59,0.14);
+  --green:      #00d97e;          /* gains */
+  --green-dim:  rgba(0,217,126,0.14);
+  --blue:       #5ac8fa;          /* informational */
+  --blue-dim:   rgba(90,200,250,0.14);
+  --yellow:     #ffcc4d;
+  --yellow-dim: rgba(255,204,77,0.14);
+  --purple:     #bf6dff;
+  --purple-dim: rgba(191,109,255,0.14);
+
+  /* ── Radii ──────────────────────────────── */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;             /* card default */
+  --r-xl: 28px;             /* hero / large surface */
+  --r-pill: 999px;
+
+  /* ── Spacing scale ──────────────────────── */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 40px;
+
+  /* ── Elevation (soft, no harsh ring) ────── */
+  --shadow-sm:    0 1px 2px rgba(0,0,0,0.4);
+  --shadow-card:  0 4px 24px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-pop:   0 20px 60px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-focus: 0 0 0 3px rgba(90,200,250,0.25);
+
+  /* ── Motion ─────────────────────────────── */
+  --ease:  cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast: 120ms;
+  --t-med:  220ms;
+  --t-slow: 380ms;
+
+  /* ── Typography ─────────────────────────── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 28px;
+  --fs-3xl: 40px;
 }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+html, body { height: 100%; }
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  letter-spacing: -0.005em;
+  /* very subtle vignette for depth */
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(90,200,250,0.04), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(255,59,59,0.025), transparent 50%);
+  background-attachment: fixed;
+}
+
+/* ── Tesla-style typography ─────────────────────────────────── */
+h1, h2, h3, h4 { letter-spacing: -0.02em; font-weight: 600; }
+code, pre, .mono { font-family: var(--font-mono); }
+
+/* ── Custom scrollbar (subtle, monochrome) ──────────────────── */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--bg4);
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* ── Tesla 2.0 reusable surface classes ─────────────────────── */
+.t-card {
+  background: var(--bg2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  transition: transform var(--t-med) var(--ease),
+              border-color var(--t-fast) var(--ease),
+              background var(--t-fast) var(--ease);
+}
+.t-card:hover { border-color: var(--border-strong); }
+.t-card-flat {
+  background: var(--bg2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+}
+.t-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--bg3);
+  border: 1px solid transparent;
+  color: var(--text);
+  font-family: inherit; font-weight: 500; font-size: var(--fs-md);
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.t-btn:hover  { background: var(--bg4); }
+.t-btn:active { transform: scale(0.97); }
+.t-btn-primary {
+  background: linear-gradient(180deg, #ff5a5a, var(--red));
+  color: var(--text-on-accent);
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(255,59,59,0.35);
+}
+.t-btn-primary:hover { background: linear-gradient(180deg, #ff7070, #ff4646); }
+.t-btn-ghost {
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid var(--border);
+}
+.t-btn-ghost:hover { color: var(--text); border-color: var(--border-strong); background: var(--bg3); }
+
+.t-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-xs); font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--bg3);
+  color: var(--text2);
+  border: 1px solid var(--border-soft);
+}
+.t-pill-green { background: var(--green-dim); color: var(--green); border-color: transparent; }
+.t-pill-red   { background: var(--red-dim);   color: var(--red);   border-color: transparent; }
+.t-pill-blue  { background: var(--blue-dim);  color: var(--blue);  border-color: transparent; }
+.t-pill-yellow{ background: var(--yellow-dim);color: var(--yellow);border-color: transparent; }
+
+.t-input {
+  background: var(--bg3);
+  border: 1px solid transparent;
+  color: var(--text);
+  font: inherit; font-size: var(--fs-md);
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.t-input:focus { border-color: var(--blue); box-shadow: var(--shadow-focus); }
+.t-input::placeholder { color: var(--text3); }
+
+/* numbers that need to align (prices, percents) */
+.t-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* ── Tesla 2.0 page-wide overrides for existing utilities ───── */
+.issue-card  { border-radius: var(--r-lg) !important; box-shadow: var(--shadow-card); border-color: var(--border-soft) !important; }
+.issue-card:hover { transform: translateY(-3px); border-color: var(--border-strong) !important; box-shadow: 0 12px 36px rgba(0,0,0,0.5); }
+.sidebar-card{ border-radius: var(--r-lg) !important; box-shadow: var(--shadow-card); border-color: var(--border-soft) !important; }
+.stat-card,
+.stats-strip > div { border-radius: var(--r-md) !important; }
+button { font-family: inherit; }
+
+/* slightly punchier focus rings everywhere */
+:focus-visible { outline: none; box-shadow: var(--shadow-focus); border-radius: var(--r-sm); }
 
 /* Header */
 .header {
