@@ -1641,30 +1641,44 @@ async function tryDirectLookup(input) {
     return;
   }
 
-  // 회사명 검색 (한글/영문)
+  // 회사명 검색 (한글/영문) — 최대 30개, 정확매칭/접두사 우선 정렬
   showToast(`"${raw}" 검색 중...`, 'info');
   try {
     const safe = raw.replace(/[%_'"\\]/g, '');
-    const { data: matches } = await sb
+    const { data: rawMatches } = await sb
       .from('companies')
       .select('ticker, name_ko, name_en, market')
       .or(`name_ko.ilike.%${safe}%,name_en.ilike.%${safe}%`)
-      .limit(8);
+      .limit(30);
 
-    if (matches?.length === 1) {
+    // 정확매칭 → 접두사 매칭 → 부분 매칭 순으로 정렬
+    const rawLower = raw.toLowerCase();
+    const safeLower = safe.toLowerCase();
+    const rankOf = (m) => {
+      const ko = (m.name_ko || '').toLowerCase();
+      const en = (m.name_en || '').toLowerCase();
+      if (ko === rawLower || en === rawLower) return 0;        // 정확 일치
+      if (ko.startsWith(safeLower) || en.startsWith(safeLower)) return 1;  // 접두사
+      return 2;                                                // 부분 매칭
+    };
+    const matches = (rawMatches || []).slice().sort((a, b) => {
+      const ra = rankOf(a), rb = rankOf(b);
+      if (ra !== rb) return ra - rb;
+      return (a.name_ko || a.name_en || '').localeCompare(b.name_ko || b.name_en || '');
+    });
+
+    if (matches.length === 1) {
       location.href = `/company.html?ticker=${encodeURIComponent(matches[0].ticker)}`;
       return;
     }
-    if (matches?.length > 1) {
-      // 정확 매칭 우선
-      const exact = matches.find(m =>
-        m.name_ko === raw || m.name_en?.toLowerCase() === raw.toLowerCase()
-      );
-      if (exact) {
-        location.href = `/company.html?ticker=${encodeURIComponent(exact.ticker)}`;
+    if (matches.length > 1) {
+      // 단일 정확 매칭이면 바로 이동
+      const exacts = matches.filter(m => rankOf(m) === 0);
+      if (exacts.length === 1) {
+        location.href = `/company.html?ticker=${encodeURIComponent(exacts[0].ticker)}`;
         return;
       }
-      // 여러 개면 카드 모달 표시
+      // 여러 개면 카드 모달 (이미 정렬된 상태)
       openSearchPicker(raw, matches);
       return;
     }
