@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockRipple Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0a0a0a;
+  --bg2:       #111114;
+  --bg3:       #1a1a1f;
+  --bg4:       #25252b;
+  --border:    #2a2a30;
+  --border-strong: #3d3d45;
+  --text:      #ececec;
+  --text2:     #9a9aa3;
+  --text3:     #5d5d65;
+  --green:     #00d97e;
+  --green-dim: rgba(0,217,126,0.12);
+  --red:       #ff3b3b;
+  --red-dim:   rgba(255,59,59,0.12);
+  --yellow:    #ffcc4d;
+  --yellow-dim:rgba(255,204,77,0.14);
+  --blue:      #5ac8fa;
+  --blue-dim:  rgba(90,200,250,0.14);
+  --orange:    #ff8c2a;
+  --purple:    #bf6dff;
+  --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, sans-serif; font-size: 12px; line-height: 1.4; overflow-x: hidden; }
+a { color: inherit; text-decoration: none; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* ─── Top Header (Bloomberg-style) ─── */
+.term-header {
+  display: flex; align-items: center; gap: 16px;
+  height: 36px; padding: 0 14px;
+  background: linear-gradient(180deg, #1a1a1f, #0e0e12);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.term-logo { font-weight: 700; font-size: 13px; letter-spacing: 1.2px; color: var(--orange); }
+.term-logo span { color: var(--text); }
+.term-nav { display: flex; gap: 4px; }
+.term-nav a {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+  padding: 6px 12px; color: var(--text2);
+  border-radius: 0; transition: color .12s, background .12s;
+}
+.term-nav a:hover { color: var(--text); background: var(--bg3); }
+.term-nav a.active { color: var(--text); border-bottom: 2px solid var(--orange); }
+.term-search {
+  flex: 1; display: flex; align-items: center; gap: 6px; max-width: 460px;
+  margin-left: 16px; height: 26px; padding: 0 10px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.term-search input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text); font-family: var(--mono); font-size: 12px;
+}
+.term-search-key {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  color: var(--orange); background: rgba(255,140,42,0.12);
+  padding: 2px 6px; border-radius: 2px; letter-spacing: 0.5px;
+}
+.term-right { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--text2); }
+.term-clock { font-family: var(--mono); color: var(--text); }
+.term-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+
+/* ─── Indices Strip ─── */
+.indices-strip {
+  display: flex; align-items: center; gap: 0;
+  height: 56px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.indices-strip::-webkit-scrollbar { height: 0; }
+.idx-label {
+  flex-shrink: 0;
+  padding: 0 14px; height: 100%;
+  display: flex; align-items: center;
+  font-size: 11px; font-weight: 700; color: var(--orange);
+  letter-spacing: 1.2px;
+  border-right: 1px solid var(--border);
+}
+.idx-item {
+  flex-shrink: 0;
+  padding: 6px 16px; height: 100%;
+  display: flex; flex-direction: column; justify-content: center;
+  border-right: 1px solid var(--border);
+  min-width: 110px;
+}
+.idx-item-name { font-size: 10px; font-weight: 700; color: var(--text2); letter-spacing: 0.5px; text-transform: uppercase; }
+.idx-item-val { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--text); margin-top: 2px; }
+.idx-item-chg { font-family: var(--mono); font-size: 11px; font-weight: 600; margin-top: 1px; }
+.idx-item-chg.up { color: var(--green); }
+.idx-item-chg.dn { color: var(--red); }
+.idx-item-chg.flat { color: var(--text3); }
+
+/* ─── Grid Layout ─── */
+.term-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  grid-template-rows: auto;
+  gap: 1px;
+  background: var(--border);
+  min-height: calc(100vh - 92px);
+}
+@media (max-width: 1280px) { .term-grid { grid-template-columns: 240px 1fr 280px; } }
+@media (max-width: 980px)  { .term-grid { grid-template-columns: 1fr; } }
+
+.term-col { background: var(--bg); display: flex; flex-direction: column; }
+.term-panel {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 28px; padding: 0 12px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px; font-weight: 700; color: var(--orange);
+  letter-spacing: 1.2px; text-transform: uppercase;
+}
+.panel-header .meta { color: var(--text3); font-weight: 500; letter-spacing: 0.4px; }
+.panel-body { padding: 10px 12px; }
+.panel-body.dense { padding: 6px 12px; }
+.panel-body.nopad { padding: 0; }
+
+/* ─── Regime / Pulse Card ─── */
+.regime-row { display: flex; align-items: center; justify-content: space-between; }
+.regime-pill {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  padding: 4px 10px; border-radius: 2px;
+}
+.regime-pill.RISK-ON  { background: var(--green-dim); color: var(--green); }
+.regime-pill.RISK-OFF { background: var(--red-dim);   color: var(--red); }
+.regime-pill.MIXED    { background: var(--yellow-dim);color: var(--yellow); }
+.headline-text { font-size: 12px; line-height: 1.5; margin-top: 8px; color: var(--text); }
+
+/* ─── Sector Momentum (Bloomberg-style bars) ─── */
+.sector-row { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 0; }
+.sector-row-name { width: 78px; color: var(--text2); font-weight: 500; flex-shrink: 0; }
+.sector-row-bar { flex: 1; height: 8px; background: var(--bg3); position: relative; overflow: hidden; border-radius: 1px; }
+.sector-row-bar-fill { height: 100%; position: absolute; top: 0; }
+.sector-row-bar-fill.up { background: var(--green); left: 50%; }
+.sector-row-bar-fill.dn { background: var(--red);   right: 50%; }
+.sector-row-bar-center { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--border-strong); }
+.sector-row-pct { font-family: var(--mono); font-size: 11px; font-weight: 600; width: 56px; text-align: right; }
+.sector-row-pct.up { color: var(--green); }
+.sector-row-pct.dn { color: var(--red); }
+
+/* ─── Heatmap (Compact Bloomberg) ─── */
+.term-heatmap-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+.term-heatmap-tabs button {
+  flex: 1; background: transparent; border: none; color: var(--text2);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+  padding: 8px 6px; cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all .12s; font-family: inherit;
+}
+.term-heatmap-tabs button:hover { color: var(--text); }
+.term-heatmap-tabs button.active { color: var(--orange); border-bottom-color: var(--orange); }
+.term-heatmap-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  gap: 1px; padding: 6px; background: var(--bg2);
+}
+.hm-cell-term {
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 6px 4px; text-align: center; min-height: 48px;
+  cursor: pointer; transition: filter .15s;
+  font-family: var(--mono);
+}
+.hm-cell-term:hover { filter: brightness(1.15); }
+.hm-cell-term .tk { font-size: 11px; font-weight: 700; }
+.hm-cell-term .nm { font-size: 9px; opacity: 0.8; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hm-cell-term .pct { font-size: 12px; font-weight: 700; margin-top: 2px; }
+
+/* ─── Correlation Matrix ─── */
+.corr-tbl { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 10.5px; }
+.corr-tbl th, .corr-tbl td { padding: 4px 6px; text-align: center; border: 1px solid var(--border); }
+.corr-tbl th { color: var(--text2); font-weight: 600; background: var(--bg3); font-size: 10px; }
+.corr-tbl td.label { color: var(--text2); font-weight: 600; background: var(--bg3); text-align: right; padding-right: 8px; }
+
+/* ─── News List ─── */
+.news-row {
+  display: grid; grid-template-columns: 56px 56px 1fr 80px;
+  gap: 8px; align-items: baseline;
+  padding: 6px 12px; border-bottom: 1px solid var(--border);
+  font-size: 11.5px; transition: background .1s;
+}
+.news-row:hover { background: var(--bg3); }
+.news-time { font-family: var(--mono); color: var(--text3); font-size: 10.5px; }
+.news-conf { font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: var(--blue); }
+.news-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.news-tag { font-size: 10px; color: var(--text2); text-align: right; }
+
+/* ─── Buy Candidates Table ─── */
+.bc-table { width: 100%; border-collapse: collapse; font-size: 11px; font-family: var(--mono); }
+.bc-table th { text-align: left; color: var(--text3); font-weight: 600; padding: 6px 10px; background: var(--bg3); border-bottom: 1px solid var(--border); text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px; }
+.bc-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.bc-table tr:hover { background: var(--bg3); }
+.bc-table td.right { text-align: right; }
+.bc-ticker { color: var(--orange); font-weight: 700; }
+.bc-signal { font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 2px; letter-spacing: 0.4px; }
+.bc-signal.STRONG  { background: var(--green-dim); color: var(--green); }
+.bc-signal.BUY     { background: var(--green-dim); color: var(--green); opacity: 0.7; }
+.bc-signal.NEUTRAL { background: var(--yellow-dim); color: var(--yellow); }
+
+/* ─── Asset Class Quick Ref ─── */
+.assets-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1px; background: var(--border);
+}
+.asset-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 8px; background: var(--bg2); font-size: 11px;
+}
+.asset-row .nm { color: var(--text2); font-size: 10.5px; }
+.asset-row .val { font-family: var(--mono); color: var(--text); font-weight: 600; }
+.asset-row .chg { font-family: var(--mono); font-weight: 600; font-size: 10.5px; }
+
+/* ─── Footer ─── */
+.term-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 14px; font-size: 10px; color: var(--text3);
+  background: var(--bg2); border-top: 1px solid var(--border);
+  letter-spacing: 0.4px;
+}
+.term-footer .src { display: flex; gap: 14px; }
+.term-footer .src span { color: var(--text2); }
+
+/* Loading state */
+.loading { color: var(--text3); font-size: 10.5px; text-align: center; padding: 16px 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<header class="term-header">
+  <div class="term-logo">STOCK<span>RIPPLE</span> ▸</div>
+  <nav class="term-nav">
+    <a href="/" >HOME</a>
+    <a href="/terminal.html" class="active">TERMINAL</a>
+    <a href="/portfolio.html">PORTFOLIO</a>
+    <a href="/admin/">ADMIN</a>
+  </nav>
+  <div class="term-search">
+    <span class="term-search-key">SEARCH</span>
+    <input id="tSearch" placeholder="티커 또는 회사명 (예: AAPL, 삼성전자) → Enter" />
+  </div>
+  <div class="term-right">
+    <span class="term-status-dot"></span>
+    <span id="termClock" class="term-clock">--:--:--</span>
+    <span id="termTz">KST</span>
+  </div>
+</header>
+
+<!-- ═══ INDICES STRIP ═══ -->
+<div class="indices-strip" id="indicesStrip">
+  <div class="idx-label">INDICES</div>
+  <!-- 미국 핵심 -->
+  <div class="idx-item" data-ticker="^GSPC"><div class="idx-item-name">SPX</div><div class="idx-item-val" id="t-^GSPC">—</div><div class="idx-item-chg flat" id="c-^GSPC">—</div></div>
+  <div class="idx-item" data-ticker="^IXIC"><div class="idx-item-name">NDX</div><div class="idx-item-val" id="t-^IXIC">—</div><div class="idx-item-chg flat" id="c-^IXIC">—</div></div>
+  <div class="idx-item" data-ticker="^DJI" ><div class="idx-item-name">DJI</div><div class="idx-item-val" id="t-^DJI">—</div><div class="idx-item-chg flat" id="c-^DJI">—</div></div>
+  <div class="idx-item" data-ticker="^RUT" ><div class="idx-item-name">RUT</div><div class="idx-item-val" id="t-^RUT">—</div><div class="idx-item-chg flat" id="c-^RUT">—</div></div>
+  <div class="idx-item" data-ticker="^VIX" ><div class="idx-item-name">VIX</div><div class="idx-item-val" id="t-^VIX">—</div><div class="idx-item-chg flat" id="c-^VIX">—</div></div>
+  <div class="idx-item" data-ticker="^TNX" ><div class="idx-item-name">US 10Y</div><div class="idx-item-val" id="t-^TNX">—</div><div class="idx-item-chg flat" id="c-^TNX">—</div></div>
+  <div class="idx-item" data-ticker="^TYX" ><div class="idx-item-name">US 30Y</div><div class="idx-item-val" id="t-^TYX">—</div><div class="idx-item-chg flat" id="c-^TYX">—</div></div>
+  <div class="idx-item" data-ticker="DX-Y.NYB"><div class="idx-item-name">DXY</div><div class="idx-item-val" id="t-DX-Y.NYB">—</div><div class="idx-item-chg flat" id="c-DX-Y.NYB">—</div></div>
+  <div class="idx-item" data-ticker="CL=F" ><div class="idx-item-name">WTI</div><div class="idx-item-val" id="t-CL=F">—</div><div class="idx-item-chg flat" id="c-CL=F">—</div></div>
+  <div class="idx-item" data-ticker="GC=F" ><div class="idx-item-name">GOLD</div><div class="idx-item-val" id="t-GC=F">—</div><div class="idx-item-chg flat" id="c-GC=F">—</div></div>
+  <div class="idx-item" data-ticker="BTC-USD"><div class="idx-item-name">BTC</div><div class="idx-item-val" id="t-BTC-USD">—</div><div class="idx-item-chg flat" id="c-BTC-USD">—</div></div>
+  <div class="idx-item" data-ticker="^KS11"><div class="idx-item-name">KOSPI</div><div class="idx-item-val" id="t-^KS11">—</div><div class="idx-item-chg flat" id="c-^KS11">—</div></div>
+  <div class="idx-item" data-ticker="^N225"><div class="idx-item-name">NIKKEI</div><div class="idx-item-val" id="t-^N225">—</div><div class="idx-item-chg flat" id="c-^N225">—</div></div>
+  <div class="idx-item" data-ticker="KRW=X"><div class="idx-item-name">USD/KRW</div><div class="idx-item-val" id="t-KRW=X">—</div><div class="idx-item-chg flat" id="c-KRW=X">—</div></div>
+</div>
+
+<!-- ═══ MAIN 3-COLUMN GRID ═══ -->
+<div class="term-grid">
+
+  <!-- ─── LEFT COLUMN ─── -->
+  <div class="term-col">
+    <div class="term-panel">
+      <div class="panel-header">MARKET PULSE <span class="meta" id="mpUpdated">—</span></div>
+      <div class="panel-body" id="marketPulseBody"><div class="loading">불러오는 중...</div></div>
+    </div>
+
+    <div class="term-panel">
+      <div class="panel-header">SECTOR MOMENTUM <span class="meta">SPDR · 1D</span></div>
+      <div class="panel-body dense" id="sectorBody"><div class="loading">불러오는 중...</div></div>
+    </div>
+
+    <div class="term-panel">
+      <div class="panel-header">CROSS-ASSET CORRELATION <span class="meta">30D</span></div>
+      <div class="panel-body" id="corrBody"><div class="loading">계산 중...</div></div>
+    </div>
+
+    <div class="term-panel" style="flex:1">
+      <div class="panel-header">EXPIRATIONS</div>
+      <div class="panel-body dense" id="expBody"><div class="loading">—</div></div>
+    </div>
+  </div>
+
+  <!-- ─── CENTER COLUMN ─── -->
+  <div class="term-col">
+    <div class="term-panel">
+      <div class="term-heatmap-tabs">
+        <button data-mkt="us"     class="active" onclick="switchTermHeatmap('us')">🇺🇸 US</button>
+        <button data-mkt="sector"               onclick="switchTermHeatmap('sector')">SECTOR</button>
+        <button data-mkt="etf"                  onclick="switchTermHeatmap('etf')">ETF</button>
+        <button data-mkt="assets"               onclick="switchTermHeatmap('assets')">ASSETS</button>
+        <button data-mkt="kr"                   onclick="switchTermHeatmap('kr')">🇰🇷 KR</button>
+      </div>
+      <div class="term-heatmap-grid" id="termHeatmap"><div class="loading" style="grid-column:1/-1">불러오는 중...</div></div>
+    </div>
+
+    <div class="term-panel">
+      <div class="panel-header">TOP BUY CANDIDATES <span class="meta" id="bcMeta">—</span></div>
+      <div class="panel-body nopad" id="bcBody"><div class="loading">불러오는 중...</div></div>
+    </div>
+
+    <div class="term-panel" style="flex:1">
+      <div class="panel-header">LIVE NEWS FEED <span class="meta">최근 분석된 이슈</span></div>
+      <div class="panel-body nopad" id="newsBody" style="max-height:380px;overflow-y:auto"><div class="loading">불러오는 중...</div></div>
+    </div>
+  </div>
+
+  <!-- ─── RIGHT COLUMN ─── -->
+  <div class="term-col">
+    <div class="term-panel">
+      <div class="panel-header">ECONOMIC CALENDAR</div>
+      <div class="panel-body dense" id="econBody"><div class="loading">불러오는 중...</div></div>
+    </div>
+
+    <div class="term-panel">
+      <div class="panel-header">EARNINGS THIS WEEK</div>
+      <div class="panel-body dense" id="earnBody"><div class="loading">불러오는 중...</div></div>
+    </div>
+
+    <div class="term-panel">
+      <div class="panel-header">ANALYST CONSENSUS</div>
+      <div class="panel-body dense" id="analystBody"><div class="loading">불러오는 중...</div></div>
+    </div>
+
+    <div class="term-panel" style="flex:1">
+      <div class="panel-header">BREAKING NEWS</div>
+      <div class="panel-body dense" id="breakingBody" style="max-height:280px;overflow-y:auto"><div class="loading">—</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<div class="term-footer">
+  <div class="src">
+    <span>📡 Yahoo Finance</span>
+    <span>📜 SEC EDGAR</span>
+    <span>🇰🇷 DART</span>
+    <span>🤖 Claude AI</span>
+    <span>🇺🇸 미국 데이터 ~15분 지연 가능</span>
+  </div>
+  <div>StockRipple Terminal v1.0 · 한국어 금융 워크스테이션</div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+window.sb = sb;
+window.esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// ─── Clock ───
+function tickClock() {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const hh = String(kst.getUTCHours()).padStart(2, '0');
+  const mm = String(kst.getUTCMinutes()).padStart(2, '0');
+  const ss = String(kst.getUTCSeconds()).padStart(2, '0');
+  document.getElementById('termClock').textContent = `${hh}:${mm}:${ss}`;
+}
+setInterval(tickClock, 1000); tickClock();
+
+// ─── Indices Strip (top bar, 5s polling) ───
+const INDICES_LIST = ['^GSPC','^IXIC','^DJI','^RUT','^VIX','^TNX','^TYX','DX-Y.NYB','CL=F','GC=F','BTC-USD','^KS11','^N225','KRW=X'];
+async function loadIndices() {
+  try {
+    const r = await fetch(`/api/quotes?tickers=${INDICES_LIST.map(encodeURIComponent).join(',')}`);
+    const j = await r.json();
+    if (!j.ok) return;
+    for (const t of INDICES_LIST) {
+      const d = j.data[t];
+      if (!d) continue;
+      const valEl = document.getElementById(`t-${t}`);
+      const chgEl = document.getElementById(`c-${t}`);
+      if (!valEl || !chgEl) continue;
+      const p = d.price;
+      const fmtPrice = p == null ? '—'
+        : (t === '^TNX' || t === '^TYX') ? p.toFixed(2)
+        : (Math.abs(p) >= 1000 ? p.toLocaleString('en-US', { maximumFractionDigits: 2 }) : p.toFixed(2));
+      valEl.textContent = fmtPrice;
+      const cp = d.changePercent;
+      const sign = cp > 0 ? '+' : '';
+      chgEl.textContent = cp != null ? `${sign}${cp.toFixed(2)}%` : '—';
+      chgEl.className = `idx-item-chg ${cp > 0 ? 'up' : cp < 0 ? 'dn' : 'flat'}`;
+    }
+  } catch {}
+}
+loadIndices(); setInterval(loadIndices, 5000);
+
+// 인덱스 클릭 → TradingView 새 창
+document.querySelectorAll('.idx-item[data-ticker]').forEach(el => {
+  el.style.cursor = 'pointer';
+  el.addEventListener('click', () => {
+    const map = {
+      '^GSPC':'SPX','^IXIC':'NASDAQ:IXIC','^DJI':'DJI','^RUT':'RUT','^VIX':'TVC:VIX',
+      '^TNX':'TVC:US10Y','^TYX':'TVC:US30Y','DX-Y.NYB':'TVC:DXY',
+      'CL=F':'TVC:USOIL','GC=F':'TVC:GOLD','BTC-USD':'BITSTAMP:BTCUSD',
+      '^KS11':'KRX:KOSPI','^N225':'TVC:NI225','KRW=X':'FX_IDC:USDKRW',
+    };
+    window.open(`https://www.tradingview.com/chart/?symbol=${encodeURIComponent(map[el.dataset.ticker] || el.dataset.ticker)}`, '_blank', 'noopener');
+  });
+});
+
+// ─── Market Pulse (AI Summary) ───
+async function loadMarketPulse() {
+  const body = document.getElementById('marketPulseBody');
+  try {
+    const r = await fetch('/api/admin?action=ai-market-summary');
+    if (!r.ok) {
+      body.innerHTML = '<div class="loading">AI 종합 아직 생성 전 (cron 대기)</div>';
+      return;
+    }
+    const d = await r.json();
+    document.getElementById('mpUpdated').textContent = d.created_at
+      ? new Date(d.created_at).toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '';
+    const regimeClass = d.regime || 'MIXED';
+    body.innerHTML = `
+      <div class="regime-row">
+        <span class="regime-pill ${regimeClass}">${esc(regimeClass)}</span>
+        <span style="font-size:10px;color:var(--text3)">${d.based_on_issues || 0} ISSUES</span>
+      </div>
+      <div class="headline-text">${esc(d.headline || '')}</div>
+      <div style="margin-top:10px">
+        <div style="font-size:9.5px;color:var(--green);font-weight:700;letter-spacing:0.5px">▲ BULLISH</div>
+        ${(d.bullish_drivers||[]).slice(0,3).map(x => `<div style="font-size:10.5px;color:var(--text2);margin-top:2px;line-height:1.45">• ${esc(x)}</div>`).join('')}
+      </div>
+      <div style="margin-top:8px">
+        <div style="font-size:9.5px;color:var(--red);font-weight:700;letter-spacing:0.5px">▼ BEARISH</div>
+        ${(d.bearish_drivers||[]).slice(0,3).map(x => `<div style="font-size:10.5px;color:var(--text2);margin-top:2px;line-height:1.45">• ${esc(x)}</div>`).join('')}
+      </div>
+      <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
+        ${(d.sectors_winning||[]).map(s => `<span style="font-size:9.5px;font-family:var(--mono);padding:1px 6px;background:var(--green-dim);color:var(--green);border-radius:2px">${esc(s)}</span>`).join('')}
+      </div>`;
+  } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
+}
+loadMarketPulse();
+
+// ─── Sector Momentum ───
+const SECTORS = [
+  { t:'XLK', n:'TECH' }, { t:'XLF', n:'FINANCIAL' }, { t:'XLV', n:'HEALTH' },
+  { t:'XLY', n:'CONS DISC' }, { t:'XLP', n:'STAPLES' }, { t:'XLE', n:'ENERGY' },
+  { t:'XLI', n:'INDUSTRIAL' }, { t:'XLB', n:'MATERIALS' }, { t:'XLU', n:'UTIL' },
+  { t:'XLRE',n:'REITS' }, { t:'XLC', n:'COMM' },
+];
+async function loadSectors() {
+  const body = document.getElementById('sectorBody');
+  try {
+    const r = await fetch(`/api/quotes?tickers=${SECTORS.map(s => s.t).join(',')}`);
+    const j = await r.json();
+    if (!j.ok) throw new Error();
+    const items = SECTORS.map(s => ({ ...s, pct: j.data?.[s.t]?.changePercent ?? null }))
+      .filter(x => x.pct != null).sort((a, b) => b.pct - a.pct);
+    if (!items.length) { body.innerHTML = '<div class="loading">시장 휴장</div>'; return; }
+    const maxAbs = Math.max(...items.map(it => Math.abs(it.pct)), 1);
+    body.innerHTML = items.map(it => {
+      const w = (Math.abs(it.pct) / maxAbs) * 50;
+      const cls = it.pct >= 0 ? 'up' : 'dn';
+      const sign = it.pct >= 0 ? '+' : '';
+      return `<div class="sector-row">
+        <span class="sector-row-name">${esc(it.n)}</span>
+        <div class="sector-row-bar">
+          <div class="sector-row-bar-fill ${cls}" style="width:${w}%"></div>
+          <div class="sector-row-bar-center"></div>
+        </div>
+        <span class="sector-row-pct ${cls}">${sign}${it.pct.toFixed(2)}%</span>
+      </div>`;
+    }).join('');
+  } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
+}
+loadSectors(); setInterval(loadSectors, 30000);
+
+// ─── Correlation ───
+const CORR = [
+  { t:'SPY', n:'EQTY' },
+  { t:'TLT', n:'BOND' },
+  { t:'GLD', n:'GOLD' },
+  { t:'USO', n:'OIL' },
+  { t:'DX-Y.NYB', n:'DXY' },
+  { t:'BTC-USD', n:'BTC' },
+];
+async function loadCorr() {
+  const body = document.getElementById('corrBody');
+  try {
+    const r = await fetch(`/api/quotes?tickers=${CORR.map(a => a.t).join(',')}&range=1mo&include=series`);
+    const j = await r.json();
+    if (!j.ok) throw new Error();
+    const returns = {};
+    for (const a of CORR) {
+      const s = j.data?.[a.t]?.series;
+      if (!Array.isArray(s) || s.length < 5) continue;
+      const ret = [];
+      for (let i = 1; i < s.length; i++) if (s[i] && s[i-1]) ret.push((s[i]-s[i-1])/s[i-1]);
+      returns[a.t] = ret;
+    }
+    const valid = CORR.filter(a => returns[a.t]?.length >= 5);
+    if (valid.length < 2) { body.innerHTML = '<div class="loading">데이터 부족</div>'; return; }
+    const corrFn = (x, y) => {
+      const n = Math.min(x.length, y.length);
+      let sx=0,sy=0,sxy=0,sx2=0,sy2=0;
+      for (let i=0; i<n; i++) { const xi=x[x.length-n+i], yi=y[y.length-n+i]; sx+=xi; sy+=yi; sxy+=xi*yi; sx2+=xi*xi; sy2+=yi*yi; }
+      const num=n*sxy-sx*sy, den=Math.sqrt((n*sx2-sx*sx)*(n*sy2-sy*sy));
+      return den ? num/den : null;
+    };
+    const cellColor = (c) => {
+      if (c == null) return { bg:'var(--bg3)', fg:'var(--text3)' };
+      const v = Math.max(-1, Math.min(1, c));
+      if (v >= 0) {
+        const a = 0.15 + v * 0.55;
+        return { bg: `rgba(0,217,126,${a.toFixed(2)})`, fg: v > 0.4 ? '#000' : 'var(--green)' };
+      }
+      const a = 0.15 + (-v) * 0.55;
+      return { bg: `rgba(255,59,59,${a.toFixed(2)})`, fg: -v > 0.4 ? '#fff' : 'var(--red)' };
+    };
+    let html = '<table class="corr-tbl"><thead><tr><th></th>';
+    for (const a of valid) html += `<th>${esc(a.n)}</th>`;
+    html += '</tr></thead><tbody>';
+    for (const a of valid) {
+      html += `<tr><td class="label">${esc(a.n)}</td>`;
+      for (const b of valid) {
+        const c = a.t === b.t ? 1 : corrFn(returns[a.t], returns[b.t]);
+        const col = cellColor(c);
+        html += `<td style="background:${col.bg};color:${col.fg};font-weight:600">${c != null ? c.toFixed(2) : '—'}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    body.innerHTML = html;
+  } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
+}
+loadCorr(); setInterval(loadCorr, 1800000);
+
+// ─── Heatmap ───
+const HM_LISTS = {
+  us: [
+    ['NVDA','NVIDIA'],['AAPL','Apple'],['MSFT','MSFT'],['GOOGL','Alphabet'],['AMZN','Amazon'],
+    ['META','Meta'],['TSLA','Tesla'],['AVGO','Broadcom'],['LLY','Eli Lilly'],['JPM','JPM'],
+    ['V','Visa'],['UNH','UnitedHlth'],['XOM','Exxon'],['MA','MA'],['WMT','Walmart'],
+    ['JNJ','J&J'],['PG','P&G'],['ORCL','Oracle'],['COST','Costco'],['HD','Home Depot'],
+    ['AMD','AMD'],['NFLX','Netflix'],['CRM','Salesforce'],['ADBE','Adobe'],['CSCO','Cisco'],
+    ['INTC','Intel'],['QCOM','Qualcomm'],['MU','Micron'],['PLTR','Palantir'],['SNOW','Snowflake'],
+    ['BAC','BofA'],['WFC','Wells Fargo'],['GS','Goldman'],['MS','MS'],['BLK','BlackRock'],
+    ['MRK','Merck'],['ABBV','AbbVie'],['NVO','Novo Nordisk'],['CVX','Chevron'],['BA','Boeing'],
+    ['CAT','CAT'],['LMT','Lockheed'],['CEG','Constellation'],['DIS','Disney'],['MCD','MCD'],
+    ['NKE','Nike'],['PEP','PepsiCo'],['KO','Coke'],['COIN','Coinbase'],['F','Ford'],
+  ],
+  sector: [
+    ['XLK','TECH'],['XLF','FIN'],['XLV','HEALTH'],['XLY','CONS DISC'],['XLP','STAPLES'],
+    ['XLE','ENERGY'],['XLI','INDUST'],['XLB','MATERIALS'],['XLU','UTIL'],['XLRE','REITS'],
+    ['XLC','COMM'],['SMH','SEMI (V)'],['SOXX','SEMI (BI)'],['XBI','BIOTECH'],['IBB','BIO (LG)'],
+    ['KRE','REGIONAL BK'],['ITA','DEFENSE'],['JETS','AIRLINES'],['IYT','TRANSPORT'],['TAN','SOLAR'],
+  ],
+  etf: [
+    ['SPY','S&P 500'],['QQQ','NDX 100'],['DIA','DOW'],['IWM','RUSSELL'],['VTI','US TOTAL'],
+    ['EFA','EX-US DEV'],['EEM','EM'],['EWJ','JAPAN'],['EWY','KOREA'],['MCHI','CHINA'],
+    ['INDA','INDIA'],['ARKK','ARK'],['TQQQ','NDX 3X'],['SOXL','SEMI 3X'],['TLT','20Y+ TSY'],
+    ['IEF','7-10Y TSY'],['HYG','HY BOND'],['LQD','IG BOND'],['GLD','GOLD'],['SLV','SILVER'],
+    ['USO','WTI'],['UNG','NAT GAS'],['IBIT','BTC SPOT'],['FBTC','BTC SPOT (F)'],['URA','URANIUM'],
+  ],
+  assets: [
+    ['^GSPC','S&P 500'],['^IXIC','NASDAQ'],['^DJI','DOW'],['^RUT','RUSSELL'],['^VIX','VIX'],
+    ['^KS11','KOSPI'],['^N225','NIKKEI'],['^HSI','HSI'],['^FTSE','FTSE'],['^GDAXI','DAX'],
+    ['^IRX','US 3M'],['^FVX','US 5Y'],['^TNX','US 10Y'],['^TYX','US 30Y'],
+    ['GC=F','GOLD'],['SI=F','SILVER'],['CL=F','WTI'],['BZ=F','BRENT'],['NG=F','NATGAS'],
+    ['HG=F','COPPER'],['DX-Y.NYB','DXY'],['KRW=X','USD/KRW'],['JPY=X','USD/JPY'],
+    ['EURUSD=X','EUR/USD'],['BTC-USD','BTC'],['ETH-USD','ETH'],['SOL-USD','SOL'],
+  ],
+  kr: [
+    ['005930.KS','삼성전자'],['000660.KS','SK하이닉스'],['373220.KS','LG에너지솔루션'],
+    ['207940.KS','삼성바이오로직스'],['005380.KS','현대차'],['035420.KS','NAVER'],
+    ['005935.KS','삼성전자우'],['068270.KS','셀트리온'],['105560.KS','KB금융'],
+    ['035720.KS','카카오'],['055550.KS','신한지주'],['012330.KS','현대모비스'],
+    ['028260.KS','삼성물산'],['005490.KS','POSCO홀딩스'],['329180.KS','HD현대중공업'],
+    ['066570.KS','LG전자'],['003550.KS','LG'],['015760.KS','한국전력'],
+    ['032830.KS','삼성생명'],['017670.KS','SK텔레콤'],['086790.KS','하나금융'],
+    ['009150.KS','삼성전기'],['006400.KS','삼성SDI'],['051910.KS','LG화학'],
+    ['000270.KS','기아'],['012450.KS','한화에어로'],['259960.KS','크래프톤'],
+    ['352820.KS','하이브'],['042700.KS','한미반도체'],['247540.KQ','에코프로비엠'],
+  ],
+};
+let _hmMkt = 'us';
+function switchTermHeatmap(mkt) {
+  _hmMkt = mkt;
+  document.querySelectorAll('.term-heatmap-tabs button').forEach(b => b.classList.toggle('active', b.dataset.mkt === mkt));
+  loadTermHeatmap();
+}
+window.switchTermHeatmap = switchTermHeatmap;
+
+async function loadTermHeatmap() {
+  const grid = document.getElementById('termHeatmap');
+  const list = HM_LISTS[_hmMkt];
+  try {
+    const r = await fetch(`/api/quotes?tickers=${list.map(x => encodeURIComponent(x[0])).join(',')}`);
+    const j = await r.json();
+    if (!j.ok) throw new Error();
+    const items = list.map(([t, n]) => ({ t, n, pct: j.data?.[t]?.changePercent ?? null }))
+      .filter(x => x.pct != null).sort((a, b) => b.pct - a.pct);
+    if (!items.length) { grid.innerHTML = '<div class="loading" style="grid-column:1/-1">데이터 없음</div>'; return; }
+    const colorFor = (pct) => {
+      const v = Math.max(-5, Math.min(5, pct)) / 5;
+      if (v >= 0) {
+        const a = 0.18 + v * 0.78;
+        return { bg: `rgba(0,217,126,${a.toFixed(2)})`, fg: v > 0.35 ? '#000' : 'var(--green)' };
+      }
+      const a = 0.18 + (-v) * 0.78;
+      return { bg: `rgba(255,59,59,${a.toFixed(2)})`, fg: -v > 0.35 ? '#fff' : 'var(--red)' };
+    };
+    const isAsset = (t) => /^\^/.test(t) || /=F$/.test(t) || /=X$/.test(t) || /-USD$/.test(t) || /^DX-Y/.test(t);
+    grid.innerHTML = items.map(it => {
+      const sign = it.pct >= 0 ? '+' : '';
+      const display = it.t.replace(/\.(KS|KQ)$/, '');
+      const c = colorFor(it.pct);
+      const href = isAsset(it.t) ? '#' : `/company.html?ticker=${encodeURIComponent(it.t)}`;
+      return `<a class="hm-cell-term" href="${href}" style="background:${c.bg};color:${c.fg}" ${isAsset(it.t) ? 'onclick="event.preventDefault()"' : ''}>
+        <span class="tk">${display}</span>
+        <span class="nm">${esc(it.n)}</span>
+        <span class="pct">${sign}${it.pct.toFixed(2)}</span>
+      </a>`;
+    }).join('');
+  } catch { grid.innerHTML = '<div class="loading" style="grid-column:1/-1">로드 실패</div>'; }
+}
+loadTermHeatmap(); setInterval(loadTermHeatmap, 1000);
+
+// ─── Buy Candidates (top 8) ───
+async function loadBuyCandidates() {
+  const body = document.getElementById('bcBody');
+  try {
+    const RECENT_MS = 14 * 86400 * 1000;
+    const { data } = await sb.from('analysis_companies')
+      .select(`upside_pct, confidence, rationale, entry_date, companies(ticker, name_ko, market)`)
+      .gte('entry_date', new Date(Date.now() - RECENT_MS).toISOString())
+      .order('confidence', { ascending: false }).limit(40);
+    if (!data?.length) { body.innerHTML = '<div class="loading">데이터 없음</div>'; return; }
+    // 종목별 평균
+    const map = {};
+    for (const r of data) {
+      const t = r.companies?.ticker;
+      if (!t) continue;
+      if (!map[t]) map[t] = { ticker: t, name: r.companies.name_ko || t, market: r.companies.market || 'US', ups: [], confs: [] };
+      if (r.upside_pct != null && r.upside_pct > 0) map[t].ups.push(r.upside_pct);
+      if (r.confidence != null) map[t].confs.push(r.confidence);
+    }
+    const list = Object.values(map).filter(x => x.confs.length > 0)
+      .map(x => ({ ...x, avgUp: x.ups.length ? x.ups.reduce((s,v)=>s+v,0)/x.ups.length : 0, avgConf: x.confs.reduce((s,v)=>s+v,0)/x.confs.length }))
+      .sort((a, b) => b.avgConf - a.avgConf).slice(0, 8);
+    document.getElementById('bcMeta').textContent = `${list.length} TICKERS · 14D`;
+
+    // 시세 fetch
+    const tickers = list.map(x => x.ticker);
+    const q = tickers.length ? await (await fetch(`/api/quotes?tickers=${tickers.map(encodeURIComponent).join(',')}`)).json().catch(() => ({})) : {};
+    body.innerHTML = `<table class="bc-table">
+      <thead><tr><th>TICKER</th><th>NAME</th><th class="right">PRICE</th><th class="right">CHG%</th><th class="right">UPSIDE</th><th class="right">CONF</th><th>SIGNAL</th></tr></thead>
+      <tbody>${list.map(it => {
+        const d = q.data?.[it.ticker];
+        const cur = d?.currency === 'KRW' ? '₩' : '$';
+        const priceStr = d?.price != null ? cur + (d.currency === 'KRW' ? Math.round(d.price).toLocaleString() : d.price.toFixed(2)) : '—';
+        const cp = d?.changePercent;
+        const cpStr = cp != null ? `${cp > 0 ? '+' : ''}${cp.toFixed(2)}%` : '—';
+        const cpCls = cp == null ? '' : cp > 0 ? 'style="color:var(--green)"' : 'style="color:var(--red)"';
+        const signal = it.avgConf >= 80 ? 'STRONG' : it.avgConf >= 65 ? 'BUY' : 'NEUTRAL';
+        return `<tr onclick="location.href='/company.html?ticker=${encodeURIComponent(it.ticker)}'" style="cursor:pointer">
+          <td class="bc-ticker">${esc(it.ticker.replace(/\.(KS|KQ)$/, ''))}</td>
+          <td>${esc(it.name)}</td>
+          <td class="right">${priceStr}</td>
+          <td class="right" ${cpCls}>${cpStr}</td>
+          <td class="right" style="color:var(--green)">+${it.avgUp.toFixed(1)}%</td>
+          <td class="right" style="color:var(--blue)">${Math.round(it.avgConf)}</td>
+          <td><span class="bc-signal ${signal}">${signal}</span></td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+  } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
+}
+loadBuyCandidates();
+
+// ─── News Feed ───
+async function loadNews() {
+  const body = document.getElementById('newsBody');
+  try {
+    const { data } = await sb.from('issues')
+      .select('id, title, source_name, published_at, sectors, analyses(confidence_score)')
+      .eq('is_analyzed', true).order('published_at', { ascending: false }).limit(40);
+    if (!data?.length) { body.innerHTML = '<div class="loading">데이터 없음</div>'; return; }
+    body.innerHTML = data.map(i => {
+      const t = new Date(i.published_at);
+      const time = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+      const conf = i.analyses?.[0]?.confidence_score;
+      const sector = (i.sectors || [])[0] || '';
+      return `<a href="/analysis/${i.id}" class="news-row">
+        <span class="news-time">${time}</span>
+        <span class="news-conf">${conf != null ? conf : '—'}</span>
+        <span class="news-title">${esc(i.title)}</span>
+        <span class="news-tag">${esc(sector)}</span>
+      </a>`;
+    }).join('');
+  } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
+}
+loadNews(); setInterval(loadNews, 60000);
+
+// ─── Economic Calendar ───
+async function loadEcon() {
+  const body = document.getElementById('econBody');
+  try {
+    const r = await fetch('/api/market-pulse?type=economic');
+    const j = await r.json();
+    const items = (j?.items || []).slice(0, 8);
+    if (!items.length) { body.innerHTML = '<div class="loading">데이터 없음</div>'; return; }
+    body.innerHTML = items.map(it => `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:11px">
+      <div style="display:flex;justify-content:space-between;gap:6px">
+        <span style="color:var(--text);font-weight:500">${esc(it.titleKo || it.title || '')}</span>
+        <span style="color:var(--text3);font-family:var(--mono);font-size:10px">${esc(it.country || '')}</span>
+      </div>
+      <div style="color:var(--text3);font-size:10px;margin-top:2px">${esc((it.date || '').slice(0,16).replace('T',' '))}${it.actual ? ` · <span style="color:var(--orange)">실제 ${esc(it.actual)}</span>` : ''}</div>
+    </div>`).join('');
+  } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
+}
+loadEcon();
+
+// ─── Earnings Calendar ───
+async function loadEarnings() {
+  const body = document.getElementById('earnBody');
+  try {
+    const r = await fetch('/api/earnings');
+    const j = await r.json();
+    const items = (j?.items || []).slice(0, 8);
+    if (!items.length) { body.innerHTML = '<div class="loading">데이터 없음</div>'; return; }
+    body.innerHTML = items.map(it => `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:11px">
+      <div style="display:flex;justify-content:space-between;gap:6px">
+        <span style="color:var(--orange);font-family:var(--mono);font-weight:700">${esc(it.ticker)}</span>
+        <span style="color:var(--text3);font-size:10px">${esc((it.date || '').slice(0,10))}</span>
+      </div>
+      <div style="color:var(--text2);font-size:10.5px;margin-top:1px">${esc(it.company || '')}</div>
+      ${it.epsActual != null ? `<div style="color:var(--green);font-family:var(--mono);font-size:10px">EPS $${it.epsActual.toFixed(2)}${it.epsConsensus != null ? ` / 컨센 $${it.epsConsensus.toFixed(2)}` : ''}</div>` : ''}
+    </div>`).join('');
+  } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
+}
+loadEarnings();
+
+// ─── Analyst Consensus ───
+async function loadAnalyst() {
+  const body = document.getElementById('analystBody');
+  try {
+    const r = await fetch('/api/earnings?type=analyst');
+    const j = await r.json();
+    const items = (j?.items || []).slice(0, 6);
+    if (!items.length) { body.innerHTML = '<div class="loading">데이터 없음</div>'; return; }
+    body.innerHTML = items.map(it => {
+      const recLabel = { strong_buy:'STRONG BUY', buy:'BUY', hold:'HOLD', sell:'SELL', strong_sell:'STRONG SELL' }[it.recKey] || '—';
+      const recColor = it.recKey === 'strong_buy' || it.recKey === 'buy' ? 'var(--green)' : it.recKey === 'sell' || it.recKey === 'strong_sell' ? 'var(--red)' : 'var(--yellow)';
+      const upside = it.price && it.targetMean ? ((it.targetMean - it.price) / it.price * 100) : null;
+      return `<div style="padding:5px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span style="color:var(--orange);font-family:var(--mono);font-weight:700;font-size:11px">${esc(it.ticker)}</span>
+          <span style="font-size:9.5px;color:${recColor};font-weight:700">${recLabel}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;color:var(--text3);font-size:10px;font-family:var(--mono);margin-top:2px">
+          <span>$${it.price?.toFixed(2) || '—'} → $${it.targetMean?.toFixed(2) || '—'}</span>
+          ${upside != null ? `<span style="color:${upside > 0 ? 'var(--green)' : 'var(--red)'}">${upside > 0 ? '+' : ''}${upside.toFixed(1)}%</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
+}
+loadAnalyst();
+
+// ─── Breaking News ───
+async function loadBreaking() {
+  const body = document.getElementById('breakingBody');
+  try {
+    const { data } = await sb.from('issues').select('title, source_name, published_at')
+      .order('published_at', { ascending: false }).limit(20);
+    if (!data?.length) { body.innerHTML = '<div class="loading">데이터 없음</div>'; return; }
+    body.innerHTML = data.map(i => {
+      const t = new Date(i.published_at);
+      const time = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+      return `<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;line-height:1.45">
+        <div style="display:flex;justify-content:space-between;gap:6px;color:var(--text3);font-size:9.5px;font-family:var(--mono);margin-bottom:2px">
+          <span>${esc(i.source_name || '')}</span>
+          <span>${time}</span>
+        </div>
+        <div style="color:var(--text)">${esc(i.title)}</div>
+      </div>`;
+    }).join('');
+  } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
+}
+loadBreaking(); setInterval(loadBreaking, 60000);
+
+// ─── Expirations ───
+function loadExp() {
+  const body = document.getElementById('expBody');
+  function nthWeekday(year, month, weekday, n) {
+    const first = new Date(year, month, 1);
+    const offset = (weekday - first.getDay() + 7) % 7;
+    return new Date(year, month, 1 + offset + (n - 1) * 7);
+  }
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const items = [];
+  for (let i = 0; i < 4 && items.filter(x => x.region === 'US').length < 2; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const exp = nthWeekday(d.getFullYear(), d.getMonth(), 5, 3);
+    if (exp >= today) {
+      const isQuad = [2,5,8,11].includes(exp.getMonth());
+      items.push({ d: exp, region: 'US', label: isQuad ? 'US QUAD WITCH' : 'US OPEX' });
+    }
+  }
+  for (let i = 0; i < 4 && items.filter(x => x.region === 'KR').length < 2; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const exp = nthWeekday(d.getFullYear(), d.getMonth(), 4, 2);
+    if (exp >= today) {
+      const isQ = [2,5,8,11].includes(exp.getMonth());
+      items.push({ d: exp, region: 'KR', label: isQ ? 'KR QUAD' : 'KR OPEX' });
+    }
+  }
+  items.sort((a, b) => a.d - b.d);
+  body.innerHTML = items.map(it => {
+    const days = Math.ceil((it.d - today) / 86400000);
+    const urgent = days <= 7;
+    return `<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">
+      <span style="color:var(--text2);font-family:var(--mono);font-size:10.5px">${it.label}</span>
+      <span style="color:${urgent ? 'var(--orange)' : 'var(--text)'};font-family:var(--mono);font-weight:600">D-${days}</span>
+    </div>`;
+  }).join('');
+}
+loadExp();
+
+// ─── Search ───
+document.getElementById('tSearch').addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const raw = e.target.value.trim();
+  if (!raw) return;
+  const upper = raw.toUpperCase();
+  if (/^[A-Z][A-Z0-9.\-]{0,9}$/.test(upper) || /^\d{6}\.K[SQ]$/i.test(upper)) {
+    location.href = `/company.html?ticker=${encodeURIComponent(upper)}`;
+    return;
+  }
+  if (/^\d{6}$/.test(upper)) { location.href = `/company.html?ticker=${upper}.KS`; return; }
+  // 회사명
+  const safe = raw.replace(/[%_'"\\]/g, '');
+  const { data } = await sb.from('companies').select('ticker, name_ko, name_en').or(`name_ko.ilike.%${safe}%,name_en.ilike.%${safe}%`).limit(1);
+  if (data?.[0]) location.href = `/company.html?ticker=${encodeURIComponent(data[0].ticker)}`;
+});
+</script>
+</body>
+</html>
