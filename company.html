@@ -1006,6 +1006,19 @@ async function init() {
 
   // DB에 없으면 Yahoo에서 가져와서 자동 등록
   if (!company) {
+    // 1차: name_ko / name_en으로 매칭 시도 (예: HLB → 028300.KQ)
+    try {
+      const safe = ticker.replace(/[%_'"\\]/g, '');
+      const { data: nameMatch } = await sb
+        .from('companies').select('ticker, name_ko, name_en, market')
+        .or(`name_ko.ilike.${safe},name_en.ilike.${safe}`)
+        .limit(1).maybeSingle();
+      if (nameMatch?.ticker && nameMatch.ticker !== ticker) {
+        location.replace(`/company.html?ticker=${encodeURIComponent(nameMatch.ticker)}`);
+        return;
+      }
+    } catch {}
+
     document.getElementById('pageWrap').innerHTML = `
       <div class="loading-state">
         <div class="spinner"></div>
@@ -1017,8 +1030,9 @@ async function init() {
         <div class="loading-state">
           <p style="color:var(--red)">❌ 종목 <strong>${escHtml(ticker)}</strong>을(를) 찾을 수 없습니다.</p>
           <p style="color:var(--text3);font-size:13px;margin-top:8px">
-            Yahoo Finance에서도 검색 실패. 올바른 티커인지 확인해 주세요.<br>
-            예: AAPL, MSFT, NVDA, 005930.KS, 035420.KS
+            Yahoo Finance에서도 검색 실패.<br>
+            한국 종목은 6자리 코드 + .KS 또는 .KQ (예: 028300.KQ, 005930.KS)<br>
+            미국 종목은 영문 티커 (예: AAPL, MSFT, NVDA)
           </p>
           <a href="/" class="back-btn" style="display:inline-block;margin-top:14px;padding:8px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text)">← 메인으로</a>
         </div>`;

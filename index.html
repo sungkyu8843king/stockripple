@@ -1668,19 +1668,19 @@ document.querySelectorAll('[data-sector]').forEach(btn => {
 });
 
 // 검색창에 입력 후 Enter → 직접 조회
-// 1) 티커 패턴이면 바로 종목 페이지로
-// 2) 한글/영문 회사명이면 companies 테이블에서 매칭 (단일/다중 결과 처리)
-// 3) 그래도 안 잡히면 일반 이슈 검색
+// 1) 명확한 풀 티커는 바로 이동
+// 2) 모든 입력 (영문/한글/약칭) → companies 테이블에서 ticker/name 매칭
+// 3) DB에 없는 영문 패턴이면 US로 fallback
 async function tryDirectLookup(input) {
   const raw = (input || '').trim();
   if (!raw) return;
   const upper = raw.toUpperCase();
-  const tickerPattern = /^[A-Z][A-Z0-9.\-]{0,9}$/;
-  const isKrTicker    = /^\d{6}\.K[SQ]$/i.test(upper);
-  const isUsTicker    = tickerPattern.test(upper) && !/^\d/.test(upper);
-  const isKrCode6     = /^\d{6}$/.test(upper);   // 6자리 숫자만 — KS 자동 부착
+  const isKrTicker = /^\d{6}\.K[SQ]$/i.test(upper);
+  const isKrCode6  = /^\d{6}$/.test(upper);
+  const isUsTickerPattern = /^[A-Z][A-Z0-9.\-]{0,9}$/.test(upper) && !/^\d/.test(upper);
 
-  if (isKrTicker || isUsTicker) {
+  // 명확한 KR 풀 티커
+  if (isKrTicker) {
     location.href = `/company.html?ticker=${encodeURIComponent(upper)}`;
     return;
   }
@@ -1689,14 +1689,16 @@ async function tryDirectLookup(input) {
     return;
   }
 
-  // 회사명 검색 (한글/영문) — 최대 30개, 정확매칭/접두사 우선 정렬
+  // companies 테이블에서 ticker prefix / name 매칭 (영문/한글 모두)
   showToast(`"${raw}" 검색 중...`, 'info');
   try {
     const safe = raw.replace(/[%_'"\\]/g, '');
+    // ticker도 함께 검색 (예: "HLB" → 028300.KQ가 ticker prefix로 매칭될 수도)
+    // 더 정확히는: name_ko='HLB' 또는 name_en='HLB' 같은 약칭
     const { data: rawMatches } = await sb
       .from('companies')
       .select('ticker, name_ko, name_en, market')
-      .or(`name_ko.ilike.%${safe}%,name_en.ilike.%${safe}%`)
+      .or(`name_ko.ilike.%${safe}%,name_en.ilike.%${safe}%,ticker.ilike.${upper}%`)
       .limit(30);
 
     // 정확매칭 → 접두사 매칭 → 부분 매칭 순으로 정렬
@@ -1731,7 +1733,12 @@ async function tryDirectLookup(input) {
       return;
     }
 
-    // 매칭 없음 → 일반 이슈 검색으로 fallback
+    // 매칭 없음 — 영문 ticker 패턴이면 US로 직접 시도 (Yahoo auto-register)
+    if (isUsTickerPattern) {
+      location.href = `/company.html?ticker=${encodeURIComponent(upper)}`;
+      return;
+    }
+    // 그 외 (한글 등) → 이슈 제목에서 검색
     showToast(`"${raw}" 종목 매칭 없음 — 이슈 제목에서 검색`, 'info');
     document.getElementById('searchInput').value = raw;
     searchQuery = raw;
