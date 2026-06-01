@@ -911,9 +911,12 @@ button { font-family: inherit; }
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <button onclick="loadHeatmap()" title="수동 새로고침" style="background:var(--bg3);border:none;color:var(--text2);padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer">🔄</button>
-          <div style="display:inline-flex;background:var(--bg3);border-radius:6px;padding:2px;gap:2px">
-            <button class="hm-tab hm-mkt active" data-mkt="us" onclick="switchHeatmap('us', null)" style="background:var(--bg2);border:none;color:var(--text);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">🇺🇸 미장</button>
-            <button class="hm-tab hm-mkt" data-mkt="kr" onclick="switchHeatmap('kr', null)" style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">🇰🇷 국장</button>
+          <div style="display:inline-flex;background:var(--bg3);border-radius:6px;padding:2px;gap:2px;flex-wrap:wrap">
+            <button class="hm-tab hm-mkt active" data-mkt="us"     onclick="switchHeatmap('us', null)"     style="background:var(--bg2);border:none;color:var(--text);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">🇺🇸 미장</button>
+            <button class="hm-tab hm-mkt"        data-mkt="sector" onclick="switchHeatmap('sector', null)" style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">📊 섹터</button>
+            <button class="hm-tab hm-mkt"        data-mkt="etf"    onclick="switchHeatmap('etf', null)"    style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">⚡ ETF</button>
+            <button class="hm-tab hm-mkt"        data-mkt="assets" onclick="switchHeatmap('assets', null)" style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">🌍 자산</button>
+            <button class="hm-tab hm-mkt"        data-mkt="kr"     onclick="switchHeatmap('kr', null)"     style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">🇰🇷 국장</button>
           </div>
           <div style="display:inline-flex;background:var(--bg3);border-radius:6px;padding:2px;gap:2px">
             <button class="hm-tab hm-range active" data-range="1d" onclick="switchHeatmap(null, '1d')" style="background:var(--bg2);border:none;color:var(--text);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">일간</button>
@@ -923,6 +926,10 @@ button { font-family: inherit; }
       </div>
       <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;min-height:80px">
         <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
+      </div>
+      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--text3)">
+        <span>📡 데이터: Yahoo Finance (실시간 ~15분 지연 가능) · 환율·금리·원자재는 지수 기준</span>
+        <span id="heatmapItemCount"></span>
       </div>
     </div>
 
@@ -3020,6 +3027,64 @@ function renderEarningsCalTable(items) {
 
 // ─── 🔥 히트맵 ─────────────────────────────────────────────
 const HEATMAP_TICKERS = {
+  // 📊 SPDR 섹터 ETF (S&P500 11개 섹터)
+  sector: [
+    { t:'XLK',  n:'기술' },          { t:'XLF',  n:'금융' },         { t:'XLV',  n:'헬스케어' },
+    { t:'XLY',  n:'경기소비재' },     { t:'XLP',  n:'필수소비재' },    { t:'XLE',  n:'에너지' },
+    { t:'XLI',  n:'산업재' },         { t:'XLB',  n:'소재' },         { t:'XLU',  n:'유틸리티' },
+    { t:'XLRE', n:'리츠' },           { t:'XLC',  n:'통신서비스' },
+    // 추가: 반도체·바이오 sub-sector ETFs
+    { t:'SMH',  n:'반도체' },         { t:'SOXX', n:'반도체 (IShares)' },
+    { t:'XBI',  n:'바이오 (생물)' },  { t:'IBB',  n:'바이오 (대형)' },
+    { t:'KRE',  n:'지역은행' },       { t:'KBE',  n:'전체은행' },
+    { t:'XHB',  n:'주택건설' },       { t:'XRT',  n:'리테일' },
+    { t:'ITA',  n:'방산·항공' },      { t:'JETS', n:'항공' },
+    { t:'IYT',  n:'운송' },           { t:'XME',  n:'채굴' },
+    { t:'TAN',  n:'태양광' },         { t:'ICLN', n:'친환경에너지' },
+  ],
+  // ⚡ 인기 ETF (지수·테마·국가)
+  etf: [
+    // 메이저 지수
+    { t:'SPY',  n:'S&P 500' },       { t:'QQQ',  n:'NASDAQ 100' },   { t:'DIA',  n:'다우' },
+    { t:'IWM',  n:'러셀 2000' },     { t:'VTI',  n:'미국 전체' },     { t:'VOO',  n:'S&P 500 (Vanguard)' },
+    // 글로벌
+    { t:'EFA',  n:'선진국 (비미국)' },{ t:'EEM',  n:'신흥국' },        { t:'VWO',  n:'신흥국 (Vanguard)' },
+    { t:'EWJ',  n:'일본' },          { t:'EWY',  n:'한국' },          { t:'MCHI', n:'중국' },
+    { t:'INDA', n:'인도' },          { t:'EWT',  n:'대만' },          { t:'EWZ',  n:'브라질' },
+    // 테마
+    { t:'ARKK', n:'ARK 혁신' },      { t:'TQQQ', n:'NASDAQ 3X' },    { t:'SQQQ', n:'NASDAQ -3X' },
+    { t:'SOXL', n:'반도체 3X' },     { t:'TLT',  n:'장기국채 20Y+' }, { t:'IEF',  n:'중기국채 7-10Y' },
+    { t:'SHY',  n:'단기국채 1-3Y' }, { t:'HYG',  n:'하이일드 채권' },  { t:'LQD',  n:'IG 회사채' },
+    // 원자재·금
+    { t:'GLD',  n:'금' },            { t:'SLV',  n:'은' },           { t:'USO',  n:'WTI 원유' },
+    { t:'UNG',  n:'천연가스' },      { t:'DBC',  n:'원자재 종합' },   { t:'URA',  n:'우라늄' },
+    // 암호화폐
+    { t:'IBIT', n:'BTC 현물 ETF (BlackRock)' }, { t:'FBTC', n:'BTC 현물 ETF (Fidelity)' },
+  ],
+  // 🌍 글로벌 자산 (지수 / 금리 / 원자재 / FX / 크립토)
+  assets: [
+    // 미국 주요 지수
+    { t:'^GSPC', n:'S&P 500' },      { t:'^IXIC', n:'NASDAQ' },      { t:'^DJI',  n:'DOW' },
+    { t:'^RUT',  n:'러셀 2000' },    { t:'^VIX',  n:'VIX 공포지수' },
+    // 글로벌 지수
+    { t:'^KS11', n:'KOSPI' },        { t:'^KQ11', n:'KOSDAQ' },      { t:'^N225', n:'NIKKEI' },
+    { t:'^HSI',  n:'홍콩 항셍' },    { t:'000001.SS', n:'상하이종합' },{ t:'^FTSE', n:'영국 FTSE' },
+    { t:'^GDAXI',n:'독일 DAX' },     { t:'^FCHI', n:'프랑스 CAC' },
+    // 미국 금리 (트레저리 yields)
+    { t:'^IRX',  n:'미 3개월 금리' },{ t:'^FVX',  n:'미 5년 금리' },  { t:'^TNX',  n:'미 10년 금리' },
+    { t:'^TYX',  n:'미 30년 금리' },
+    // 원자재 (선물)
+    { t:'GC=F',  n:'금' },           { t:'SI=F',  n:'은' },          { t:'PL=F',  n:'백금' },
+    { t:'CL=F',  n:'WTI 원유' },     { t:'BZ=F',  n:'브렌트유' },     { t:'NG=F',  n:'천연가스' },
+    { t:'HG=F',  n:'구리' },         { t:'ZC=F',  n:'옥수수' },       { t:'ZW=F',  n:'밀' },
+    // FX (USD 환율)
+    { t:'DX-Y.NYB', n:'달러 지수 DXY' },
+    { t:'KRW=X', n:'USD/KRW' },      { t:'JPY=X', n:'USD/JPY' },     { t:'EURUSD=X', n:'EUR/USD' },
+    { t:'GBPUSD=X', n:'GBP/USD' },   { t:'AUDUSD=X', n:'AUD/USD' },  { t:'CNY=X', n:'USD/CNY' },
+    // 암호화폐
+    { t:'BTC-USD', n:'비트코인' },   { t:'ETH-USD', n:'이더리움' },   { t:'SOL-USD', n:'솔라나' },
+    { t:'XRP-USD', n:'리플' },
+  ],
   us: [
     // Mega cap (시총 1조+ )
     { t:'AAPL',  n:'Apple' },        { t:'MSFT',  n:'Microsoft' },   { t:'NVDA', n:'NVIDIA' },
@@ -3152,7 +3217,19 @@ async function loadHeatmap() {
       return { ticker: t, pct, price: d.price, name: nameMap[t] || d.shortName || t };
     }).filter(x => x && x.pct != null);
     items.sort((a, b) => (b.pct || 0) - (a.pct || 0));
-    const cellHref = (t) => `/company.html?ticker=${encodeURIComponent(t)}`;
+    // 셀 클릭 동작 — 주식이면 company.html, 지수·자산·FX·크립토는 새창 TradingView
+    const cellHref = (t) => {
+      if (/^\^/.test(t) || /=F$/.test(t) || /=X$/.test(t) || /-USD$/.test(t) || /^DX-Y/.test(t) || /\.SS$/.test(t)) {
+        return '#';  // 자산은 별도 처리
+      }
+      return `/company.html?ticker=${encodeURIComponent(t)}`;
+    };
+    const cellOnClick = (t) => {
+      if (cellHref(t) === '#') {
+        return `onclick="event.preventDefault();openTickerInTradingView('${escAttr(t)}')"`;
+      }
+      return '';
+    };
 
     if (needsRebuild) {
       // 통째 리렌더 — 시장/기간 토글 시
@@ -3160,7 +3237,7 @@ async function loadHeatmap() {
         const sign = it.pct >= 0 ? '+' : '';
         const display = it.ticker.replace(/\.(KS|KQ)$/, '');
         const c = heatmapColorFor(it.pct);
-        return `<a class="hm-cell" data-ticker="${escAttr(it.ticker)}" href="${cellHref(it.ticker)}" style="display:flex;flex-direction:column;justify-content:center;text-decoration:none;color:${c.fg};background:${c.bg};border-radius:12px;padding:10px 8px;text-align:center;transition:transform .12s var(--ease),background .3s,color .3s;min-height:74px;line-height:1.2;box-shadow:0 1px 2px rgba(0,0,0,0.05)" onmouseover="this.style.transform='translateY(-2px) scale(1.03)'" onmouseout="this.style.transform='translateY(0) scale(1)'" title="${escAttr(it.name)}">
+        return `<a class="hm-cell" data-ticker="${escAttr(it.ticker)}" href="${cellHref(it.ticker)}" ${cellOnClick(it.ticker)} style="display:flex;flex-direction:column;justify-content:center;text-decoration:none;color:${c.fg};background:${c.bg};border-radius:12px;padding:10px 8px;text-align:center;transition:transform .12s var(--ease),background .3s,color .3s;min-height:74px;line-height:1.2;box-shadow:0 1px 2px rgba(0,0,0,0.05);cursor:pointer" onmouseover="this.style.transform='translateY(-2px) scale(1.03)'" onmouseout="this.style.transform='translateY(0) scale(1)'" title="${escAttr(it.name)}">
           <div style="font-size:11px;font-weight:700;letter-spacing:.2px;opacity:.95">${display}</div>
           <div style="font-size:10px;font-weight:500;opacity:.85;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAttr(it.name)}</div>
           <div class="hm-pct t-num" style="font-size:13px;font-weight:800;margin-top:3px">${sign}${it.pct.toFixed(2)}%</div>
@@ -3202,7 +3279,7 @@ async function loadHeatmap() {
       });
     }
 
-    // 마지막 갱신 시각 + 마켓 상태
+    // 마지막 갱신 시각 + 마켓 상태 + 아이템 카운트
     const now = new Date();
     const upEl = document.getElementById('heatmapUpdatedAt');
     if (upEl) upEl.textContent = `${now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })} 기준`;
@@ -3212,6 +3289,11 @@ async function loadHeatmap() {
       statusEl.textContent = status.label;
       statusEl.style.background = status.bg;
       statusEl.style.color = status.fg;
+    }
+    const countEl = document.getElementById('heatmapItemCount');
+    if (countEl) {
+      const missing = tickers.length - items.length;
+      countEl.textContent = `${items.length}개 표시${missing > 0 ? ` · ${missing}개 데이터 없음` : ''} / ${tickers.length}개 요청`;
     }
   } catch (e) {
     if (needsRebuild) grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--red);font-size:12px;padding:20px">로드 실패: ${e.message}</div>`;
@@ -3283,6 +3365,28 @@ function loadExpiries() {
   }).join('') || '<div style="color:var(--text3);font-size:11px;text-align:center;padding:8px 0">예정 없음</div>';
 }
 
+// 자산/지수/FX/원자재/크립토 → TradingView 새 창
+function openTickerInTradingView(ticker) {
+  // 매핑: Yahoo 심볼 → TradingView 심볼
+  const map = {
+    '^GSPC':'SPX', '^IXIC':'NASDAQ:IXIC', '^DJI':'DJI', '^RUT':'RUT', '^VIX':'TVC:VIX',
+    '^KS11':'KRX:KOSPI', '^KQ11':'KRX:KOSDAQ', '^N225':'TVC:NI225', '^HSI':'TVC:HSI',
+    '000001.SS':'SSE:000001', '^FTSE':'TVC:UKX', '^GDAXI':'TVC:DEU40', '^FCHI':'TVC:FRA40',
+    '^IRX':'TVC:US03MY', '^FVX':'TVC:US05Y', '^TNX':'TVC:US10Y', '^TYX':'TVC:US30Y',
+    'GC=F':'TVC:GOLD', 'SI=F':'TVC:SILVER', 'PL=F':'TVC:PLATINUM',
+    'CL=F':'TVC:USOIL', 'BZ=F':'TVC:UKOIL', 'NG=F':'TVC:NATGAS', 'HG=F':'TVC:COPPER',
+    'ZC=F':'TVC:CORN', 'ZW=F':'TVC:WHEAT',
+    'DX-Y.NYB':'TVC:DXY', 'KRW=X':'FX_IDC:USDKRW', 'JPY=X':'FX_IDC:USDJPY',
+    'EURUSD=X':'FX_IDC:EURUSD', 'GBPUSD=X':'FX_IDC:GBPUSD',
+    'AUDUSD=X':'FX_IDC:AUDUSD', 'CNY=X':'FX_IDC:USDCNY',
+    'BTC-USD':'BITSTAMP:BTCUSD', 'ETH-USD':'BITSTAMP:ETHUSD',
+    'SOL-USD':'BINANCE:SOLUSD',  'XRP-USD':'BITSTAMP:XRPUSD',
+  };
+  const tvSym = map[ticker] || ticker;
+  const url = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSym)}`;
+  window.open(url, '_blank', 'noopener');
+}
+
 // 마켓 개장 상태 계산 (한국 시간 기준)
 function computeMarketStatus(market) {
   const now = new Date();
@@ -3299,6 +3403,11 @@ function computeMarketStatus(market) {
     if (minOfDay < 1080) return { label: '🟠 시간외', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };
     return { label: '⚪ 마감', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
   }
+  if (market === 'assets') {
+    // 멀티에셋: 24/7 (크립토는 항상, FX는 거의 24/5, 지수/금리는 각기 다름)
+    return { label: '🌍 멀티에셋 (크립토 24/7 · 기타 자산별)', bg: 'var(--blue-dim)', fg: 'var(--blue)' };
+  }
+  // us, sector, etf — 미국 시장 기준
   if (isWeekend) return { label: '🔴 휴장 (주말)', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
   const inRegular = (minOfDay >= 22 * 60 + 30) || (minOfDay < 5 * 60);
   if (inRegular) return { label: '🟢 미국 정규장', bg: 'var(--green-dim)', fg: 'var(--green)' };
