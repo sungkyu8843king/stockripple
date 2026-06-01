@@ -810,6 +810,11 @@ button { font-family: inherit; }
     <div class="ticker-item"><span class="ticker-name">WTI유</span><span class="ticker-price" id="tk-oil">—</span><span class="ticker-chg flat" id="tk-oil-chg">—</span></div>
     <div class="ticker-item"><span class="ticker-name">USD/KRW</span><span class="ticker-price" id="tk-usdkrw">—</span><span class="ticker-chg flat" id="tk-usdkrw-chg">—</span></div>
     <div class="ticker-item"><span class="ticker-name">VIX</span><span class="ticker-price" id="tk-vix">—</span><span class="ticker-chg flat" id="tk-vix-chg">—</span></div>
+    <div class="ticker-item"><span class="ticker-name">US 10Y</span><span class="ticker-price" id="tk-us10y">—</span><span class="ticker-chg flat" id="tk-us10y-chg">—</span></div>
+    <div class="ticker-item"><span class="ticker-name">DXY</span><span class="ticker-price" id="tk-dxy">—</span><span class="ticker-chg flat" id="tk-dxy-chg">—</span></div>
+    <div class="ticker-item"><span class="ticker-name">ETH</span><span class="ticker-price" id="tk-eth">—</span><span class="ticker-chg flat" id="tk-eth-chg">—</span></div>
+    <div class="ticker-item"><span class="ticker-name">NIKKEI</span><span class="ticker-price" id="tk-nikkei">—</span><span class="ticker-chg flat" id="tk-nikkei-chg">—</span></div>
+    <div class="ticker-item"><span class="ticker-name">HSI</span><span class="ticker-price" id="tk-hsi">—</span><span class="ticker-chg flat" id="tk-hsi-chg">—</span></div>
   </div>
 </div>
 
@@ -958,6 +963,39 @@ button { font-family: inherit; }
 
   <!-- 우측 사이드바 -->
   <aside class="sidebar" id="sidebar">
+    <!-- 🤖 AI 시장 종합 -->
+    <div class="sidebar-card" id="aiMarketSummaryCard">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">🤖 AI 시장 종합</span>
+        <span style="font-size:11px;color:var(--text3)" id="aiMSCreatedAt">—</span>
+      </div>
+      <div style="padding:12px 16px" id="aiMarketSummaryBody">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+      </div>
+    </div>
+
+    <!-- 📊 섹터 모멘텀 -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">📊 섹터 모멘텀</span>
+        <span style="font-size:11px;color:var(--text3)">SPDR 1d</span>
+      </div>
+      <div style="padding:12px 16px" id="sectorMomentum">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+      </div>
+    </div>
+
+    <!-- 🔗 Cross-Asset Correlation -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">🔗 자산 간 상관관계</span>
+        <span style="font-size:11px;color:var(--text3)">30일</span>
+      </div>
+      <div style="padding:10px" id="corrMatrix">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+      </div>
+    </div>
+
     <!-- 주요 지수 -->
     <div class="sidebar-card">
       <div class="sidebar-card-header">
@@ -1738,6 +1776,11 @@ const INDICES = [
   { id: 'oil',    ticker: 'CL%3DF',   name: 'WTI 원유',   fmt: '$', tvSym: 'TVC:USOIL' },
   { id: 'usdkrw', ticker: 'KRW%3DX',  name: 'USD/KRW',   fmt: 'n', tvSym: 'FX_IDC:USDKRW' },
   { id: 'vix',    ticker: '%5EVIX',   name: 'VIX',        fmt: 'n', tvSym: 'TVC:VIX' },
+  { id: 'us10y',  ticker: '%5ETNX',   name: 'US 10Y',     fmt: 'n', tvSym: 'TVC:US10Y' },
+  { id: 'dxy',    ticker: 'DX-Y.NYB', name: 'DXY',        fmt: 'n', tvSym: 'TVC:DXY' },
+  { id: 'eth',    ticker: 'ETH-USD',  name: 'ETH',        fmt: '$', tvSym: 'BITSTAMP:ETHUSD' },
+  { id: 'nikkei', ticker: '%5EN225',  name: 'NIKKEI',     fmt: 'n', tvSym: 'TVC:NI225' },
+  { id: 'hsi',    ticker: '%5EHSI',   name: 'HSI',        fmt: 'n', tvSym: 'TVC:HSI' },
 ];
 const _idxMap = Object.fromEntries(INDICES.map(i => [i.id, i]));
 
@@ -3189,6 +3232,150 @@ const _hmCellState = {};   // key: ticker → { pct, mkt, range }
 let _hmInFlight = false;
 let _hmStructureKey = '';  // 현재 그려진 grid 시그니처 (mkt+range+티커리스트)
 
+// ─── 🤖 AI 시장 종합 ─────────────────────────────────────
+async function loadAiMarketSummary() {
+  const body = document.getElementById('aiMarketSummaryBody');
+  if (!body) return;
+  try {
+    const r = await fetch('/api/admin?action=ai-market-summary');
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      body.innerHTML = `<div style="color:var(--text3);font-size:11px;text-align:center;padding:10px">${j.error ? '아직 생성 전 — 다음 일일 cron 시 자동 생성됩니다' : '로드 실패'}</div>`;
+      return;
+    }
+    const d = await r.json();
+    const regimeColor = d.regime === 'RISK-ON' ? 'var(--green)' : d.regime === 'RISK-OFF' ? 'var(--red)' : 'var(--yellow)';
+    const updatedAt = d.created_at ? new Date(d.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    document.getElementById('aiMSCreatedAt').textContent = updatedAt;
+
+    const list = (items, color = 'var(--text2)') => Array.isArray(items) && items.length
+      ? `<ul style="margin:0;padding-left:14px;font-size:11.5px;color:${color};line-height:1.55">${items.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>`
+      : '<div style="font-size:11px;color:var(--text3)">—</div>';
+
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="background:${regimeColor};color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px">${escHtml(d.regime || '—')}</span>
+        <span style="font-size:11px;color:var(--text3)">${d.based_on_issues || 0}건 분석</span>
+      </div>
+      <div style="font-size:13px;font-weight:600;line-height:1.4;margin-bottom:10px">${escHtml(d.headline || '')}</div>
+      <div style="font-size:10px;color:var(--green);font-weight:700;margin-bottom:3px">▲ 강세 요인</div>
+      ${list(d.bullish_drivers)}
+      <div style="font-size:10px;color:var(--red);font-weight:700;margin:8px 0 3px">▼ 약세 요인</div>
+      ${list(d.bearish_drivers)}
+      <div style="font-size:10px;color:var(--blue);font-weight:700;margin:8px 0 3px">🏆 수혜 섹터</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.sectors_winning||[]).map(s => `<span style="font-size:10px;padding:2px 7px;border-radius:999px;background:var(--green-dim);color:var(--green)">${escHtml(s)}</span>`).join('')}</div>
+      <div style="font-size:10px;color:var(--text3);font-weight:700;margin:8px 0 3px">📉 피해 섹터</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.sectors_losing||[]).map(s => `<span style="font-size:10px;padding:2px 7px;border-radius:999px;background:var(--red-dim);color:var(--red)">${escHtml(s)}</span>`).join('')}</div>
+      <div style="font-size:10px;color:var(--blue);font-weight:700;margin:8px 0 3px">👁 내일 주시</div>
+      ${list(d.watch_tomorrow)}
+    `;
+  } catch { body.innerHTML = '<div style="color:var(--red);font-size:11px">로드 실패</div>'; }
+}
+
+// ─── 📊 섹터 모멘텀 (1d) ─────────────────────────────────
+const SECTOR_ETFS = [
+  { t:'XLK', n:'기술' }, { t:'XLF', n:'금융' }, { t:'XLV', n:'헬스케어' },
+  { t:'XLY', n:'경기소비재' }, { t:'XLP', n:'필수소비재' }, { t:'XLE', n:'에너지' },
+  { t:'XLI', n:'산업재' }, { t:'XLB', n:'소재' }, { t:'XLU', n:'유틸리티' },
+  { t:'XLRE',n:'리츠' }, { t:'XLC', n:'통신서비스' },
+];
+async function loadSectorMomentum() {
+  const el = document.getElementById('sectorMomentum');
+  if (!el) return;
+  try {
+    const r = await fetch(`/api/quotes?tickers=${SECTOR_ETFS.map(s => s.t).join(',')}`);
+    const j = await r.json();
+    if (!j.ok) throw new Error();
+    const items = SECTOR_ETFS.map(s => ({
+      ...s, pct: j.data?.[s.t]?.changePercent ?? null,
+    })).filter(x => x.pct != null).sort((a, b) => b.pct - a.pct);
+    if (!items.length) { el.innerHTML = '<div style="color:var(--text3);font-size:11px;text-align:center">데이터 없음 (시장 휴장)</div>'; return; }
+    const maxAbs = Math.max(...items.map(it => Math.abs(it.pct)), 1);
+    el.innerHTML = items.map(it => {
+      const barPct = (Math.abs(it.pct) / maxAbs) * 100;
+      const color = it.pct >= 0 ? 'var(--green)' : 'var(--red)';
+      const sign = it.pct >= 0 ? '+' : '';
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:5px">
+        <span style="width:74px;color:var(--text2);flex-shrink:0">${escHtml(it.n)}</span>
+        <div style="flex:1;background:var(--bg3);border-radius:3px;height:6px;position:relative;overflow:hidden">
+          <div style="position:absolute;${it.pct >= 0 ? 'left:50%' : `right:50%`};top:0;bottom:0;background:${color};width:${barPct/2}%;border-radius:2px"></div>
+          <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border)"></div>
+        </div>
+        <span style="color:${color};font-weight:700;font-family:var(--font-mono,monospace);width:56px;text-align:right">${sign}${it.pct.toFixed(2)}%</span>
+      </div>`;
+    }).join('');
+  } catch { el.innerHTML = '<div style="color:var(--red);font-size:11px;text-align:center">로드 실패</div>'; }
+}
+
+// ─── 🔗 Cross-asset Correlation (30d) ───────────────────
+const CORR_ASSETS = [
+  { t:'SPY',     n:'S&P' },
+  { t:'QQQ',     n:'NDX' },
+  { t:'TLT',     n:'10Y채권' },
+  { t:'GLD',     n:'금' },
+  { t:'USO',     n:'WTI' },
+  { t:'DX-Y.NYB',n:'DXY' },
+  { t:'BTC-USD', n:'BTC' },
+];
+async function loadCorrelation() {
+  const el = document.getElementById('corrMatrix');
+  if (!el) return;
+  try {
+    const r = await fetch(`/api/quotes?tickers=${CORR_ASSETS.map(a => a.t).join(',')}&range=1mo&include=series`);
+    const j = await r.json();
+    if (!j.ok) throw new Error();
+    // 일별 수익률 시계열 변환
+    const returns = {};
+    for (const a of CORR_ASSETS) {
+      const s = j.data?.[a.t]?.series;
+      if (!Array.isArray(s) || s.length < 5) continue;
+      const ret = [];
+      for (let i = 1; i < s.length; i++) {
+        if (s[i] && s[i-1]) ret.push((s[i] - s[i-1]) / s[i-1]);
+      }
+      returns[a.t] = ret;
+    }
+    const valid = CORR_ASSETS.filter(a => returns[a.t]?.length >= 5);
+    if (valid.length < 2) { el.innerHTML = '<div style="color:var(--text3);font-size:11px;text-align:center;padding:10px">데이터 부족</div>'; return; }
+
+    // Pearson correlation
+    const corr = (x, y) => {
+      const n = Math.min(x.length, y.length);
+      if (n < 3) return null;
+      let sx=0, sy=0, sxy=0, sx2=0, sy2=0;
+      for (let i = 0; i < n; i++) {
+        const xi = x[x.length-n+i], yi = y[y.length-n+i];
+        sx += xi; sy += yi; sxy += xi * yi; sx2 += xi * xi; sy2 += yi * yi;
+      }
+      const num = n * sxy - sx * sy;
+      const den = Math.sqrt((n*sx2 - sx*sx) * (n*sy2 - sy*sy));
+      return den ? num / den : null;
+    };
+    const cellColor = (c) => {
+      if (c == null) return { bg: 'var(--bg3)', fg: 'var(--text3)' };
+      const v = Math.max(-1, Math.min(1, c));
+      if (v >= 0) {
+        const a = 0.15 + v * 0.55;
+        return { bg: `rgba(0,135,58,${a.toFixed(2)})`, fg: v > 0.4 ? '#fff' : '#0a3d1a' };
+      }
+      const a = 0.15 + (-v) * 0.55;
+      return { bg: `rgba(227,25,55,${a.toFixed(2)})`, fg: -v > 0.4 ? '#fff' : '#5a0a14' };
+    };
+    let html = `<table style="width:100%;border-collapse:separate;border-spacing:2px;font-size:10px"><thead><tr><th></th>${valid.map(a => `<th style="font-weight:600;color:var(--text2);padding:3px 4px;text-align:center">${escHtml(a.n)}</th>`).join('')}</tr></thead><tbody>`;
+    for (const a of valid) {
+      html += `<tr><td style="font-weight:600;color:var(--text2);padding:3px 6px;white-space:nowrap">${escHtml(a.n)}</td>`;
+      for (const b of valid) {
+        const c = a.t === b.t ? 1 : corr(returns[a.t], returns[b.t]);
+        const col = cellColor(c);
+        html += `<td style="background:${col.bg};color:${col.fg};text-align:center;padding:4px 6px;border-radius:4px;font-weight:600;font-family:var(--font-mono,monospace)">${c != null ? c.toFixed(2) : '—'}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table><div style="font-size:9px;color:var(--text3);text-align:center;margin-top:6px">+1: 같이 움직임 / 0: 무상관 / −1: 반대로</div>';
+    el.innerHTML = html;
+  } catch { el.innerHTML = '<div style="color:var(--red);font-size:11px;text-align:center">로드 실패</div>'; }
+}
+
 async function loadHeatmap() {
   if (_hmInFlight) return;
   _hmInFlight = true;
@@ -3419,8 +3606,11 @@ function computeMarketStatus(market) {
 // 신규 위젯 초기화 — load 이벤트 의존하지 않고 즉시 실행 (DOM은 이미 파싱됨)
 (function initNewWidgets() {
   const kick = () => {
-    try { loadHeatmap();  } catch (e) { console.error('heatmap', e); }
-    try { loadExpiries(); } catch (e) { console.error('expiries', e); }
+    try { loadHeatmap();          } catch (e) { console.error('heatmap', e); }
+    try { loadExpiries();         } catch (e) { console.error('expiries', e); }
+    try { loadAiMarketSummary();  } catch (e) { console.error('aims', e); }
+    try { loadSectorMomentum();   } catch (e) { console.error('sectorMo', e); }
+    try { loadCorrelation();      } catch (e) { console.error('corr', e); }
   };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', kick, { once: true });
@@ -3428,8 +3618,13 @@ function computeMarketStatus(market) {
     kick();
   }
   // 1초마다 히트맵 갱신 (edge cache 덕에 실제 origin 호출은 3초당 1회)
-  // 변동 없는 셀은 DOM 안 건드림 → 깜빡임 없음. 변동 시만 flash
   setInterval(() => { try { loadHeatmap(); } catch {} }, 1000);
+  // 60초 섹터 모멘텀
+  setInterval(() => { try { loadSectorMomentum(); } catch {} }, 60000);
+  // 30분 상관관계 (시계열이라 자주 갱신 불필요)
+  setInterval(() => { try { loadCorrelation(); } catch {} }, 1800000);
+  // 1시간 AI 시장 종합 (cron이 매일 새로 만들지만 새로고침)
+  setInterval(() => { try { loadAiMarketSummary(); } catch {} }, 3600000);
   // 만기일은 자정 지나면 갱신
   setInterval(() => { try { loadExpiries(); } catch {} }, 3600000);
 })();

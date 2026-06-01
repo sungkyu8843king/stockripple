@@ -70,6 +70,10 @@ export default async function handler(req, res) {
     log.sec13f = await call('/api/admin?action=sec-13f-poll');
   }
 
+  // 4-c. AI 시장 종합 보고서 (24h 뉴스 요약)
+  await new Promise(r => setTimeout(r, 500));
+  log.marketSummary = await call('/api/admin?action=ai-market-summary');
+
   // 5. 정확도 체크
   await new Promise(r => setTimeout(r, 500));
   log.accuracy = await call('/api/check-accuracy');

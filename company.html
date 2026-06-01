@@ -499,6 +499,12 @@ function renderPage(company, records, priceData) {
     <!-- 🇰🇷 DART 상세 (주주/임원/재무) — KR 종목만 -->
     <div id="dartDetailWrap"></div>
 
+    <!-- 📜 SEC 공시 — US 종목만 -->
+    <div id="secFilingsWrap"></div>
+
+    <!-- 📈 옵션 체인 요약 — US 종목만 -->
+    <div id="optionsWrap"></div>
+
     <!-- TradingView 캔들 차트 + 거래량 (미장만 제공) -->
     ${isKr ? '' : `
     <div class="tv-wrap">
@@ -582,6 +588,11 @@ function renderPage(company, records, priceData) {
 
   // KR 종목: DART 상세 데이터 로드
   if (isKr) loadDartDetail(ticker);
+  // US 종목: SEC 공시 + 옵션 체인 로드
+  if (!isKr) {
+    loadSecFilings(ticker);
+    loadOptionsChain(ticker);
+  }
 
   // Load line chart
   loadChartData(ticker, _currentRange).then(data => {
@@ -1030,6 +1041,101 @@ async function init() {
 }
 
 init();
+
+// ─── 📜 SEC 공시 (US 종목) ─────────────────────────────────
+async function loadSecFilings(ticker) {
+  const wrap = document.getElementById('secFilingsWrap');
+  if (!wrap) return;
+  wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px;font-size:13px;color:var(--text2)">📜 SEC 공시 불러오는 중...</div>`;
+  try {
+    const r = await fetch('/api/admin?action=sec-filings&ticker=' + encodeURIComponent(ticker));
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:12px;color:var(--text3)">📜 SEC 공시 사용 불가 — ${escHtml(j.error || '')}</div>`;
+      return;
+    }
+    const d = await r.json();
+    if (!d.filings?.length) {
+      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:12px;color:var(--text3)">📜 SEC 공시 없음</div>`;
+      return;
+    }
+    const formColors = { '10-K':'var(--blue)', '10-Q':'var(--purple)', '8-K':'var(--yellow)', 'DEF 14A':'var(--green)' };
+    const rows = d.filings.slice(0, 12).map(f => {
+      const color = formColors[f.form] || 'var(--text2)';
+      const formLabel = { '10-K':'연간보고서', '10-Q':'분기보고서', '8-K':'중요공시', 'DEF 14A':'주총소집' }[f.form] || f.form;
+      return `<a href="${escHtml(f.doc_url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);text-decoration:none;color:var(--text);font-size:12.5px;transition:color .12s">
+        <span style="display:flex;align-items:center;gap:8px;min-width:0">
+          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(0,0,0,0.04);color:${color};white-space:nowrap">${escHtml(f.form)}</span>
+          <span style="color:var(--text2);white-space:nowrap">${formLabel}</span>
+          ${f.period ? `<span style="color:var(--text3);font-size:11px">· ${escHtml(f.period)} 기준</span>` : ''}
+        </span>
+        <span style="color:var(--text3);font-size:11px;white-space:nowrap">${escHtml(f.filed_at)} →</span>
+      </a>`;
+    }).join('');
+    wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:24px;box-shadow:var(--shadow-card)">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        📜 SEC 공시 <span style="font-size:11px;color:var(--text3);font-weight:400">CIK ${escHtml(d.cik)}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--text3);font-weight:400">출처: SEC EDGAR</span>
+      </div>
+      ${rows}
+    </div>`;
+  } catch (e) { wrap.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">SEC 로드 실패: ${escHtml(e.message)}</div>`; }
+}
+
+// ─── 📈 옵션 체인 요약 (US 종목) ───────────────────────────
+async function loadOptionsChain(ticker) {
+  const wrap = document.getElementById('optionsWrap');
+  if (!wrap) return;
+  wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px;font-size:13px;color:var(--text2)">📈 옵션 체인 불러오는 중...</div>`;
+  try {
+    const r = await fetch('/api/admin?action=options-chain&ticker=' + encodeURIComponent(ticker));
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:12px;color:var(--text3)">📈 옵션 데이터 없음 — ${escHtml(j.error || '')}</div>`;
+      return;
+    }
+    const d = await r.json();
+    const pcrColor = d.pcr == null ? 'var(--text3)' : d.pcr > 1.1 ? 'var(--red)' : d.pcr < 0.9 ? 'var(--green)' : 'var(--yellow)';
+    const pcrLabel = d.pcr == null ? '—' : d.pcr > 1.1 ? '약세 (Put 우세)' : d.pcr < 0.9 ? '강세 (Call 우세)' : '중립';
+    const renderStrikes = (arr, label, color) => arr.length ? `
+      <div style="margin-top:10px">
+        <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:4px">${label}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+          <thead><tr style="color:var(--text3)"><th style="text-align:left;padding:4px 6px">행사가</th><th style="text-align:right;padding:4px 6px">미결제</th><th style="text-align:right;padding:4px 6px">거래량</th><th style="text-align:right;padding:4px 6px">IV%</th></tr></thead>
+          <tbody>${arr.map(o => `<tr><td style="padding:4px 6px;font-family:var(--font-mono,monospace)">$${o.strike}</td><td style="padding:4px 6px;text-align:right">${(o.openInterest||0).toLocaleString()}</td><td style="padding:4px 6px;text-align:right;color:var(--text2)">${(o.volume||0).toLocaleString()}</td><td style="padding:4px 6px;text-align:right;color:var(--blue)">${o.impliedVol != null ? o.impliedVol.toFixed(1) : '—'}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>` : '';
+    wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:24px;box-shadow:var(--shadow-card)">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        📈 옵션 체인 ${d.expiration ? `<span style="font-size:11px;color:var(--text3);font-weight:400">만기 ${escHtml(d.expiration)}</span>` : ''}
+        <span style="margin-left:auto;font-size:11px;color:var(--text3);font-weight:400">출처: Yahoo Finance</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+        <div style="background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase">ATM IV</div>
+          <div style="font-size:18px;font-weight:700;color:var(--blue)">${d.atmIV != null ? d.atmIV.toFixed(1) + '%' : '—'}</div>
+        </div>
+        <div style="background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase">Put/Call OI</div>
+          <div style="font-size:18px;font-weight:700;color:${pcrColor}">${d.pcr != null ? d.pcr.toFixed(2) : '—'}</div>
+          <div style="font-size:10px;color:${pcrColor}">${pcrLabel}</div>
+        </div>
+        <div style="background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase">총 Call OI</div>
+          <div style="font-size:16px;font-weight:700;color:var(--green)">${(d.totalCallOI||0).toLocaleString()}</div>
+        </div>
+        <div style="background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase">총 Put OI</div>
+          <div style="font-size:16px;font-weight:700;color:var(--red)">${(d.totalPutOI||0).toLocaleString()}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        ${renderStrikes(d.callsTop||[], '📈 콜옵션 Top 5 (OI 기준)', 'var(--green)')}
+        ${renderStrikes(d.putsTop||[],  '📉 풋옵션 Top 5 (OI 기준)', 'var(--red)')}
+      </div>
+    </div>`;
+  } catch (e) { wrap.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">옵션 로드 실패: ${escHtml(e.message)}</div>`; }
+}
 
 // ─── 🇰🇷 DART 상세 (KR 종목) ───────────────────────────────
 async function loadDartDetail(ticker) {

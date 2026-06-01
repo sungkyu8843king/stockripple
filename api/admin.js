@@ -65,6 +65,15 @@ export default async function handler(req, res) {
   if (action === 'dart-sync-corp-codes') return handleDartSyncCorpCodes(req, res);
   if (action === 'dart-upload-corp-codes') return handleDartUploadCorpCodes(req, res);
   if (action === 'verify-kr-names') return handleVerifyKrNames(req, res);
+  if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
+
+  // 공개 액션: 옵션 체인, SEC 공시, AI 시장종합 — 인증 불필요
+  if (action === 'options-chain')      return handleOptionsChain(req, res);
+  if (action === 'sec-filings')        return handleSecFilings(req, res);
+  if (action === 'ai-market-summary')  {
+    if (req.method === 'GET') return handleAiMarketSummaryGet(req, res);
+    // POST는 admin 인증 필요 (생성/갱신)
+  }
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -1250,4 +1259,197 @@ async function handleVerifyKrNames(req, res) {
   }
 
   return res.status(200).json({ ok: true, dry_run: dryRun, ...results });
+}
+
+// ════════════════════════════════════════════════════════════
+// 16) 옵션 체인 요약 (Yahoo /v7/finance/options)
+// ════════════════════════════════════════════════════════════
+async function handleOptionsChain(req, res) {
+  const ticker = (req.query?.ticker || '').toString().trim().toUpperCase();
+  if (!ticker) return res.status(400).json({ error: 'ticker required' });
+  if (/\.K[SQ]$/.test(ticker)) return res.status(400).json({ error: 'US tickers only (KR options not on Yahoo)' });
+
+  try {
+    const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36';
+    const r = await fetch(`https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(ticker)}`, {
+      headers: { 'User-Agent': ua, 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return res.status(500).json({ error: `Yahoo HTTP ${r.status}` });
+    const j = await r.json();
+    const result = j.optionChain?.result?.[0];
+    if (!result) return res.status(404).json({ error: 'No options data' });
+
+    const quote = result.quote || {};
+    const opts = result.options?.[0] || {};
+    const calls = opts.calls || [];
+    const puts  = opts.puts  || [];
+
+    const totalCallOI = calls.reduce((s, c) => s + (c.openInterest || 0), 0);
+    const totalPutOI  = puts.reduce((s, p) => s + (p.openInterest || 0), 0);
+    const pcr = totalCallOI ? (totalPutOI / totalCallOI) : null;
+
+    const topByOI = (arr, n = 5) => arr.slice().sort((a, b) => (b.openInterest || 0) - (a.openInterest || 0)).slice(0, n).map(o => ({
+      strike: o.strike, lastPrice: o.lastPrice, openInterest: o.openInterest, volume: o.volume,
+      impliedVol: o.impliedVolatility ? Math.round(o.impliedVolatility * 10000) / 100 : null,
+    }));
+
+    // ATM IV (가장 가까운 콜의 IV)
+    const spot = quote.regularMarketPrice;
+    const atmCall = calls.slice().sort((a, b) => Math.abs(a.strike - spot) - Math.abs(b.strike - spot))[0];
+    const atmIV = atmCall?.impliedVolatility ? Math.round(atmCall.impliedVolatility * 10000) / 100 : null;
+
+    res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
+    return res.status(200).json({
+      ok: true,
+      ticker,
+      spot,
+      expiration: opts.expirationDate ? new Date(opts.expirationDate * 1000).toISOString().slice(0, 10) : null,
+      atmIV,             // ATM 내재변동성 (%)
+      pcr,               // Put/Call OI 비율 (>1: 약세, <1: 강세)
+      totalCallOI, totalPutOI,
+      callsTop: topByOI(calls),
+      putsTop:  topByOI(puts),
+      allExpirations: (result.expirationDates || []).slice(0, 12).map(t => new Date(t * 1000).toISOString().slice(0, 10)),
+    });
+  } catch (e) {
+    return res.status(500).json({ error: 'Options fetch failed: ' + e.message });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// 17) SEC EDGAR 공시 (10-K / 10-Q / 8-K / Proxy)
+// ════════════════════════════════════════════════════════════
+async function handleSecFilings(req, res) {
+  const ticker = (req.query?.ticker || '').toString().trim().toUpperCase();
+  if (!ticker) return res.status(400).json({ error: 'ticker required' });
+  if (/\.K[SQ]$/.test(ticker)) return res.status(400).json({ error: 'US tickers only' });
+
+  const ua = `StockRipple/1.0 (${(process.env.ADMIN_EMAILS || 'noreply@example.com').split(',')[0]})`;
+
+  try {
+    // ticker → CIK 매핑
+    const tickersResp = await fetch('https://www.sec.gov/files/company_tickers.json', {
+      headers: { 'User-Agent': ua }, signal: AbortSignal.timeout(10000),
+    });
+    if (!tickersResp.ok) return res.status(500).json({ error: `SEC tickers HTTP ${tickersResp.status}` });
+    const tickersData = await tickersResp.json();
+    const entry = Object.values(tickersData).find(t => t.ticker === ticker);
+    if (!entry) return res.status(404).json({ error: `Ticker ${ticker} not in SEC database` });
+    const cik = String(entry.cik_str).padStart(10, '0');
+    const companyName = entry.title;
+
+    // submissions
+    const subResp = await fetch(`https://data.sec.gov/submissions/CIK${cik}.json`, {
+      headers: { 'User-Agent': ua }, signal: AbortSignal.timeout(10000),
+    });
+    if (!subResp.ok) return res.status(500).json({ error: `SEC submissions HTTP ${subResp.status}` });
+    const subData = await subResp.json();
+    const recent = subData.filings?.recent;
+    if (!recent) return res.status(404).json({ error: 'No filings' });
+
+    const FORMS_OF_INTEREST = ['10-K', '10-Q', '8-K', 'DEF 14A', 'S-1', 'S-3', '20-F'];
+    const filings = [];
+    for (let i = 0; i < (recent.form || []).length && filings.length < 20; i++) {
+      const form = recent.form[i];
+      if (!FORMS_OF_INTEREST.includes(form)) continue;
+      const acc = recent.accessionNumber[i].replace(/-/g, '');
+      const accDash = recent.accessionNumber[i];
+      const date = recent.filingDate[i];
+      const reportDate = recent.reportDate?.[i];
+      filings.push({
+        form,
+        filed_at: date,
+        period: reportDate,
+        url: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik}&type=${encodeURIComponent(form)}&dateb=&owner=include&count=40`,
+        doc_url: `https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${acc}/${accDash}-index.htm`,
+        primary_doc: recent.primaryDocument?.[i] || null,
+      });
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+    return res.status(200).json({ ok: true, ticker, cik, companyName, filings });
+  } catch (e) {
+    return res.status(500).json({ error: 'SEC fetch failed: ' + e.message });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// 18) AI 시장 종합 (24h 뉴스 → Claude 요약)
+// ════════════════════════════════════════════════════════════
+async function handleAiMarketSummaryGet(req, res) {
+  // 최신 캐시된 요약 반환
+  const { data } = await supabase
+    .from('ai_market_summary')
+    .select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (!data) return res.status(404).json({ error: 'No summary yet. POST /api/admin?action=ai-market-summary to generate.' });
+  res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
+  return res.status(200).json({ ok: true, ...data });
+}
+
+async function handleAiMarketSummaryPost(req, res) {
+  if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
+
+  // 최근 24h 분석된 이슈 60건 수집
+  const sinceIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { data: issues } = await supabase
+    .from('issues')
+    .select('title, summary, sectors, published_at, analyses(ai_summary, confidence_score)')
+    .eq('is_analyzed', true)
+    .gte('published_at', sinceIso)
+    .order('published_at', { ascending: false })
+    .limit(60);
+
+  if (!issues?.length) return res.status(200).json({ ok: true, generated: false, reason: 'No recent issues' });
+
+  const ctx = issues.map(i => {
+    const conf = i.analyses?.[0]?.confidence_score;
+    return `[${(i.published_at || '').slice(0, 16)}] (${conf || '?'}점) ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.summary || ''}`.slice(0, 400);
+  }).join('\n\n');
+
+  const prompt = `당신은 한국어 금융 시장 분석가입니다. 아래 지난 24시간 분석 이슈 ${issues.length}건을 종합해서 오늘의 시장 종합 보고서를 작성하세요.
+
+${ctx.slice(0, 12000)}
+
+다음 JSON만 반환 (다른 텍스트 없이):
+{
+  "headline": "오늘 시장을 한 문장으로 (40자 내외)",
+  "regime": "RISK-ON 또는 RISK-OFF 또는 MIXED",
+  "bullish_drivers": ["강세 요인 1 (한 문장)", "강세 요인 2", "강세 요인 3"],
+  "bearish_drivers": ["약세 요인 1", "약세 요인 2"],
+  "sectors_winning": ["수혜 섹터 1", "수혜 섹터 2", "수혜 섹터 3"],
+  "sectors_losing": ["피해 섹터 1", "피해 섹터 2"],
+  "key_events_today": ["주요 이벤트 1 (한 문장)", "주요 이벤트 2", "주요 이벤트 3"],
+  "watch_tomorrow": ["내일 주시 1", "내일 주시 2"]
+}
+
+규칙: 사실 기반, 객관적, 한국어, 추측 금지. 강세/약세 요인은 본문에 명시된 것만.`;
+
+  try {
+    const msg = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const text = msg.content[0].text.trim();
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return res.status(500).json({ error: 'No JSON in response' });
+    const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
+
+    const row = {
+      headline: parsed.headline,
+      regime: parsed.regime,
+      bullish_drivers: parsed.bullish_drivers || [],
+      bearish_drivers: parsed.bearish_drivers || [],
+      sectors_winning: parsed.sectors_winning || [],
+      sectors_losing: parsed.sectors_losing || [],
+      key_events_today: parsed.key_events_today || [],
+      watch_tomorrow: parsed.watch_tomorrow || [],
+      based_on_issues: issues.length,
+      created_at: new Date().toISOString(),
+    };
+    await supabase.from('ai_market_summary').insert(row);
+    return res.status(200).json({ ok: true, generated: true, ...row });
+  } catch (e) {
+    return res.status(500).json({ error: 'AI summary failed: ' + e.message });
+  }
 }
