@@ -3309,12 +3309,11 @@ async function loadSectorMomentum() {
 
 // ─── 🔗 Cross-asset Correlation (30d) ───────────────────
 const CORR_ASSETS = [
-  { t:'SPY',     n:'S&P' },
-  { t:'QQQ',     n:'NDX' },
-  { t:'TLT',     n:'10Y채권' },
+  { t:'SPY',     n:'주식' },
+  { t:'TLT',     n:'채권' },
   { t:'GLD',     n:'금' },
-  { t:'USO',     n:'WTI' },
-  { t:'DX-Y.NYB',n:'DXY' },
+  { t:'USO',     n:'유가' },
+  { t:'DX-Y.NYB',n:'달러' },
   { t:'BTC-USD', n:'BTC' },
 ];
 async function loadCorrelation() {
@@ -3361,17 +3360,17 @@ async function loadCorrelation() {
       const a = 0.15 + (-v) * 0.55;
       return { bg: `rgba(227,25,55,${a.toFixed(2)})`, fg: -v > 0.4 ? '#fff' : '#5a0a14' };
     };
-    let html = `<table style="width:100%;border-collapse:separate;border-spacing:2px;font-size:10px"><thead><tr><th></th>${valid.map(a => `<th style="font-weight:600;color:var(--text2);padding:3px 4px;text-align:center">${escHtml(a.n)}</th>`).join('')}</tr></thead><tbody>`;
+    let html = `<div style="overflow-x:auto"><table style="border-collapse:separate;border-spacing:2px;font-size:9.5px;margin:0 auto"><thead><tr><th style="width:36px"></th>${valid.map(a => `<th style="font-weight:600;color:var(--text2);padding:2px 1px;text-align:center;min-width:32px">${escHtml(a.n)}</th>`).join('')}</tr></thead><tbody>`;
     for (const a of valid) {
-      html += `<tr><td style="font-weight:600;color:var(--text2);padding:3px 6px;white-space:nowrap">${escHtml(a.n)}</td>`;
+      html += `<tr><td style="font-weight:600;color:var(--text2);padding:3px 4px;white-space:nowrap;text-align:right">${escHtml(a.n)}</td>`;
       for (const b of valid) {
         const c = a.t === b.t ? 1 : corr(returns[a.t], returns[b.t]);
         const col = cellColor(c);
-        html += `<td style="background:${col.bg};color:${col.fg};text-align:center;padding:4px 6px;border-radius:4px;font-weight:600;font-family:var(--font-mono,monospace)">${c != null ? c.toFixed(2) : '—'}</td>`;
+        html += `<td style="background:${col.bg};color:${col.fg};text-align:center;padding:3px 4px;border-radius:3px;font-weight:600;font-family:var(--font-mono,monospace);min-width:32px">${c != null ? c.toFixed(2) : '—'}</td>`;
       }
       html += '</tr>';
     }
-    html += '</tbody></table><div style="font-size:9px;color:var(--text3);text-align:center;margin-top:6px">+1: 같이 움직임 / 0: 무상관 / −1: 반대로</div>';
+    html += '</tbody></table></div><div style="font-size:9px;color:var(--text3);text-align:center;margin-top:6px">+1: 같이 움직임 / 0: 무상관 / −1: 반대로</div>';
     el.innerHTML = html;
   } catch { el.innerHTML = '<div style="color:var(--red);font-size:11px;text-align:center">로드 실패</div>'; }
 }
@@ -3574,32 +3573,41 @@ function openTickerInTradingView(ticker) {
   window.open(url, '_blank', 'noopener');
 }
 
-// 마켓 개장 상태 계산 (한국 시간 기준)
-function computeMarketStatus(market) {
+// US 서머타임(EDT, UTC-4): 3월 둘째 일요일 ~ 11월 첫째 일요일. 그 외 EST(UTC-5)
+function getEtOffsetHours() {
   const now = new Date();
-  const kst = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600 * 1000));
-  const day = kst.getUTCDay();
-  const h = kst.getUTCHours(), m = kst.getUTCMinutes();
-  const minOfDay = h * 60 + m;
-  const isWeekend = day === 0 || day === 6;
+  const year = now.getUTCFullYear();
+  const dstStart = new Date(Date.UTC(year, 2, 1));
+  dstStart.setUTCDate(1 + ((7 - dstStart.getUTCDay()) % 7) + 7);  // 3월 둘째 일요일
+  const dstEnd = new Date(Date.UTC(year, 10, 1));
+  dstEnd.setUTCDate(1 + ((7 - dstEnd.getUTCDay()) % 7));            // 11월 첫째 일요일
+  return (now >= dstStart && now < dstEnd) ? -4 : -5;
+}
 
+// 마켓 개장 상태 (시장별 현지 시간 기준)
+function computeMarketStatus(market) {
   if (market === 'kr') {
-    if (isWeekend) return { label: '🔴 휴장', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
+    const kst = new Date(Date.now() + 9 * 3600 * 1000);
+    const day = kst.getUTCDay();
+    const minOfDay = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+    if (day === 0 || day === 6) return { label: '🔴 휴장', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
     if (minOfDay < 510)  return { label: `🟡 개장 전 (9:00 시작, ${510 - minOfDay}분 후)`, bg: 'var(--yellow-dim)', fg: 'var(--yellow)' };
     if (minOfDay < 930)  return { label: '🟢 정규장 진행 중', bg: 'var(--green-dim)', fg: 'var(--green)' };
     if (minOfDay < 1080) return { label: '🟠 시간외', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };
     return { label: '⚪ 마감', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
   }
   if (market === 'assets') {
-    // 멀티에셋: 24/7 (크립토는 항상, FX는 거의 24/5, 지수/금리는 각기 다름)
     return { label: '🌍 멀티에셋 (크립토 24/7 · 기타 자산별)', bg: 'var(--blue-dim)', fg: 'var(--blue)' };
   }
-  // us, sector, etf — 미국 시장 기준
-  if (isWeekend) return { label: '🔴 휴장 (주말)', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
-  const inRegular = (minOfDay >= 22 * 60 + 30) || (minOfDay < 5 * 60);
-  if (inRegular) return { label: '🟢 미국 정규장', bg: 'var(--green-dim)', fg: 'var(--green)' };
-  if (minOfDay >= 17 * 60 && minOfDay < 22 * 60 + 30) return { label: '🟡 미국 프리장', bg: 'var(--yellow-dim)', fg: 'var(--yellow)' };
-  if (minOfDay >= 5 * 60 && minOfDay < 9 * 60) return { label: '🟠 미국 애프터', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };
+  // us / sector / etf → ET 기준
+  const etOffset = getEtOffsetHours();
+  const et = new Date(Date.now() + etOffset * 3600 * 1000);
+  const day = et.getUTCDay();
+  const minOfDay = et.getUTCHours() * 60 + et.getUTCMinutes();
+  if (day === 0 || day === 6) return { label: '🔴 휴장 (주말)', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
+  if (minOfDay >= 570 && minOfDay < 960) return { label: '🟢 미국 정규장', bg: 'var(--green-dim)', fg: 'var(--green)' };           // 9:30-16:00
+  if (minOfDay >= 240 && minOfDay < 570) return { label: '🟡 미국 프리장', bg: 'var(--yellow-dim)', fg: 'var(--yellow)' };          // 4:00-9:30
+  if (minOfDay >= 960 && minOfDay < 1200) return { label: '🟠 미국 애프터', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };           // 16:00-20:00
   return { label: '⚪ 마감', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
 }
 
