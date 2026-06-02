@@ -41,42 +41,31 @@ export default async function handler(req, res) {
     }
   };
 
-  const log = {};
-
-  // 1. 뉴스 수집 (병렬)
-  const [newsData, rssData] = await Promise.all([
-    call('/api/fetch?type=news'),
-    call('/api/fetch?type=rss'),
-  ]);
-  log.news = newsData;
-  log.rss  = rssData;
-
-  // 2. 실시간 이벤트 수집 (경제지표·실적·트럼프) + 즉시 분석
-  log.events = await collectEvents(base);
-
-  // 3. 분석 + 전략투자 + DART + AI요약을 fire-and-forget 병렬 실행
-  // (각각 독립적이고 60초 넘길 수 있어서 응답 기다리지 않음)
-  const fireAndForget = (path, body) => {
+  // 모든 작업을 fire-and-forget으로 즉시 발사 후 바로 응답
+  // — 각 API는 독립적으로 60s 예산을 가짐 (vercel.json maxDuration 설정)
+  // — cron-daily 자체는 3~5초 안에 200 응답 반환 (timeout 없음)
+  const faf = (path, body) => {
     fetch(`${base}${path}`, {
       method: 'POST', headers: authHeaders,
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(55000),
     }).catch(() => {});
   };
-  fireAndForget('/api/analyze', { limit: 5 });
-  fireAndForget('/api/admin?action=extract-investments', { since_hours: 48, max: 25 });
-  fireAndForget('/api/admin?action=dart-poll', { days: 2 });
-  fireAndForget('/api/admin?action=ai-market-summary');
-  log.backgroundJobs = ['analyze', 'extract-investments', 'dart-poll', 'ai-market-summary'];
 
-  // 5. 정확도 체크 (빠름 — 응답 기다림)
-  await new Promise(r => setTimeout(r, 500));
-  log.accuracy = await call('/api/check-accuracy');
+  faf('/api/fetch?type=news');
+  faf('/api/fetch?type=rss');
+  faf('/api/market-pulse?type=trump');
+  faf('/api/analyze', { limit: 5 });
+  faf('/api/admin?action=extract-investments', { since_hours: 48, max: 25 });
+  faf('/api/admin?action=dart-poll', { days: 2 });
+  faf('/api/admin?action=ai-market-summary');
+  faf('/api/check-accuracy');
 
   return res.status(200).json({
     success: true,
     timestamp: new Date().toISOString(),
-    ...log,
+    message: '8개 작업을 백그라운드에서 실행 중 (각각 독립 실행, 최대 55초)',
+    jobs: ['fetch-news','fetch-rss','trump','analyze','extract-investments','dart-poll','ai-market-summary','check-accuracy'],
   });
 }
 
