@@ -54,27 +54,22 @@ export default async function handler(req, res) {
   // 2. 실시간 이벤트 수집 (경제지표·실적·트럼프) + 즉시 분석
   log.events = await collectEvents(base);
 
-  // 3. 남은 미분석 이슈 추가 분석 (5건 — 펀더멘털 fetch 포함으로 1건당 ~8초)
-  await new Promise(r => setTimeout(r, 500));
-  log.analyze = await call('/api/analyze', { limit: 5 });
+  // 3. 분석 + 전략투자 + DART + AI요약을 fire-and-forget 병렬 실행
+  // (각각 독립적이고 60초 넘길 수 있어서 응답 기다리지 않음)
+  const fireAndForget = (path, body) => {
+    fetch(`${base}${path}`, {
+      method: 'POST', headers: authHeaders,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(55000),
+    }).catch(() => {});
+  };
+  fireAndForget('/api/analyze', { limit: 5 });
+  fireAndForget('/api/admin?action=extract-investments', { since_hours: 48, max: 25 });
+  fireAndForget('/api/admin?action=dart-poll', { days: 2 });
+  fireAndForget('/api/admin?action=ai-market-summary');
+  log.backgroundJobs = ['analyze', 'extract-investments', 'dart-poll', 'ai-market-summary'];
 
-  // 4. 전략 투자 자동 추출 (지난 48h 분석된 이슈에서 "X가 Y에 투자" 패턴 추출 → DB 누적)
-  await new Promise(r => setTimeout(r, 500));
-  log.extractInvestments = await call('/api/admin?action=extract-investments', { since_hours: 48, max: 25 });
-
-  // 4-b. 공시 폴링 (DART 매일, 13F는 월요일에만 — SEC EDGAR 부하 고려)
-  await new Promise(r => setTimeout(r, 500));
-  log.dart = await call('/api/admin?action=dart-poll', { days: 2 });
-  if (new Date().getDay() === 1) {  // 월요일
-    await new Promise(r => setTimeout(r, 500));
-    log.sec13f = await call('/api/admin?action=sec-13f-poll');
-  }
-
-  // 4-c. AI 시장 종합 보고서 (24h 뉴스 요약)
-  await new Promise(r => setTimeout(r, 500));
-  log.marketSummary = await call('/api/admin?action=ai-market-summary');
-
-  // 5. 정확도 체크
+  // 5. 정확도 체크 (빠름 — 응답 기다림)
   await new Promise(r => setTimeout(r, 500));
   log.accuracy = await call('/api/check-accuracy');
 
