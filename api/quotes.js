@@ -25,7 +25,7 @@ export default async function handler(req) {
   const range = (searchParams.get('range') || '1d').toString();
   const interval = range === '1mo' ? '1d' : range === '5d' ? '1d' : '1d';
   const includeSeries = searchParams.get('include') === 'series';   // 상관관계 계산용 시계열 반환
-  const tickers = param.split(',').map(t => t.trim()).filter(Boolean).slice(0, 80);
+  const tickers = param.split(',').map(t => t.trim()).filter(Boolean).slice(0, 120);
 
   if (!tickers.length) {
     return new Response(JSON.stringify({ ok: false, error: 'tickers required', data: {} }), {

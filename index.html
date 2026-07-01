@@ -3168,9 +3168,24 @@ const HEATMAP_TICKERS = {
     { t:'DIS',   n:'Disney' },       { t:'MCD',   n:'McDonald\'s' }, { t:'NKE',  n:'Nike' },
     { t:'PEP',   n:'PepsiCo' },      { t:'KO',    n:'Coca-Cola' },   { t:'SBUX', n:'Starbucks' },
     // Crypto / fintech
-    { t:'COIN',  n:'Coinbase' },     { t:'SQ',    n:'Block' },
+    { t:'COIN',  n:'Coinbase' },     { t:'XYZ',   n:'Block' },
     // Auto
     { t:'F',     n:'Ford' },         { t:'GM',    n:'General Motors'},{t:'RIVN',  n:'Rivian' },
+    // Semiconductors (추가)
+    { t:'LRCX',  n:'Lam Research' }, { t:'AMAT',  n:'Applied Materials'},{t:'KLAC', n:'KLA' },
+    { t:'ASML',  n:'ASML' },         { t:'TSM',   n:'TSMC' },        { t:'ARM',  n:'Arm Holdings' },
+    // Software / Cloud / Internet (추가)
+    { t:'PYPL',  n:'PayPal' },       { t:'SHOP',  n:'Shopify' },     { t:'UBER', n:'Uber' },
+    { t:'ABNB',  n:'Airbnb' },       { t:'PANW',  n:'Palo Alto' },   { t:'CRWD', n:'CrowdStrike' },
+    { t:'NET',   n:'Cloudflare' },   { t:'IBM',   n:'IBM' },         { t:'ACN',  n:'Accenture' },
+    { t:'SPGI',  n:'S&P Global' },
+    // Healthcare (추가)
+    { t:'ABT',   n:'Abbott' },       { t:'DHR',   n:'Danaher' },     { t:'ISRG', n:'Intuitive Surgical'},
+    { t:'GILD',  n:'Gilead' },       { t:'VRTX',  n:'Vertex Pharma'},
+    // Industrial (추가)
+    { t:'RTX',   n:'RTX' },          { t:'HON',   n:'Honeywell' },   { t:'DE',   n:'Deere' },
+    // Finance (추가)
+    { t:'C',     n:'Citigroup' },    { t:'SCHW',  n:'Charles Schwab'},
   ],
   kr: [
     // 시총 Top 30
@@ -3206,6 +3221,22 @@ const HEATMAP_TICKERS = {
     // 기타 시총 상위
     { t:'011200.KS', n:'HMM' },          { t:'086280.KS', n:'현대글로비스' },
     { t:'042700.KS', n:'한미반도체' },   { t:'009830.KS', n:'한화솔루션' },
+    // 금융·지주 (추가)
+    { t:'000810.KS', n:'삼성화재' },     { t:'034730.KS', n:'SK' },          { t:'078930.KS', n:'GS' },
+    { t:'004990.KS', n:'롯데지주' },     { t:'001040.KS', n:'CJ' },
+    // 반도체·전자·IT서비스 (추가)
+    { t:'018260.KS', n:'삼성에스디에스' },{ t:'011070.KS', n:'LG이노텍' },     { t:'034220.KS', n:'LG디스플레이' },
+    { t:'402340.KS', n:'SK스퀘어' },
+    // 정유·에너지·전력기기 (추가)
+    { t:'010950.KS', n:'S-Oil' },        { t:'010120.KS', n:'LS ELECTRIC' },  { t:'267260.KS', n:'HD현대일렉트릭' },
+    { t:'034020.KS', n:'두산에너빌리티' },{ t:'112610.KQ', n:'씨에스윈드' },
+    // 건설·조선·부품 (추가)
+    { t:'000720.KS', n:'현대건설' },     { t:'011790.KS', n:'SKC' },          { t:'018880.KS', n:'한온시스템' },
+    // 바이오·미용·게임 (추가)
+    { t:'000100.KS', n:'유한양행' },     { t:'145020.KQ', n:'휴젤' },         { t:'214150.KQ', n:'클래시스' },
+    { t:'293490.KQ', n:'카카오게임즈' },
+    // 소비재 (추가)
+    { t:'271560.KS', n:'오리온' },
   ],
 };
 let _hmMkt = 'us', _hmRange = '1d';
