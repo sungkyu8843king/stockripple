@@ -9,6 +9,7 @@
  *  POST /api/admin?action=update-investment   → 항목 수정 (highlight/status)
  *  POST /api/admin?action=delete-investment   → 항목 삭제 (status=rejected 소프트 삭제)
  *  GET  /api/admin?action=investment-events   → 티커별 추출 이벤트 히스토리 (그래프용)
+ *  GET  /api/admin?action=theme-map           → 티커별 미래 먹거리 테마 맵 (메인 피드 배점용, 인증 불필요)
  *  POST /api/admin?action=dart-poll           → DART 5%+ 지분공시 폴링 (한국 OpenDart API)
  *  POST /api/admin?action=sec-13f-poll        → SEC EDGAR 13F 폴링 (미국 헤지펀드 보유)
  *  POST /api/admin?action=dart-sync-corp-codes → DART corpCode.xml.zip 다운로드 & companies 매핑 (느릴 수 있음)
@@ -48,6 +49,8 @@ export default async function handler(req, res) {
   if (action === 'investment-events') return handleInvestmentEvents(req, res);
   // dart-company-detail 도 공개 (캐시된 데이터 조회)
   if (action === 'dart-company-detail') return handleDartCompanyDetail(req, res);
+  // theme-map 도 공개 (메인 피드 "지금 매수 후보" 미래 먹거리 배점용)
+  if (action === 'theme-map') return handleThemeMap(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -727,6 +730,43 @@ async function handleInvestmentEvents(req, res) {
 
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
   return res.status(200).json({ ok: true, ticker, events: events || [], series });
+}
+
+// ════════════════════════════════════════════════════════════
+// 9-1) 티커별 "미래 먹거리" 테마 맵 (메인 피드 지금 매수 후보 배점용 — 인증 불필요)
+//  - 큐레이션(lib/strategic-investments.js 하드코딩) + DB 자동 추출(strategic_investments) 병합
+//  - 큐레이션이 있으면 우선 사용(감쇠 없음), 없으면 DB 최신 추출 항목 사용(프론트에서 최신성 감쇠)
+// ════════════════════════════════════════════════════════════
+async function handleThemeMap(req, res) {
+  try {
+    const mod = await import('../lib/strategic-investments.js');
+    const map = {};
+
+    for (const [ticker, info] of Object.entries(mod.STRATEGIC_INVESTMENTS)) {
+      const best = [...info.bets].sort((a, b) => (b.highlight ? 1 : 0) - (a.highlight ? 1 : 0))[0];
+      if (best) map[ticker] = { theme: best.theme, highlight: !!best.highlight, source: 'curated' };
+    }
+
+    const { data } = await supabase
+      .from('strategic_investments')
+      .select('investor_ticker, theme, highlight, seen_count, last_seen_at')
+      .eq('status', 'active');
+    const byTicker = {};
+    for (const row of (data || [])) {
+      if (!row.investor_ticker) continue;
+      (byTicker[row.investor_ticker] ||= []).push(row);
+    }
+    for (const [ticker, rows] of Object.entries(byTicker)) {
+      if (map[ticker]) continue;  // 큐레이션이 이미 있으면 유지
+      const best = [...rows].sort((a, b) => (b.highlight - a.highlight) || (b.seen_count || 0) - (a.seen_count || 0))[0];
+      map[ticker] = { theme: best.theme, highlight: !!best.highlight, source: 'ai', last_seen_at: best.last_seen_at };
+    }
+
+    res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600');
+    return res.status(200).json({ ok: true, map });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, map: {} });
+  }
 }
 
 // ════════════════════════════════════════════════════════════

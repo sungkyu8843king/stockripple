@@ -1858,19 +1858,21 @@ async function loadInsights() {
     const RECENT_DAYS = 14;
     const recentMs = RECENT_DAYS * 86400000;
 
-    // 최근 500건의 예측 (이력 + 활성 모두)
-    const { data, error } = await sb
-      .from('analysis_companies')
-      .select(`
-        upside_pct, confidence, rationale, entry_date,
-        is_accurate_7d, actual_return_7d, is_accurate_1d, actual_return_1d,
-        companies(ticker, name_ko, name_en, market),
-        analyses!inner(issue_id, ai_summary,
-          issues!inner(id, title, published_at)
-        )
-      `)
-      .order('entry_date', { ascending: false })
-      .limit(500);
+    // 최근 500건의 예측 (이력 + 활성 모두) + 미래 먹거리 테마 맵 (큐레이션 + 일일 cron 자동추출 병합, /api/admin?action=theme-map)
+    const [{ data, error }, themeMap] = await Promise.all([
+      sb.from('analysis_companies')
+        .select(`
+          upside_pct, confidence, rationale, entry_date,
+          is_accurate_7d, actual_return_7d, is_accurate_1d, actual_return_1d,
+          companies(ticker, name_ko, name_en, market),
+          analyses!inner(issue_id, ai_summary,
+            issues!inner(id, title, published_at)
+          )
+        `)
+        .order('entry_date', { ascending: false })
+        .limit(500),
+      fetch('/api/admin?action=theme-map').then(r => r.ok ? r.json() : { map: {} }).then(j => j.map || {}).catch(() => ({})),
+    ]);
 
     if (error || !data?.length) { sec.style.display = 'none'; return; }
 
@@ -1921,23 +1923,39 @@ async function loadInsights() {
         const avgConf   = avg(s.recentConfs) || 50;
         const predCount = s.recent.length;
 
+        // 미래 먹거리 테마 점수 — 시장 전략적 투자/지분 노출 (큐레이션 + 최근 뉴스 자동추출, 최대 15점)
+        // - 강조(⭐) 배팅이면 기본 15점, 일반 배팅이면 9점
+        // - 큐레이션(source:'curated')은 감쇠 없음. AI 자동추출(source:'ai')은 최근 뉴스에 재등장했을수록 가중치 유지, 오래될수록 감쇠
+        const bet = themeMap[s.ticker];
+        let themeScore = 0, themeLabel = null;
+        if (bet) {
+          let recency = 1;
+          if (bet.source === 'ai' && bet.last_seen_at) {
+            const daysSinceSeen = (now - new Date(bet.last_seen_at).getTime()) / 86400000;
+            recency = daysSinceSeen <= 7 ? 1 : daysSinceSeen <= 30 ? 0.6 : daysSinceSeen <= 90 ? 0.3 : 0.1;
+          }
+          themeScore = Math.round((bet.highlight ? 15 : 9) * recency);
+          themeLabel = bet.theme;
+        }
+
         // 종합 점수
         // - 적중률 가중치 50점 (이력 없으면 35점 기본)
         // - 평균 상승률 가중치 40점 (cap 30%)
         // - AI 신뢰도 가중치 25점
         // - 예측 빈도 가중치 20점 (최근 5건까지)
+        // - 미래 먹거리 테마 가중치 15점 (전략적 투자 노출 + 최신성)
         const accScore   = accuracy != null ? (accuracy / 100) * 50 : 35;
         const upScore    = Math.min(Math.max(avgUpside, 0), 30) / 30 * 40;
         const confScore  = (avgConf / 100) * 25;
         const countScore = Math.min(predCount, 5) / 5 * 20;
-        const score = Math.round(accScore + upScore + confScore + countScore);
+        const score = Math.round(accScore + upScore + confScore + countScore + themeScore);
 
         return {
           ...s,
           accuracy: accuracy != null ? Math.round(accuracy) : null,
           avgUpside: Math.round(avgUpside * 10) / 10,
           avgConf:   Math.round(avgConf),
-          predCount, score,
+          predCount, score, themeScore, themeLabel,
         };
       })
       .filter(s => s.avgUpside > 0) // 상승 예측만
@@ -2079,11 +2097,12 @@ async function loadInsights() {
                   <span style="font-family:var(--font-mono,'SF Mono',monospace);font-size:12px;font-weight:700;color:${isKr?'#0066cc':'#7c3aed'};background:${isKr?'rgba(0,102,204,0.10)':'rgba(124,58,237,0.10)'};padding:2px 8px;border-radius:5px">${escHtml(s.ticker)}</span>
                   <span style="font-size:15px;font-weight:700">${escHtml(s.name)}</span>
                 </div>
-                <div style="display:flex;gap:8px;font-size:10px;align-items:center">
+                <div style="display:flex;gap:8px;font-size:10px;align-items:center;flex-wrap:wrap">
                   <span style="color:${accColor};font-weight:600">${accLabel}</span>
                   <span style="color:var(--text3)">·</span>
                   <span style="color:var(--text3)">신뢰 ${s.avgConf}%</span>
                   ${trade?.tf ? `<span style="color:var(--text3)">·</span><span style="color:var(--blue);font-weight:600">${tfLabel[trade.tf] || trade.tf}</span>` : ''}
+                  ${s.themeLabel ? `<span title="현재 시장 뉴스에서 자동 추출된 전략적 투자 노출 (+${s.themeScore}점)" style="padding:1px 7px;border-radius:999px;font-weight:700;background:linear-gradient(135deg,rgba(163,113,247,.18),rgba(47,129,247,.18));color:#a371f7">🚀 ${escHtml(s.themeLabel)}</span>` : ''}
                 </div>
               </div>
               <span style="font-size:10px;font-weight:800;padding:5px 10px;border-radius:6px;color:${signal.color};background:${signal.bg};white-space:nowrap">${signal.label}</span>
