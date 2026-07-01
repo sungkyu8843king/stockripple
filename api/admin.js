@@ -51,6 +51,11 @@ export default async function handler(req, res) {
   if (action === 'dart-company-detail') return handleDartCompanyDetail(req, res);
   // theme-map 도 공개 (메인 피드 "지금 매수 후보" 미래 먹거리 배점용)
   if (action === 'theme-map') return handleThemeMap(req, res);
+  // options-chain / sec-filings 도 공개 (회사 페이지에서 인증 헤더 없이 호출)
+  if (action === 'options-chain') return handleOptionsChain(req, res);
+  if (action === 'sec-filings')   return handleSecFilings(req, res);
+  // ai-market-summary는 GET(조회)은 공개, POST(생성/갱신)만 admin 인증 필요
+  if (action === 'ai-market-summary' && req.method === 'GET') return handleAiMarketSummaryGet(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -69,14 +74,6 @@ export default async function handler(req, res) {
   if (action === 'dart-upload-corp-codes') return handleDartUploadCorpCodes(req, res);
   if (action === 'verify-kr-names') return handleVerifyKrNames(req, res);
   if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
-
-  // 공개 액션: 옵션 체인, SEC 공시, AI 시장종합 — 인증 불필요
-  if (action === 'options-chain')      return handleOptionsChain(req, res);
-  if (action === 'sec-filings')        return handleSecFilings(req, res);
-  if (action === 'ai-market-summary')  {
-    if (req.method === 'GET') return handleAiMarketSummaryGet(req, res);
-    // POST는 admin 인증 필요 (생성/갱신)
-  }
 
   return res.status(400).json({ error: 'Unknown action' });
 }

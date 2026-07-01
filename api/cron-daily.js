@@ -4,7 +4,7 @@
  *  1. fetch-news  — NewsAPI 키워드 수집 (트럼프·경제·실적·섹터)
  *  2. fetch-rss   — RSS 피드 수집 (국내외 + Truth Social)
  *  3. collect-events — 경제지표 발표 결과 + 기업실적 결과 + 트럼프 신글 저장 (인라인)
- *  4. analyze     — 미분석 이슈 AI 분석 (limit 8)
+ *  4. analyze     — 미분석 이슈 AI 분석 (1회 5건 × 최대 4회 자기 체이닝 = 최대 20건/일)
  *  5. check-accuracy — 기존 분석 정확도 업데이트
  */
 import { createClient } from '@supabase/supabase-js';
