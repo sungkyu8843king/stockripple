@@ -928,6 +928,11 @@ button { font-family: inherit; }
             <button class="hm-tab hm-range active" data-range="1d" onclick="switchHeatmap(null, '1d')" style="background:var(--bg2);border:none;color:var(--text);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">일간</button>
             <button class="hm-tab hm-range" data-range="1mo" onclick="switchHeatmap(null, '1mo')" style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">월간</button>
           </div>
+          <div id="heatmapSessionGroup" style="display:none;background:var(--bg3);border-radius:6px;padding:2px;gap:2px">
+            <button class="hm-tab hm-session active" data-session="regular" onclick="switchHeatmap(null, null, 'regular')" style="background:var(--bg2);border:none;color:var(--text);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600">데이</button>
+            <button class="hm-tab hm-session" data-session="pre" onclick="switchHeatmap(null, null, 'pre')" style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">프리마켓</button>
+            <button class="hm-tab hm-session" data-session="post" onclick="switchHeatmap(null, null, 'post')" style="background:transparent;border:none;color:var(--text2);padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">애프터마켓</button>
+          </div>
         </div>
       </div>
       <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;min-height:80px">
@@ -3239,11 +3244,21 @@ const HEATMAP_TICKERS = {
     { t:'271560.KS', n:'오리온' },
   ],
 };
-let _hmMkt = 'us', _hmRange = '1d';
+let _hmMkt = 'us', _hmRange = '1d', _hmSession = 'regular';
+const HM_SESSION_MARKETS = ['us', 'kr'];   // 프리마켓/애프터마켓 세션 토글을 지원하는 시장
 
-function switchHeatmap(mkt, range) {
-  if (mkt) _hmMkt = mkt;
-  if (range) _hmRange = range;
+// 초기 로드 시점에도 세션 토글 표시 상태 반영 (switchHeatmap을 거치지 않고 바로 loadHeatmap()이 호출되므로)
+(function initHmSessionVisibility() {
+  const sessionGroup = document.getElementById('heatmapSessionGroup');
+  if (sessionGroup) {
+    sessionGroup.style.display = (_hmRange === '1d' && HM_SESSION_MARKETS.includes(_hmMkt)) ? 'inline-flex' : 'none';
+  }
+})();
+
+function switchHeatmap(mkt, range, session) {
+  if (mkt)   { _hmMkt = mkt; _hmSession = 'regular'; }
+  if (range) { _hmRange = range; _hmSession = 'regular'; }
+  if (session) _hmSession = session;
   document.querySelectorAll('.hm-mkt').forEach(b => {
     const on = b.dataset.mkt === _hmMkt;
     b.style.background = on ? 'var(--bg2)' : 'transparent';
@@ -3256,6 +3271,16 @@ function switchHeatmap(mkt, range) {
     b.style.color = on ? 'var(--text)' : 'var(--text2)';
     b.style.fontWeight = on ? '600' : '400';
   });
+  document.querySelectorAll('.hm-session').forEach(b => {
+    const on = b.dataset.session === _hmSession;
+    b.style.background = on ? 'var(--bg2)' : 'transparent';
+    b.style.color = on ? 'var(--text)' : 'var(--text2)';
+    b.style.fontWeight = on ? '600' : '400';
+  });
+  const sessionGroup = document.getElementById('heatmapSessionGroup');
+  if (sessionGroup) {
+    sessionGroup.style.display = (_hmRange === '1d' && HM_SESSION_MARKETS.includes(_hmMkt)) ? 'inline-flex' : 'none';
+  }
   loadHeatmap();
 }
 
@@ -3428,7 +3453,8 @@ async function loadHeatmap() {
   const list = HEATMAP_TICKERS[_hmMkt] || [];
   const tickers = list.map(x => x.t);
   const nameMap = Object.fromEntries(list.map(x => [x.t, x.n]));
-  const structureKey = `${_hmMkt}|${_hmRange}|${tickers.join(',')}`;
+  const sessionForKey = HM_SESSION_MARKETS.includes(_hmMkt) ? _hmSession : 'regular';
+  const structureKey = `${_hmMkt}|${_hmRange}|${sessionForKey}|${tickers.join(',')}`;
   const needsRebuild = structureKey !== _hmStructureKey;
 
   if (needsRebuild) {
@@ -3436,16 +3462,35 @@ async function loadHeatmap() {
   }
 
   try {
-    const r = await fetch(`/api/quotes?tickers=${tickers.join(',')}&range=${_hmRange}`);
-    const j = await r.json();
-    if (!j.ok) throw new Error('fetch failed');
-    const data = j.data || {};
-    const items = tickers.map(t => {
-      const d = data[t];
-      if (!d) return null;
-      const pct = _hmRange === '1mo' ? d.periodChangePercent : d.changePercent;
-      return { ticker: t, pct, price: d.price, name: nameMap[t] || d.shortName || t };
-    }).filter(x => x && x.pct != null);
+    let items;
+    if (_hmMkt === 'kr' && _hmRange === '1d' && _hmSession !== 'regular') {
+      // 국장 시간외(프리/애프터마켓) — Yahoo Finance는 KRX 시간외 데이터를 제공하지 않아 네이버 금융 시세를 사용
+      const codes = tickers.map(t => t.replace(/\.(KS|KQ)$/, ''));
+      const r = await fetch(`/api/kr-overtime?codes=${codes.join(',')}&session=${_hmSession}`);
+      const j = await r.json();
+      if (!j.ok) throw new Error('fetch failed');
+      const data = j.data || {};
+      items = tickers.map((t, i) => {
+        const d = data[codes[i]];
+        if (!d || d.pct == null) return null;
+        return { ticker: t, pct: d.pct, price: d.price, name: nameMap[t] || t };
+      }).filter(Boolean);
+    } else {
+      const r = await fetch(`/api/quotes?tickers=${tickers.join(',')}&range=${_hmRange}`);
+      const j = await r.json();
+      if (!j.ok) throw new Error('fetch failed');
+      const data = j.data || {};
+      items = tickers.map(t => {
+        const d = data[t];
+        if (!d) return null;
+        let pct;
+        if (_hmRange === '1mo') pct = d.periodChangePercent;
+        else if (_hmMkt === 'us' && _hmSession === 'pre') pct = d.preMarketChangePercent;
+        else if (_hmMkt === 'us' && _hmSession === 'post') pct = d.postMarketChangePercent;
+        else pct = d.changePercent;
+        return { ticker: t, pct, price: d.price, name: nameMap[t] || d.shortName || t };
+      }).filter(x => x && x.pct != null);
+    }
     items.sort((a, b) => (b.pct || 0) - (a.pct || 0));
     // 셀 클릭 동작 — 주식이면 company.html, 지수·자산·FX·크립토는 새창 TradingView
     const cellHref = (t) => {
