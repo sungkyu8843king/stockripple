@@ -636,10 +636,13 @@ tr:hover td { background: var(--bg3); }
       </div>
 
       <div class="card">
-        <div class="card-title">🔁 자동 반복 (전체 재분석)</div>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:10px">5개씩 배치로 자동 반복 실행 (펀더멘털 fetch 포함, Vercel 60초 회피).</p>
+        <div class="card-title">🔁 자동 반복 (전체 재분석) — 비활성화됨</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:10px">
+          탭을 열어둔 채 방치하면 브라우저에서 무한정 계속 돌면서 Claude API 크레딧을 소모하는
+          문제가 있어 기능을 비활성화했습니다. 필요하면 개발자에게 안전장치(총 상한 등)를 추가해 다시 요청하세요.
+        </p>
         <div class="action-row">
-          <button class="btn btn-warn" id="reanAutoBtn" onclick="reanRunAuto()">🔁 자동 반복 시작</button>
+          <button class="btn btn-warn" disabled title="비활성화됨">🔁 자동 반복 시작 (비활성화됨)</button>
         </div>
       </div>
 
@@ -1161,73 +1164,10 @@ function stopLiveCounter() {
   document.getElementById('reanLiveLine')?.remove();
 }
 
+// 비활성화됨 — 탭을 열어둔 채 방치하면 무한정 계속 돌면서 Claude API 크레딧을 소모하는
+// 사고가 있어 기능을 완전히 꺼둠 (2026-07-01). 캐시된 페이지 등에서 잘못 호출되더라도 아무 동작 안 함.
 async function reanRunAuto() {
-  const btn = document.getElementById('reanAutoBtn');
-  const total = parseInt(prompt('전체 재분석할 이슈 개수 (예: 30)', '20'), 10);
-  if (!total || total < 1) return;
-  if (!confirm(`최근 ${total}개를 1개씩 실시간 진행. 약 ${Math.ceil(total * 8 / 60)}분 소요. 진행할까요?`)) return;
-
-  _reanAutoStop = false;
-  btn.disabled = true;
-  const orig = btn.textContent;
-  btn.textContent = '🛑 중단';
-  btn.onclick = () => { _reanAutoStop = true; reanLog('🛑 중단 요청됨, 현재 이슈 완료 후 종료', 'warn'); };
-
-  reanLog(`🔁 자동 반복 시작: 최근 ${total}개 (1개씩 실시간)`, 'info');
-
-  // 1단계: 5개씩 묶어서 기존 분석 일괄 삭제
-  const wipeBatches = Math.ceil(total / 5);
-  reanLog(`1️⃣ 최근 ${total}개 기존 분석 삭제 (${wipeBatches}배치)`, 'info');
-  for (let i = 0; i < wipeBatches && !_reanAutoStop; i++) {
-    const remaining = total - i * 5;
-    const count = Math.min(5, remaining);
-    startLiveCounter(`기존 분석 삭제 (${i+1}/${wipeBatches})`);
-    const wipe = await callApi('/api/analyze', { force_recent: count, limit: 0 }, 'reanLog');
-    stopLiveCounter();
-    if (!wipe) { btn.disabled = false; btn.textContent = orig; btn.onclick = reanRunAuto; return; }
-    reanLog(`  ↳ ${wipe.reanalyzed || 0}개 삭제`, 'ok');
-  }
-
-  // 2단계: 1개씩 분석 + 실시간 결과 표시
-  reanLog(`2️⃣ AI 분석 시작 (1개씩)`, 'info');
-  let analyzedTotal = 0, idx = 1;
-  while (!_reanAutoStop && analyzedTotal < total) {
-    const start = startLiveCounter(`이슈 ${idx}/${total} 분석 중`);
-    const res = await callApi('/api/analyze', { limit: 1 }, 'reanLog');
-    stopLiveCounter();
-    if (!res) break;
-    const got = res.analyzed || 0;
-    if (got === 0 && !(res.errors || []).length) { reanLog('✓ 더 분석할 이슈 없음, 종료', 'ok'); break; }
-    analyzedTotal += got;
-
-    // 처리된 이슈 표시
-    for (const p of (res.processed || [])) {
-      const dur = Math.round((p.duration_ms || 0) / 100) / 10;
-      reanLog(`✓ [${idx}/${total}] ${p.title} (${dur}s, 관련도 ${p.relevance})`, 'ok');
-      if (p.companies?.length) reanLog(`     픽: ${p.companies.join(', ')}`, 'info');
-      idx++;
-    }
-    // 에러 표시
-    if (res.errors?.length) {
-      for (const e of res.errors.slice(0, 3)) {
-        if (e.startsWith('Irrelevant')) {
-          reanLog(`✗ [${idx}/${total}] 비관련 이슈 자동 삭제`, 'warn');
-          idx++;
-        } else if (e.startsWith('Invalid ticker')) {
-          reanLog(`   ⚠ ${e}`, 'warn');
-        } else {
-          reanLog(`   ⚠ ${e}`, 'warn');
-        }
-      }
-    }
-    await new Promise(r => setTimeout(r, 300));
-  }
-
-  stopLiveCounter();
-  reanLog(`🎯 완료: 총 ${analyzedTotal}개 새 형식 분석 생성`, 'ok');
-  btn.disabled = false;
-  btn.textContent = orig;
-  btn.onclick = reanRunAuto;
+  alert('이 기능은 비용 사고 방지를 위해 비활성화되었습니다.');
 }
 
 // 회사명 보정
