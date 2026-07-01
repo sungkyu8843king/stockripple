@@ -21,9 +21,12 @@ export default async function handler(req, res) {
   const HARD_CAP = 5;
   const limit = Math.min(rawBody.limit ?? 5, HARD_CAP);
   const force_recent = Math.min(rawBody.force_recent ?? 0, HARD_CAP);
-  // 체이닝: 1회 호출은 5건이 한계지만, 처리 후 스스로를 재호출해 하루 크론 1번으로도
-  // 여러 배치를 이어서 처리 (각 호출은 새 60초 예산을 받음). 최대 4회(20건/일)로 비용 제한.
-  const MAX_CHAIN = 4;
+  // 체이닝: 1회 호출은 5건이 한계지만, 처리 후 스스로를 재호출해 여러 배치를 이어서 처리
+  // (각 호출은 새 60초 예산을 받음). 크론(일일 자동)은 기본 4회(20건/일)로 비용 제한.
+  // 수동으로 max_chain을 올려서 한 번에 더 큰 배치를 처리할 수 있음 (절대 상한 60회 = 300건).
+  const DEFAULT_MAX_CHAIN = 4;
+  const ABSOLUTE_MAX_CHAIN = 60;
+  const MAX_CHAIN = Math.min(Math.max(parseInt(rawBody.max_chain ?? DEFAULT_MAX_CHAIN, 10) || DEFAULT_MAX_CHAIN, 1), ABSOLUTE_MAX_CHAIN);
   const chainCount = Math.min(Math.max(parseInt(rawBody.chain_count ?? 0, 10) || 0, 0), MAX_CHAIN);
 
   // force_recent: 최근 N개 이슈를 무조건 재분석 (기존 분석 삭제 후 재생성)
@@ -185,13 +188,13 @@ export default async function handler(req, res) {
   // 이번 배치가 꽉 찼다면(=limit만큼 처리) 백로그가 더 남아있을 가능성이 높음 → 다음 배치를 이어서 트리거
   // (res.json() 이전에 fire-and-forget — cron-daily.js와 동일한 패턴)
   if (!issue_id && issues.length === limit && chainCount < MAX_CHAIN - 1) {
-    triggerNextChain(req, limit, chainCount + 1);
+    triggerNextChain(req, limit, chainCount + 1, MAX_CHAIN);
   }
 
-  return res.status(200).json({ ...results, reanalyzed, chainCount });
+  return res.status(200).json({ ...results, reanalyzed, chainCount, maxChain: MAX_CHAIN });
 }
 
-function triggerNextChain(req, limit, nextChainCount) {
+function triggerNextChain(req, limit, nextChainCount, maxChain) {
   const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : `https://${req.headers.host}`;
@@ -201,7 +204,7 @@ function triggerNextChain(req, limit, nextChainCount) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${process.env.ADMIN_SECRET}`,
     },
-    body: JSON.stringify({ limit, chain_count: nextChainCount }),
+    body: JSON.stringify({ limit, chain_count: nextChainCount, max_chain: maxChain }),
     signal: AbortSignal.timeout(55000),
   }).catch(() => {});
 }

@@ -301,7 +301,8 @@ tr:hover td { background: var(--bg3); }
         <div class="card-title">개별 실행</div>
         <div class="action-row">
           <button class="btn btn-ghost" onclick="runFetchOnly()">뉴스만 수집</button>
-          <button class="btn btn-ghost" onclick="runAnalyze(null, 20)">분석만 실행 (최대 20건)</button>
+          <button class="btn btn-ghost" onclick="runAnalyze(null, 5, 'quickLog')">분석만 실행 (최대 20건)</button>
+          <button class="btn btn-primary" onclick="runAnalyze(null, 5, 'quickLog', 60)" title="미분석 백로그를 최대 300건까지 한 번에 처리 (체이닝, 약 40~50분 소요, 백그라운드에서 계속 진행)">🚀 지금 최대한 분석 (최대 300건)</button>
         </div>
         <div id="quickLog" class="log-box" style="display:none"></div>
       </div>
@@ -873,18 +874,23 @@ async function runFetchOnly(logId = 'newsLog') {
 // (하위 호환용 alias)
 async function runFetchNews(logId = 'newsLog') { return runFetchOnly(logId); }
 
-async function runAnalyze(issueId = null, limit = 3, logId = 'analyzeLog') {
+async function runAnalyze(issueId = null, limit = 3, logId = 'analyzeLog', maxChain = null) {
   const el = document.getElementById(logId);
   if (el) el.innerHTML = '';
-  log(logId, `분석 시작 (최대 ${limit}건)...`, 'info');
+  const totalLabel = maxChain ? `최대 ${maxChain * 5}건 (체이닝, 백그라운드에서 계속 진행)` : `최대 ${limit}건`;
+  log(logId, `분석 시작 (${totalLabel})...`, 'info');
 
-  const body = issueId ? { issue_id: issueId } : { limit };
+  const body = issueId ? { issue_id: issueId } : { limit, ...(maxChain ? { max_chain: maxChain } : {}) };
   const data = await callApi('/api/analyze', body, logId);
   if (!data) return;
 
-  log(logId, `분석 완료: ${data.analyzed}건`, 'ok');
+  if (maxChain) {
+    log(logId, `1차 배치 완료: ${data.analyzed}건 — 서버가 최대 ${(data.maxChain || maxChain) * 5}건까지 자동으로 이어서 처리 중입니다 (몇 분 후 이슈 목록에서 진행 확인)`, 'ok');
+  } else {
+    log(logId, `분석 완료: ${data.analyzed}건`, 'ok');
+  }
   if (data.errors?.length) data.errors.forEach(e => log(logId, e, 'warn'));
-  showToast(`${data.analyzed}건 분석 완료`, 'success');
+  showToast(maxChain ? `1차 배치 ${data.analyzed}건 완료 — 백그라운드에서 계속 진행 중` : `${data.analyzed}건 분석 완료`, 'success');
 }
 
 async function runAnalyzeSingle() {
