@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
+import { waitUntil } from '@vercel/functions';
 import { verifyAdmin } from '../lib/auth.js';
 
 const supabase = createClient(
@@ -186,9 +187,10 @@ export default async function handler(req, res) {
   }
 
   // 이번 배치가 꽉 찼다면(=limit만큼 처리) 백로그가 더 남아있을 가능성이 높음 → 다음 배치를 이어서 트리거
-  // (res.json() 이전에 fire-and-forget — cron-daily.js와 동일한 패턴)
+  // waitUntil로 감싸서 res.json() 응답 이후에도 이 요청이 실제로 전송될 때까지 함수 인스턴스가
+  // 살아있도록 보장 (평범한 fire-and-forget fetch는 응답 직후 인스턴스가 얼어붙어 유실될 수 있음)
   if (!issue_id && issues.length === limit && chainCount < MAX_CHAIN - 1) {
-    triggerNextChain(req, limit, chainCount + 1, MAX_CHAIN);
+    waitUntil(triggerNextChain(req, limit, chainCount + 1, MAX_CHAIN));
   }
 
   return res.status(200).json({ ...results, reanalyzed, chainCount, maxChain: MAX_CHAIN });
@@ -198,14 +200,16 @@ function triggerNextChain(req, limit, nextChainCount, maxChain) {
   const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : `https://${req.headers.host}`;
-  fetch(`${base}/api/analyze`, {
+  // 다음 배치의 완료까지 기다리지 않음 — 요청이 실제로 전달되는 것만 확인하면 충분
+  // (짧은 타임아웃으로 waitUntil이 붙잡고 있는 시간을 최소화)
+  return fetch(`${base}/api/analyze`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${process.env.ADMIN_SECRET}`,
     },
     body: JSON.stringify({ limit, chain_count: nextChainCount, max_chain: maxChain }),
-    signal: AbortSignal.timeout(55000),
+    signal: AbortSignal.timeout(8000),
   }).catch(() => {});
 }
 
