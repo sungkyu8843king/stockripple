@@ -30,6 +30,19 @@ export default async function handler(req, res) {
   const MAX_CHAIN = Math.min(Math.max(parseInt(rawBody.max_chain ?? DEFAULT_MAX_CHAIN, 10) || DEFAULT_MAX_CHAIN, 1), ABSOLUTE_MAX_CHAIN);
   const chainCount = Math.min(Math.max(parseInt(rawBody.chain_count ?? 0, 10) || 0, 0), MAX_CHAIN);
 
+  // 48시간 지난 미분석 이슈는 스킵 처리 — 오래된 뉴스에 "현재가 진입" 분석은 무의미하고 백로그만 쌓임
+  // (is_analyzed=true지만 analyses row가 없으므로 피드의 analyses!inner 조인에는 노출되지 않음)
+  let staleSkipped = 0;
+  {
+    const staleCutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+    const { count } = await supabase
+      .from('issues')
+      .update({ is_analyzed: true }, { count: 'exact' })
+      .eq('is_analyzed', false)
+      .lt('published_at', staleCutoff);
+    staleSkipped = count || 0;
+  }
+
   // force_recent: 최근 N개 이슈를 무조건 재분석 (기존 분석 삭제 후 재생성)
   let reanalyzed = 0;
   if (force_recent > 0) {
@@ -58,9 +71,9 @@ export default async function handler(req, res) {
 
   const { data: issues, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
-  if (!issues?.length) return res.status(200).json({ message: 'No issues to analyze', count: 0, reanalyzed });
+  if (!issues?.length) return res.status(200).json({ message: 'No issues to analyze', count: 0, reanalyzed, staleSkipped });
 
-  const results = { analyzed: 0, errors: [], processed: [] };
+  const results = { analyzed: 0, errors: [], corrections: [], processed: [] };
 
   for (const issue of issues) {
     const issueStart = Date.now();
@@ -112,11 +125,32 @@ export default async function handler(req, res) {
           co.stop_loss_pct = -Math.abs(co.stop_loss_pct);
         }
 
-        const valid = await validateTicker(co.ticker);
+        let valid = await validateTicker(co.ticker);
         if (!valid) {
           results.errors.push(`Invalid ticker skipped: ${co.ticker} (${co.name_ko})`);
           return;
         }
+
+        // 티커 실존 ≠ 회사 일치. AI가 "삼성전자" 의도로 000810.KS(삼성화재)를 주는 환각 차단
+        if (!namesMatch(co, valid.longName)) {
+          const resolved = await resolveTickerByName(co);
+          if (!resolved) {
+            results.errors.push(`Name mismatch skipped: ${co.ticker} "${co.name_en || co.name_ko}" ≠ Yahoo "${valid.longName || '?'}"`);
+            return;
+          }
+          if (resolved !== co.ticker) {
+            const revalid = await validateTicker(resolved);
+            if (!revalid) {
+              results.errors.push(`Name mismatch skipped: ${co.ticker} "${co.name_en || co.name_ko}" (교정 후보 ${resolved} 시세 조회 실패)`);
+              return;
+            }
+            results.corrections.push(`${co.ticker} → ${resolved} ("${co.name_en || co.name_ko}", Yahoo: ${revalid.longName || '?'})`);
+            co.ticker = resolved;
+            valid = revalid;
+          }
+          // resolved === co.ticker 이면 검색 결과가 AI 티커를 확인해준 것 (음역 등으로 토큰 비교만 실패한 케이스)
+        }
+
         const companyId = await upsertCompany(co, valid);
 
         // 펀더멘털 fetch + 점수 보정 (병렬 처리됨)
@@ -193,7 +227,7 @@ export default async function handler(req, res) {
     waitUntil(triggerNextChain(req, limit, chainCount + 1, MAX_CHAIN));
   }
 
-  return res.status(200).json({ ...results, reanalyzed, chainCount, maxChain: MAX_CHAIN });
+  return res.status(200).json({ ...results, reanalyzed, staleSkipped, chainCount, maxChain: MAX_CHAIN });
 }
 
 function triggerNextChain(req, limit, nextChainCount, maxChain) {
@@ -211,6 +245,75 @@ function triggerNextChain(req, limit, nextChainCount, maxChain) {
     body: JSON.stringify({ limit, chain_count: nextChainCount, max_chain: maxChain }),
     signal: AbortSignal.timeout(8000),
   }).catch(() => {});
+}
+
+// ─── 티커-회사명 일치 검증 (AI 환각 차단) ────────────────
+const NAME_STOP_TOKENS = new Set([
+  'inc', 'corp', 'corporation', 'co', 'ltd', 'limited', 'plc', 'ag', 'sa', 'nv',
+  'holdings', 'holding', 'group', 'company', 'companies', 'class', 'the', 'and',
+]);
+
+function nameTokens(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length > 1 && !NAME_STOP_TOKENS.has(t));
+}
+
+function stripKoName(s) {
+  return (s || '').replace(/\(주\)|주식회사|㈜/g, '').replace(/[^가-힣a-z0-9]/gi, '').toLowerCase();
+}
+
+/**
+ * AI가 준 회사명(name_en/name_ko)과 Yahoo 공식명(longName)이 같은 회사인지 판정.
+ * false여도 바로 버리지 않고 resolveTickerByName()으로 2차 확인 (음역 차이 등 보수적 처리).
+ */
+function namesMatch(co, officialName) {
+  if (!officialName) return true; // 공식명 없으면 검증 불가 → 통과
+  // 공식명이 한국어면 name_ko와 포함 관계 비교 (예: "에스케이하이닉스(주)" vs "SK하이닉스"는 실패 → 검색 폴백)
+  if (/[가-힣]/.test(officialName)) {
+    const off = stripKoName(officialName);
+    const ko = stripKoName(co.name_ko);
+    return !!(ko && off && (off.includes(ko) || ko.includes(off)));
+  }
+  const offT = nameTokens(officialName);
+  const aiT = nameTokens(co.name_en);
+  if (!offT.length || !aiT.length) return false;
+  const offSet = new Set(offT);
+  const overlap = aiT.filter(t => offSet.has(t)).length;
+  // 짧은 쪽 기준 60% 이상 겹쳐야 동일 회사로 인정
+  // "Samsung Electronics" vs "Samsung Fire & Marine Insurance" → 1/2 = 50% → 불일치
+  return overlap / Math.min(aiT.length, offT.length) >= 0.6;
+}
+
+/**
+ * Yahoo 검색으로 회사명 → 티커 역조회.
+ * - AI 티커가 검색 결과에 있으면 그대로 반환 (이름 표기 차이였던 것)
+ * - 없으면 같은 시장(KR/US)의 최상위 종목으로 교정 티커 반환
+ * - 결과 없으면 null (해당 종목 스킵)
+ */
+async function resolveTickerByName(co) {
+  for (const q of [co.name_en, co.name_ko]) {
+    if (!q || q.length < 2) continue;
+    try {
+      const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=6&newsCount=0`;
+      const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const quotes = (data.quotes || []).filter(x => x.symbol && (!x.quoteType || x.quoteType === 'EQUITY'));
+      if (!quotes.length) continue;
+      if (quotes.some(x => x.symbol.toUpperCase() === co.ticker.toUpperCase())) return co.ticker;
+      const wantKr = co.market === 'KR' || /\.K[SQ]$/i.test(co.ticker);
+      // 교정 후보는 정규 시장만: KR은 KOSPI/KOSDAQ, US는 NYSE/NASDAQ 계열 (OTC·해외 2차상장 제외)
+      const US_EXCHANGES = new Set(['NYQ', 'NMS', 'NGM', 'NCM', 'NYS', 'NAS', 'ASE', 'PCX', 'BTS']);
+      const cand = quotes.find(x => wantKr
+        ? /\.K[SQ]$/i.test(x.symbol)
+        : US_EXCHANGES.has(x.exchange));
+      if (cand) return cand.symbol;
+    } catch {}
+  }
+  return null;
 }
 
 async function sendNotify(message, req) {

@@ -1,0 +1,29 @@
+name: Analyze Backlog
+
+# 장중 수집 워크플로(market-hours-fetch)와 별개로, 24시간 매시간 미분석 이슈를 소화한다.
+# — 미국장 뉴스는 KST 밤에 쏟아지는데 기존 워크플로는 KST 09~16시만 돌아서 백로그가 쌓였음
+# — analyze API가 48시간 지난 미분석 이슈를 자동 스킵 처리하므로 오래된 뉴스에 비용을 쓰지 않음
+# — 미분석이 없으면 첫 라운드에서 바로 종료 (Claude 호출 없음)
+
+on:
+  schedule:
+    - cron: '15 * * * *'   # 매시 15분 (fetch 워크플로와 시간대 분산)
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # analyze API가 배치가 꽉 차면 스스로 다음 배치를 체이닝하므로 (waitUntil)
+      # 여기서는 1회만 호출한다 — max_chain 8 = 최대 40건/시간, 미분석 없으면 즉시 종료
+      - name: AI Analyze (체이닝 최대 8회 × 5건)
+        run: |
+          RESP=$(curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/analyze" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"limit": 5, "max_chain": 8}')
+          echo "analyzed=$(echo "$RESP" | jq -r '.analyzed // 0') staleSkipped=$(echo "$RESP" | jq -r '.staleSkipped // 0')"
+          CORR=$(echo "$RESP" | jq -r '(.corrections // []) | join("; ")')
+          if [ -n "$CORR" ]; then echo "ticker corrections: $CORR"; fi

@@ -27,9 +27,10 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" | jq '.saved // "done"'
 
-      - name: AI Analyze (미분석 최대 3건)
+      # analyze API가 배치가 꽉 차면 스스로 다음 배치를 체이닝하므로 1회만 호출 (기본 max_chain 4 = 최대 20건)
+      - name: AI Analyze (체이닝 최대 4회 × 5건)
         run: |
-          curl -s -X POST "${{ secrets.VERCEL_URL }}/api/analyze" \
+          curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/analyze" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 3}' | jq '.analyzed // "done"'
+            -d '{"limit": 5}' | jq '.analyzed // "done"'
