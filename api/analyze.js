@@ -18,8 +18,8 @@ export default async function handler(req, res) {
 
   const rawBody = req.body || {};
   const issue_id = rawBody.issue_id;
-  // Vercel 60초 타임아웃 + 펀더멘털 fetch 추가로 1회 최대 5건 (이슈당 ~10초)
-  const HARD_CAP = 5;
+  // Vercel 60초 타임아웃. 2-패스 분석(후보발굴 + 애널리스트 결정)으로 이슈당 ~18초 → 1회 최대 3건
+  const HARD_CAP = 3;
   const limit = Math.min(rawBody.limit ?? 5, HARD_CAP);
   const force_recent = Math.min(rawBody.force_recent ?? 0, HARD_CAP);
   // 체이닝: 1회 호출은 5건이 한계지만, 처리 후 스스로를 재호출해 여러 배치를 이어서 처리
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
   if (error) return res.status(500).json({ error: error.message });
   if (!issues?.length) return res.status(200).json({ message: 'No issues to analyze', count: 0, reanalyzed, staleSkipped });
 
-  const results = { analyzed: 0, errors: [], corrections: [], processed: [] };
+  const results = { analyzed: 0, errors: [], corrections: [], excluded: [], processed: [] };
 
   for (const issue of issues) {
     const issueStart = Date.now();
@@ -101,7 +101,7 @@ export default async function handler(req, res) {
 
       if (analysisErr) throw new Error(analysisErr.message);
 
-      // 모든 ripple effects의 companies를 한꺼번에 병렬 처리 (속도 핵심)
+      // ── 1단계: 후보 티커 검증/교정 + 시장 데이터 수집 (병렬) ──
       const allCompanyTasks = [];
       for (const ripple of analysis.rippleEffects || []) {
         for (const co of ripple.companies || []) {
@@ -109,22 +109,9 @@ export default async function handler(req, res) {
         }
       }
       const pickedTickers = [];
+      const candidates = [];
 
       await Promise.all(allCompanyTasks.map(async ({ ripple, co }) => {
-        // 모순된 매매 정보 자동 보정 (AI 환각 방지)
-        if (co.upside_pct != null && co.upside_pct <= 0) {
-          results.errors.push(`Skipped ${co.ticker}: 음수 upside_pct (${co.upside_pct}%) — 매수 추천 불가`);
-          return;
-        }
-        if (co.target_pct != null && co.target_pct <= 0) {
-          // upside_pct로 대체
-          co.target_pct = co.upside_pct;
-        }
-        if (co.stop_loss_pct != null && co.stop_loss_pct >= 0) {
-          // 양수 손절은 음수로 강제
-          co.stop_loss_pct = -Math.abs(co.stop_loss_pct);
-        }
-
         let valid = await validateTicker(co.ticker);
         if (!valid) {
           results.errors.push(`Invalid ticker skipped: ${co.ticker} (${co.name_ko})`);
@@ -151,48 +138,89 @@ export default async function handler(req, res) {
           // resolved === co.ticker 이면 검색 결과가 AI 티커를 확인해준 것 (음역 등으로 토큰 비교만 실패한 케이스)
         }
 
-        const companyId = await upsertCompany(co, valid);
-
-        // 펀더멘털 fetch + 점수 보정 (병렬 처리됨)
-        const fund = await fetchFundamentals(co.ticker);
-        const fundScore = scoreFundamentals(fund);
-
-        let adjConfidence = co.confidence ?? 50;
-        if (fundScore != null) {
-          adjConfidence = Math.max(0, Math.min(100, adjConfidence + fundScore));
-        }
-
-        const tradeMeta = {
-          elp: co.entry_low_pct, ehp: co.entry_high_pct,
-          tp:  co.target_pct,    sl:  co.stop_loss_pct,
-          tf:  co.time_frame,    th:  co.key_thesis,    rk: co.key_risk,
-        };
-        const cleanMeta = Object.fromEntries(
-          Object.entries(tradeMeta).filter(([_, v]) => v != null && v !== '')
-        );
-        const fundMeta = fund ? {
-          pe: fund.pe, pb: fund.pb, roe: fund.roe,
-          opm: fund.operatingMargin, de: fund.debtToEquity, cr: fund.currentRatio,
-          rev_yoy: fund.revenueGrowthYoY, ni_yoy: fund.netIncomeGrowthYoY,
-          score: fundScore,
-        } : null;
-
-        let enrichedRationale = co.rationale || '';
-        if (Object.keys(cleanMeta).length) enrichedRationale += `\n\n[TRADE]${JSON.stringify(cleanMeta)}`;
-        if (fundMeta) enrichedRationale += `\n\n[FUND]${JSON.stringify(fundMeta)}`;
-
-        await supabase.from('analysis_companies').insert({
-          analysis_id: savedAnalysis.id,
-          company_id: companyId,
-          ripple_sector: ripple.sector,
-          rationale: enrichedRationale,
-          upside_pct: co.upside_pct,
-          confidence: adjConfidence,
-          entry_price: valid.price,
-          entry_date: new Date().toISOString(),
-        });
-        pickedTickers.push(`${co.ticker}(${adjConfidence}%)`);
+        const [stats, fund] = await Promise.all([
+          fetchPriceStats(co.ticker),
+          fetchFundamentals(co.ticker),
+        ]);
+        candidates.push({ ripple, co, valid, stats, fund, fundScore: scoreFundamentals(fund) });
       }));
+
+      // 티커 교정으로 같은 종목이 중복될 수 있음 → 첫 후보만 유지
+      const seenTickers = new Set();
+      const uniqCandidates = candidates.filter(c => {
+        const t = c.co.ticker.toUpperCase();
+        if (seenTickers.has(t)) return false;
+        seenTickers.add(t);
+        return true;
+      });
+
+      if (uniqCandidates.length) {
+        // ── 2단계: 애널리스트 패스 — 실제 시장 데이터를 보고 매수/제외 결정 ──
+        const decisions = await decideTrades(issue, analysis, uniqCandidates);
+
+        for (const cand of uniqCandidates) {
+          const t = cand.co.ticker.toUpperCase();
+          const d = decisions[t];
+          const s = cand.stats;
+
+          if (!d || d.action !== 'buy') {
+            results.excluded.push(`${cand.co.ticker}: ${d?.exclude_reason || '애널리스트 패스 제외'}`);
+            continue;
+          }
+          // 하드 필터: 명백한 하락 추세는 AI 판단과 무관하게 차단 (떨어지는 칼 잡기 금지)
+          if (s && s.ret1m != null && s.ret1m < -10 && s.aboveSma50 === false) {
+            results.excluded.push(`${cand.co.ticker}: 하락 추세 (1M ${s.ret1m}%, 50일선 아래)`);
+            continue;
+          }
+
+          clampTrade(d, s);
+          const momScore = scoreMomentum(s);
+          let composite = (d.confidence ?? 50) + (cand.fundScore ?? 0) + momScore;
+          composite = Math.max(0, Math.min(100, Math.round(composite)));
+          // 게재 게이트: AI 확신 + 펀더멘털 + 모멘텀 종합 60점 미만은 게재하지 않음 (소수 정예)
+          if (composite < 60) {
+            results.excluded.push(`${cand.co.ticker}: 종합점수 ${composite} 미달 (AI ${d.confidence ?? 50}, 펀더 ${cand.fundScore ?? '-'}, 모멘텀 ${momScore})`);
+            continue;
+          }
+
+          const companyId = await upsertCompany(cand.co, cand.valid);
+
+          const tradeMeta = {
+            elp: d.entry_low_pct, ehp: d.entry_high_pct,
+            tp:  d.upside_pct,    sl:  d.stop_loss_pct,
+            tf:  d.time_frame,    th:  d.key_thesis,    rk: d.key_risk,
+          };
+          const cleanMeta = Object.fromEntries(
+            Object.entries(tradeMeta).filter(([_, v]) => v != null && v !== '')
+          );
+          const fund = cand.fund;
+          const fundMeta = (fund || s) ? {
+            ...(fund ? {
+              pe: fund.pe, pb: fund.pb, roe: fund.roe,
+              opm: fund.operatingMargin, de: fund.debtToEquity, cr: fund.currentRatio,
+              rev_yoy: fund.revenueGrowthYoY, ni_yoy: fund.netIncomeGrowthYoY,
+            } : {}),
+            ...(s ? { mom1m: s.ret1m, mom3m: s.ret3m, atrm: s.atrMonthPct, ma50: s.aboveSma50 ? 1 : 0 } : {}),
+            score: cand.fundScore, moms: momScore,
+          } : null;
+
+          let enrichedRationale = cand.co.rationale || d.key_thesis || '';
+          if (Object.keys(cleanMeta).length) enrichedRationale += `\n\n[TRADE]${JSON.stringify(cleanMeta)}`;
+          if (fundMeta) enrichedRationale += `\n\n[FUND]${JSON.stringify(fundMeta)}`;
+
+          await supabase.from('analysis_companies').insert({
+            analysis_id: savedAnalysis.id,
+            company_id: companyId,
+            ripple_sector: cand.ripple.sector,
+            rationale: enrichedRationale,
+            upside_pct: d.upside_pct,
+            confidence: composite,
+            entry_price: cand.valid.price,
+            entry_date: new Date().toISOString(),
+          });
+          pickedTickers.push(`${cand.co.ticker}(${composite}%)`);
+        }
+      }
 
       await supabase.from('issues').update({ is_analyzed: true }).eq('id', issue.id);
       results.analyzed++;
@@ -203,14 +231,9 @@ export default async function handler(req, res) {
         relevance: analysis.relevance_score,
       });
 
-      const tickers = (analysis.rippleEffects || [])
-        .flatMap(r => r.companies || [])
-        .filter(c => c.ticker)
-        .map(c => `${c.ticker}(${c.upside_pct > 0 ? '+' : ''}${c.upside_pct}%)`)
-        .slice(0, 5)
-        .join(', ');
+      const tickers = pickedTickers.slice(0, 5).join(', ');
       await sendNotify(
-        `📊 <b>StockRipple 새 분석</b>\n${issue.title}\n\n수혜 기업: ${tickers || '—'}\n신뢰도: ${analysis.confidence_score || 50}%`,
+        `📊 <b>StockRipple 새 분석</b>\n${issue.title}\n\n게재 종목: ${tickers || '— (전원 제외)'}\n신뢰도: ${analysis.confidence_score || 50}%`,
         req
       ).catch(() => {});
 
@@ -316,6 +339,159 @@ async function resolveTickerByName(co) {
   return null;
 }
 
+// ─── 주가 통계 (모멘텀·변동성) — 애널리스트 패스의 입력 데이터 ────────
+async function fetchPriceStats(ticker) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=6mo`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const result = data.chart?.result?.[0];
+    const q = result?.indicators?.quote?.[0];
+    if (!q?.close) return null;
+
+    // null 봉 제거 (거래정지일 등)
+    const bars = [];
+    for (let i = 0; i < q.close.length; i++) {
+      if (q.close[i] != null && q.high[i] != null && q.low[i] != null) {
+        bars.push({ c: q.close[i], h: q.high[i], l: q.low[i] });
+      }
+    }
+    if (bars.length < 25) return null;
+
+    const last = bars[bars.length - 1].c;
+    const r = (n) => bars.length > n ? Math.round(((last - bars[bars.length - 1 - n].c) / bars[bars.length - 1 - n].c) * 1000) / 10 : null;
+    const sma = (n) => bars.length >= n ? bars.slice(-n).reduce((a, b) => a + b.c, 0) / n : null;
+
+    // ATR(14) % — 일간 평균 변동폭. 월간 기대 변동폭 ≈ 일간 ATR% × √21
+    let trSum = 0, trN = 0;
+    for (let i = Math.max(1, bars.length - 14); i < bars.length; i++) {
+      const tr = Math.max(
+        bars[i].h - bars[i].l,
+        Math.abs(bars[i].h - bars[i - 1].c),
+        Math.abs(bars[i].l - bars[i - 1].c)
+      );
+      trSum += tr / bars[i].c;
+      trN++;
+    }
+    const atrDayPct = trN ? (trSum / trN) * 100 : null;
+
+    const sma20 = sma(20), sma50 = sma(50);
+    const high6m = Math.max(...bars.map(b => b.h));
+
+    return {
+      ret5d:  r(5),
+      ret1m:  r(21),
+      ret3m:  r(63),
+      aboveSma20: sma20 != null ? last > sma20 : null,
+      aboveSma50: sma50 != null ? last > sma50 : null,
+      pctFrom6mHigh: high6m ? Math.round(((last - high6m) / high6m) * 1000) / 10 : null,
+      atrMonthPct: atrDayPct != null ? Math.round(atrDayPct * Math.sqrt(21) * 10) / 10 : null,
+    };
+  } catch { return null; }
+}
+
+// 모멘텀 점수 -20 ~ +20 (종합점수 보정용)
+function scoreMomentum(s) {
+  if (!s) return 0;
+  let sc = 0;
+  if (s.ret1m != null) sc += s.ret1m > 5 ? 6 : s.ret1m > 0 ? 3 : s.ret1m < -10 ? -10 : -4;
+  if (s.ret3m != null) sc += s.ret3m > 10 ? 5 : s.ret3m > 0 ? 2 : s.ret3m < -20 ? -6 : -2;
+  if (s.aboveSma20 != null) sc += s.aboveSma20 ? 3 : -3;
+  if (s.aboveSma50 != null) sc += s.aboveSma50 ? 4 : -4;
+  if (s.pctFrom6mHigh != null) sc += s.pctFrom6mHigh > -10 ? 2 : s.pctFrom6mHigh < -40 ? -4 : 0;
+  return Math.max(-20, Math.min(20, sc));
+}
+
+// 목표/손절을 실제 변동성 범위로 강제 (AI가 임의 숫자를 만들어도 여기서 교정)
+const TF_FACTOR = { '1w': 0.5, '1m': 1, '3m': 1.7, '6m': 2.4 };
+function clampTrade(d, stats) {
+  if (!['1w', '1m', '3m', '6m'].includes(d.time_frame)) d.time_frame = '1m';
+  const atrM = stats?.atrMonthPct;
+  if (atrM && atrM > 0) {
+    const base = atrM * (TF_FACTOR[d.time_frame] || 1);   // 해당 기간의 기대 변동폭
+    const lo = Math.max(2, base * 0.4), hi = base * 1.6;
+    let tp = d.upside_pct;
+    if (tp == null || !(tp > 0)) tp = base;
+    tp = Math.min(Math.max(tp, lo), hi);
+    d.upside_pct = Math.round(tp * 10) / 10;
+  } else {
+    // 변동성 데이터 없으면 보수적 상한
+    let tp = d.upside_pct;
+    if (tp == null || !(tp > 0)) tp = 8;
+    d.upside_pct = Math.min(tp, 20);
+  }
+  // 손절: 목표의 40~70% (손익비 1.4~2.5 보장)
+  let sl = d.stop_loss_pct;
+  if (sl == null || sl >= 0) sl = -(d.upside_pct * 0.5);
+  sl = Math.min(Math.max(sl, -(d.upside_pct * 0.7)), -(d.upside_pct * 0.4));
+  d.stop_loss_pct = Math.round(sl * 10) / 10;
+  // 진입 밴드 기본값
+  if (d.entry_low_pct == null || d.entry_high_pct == null) { d.entry_low_pct = -2; d.entry_high_pct = 1; }
+}
+
+// ─── 2단계: 애널리스트 패스 — 실데이터를 보고 매수/제외 결정 ────────
+async function decideTrades(issue, analysis, candidates) {
+  const rows = candidates.map(c => ({
+    ticker: c.co.ticker,
+    name: c.co.name_ko || c.co.name_en,
+    sector: c.ripple.sector,
+    why: (c.co.rationale || '').slice(0, 120),
+    price_data: c.stats ? {
+      ret_5d: c.stats.ret5d, ret_1m: c.stats.ret1m, ret_3m: c.stats.ret3m,
+      above_sma20: c.stats.aboveSma20, above_sma50: c.stats.aboveSma50,
+      pct_from_6m_high: c.stats.pctFrom6mHigh, atr_month_pct: c.stats.atrMonthPct,
+    } : null,
+    fundamentals: c.fund ? {
+      pe: c.fund.pe, roe: c.fund.roe, op_margin: c.fund.operatingMargin,
+      debt_equity: c.fund.debtToEquity, rev_yoy: c.fund.revenueGrowthYoY,
+      fund_score: c.fundScore,
+    } : null,
+  }));
+
+  const prompt = `당신은 미국 기관투자자(헤지펀드)의 바이사이드 주식 애널리스트입니다. 아래 뉴스 이슈에 대해 리서치팀이 올린 수혜 후보들을 실제 시장 데이터로 검증하고, 매수 추천할 종목만 선별하세요.
+
+애널리스트 원칙:
+1. 데이터가 논리를 뒷받침하지 않으면 제외. "수혜 기대"만으로 하락 추세 종목을 사지 않는다.
+2. catalyst(뉴스) → mechanism(매출/이익 경로) → timeframe이 명확하지 않으면 제외.
+3. 목표수익률은 종목의 실제 변동성(atr_month_pct) 안에서. 한 달에 5%도 안 움직이는 종목에 +15% 목표는 무효.
+4. 확신이 없으면 제외가 정답. 전원 제외도 훌륭한 결정이다. 게재 수보다 적중률이 평가 기준.
+
+뉴스 이슈: ${issue.title}
+이슈 요약: ${(analysis.summary || issue.summary || '').slice(0, 300)}
+
+후보 종목 데이터 (price_data: %단위, above_*: 이평선 상회 여부, atr_month_pct: 월간 기대 변동폭%):
+${JSON.stringify(rows)}
+
+JSON만 반환:
+{"decisions":[{"ticker":"...","action":"buy 또는 exclude","exclude_reason":"제외 시 한 문장","confidence":70,"upside_pct":8,"entry_low_pct":-2,"entry_high_pct":1,"stop_loss_pct":-4,"time_frame":"1w|1m|3m|6m","key_thesis":"왜 지금 사는가 한 문장 (데이터 근거 포함)","key_risk":"핵심 리스크 한 문장"}]}
+
+buy 규칙:
+- upside_pct: atr_month_pct × 기간계수(1w=0.5, 1m=1, 3m=1.7, 6m=2.4)의 0.5~1.5배 범위 내 양수
+- stop_loss_pct: 음수, 절댓값은 upside_pct의 40~70% (손익비 ≥ 1.4)
+- confidence: 0-100. 뉴스 연결 강도 × 데이터 정합성. 관성적으로 70을 주지 말 것 — 근거가 평범하면 50대
+- ret_1m < -10 이고 above_sma50=false인 종목은 반드시 exclude
+- price_data가 null인 종목은 확신이 매우 높지 않으면 exclude
+- 모든 후보에 대해 decisions에 하나씩 반드시 응답할 것`;
+
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 3000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const text = message.content[0].text.trim();
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('decideTrades: JSON not found');
+  const parsed = parseJsonSafe(jsonMatch[0]);
+
+  const map = {};
+  for (const d of parsed.decisions || []) {
+    if (d?.ticker) map[d.ticker.toUpperCase()] = d;
+  }
+  return map;
+}
+
 async function sendNotify(message, req) {
   const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
@@ -380,7 +556,8 @@ async function analyzeIssue(issue) {
     }
   } catch {}
 
-  const prompt = `당신은 글로벌 주식시장 분석 전문가입니다. 다음 뉴스/이슈를 분석하여 파급효과와 수혜 기업을 찾아주세요.
+  const prompt = `당신은 글로벌 주식시장 리서치 애널리스트입니다. 다음 뉴스/이슈의 파급효과와 수혜 후보 기업을 찾아주세요.
+(주의: 지금은 "후보 발굴" 단계입니다. 매매 수치(목표가·손절가)는 이후 실제 시장 데이터를 보고 별도 단계에서 결정하므로 여기서 만들지 마세요.)
 
 이슈 제목: ${issue.title}
 요약: ${issue.summary || '없음'}
@@ -402,16 +579,7 @@ async function analyzeIssue(issue) {
           "name_ko": "기업명 한국어",
           "name_en": "Company Name English",
           "market": "US 또는 KR",
-          "rationale": "이 기업이 수혜를 받는 구체적 이유",
-          "upside_pct": 15,
-          "confidence": 70,
-          "entry_low_pct": -2,
-          "entry_high_pct": 1,
-          "target_pct": 15,
-          "stop_loss_pct": -7,
-          "time_frame": "1m",
-          "key_thesis": "한 문장 핵심 매수 논리 (왜 지금 사야 하는가)",
-          "key_risk": "한 문장 핵심 리스크"
+          "rationale": "이 기업이 수혜를 받는 구체적 이유 — catalyst(뉴스)가 이 기업의 매출/이익에 닿는 경로(mechanism)를 명시"
         }
       ]
     }
@@ -424,26 +592,8 @@ async function analyzeIssue(issue) {
 - relevance_score < 40이면 rippleEffects는 빈 배열로 반환
 - rippleEffects는 2-4개, 각 섹터당 기업은 2-3개 (relevance_score >= 40인 경우만)
 - 한국 기업(KR)과 미국 기업(US)을 균형있게 포함
-- upside_pct는 현실적으로 5-50% 범위
-- confidence는 0-100 (데이터 확실성 기반)
-
-⭐ 매매 정보 (현재가 대비 % 단위, 매우 중요):
-
-📌 부호 일관성 (반드시 지킬 것):
-- target_pct: **반드시 양수 (+)** — 매수 추천이므로 목표는 무조건 상승. upside_pct와 일치
-- stop_loss_pct: **반드시 음수 (-)** — 손절선은 진입가 아래
-- upside_pct: 양수만. 음수면 그 종목은 rippleEffects에 넣지 말 것 (매수 추천 = 상승 예상이어야 함)
-
-⚠️ 만약 종목이 하락할 것으로 예상되면 → rippleEffects의 companies에서 제외하거나 impact:negative 섹터로만 분류 (그 섹터 내 companies는 비워둘 것)
-
-매매 정보 상세:
-- entry_low_pct / entry_high_pct: 진입 가격대 (현재가 대비 %). 예: -2 ~ +1이면 현재가에서 -2%~+1% 사이에서 매수
-  · 강하게 추천이면 좁게 (-1 ~ +1), 조정 기대시 넓게 (-5 ~ 0)
-- target_pct: 양수만. 목표가까지 기대 수익률. upside_pct와 동일 값
-- stop_loss_pct: 음수만. 보통 -5 ~ -10% 사이. target_pct의 절댓값보다 작아야 함 (손익비 의미)
-- time_frame: 보유 기간. "1w"(단기 1주) / "1m"(중기 1개월) / "3m"(중장기 3개월) / "6m"(장기 6개월) 중 하나
-- key_thesis: "왜 지금 사야 하는가" 한 문장 (15자~40자, 구체적·실행 가능한 근거)
-- key_risk: "무엇이 잘못될 수 있나" 한 문장 (15자~40자)
+- 하락이 예상되는 종목은 companies에 넣지 말 것 (impact:negative 섹터는 companies를 비워둘 것)
+- rationale에 3차 이상 간접 연결(뉴스→A→B→이 기업)은 금지. 최대 2차 파급까지만.
 
 티커 규칙:
 - 반드시 Yahoo Finance에서 실제로 거래되는 종목만 사용
