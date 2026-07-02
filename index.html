@@ -2027,9 +2027,7 @@ async function loadInsights() {
     const upd = document.getElementById('insightsUpdated');
     if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', {timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit'}) + ' KST · 최근 ' + RECENT_DAYS + '일' + (strictMode ? ` · 🔒 (${finalScored.length}/${beforeStrict})` : '');
 
-    // 기술 지표 fetch (비동기로 백그라운드 로딩)
     const tickers = finalScored.map(s => s.ticker);
-    fetchTechnicalsForCards(tickers);
 
     // ── 매매 정보 + 펀더멘털 파싱 (rationale에 임베드된 [TRADE]/[FUND] 마커) ──
     const parseTradeMeta = (rationale) => {
@@ -2199,8 +2197,11 @@ async function loadInsights() {
         </a>`;
       }).join('') + `</div>`;
 
-    // 실시간 시세 즉시 로드
+    // 실시간 시세 즉시 로드 + 기술 지표 chip 채우기 (반드시 카드가 DOM에 렌더된 뒤에 호출 —
+    // 미리 호출하면 _techCache가 이미 캐시돼 있을 때 동기적으로 끝나버려 새 카드가 생기기 전에
+    // querySelectorAll이 아무것도 못 찾고 끝나는 경합 문제가 있었음)
     refreshInsightQuotes();
+    fetchTechnicalsForCards(tickers);
   } catch(e) {
     console.warn('loadInsights error:', e.message);
     sec.style.display = 'none';
