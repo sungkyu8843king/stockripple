@@ -18,12 +18,16 @@ jobs:
     steps:
       # analyze API가 배치가 꽉 차면 스스로 다음 배치를 체이닝하므로 (waitUntil)
       # 여기서는 1회만 호출한다 — max_chain 8 = 최대 40건/시간, 미분석 없으면 즉시 종료
+      # Vercel 60s 타임아웃 시 JSON이 아닌 에러 텍스트가 올 수 있어 jq 실패를 방어 (pipefail 대비)
       - name: AI Analyze (체이닝 최대 8회 × 5건)
         run: |
           RESP=$(curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/analyze" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 5, "max_chain": 8}')
-          echo "analyzed=$(echo "$RESP" | jq -r '.analyzed // 0') staleSkipped=$(echo "$RESP" | jq -r '.staleSkipped // 0')"
-          CORR=$(echo "$RESP" | jq -r '(.corrections // []) | join("; ")')
+            -d '{"limit": 5, "max_chain": 8}' || true)
+          N=$(echo "$RESP" | jq -r '.analyzed // 0' 2>/dev/null || echo '?')
+          SKIP=$(echo "$RESP" | jq -r '.staleSkipped // 0' 2>/dev/null || echo '?')
+          CORR=$(echo "$RESP" | jq -r '(.corrections // []) | join("; ")' 2>/dev/null || echo '')
+          echo "analyzed=$N staleSkipped=$SKIP"
           if [ -n "$CORR" ]; then echo "ticker corrections: $CORR"; fi
+          if [ "$N" = "?" ]; then echo "non-JSON response: $(echo "$RESP" | head -c 200)"; fi
