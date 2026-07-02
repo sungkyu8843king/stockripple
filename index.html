@@ -1977,10 +1977,39 @@ async function loadInsights() {
       })
       .sort((a, b) => b.score - a.score);
 
+    // 모멘텀 반영: 상위 후보군(기본 점수 상위 40개)에 기술적 시그널(RSI/추세)을 가져와 점수 보정.
+    // "과거 분석 점수는 높은데 지금 급락 중"인 모순(예: 하락 추세인데 STRONG BUY)을 막기 위함.
+    // 전체 종목에 다 걸면 느려지므로, 기본 점수로 이미 상위권인 후보군만 대상으로 함
+    // (그 밖은 모멘텀 보너스를 받아도 top 12 진입이 사실상 불가능한 점수대).
+    const MOMENTUM_ADJ = {
+      strong_bullish: 8, bullish: 4, oversold_bull: 6, neutral: 0,
+      overbought: -2, oversold: -4, bearish: -10, strong_bearish: -18,
+    };
+    const candidatePool = scored.slice(0, 40);
+    const poolTickers = candidatePool.map(s => s.ticker);
+    for (let i = 0; i < poolTickers.length; i += 15) {
+      const batch = poolTickers.slice(i, i + 15);
+      try {
+        const r = await fetch(`/api/technicals?tickers=${batch.map(encodeURIComponent).join(',')}`);
+        if (r.ok) {
+          const j = await r.json();
+          for (const [t, info] of Object.entries(j.data || {})) {
+            if (info) _techCache[t] = { ...info, _ts: Date.now() };
+          }
+        }
+      } catch {}
+    }
+    for (const s of candidatePool) {
+      const tech = _techCache[s.ticker];
+      s.momentumAdj = tech ? (MOMENTUM_ADJ[tech.signal] ?? 0) : 0;
+      s.score = Math.round(s.score + s.momentumAdj);
+    }
+    candidatePool.sort((a, b) => b.score - a.score);
+
     // 엄격 모드: AI 신뢰도 ≥80% 종목만
     const strictMode = document.getElementById('strictModeToggle')?.checked;
-    const beforeStrict = scored.length;
-    const finalScored = (strictMode ? scored.filter(s => s.avgConf >= 80) : scored).slice(0, 12);
+    const beforeStrict = candidatePool.length;
+    const finalScored = (strictMode ? candidatePool.filter(s => s.avgConf >= 80) : candidatePool).slice(0, 12);
 
     if (!finalScored.length) {
       sec.style.display = 'block';
@@ -2029,9 +2058,15 @@ async function loadInsights() {
     el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:12px">` +
       finalScored.map((s, i) => {
         const isKr = s.market === 'KR';
-        const signal = s.score >= 75 ? { label: '🔥 STRONG BUY', color: '#fff', bg: 'linear-gradient(135deg,#ef4444,#dc2626)' }
-                      : s.score >= 60 ? { label: '⭐ BUY',         color: '#fff', bg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)' }
-                      : s.score >= 45 ? { label: 'WATCH',          color: 'var(--text2)', bg: 'var(--bg3)' }
+        // 3=STRONG BUY, 2=BUY, 1=WATCH, 0=WEAK — 과거 누적 점수가 아무리 높아도
+        // 지금 기술적으로 뚜렷한 하락 추세면 STRONG BUY/BUY로 표시하지 않도록 상한을 둠
+        let tier = s.score >= 75 ? 3 : s.score >= 60 ? 2 : s.score >= 45 ? 1 : 0;
+        const momentumSignal = _techCache[s.ticker]?.signal;
+        if (momentumSignal === 'strong_bearish') tier = Math.min(tier, 1);
+        else if (momentumSignal === 'bearish')   tier = Math.min(tier, 2);
+        const signal = tier === 3 ? { label: '🔥 STRONG BUY', color: '#fff', bg: 'linear-gradient(135deg,#ef4444,#dc2626)' }
+                      : tier === 2 ? { label: '⭐ BUY',         color: '#fff', bg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)' }
+                      : tier === 1 ? { label: 'WATCH',          color: 'var(--text2)', bg: 'var(--bg3)' }
                       : { label: 'WEAK', color: 'var(--text3)', bg: 'var(--bg3)' };
         const accColor = s.accuracy == null ? 'var(--text3)'
                       : s.accuracy >= 70   ? 'var(--green)'
