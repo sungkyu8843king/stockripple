@@ -303,6 +303,7 @@ tr:hover td { background: var(--bg3); }
           <button class="btn btn-ghost" onclick="runFetchOnly()">뉴스만 수집</button>
           <button class="btn btn-ghost" onclick="runAnalyze(null, 5, 'quickLog')">분석만 실행 (최대 20건)</button>
           <button class="btn btn-primary" onclick="runAnalyze(null, 5, 'quickLog', 60)" title="미분석 백로그를 최대 300건까지 한 번에 처리 (체이닝, 약 40~50분 소요, 백그라운드에서 계속 진행)">🚀 지금 최대한 분석 (최대 300건)</button>
+          <button class="btn btn-ghost" onclick="runAiMarketSummary()" title="메인 피드 상단 'AI 시장 종합' 카드 생성 (Haiku 1회 호출, ~$0.005)">📰 AI 시장 종합 생성</button>
         </div>
         <div id="quickLog" class="log-box" style="display:none"></div>
       </div>
@@ -894,6 +895,17 @@ async function runAnalyze(issueId = null, limit = 3, logId = 'analyzeLog', maxCh
   }
   if (data.errors?.length) data.errors.forEach(e => log(logId, e, 'warn'));
   showToast(maxChain ? `1차 배치 ${data.analyzed}건 완료 — 백그라운드에서 계속 진행 중` : `${data.analyzed}건 분석 완료`, 'success');
+}
+
+async function runAiMarketSummary() {
+  const logId = 'quickLog';
+  const el = document.getElementById(logId);
+  if (el) el.innerHTML = '';
+  log(logId, '📰 AI 시장 종합 생성 중...', 'info');
+  const data = await callApi('/api/admin?action=ai-market-summary', {}, logId);
+  if (!data) return;
+  log(logId, `✓ 생성 완료: [${data.regime}] ${data.headline}`, 'ok');
+  showToast('AI 시장 종합 생성 완료', 'success');
 }
 
 async function runAnalyzeSingle() {
