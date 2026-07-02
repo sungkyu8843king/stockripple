@@ -167,14 +167,18 @@ export default async function handler(req, res) {
             results.excluded.push(`${cand.co.ticker}: ${d?.exclude_reason || '애널리스트 패스 제외'}`);
             continue;
           }
-          // 하드 필터: 명백한 하락 추세는 AI 판단과 무관하게 차단 (떨어지는 칼 잡기 금지)
-          if (s && s.ret1m != null && s.ret1m < -10 && s.aboveSma50 === false) {
-            results.excluded.push(`${cand.co.ticker}: 하락 추세 (1M ${s.ret1m}%, 50일선 아래)`);
+          // 하드 필터: 차트가 명백히 반대인 종목은 AI 판단과 무관하게 차단
+          if (s && ((s.ret1m != null && s.ret1m < -10 && s.aboveSma50 === false) || s.signal === 'strong_bearish')) {
+            results.excluded.push(`${cand.co.ticker}: 하락 추세 (1M ${s.ret1m}%, 시그널 ${s.signal})`);
+            continue;
+          }
+          if (s?.rsi14 != null && s.rsi14 >= 80) {
+            results.excluded.push(`${cand.co.ticker}: 과열 (RSI ${s.rsi14}) — 추격 매수 금지`);
             continue;
           }
 
           clampTrade(d, s);
-          const momScore = scoreMomentum(s);
+          const momScore = scoreTechnicals(s);
           let composite = (d.confidence ?? 50) + (cand.fundScore ?? 0) + momScore;
           composite = Math.max(0, Math.min(100, Math.round(composite)));
           // 게재 게이트: AI 확신 + 펀더멘털 + 모멘텀 종합 60점 미만은 게재하지 않음 (소수 정예)
@@ -200,7 +204,13 @@ export default async function handler(req, res) {
               opm: fund.operatingMargin, de: fund.debtToEquity, cr: fund.currentRatio,
               rev_yoy: fund.revenueGrowthYoY, ni_yoy: fund.netIncomeGrowthYoY,
             } : {}),
-            ...(s ? { mom1m: s.ret1m, mom3m: s.ret3m, atrm: s.atrMonthPct, ma50: s.aboveSma50 ? 1 : 0 } : {}),
+            ...(s ? {
+              mom1m: s.ret1m, mom3m: s.ret3m, atrm: s.atrMonthPct,
+              ma50: s.aboveSma50 ? 1 : 0, ma200: s.aboveSma200 ? 1 : 0,
+              rsi: s.rsi14, sig: s.signal, volr: s.volRatio,
+              macd: s.macdHistPct != null ? (s.macdHistPct > 0 ? 1 : -1) : null,
+              hi52: s.pctFrom52wHigh,
+            } : {}),
             score: cand.fundScore, moms: momScore,
           } : null;
 
@@ -339,68 +349,139 @@ async function resolveTickerByName(co) {
   return null;
 }
 
-// ─── 주가 통계 (모멘텀·변동성) — 애널리스트 패스의 입력 데이터 ────────
+// ─── 차트 테크니컬 (추세·모멘텀·수급·변동성) — 애널리스트 패스의 입력 데이터 ────────
 async function fetchPriceStats(ticker) {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=6mo`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) });
+    // 1년 일봉: SMA200 + RSI + 52주 고저 계산에 필요
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(7000) });
     if (!res.ok) return null;
     const data = await res.json();
-    const result = data.chart?.result?.[0];
-    const q = result?.indicators?.quote?.[0];
+    const q = data.chart?.result?.[0]?.indicators?.quote?.[0];
     if (!q?.close) return null;
 
     // null 봉 제거 (거래정지일 등)
     const bars = [];
     for (let i = 0; i < q.close.length; i++) {
       if (q.close[i] != null && q.high[i] != null && q.low[i] != null) {
-        bars.push({ c: q.close[i], h: q.high[i], l: q.low[i] });
+        bars.push({ c: q.close[i], h: q.high[i], l: q.low[i], v: q.volume?.[i] ?? null });
       }
     }
-    if (bars.length < 25) return null;
+    if (bars.length < 30) return null;
 
-    const last = bars[bars.length - 1].c;
-    const r = (n) => bars.length > n ? Math.round(((last - bars[bars.length - 1 - n].c) / bars[bars.length - 1 - n].c) * 1000) / 10 : null;
-    const sma = (n) => bars.length >= n ? bars.slice(-n).reduce((a, b) => a + b.c, 0) / n : null;
+    const closes = bars.map(b => b.c);
+    const last = closes[closes.length - 1];
+    const r = (n) => bars.length > n ? Math.round(((last - closes[closes.length - 1 - n]) / closes[closes.length - 1 - n]) * 1000) / 10 : null;
+    const sma = (n) => closes.length >= n ? closes.slice(-n).reduce((a, b) => a + b, 0) / n : null;
 
-    // ATR(14) % — 일간 평균 변동폭. 월간 기대 변동폭 ≈ 일간 ATR% × √21
+    // ATR(14)% — 월간 기대 변동폭 ≈ 일간 ATR% × √21
     let trSum = 0, trN = 0;
     for (let i = Math.max(1, bars.length - 14); i < bars.length; i++) {
-      const tr = Math.max(
-        bars[i].h - bars[i].l,
-        Math.abs(bars[i].h - bars[i - 1].c),
-        Math.abs(bars[i].l - bars[i - 1].c)
-      );
-      trSum += tr / bars[i].c;
-      trN++;
+      const tr = Math.max(bars[i].h - bars[i].l, Math.abs(bars[i].h - bars[i - 1].c), Math.abs(bars[i].l - bars[i - 1].c));
+      trSum += tr / bars[i].c; trN++;
     }
     const atrDayPct = trN ? (trSum / trN) * 100 : null;
 
-    const sma20 = sma(20), sma50 = sma(50);
-    const high6m = Math.max(...bars.map(b => b.h));
+    // RSI(14) — Wilder smoothing
+    let rsi14 = null;
+    if (closes.length >= 15) {
+      let g = 0, l = 0;
+      for (let i = 1; i <= 14; i++) { const d = closes[i] - closes[i - 1]; if (d > 0) g += d; else l -= d; }
+      let ag = g / 14, al = l / 14;
+      for (let i = 15; i < closes.length; i++) {
+        const d = closes[i] - closes[i - 1];
+        ag = (ag * 13 + (d > 0 ? d : 0)) / 14;
+        al = (al * 13 + (d < 0 ? -d : 0)) / 14;
+      }
+      rsi14 = al === 0 ? 100 : Math.round(100 - 100 / (1 + ag / al));
+    }
+
+    // MACD(12,26,9) 히스토그램 — 모멘텀의 방향과 가속/감속
+    let macdHistPct = null, macdRising = null;
+    if (closes.length >= 40) {
+      const emaSeries = (n) => { const k = 2 / (n + 1); let e = closes[0]; const out = [e]; for (let i = 1; i < closes.length; i++) { e = closes[i] * k + e * (1 - k); out.push(e); } return out; };
+      const e12 = emaSeries(12), e26 = emaSeries(26);
+      const macd = closes.map((_, i) => e12[i] - e26[i]);
+      const k9 = 2 / 10; let s9 = macd[0]; const sig = [s9];
+      for (let i = 1; i < macd.length; i++) { s9 = macd[i] * k9 + s9 * (1 - k9); sig.push(s9); }
+      const h  = macd[macd.length - 1] - sig[sig.length - 1];
+      const hp = macd[macd.length - 2] - sig[sig.length - 2];
+      macdHistPct = Math.round((h / last) * 1000) / 10;
+      macdRising = h > hp;
+    }
+
+    // 거래량 비율: 최근 5일 평균 / 20일 평균 (>1.3 = 수급 유입 확증)
+    let volRatio = null;
+    const vols = bars.map(b => b.v).filter(v => v != null && v > 0);
+    if (vols.length >= 20) {
+      const a5 = vols.slice(-5).reduce((a, b) => a + b, 0) / 5;
+      const a20 = vols.slice(-20).reduce((a, b) => a + b, 0) / 20;
+      if (a20 > 0) volRatio = Math.round((a5 / a20) * 100) / 100;
+    }
+
+    // 볼린저밴드 %B (20, 2σ): 0=하단, 1=상단
+    let bbPctB = null;
+    if (closes.length >= 20) {
+      const w = closes.slice(-20);
+      const m = w.reduce((a, b) => a + b, 0) / 20;
+      const sd = Math.sqrt(w.reduce((a, b) => a + (b - m) ** 2, 0) / 20);
+      if (sd > 0) bbPctB = Math.round(((last - (m - 2 * sd)) / (4 * sd)) * 100) / 100;
+    }
+
+    const sma20v = sma(20), sma50v = sma(50), sma200v = sma(200);
+    const hi52 = Math.max(...bars.map(b => b.h));
+    const lo52 = Math.min(...bars.map(b => b.l));
+
+    // 종합 시그널 (technicals.js와 동일 분류)
+    let signal = 'neutral';
+    if (sma20v && sma50v && sma200v && last > sma20v && sma20v > sma50v && sma50v > sma200v) {
+      signal = rsi14 >= 70 ? 'overbought' : rsi14 <= 30 ? 'oversold_bull' : 'strong_bullish';
+    } else if (sma20v && sma50v && sma200v && last < sma20v && sma20v < sma50v && sma50v < sma200v) {
+      signal = rsi14 <= 30 ? 'oversold' : 'strong_bearish';
+    } else if (sma50v && last > sma50v) {
+      signal = rsi14 >= 70 ? 'overbought' : rsi14 <= 30 ? 'oversold_bull' : 'bullish';
+    } else if (sma50v && last < sma50v) {
+      signal = rsi14 <= 30 ? 'oversold' : 'bearish';
+    } else if (rsi14 != null && rsi14 >= 70) signal = 'overbought';
+    else if (rsi14 != null && rsi14 <= 30) signal = 'oversold';
 
     return {
-      ret5d:  r(5),
-      ret1m:  r(21),
-      ret3m:  r(63),
-      aboveSma20: sma20 != null ? last > sma20 : null,
-      aboveSma50: sma50 != null ? last > sma50 : null,
-      pctFrom6mHigh: high6m ? Math.round(((last - high6m) / high6m) * 1000) / 10 : null,
+      ret5d: r(5), ret1m: r(21), ret3m: r(63),
+      aboveSma20: sma20v != null ? last > sma20v : null,
+      aboveSma50: sma50v != null ? last > sma50v : null,
+      aboveSma200: sma200v != null ? last > sma200v : null,
+      pctFrom52wHigh: hi52 ? Math.round(((last - hi52) / hi52) * 1000) / 10 : null,
+      pctFrom52wLow:  lo52 ? Math.round(((last - lo52) / lo52) * 1000) / 10 : null,
       atrMonthPct: atrDayPct != null ? Math.round(atrDayPct * Math.sqrt(21) * 10) / 10 : null,
+      rsi14, macdHistPct, macdRising, volRatio, bbPctB, signal,
     };
   } catch { return null; }
 }
 
-// 모멘텀 점수 -20 ~ +20 (종합점수 보정용)
-function scoreMomentum(s) {
+// 차트 테크니컬 점수 -25 ~ +25 (종합점수 보정용)
+function scoreTechnicals(s) {
   if (!s) return 0;
   let sc = 0;
-  if (s.ret1m != null) sc += s.ret1m > 5 ? 6 : s.ret1m > 0 ? 3 : s.ret1m < -10 ? -10 : -4;
-  if (s.ret3m != null) sc += s.ret3m > 10 ? 5 : s.ret3m > 0 ? 2 : s.ret3m < -20 ? -6 : -2;
-  if (s.aboveSma20 != null) sc += s.aboveSma20 ? 3 : -3;
-  if (s.aboveSma50 != null) sc += s.aboveSma50 ? 4 : -4;
-  if (s.pctFrom6mHigh != null) sc += s.pctFrom6mHigh > -10 ? 2 : s.pctFrom6mHigh < -40 ? -4 : 0;
-  return Math.max(-20, Math.min(20, sc));
+  // 추세 (수익률 + 이평선)
+  if (s.ret1m != null) sc += s.ret1m > 5 ? 5 : s.ret1m > 0 ? 3 : s.ret1m < -10 ? -8 : -3;
+  if (s.ret3m != null) sc += s.ret3m > 10 ? 4 : s.ret3m > 0 ? 2 : s.ret3m < -20 ? -5 : -2;
+  if (s.aboveSma50 != null) sc += s.aboveSma50 ? 3 : -3;
+  if (s.aboveSma200 != null) sc += s.aboveSma200 ? 3 : -3;
+  // RSI: 45~65 건강한 상승, 과열은 감점, 장기추세 위의 과매도는 기회
+  if (s.rsi14 != null) {
+    if (s.rsi14 >= 75) sc -= 6;
+    else if (s.rsi14 >= 65) sc -= 2;
+    else if (s.rsi14 >= 45) sc += 4;
+    else if (s.rsi14 >= 35) sc += 1;
+    else sc += s.aboveSma200 ? 2 : -4;
+  }
+  // MACD: 히스토그램 부호 + 가속 방향
+  if (s.macdHistPct != null) sc += (s.macdHistPct > 0 ? 2 : -2) + (s.macdRising ? 2 : -1);
+  // 거래량 확증: 대량 거래 + 상승 = 수급 유입 / 대량 거래 + 하락 = 투매
+  if (s.volRatio != null && s.ret5d != null) {
+    if (s.volRatio >= 1.5) sc += s.ret5d > 0 ? 4 : -4;
+  }
+  return Math.max(-25, Math.min(25, sc));
 }
 
 // 목표/손절을 실제 변동성 범위로 강제 (AI가 임의 숫자를 만들어도 여기서 교정)
@@ -426,8 +507,11 @@ function clampTrade(d, stats) {
   if (sl == null || sl >= 0) sl = -(d.upside_pct * 0.5);
   sl = Math.min(Math.max(sl, -(d.upside_pct * 0.7)), -(d.upside_pct * 0.4));
   d.stop_loss_pct = Math.round(sl * 10) / 10;
-  // 진입 밴드 기본값
-  if (d.entry_low_pct == null || d.entry_high_pct == null) { d.entry_low_pct = -2; d.entry_high_pct = 1; }
+  // 진입 밴드 기본값 — 차트 상태 반영: 과열이면 눌림목 대기, 아니면 현재가 부근
+  if (d.entry_low_pct == null || d.entry_high_pct == null) {
+    if (stats?.rsi14 != null && stats.rsi14 >= 68) { d.entry_low_pct = -5; d.entry_high_pct = -1; }
+    else { d.entry_low_pct = -2; d.entry_high_pct = 1; }
+  }
 }
 
 // ─── 2단계: 애널리스트 패스 — 실데이터를 보고 매수/제외 결정 ────────
@@ -439,8 +523,12 @@ async function decideTrades(issue, analysis, candidates) {
     why: (c.co.rationale || '').slice(0, 120),
     price_data: c.stats ? {
       ret_5d: c.stats.ret5d, ret_1m: c.stats.ret1m, ret_3m: c.stats.ret3m,
-      above_sma20: c.stats.aboveSma20, above_sma50: c.stats.aboveSma50,
-      pct_from_6m_high: c.stats.pctFrom6mHigh, atr_month_pct: c.stats.atrMonthPct,
+      above_sma20: c.stats.aboveSma20, above_sma50: c.stats.aboveSma50, above_sma200: c.stats.aboveSma200,
+      pct_from_52w_high: c.stats.pctFrom52wHigh, pct_from_52w_low: c.stats.pctFrom52wLow,
+      atr_month_pct: c.stats.atrMonthPct,
+      rsi_14: c.stats.rsi14, macd_hist_pct: c.stats.macdHistPct, macd_rising: c.stats.macdRising,
+      vol_ratio_5d_20d: c.stats.volRatio, bollinger_pct_b: c.stats.bbPctB,
+      signal: c.stats.signal,
     } : null,
     fundamentals: c.fund ? {
       pe: c.fund.pe, roe: c.fund.roe, op_margin: c.fund.operatingMargin,
@@ -456,6 +544,17 @@ async function decideTrades(issue, analysis, candidates) {
 2. catalyst(뉴스) → mechanism(매출/이익 경로) → timeframe이 명확하지 않으면 제외.
 3. 목표수익률은 종목의 실제 변동성(atr_month_pct) 안에서. 한 달에 5%도 안 움직이는 종목에 +15% 목표는 무효.
 4. 확신이 없으면 제외가 정답. 전원 제외도 훌륭한 결정이다. 게재 수보다 적중률이 평가 기준.
+
+차트 판독 원칙 (price_data 해석):
+- signal=strong_bearish (정배열 붕괴, 모든 이평선 아래) → 반드시 exclude
+- rsi_14 ≥ 75 → 과열. 추격 매수 금지: exclude 하거나 entry를 눌림목(-5 ~ -2%)으로 설정
+- rsi_14 ≤ 35 이면서 above_sma200=true → 장기 상승추세 속 조정 = 좋은 진입 기회 (가점)
+- macd_hist_pct < 0 이고 macd_rising=false → 모멘텀 꺾이는 중. 뉴스 촉매가 압도적이지 않으면 exclude
+- vol_ratio_5d_20d ≥ 1.5 + ret_5d > 0 → 뉴스에 수급이 실제 반응 중 (신뢰 가점)
+- vol_ratio_5d_20d ≥ 1.5 + ret_5d < 0 → 투매 진행 중 (exclude 우선)
+- bollinger_pct_b > 1.0 → 밴드 상단 돌파 상태. 단기 되돌림 위험, entry를 보수적으로
+- pct_from_52w_high > -5 (신고가 부근) → 저항 없음, 추세 지속 유리. 단 rsi 과열 동반 시 눌림목 대기
+- key_thesis에는 뉴스 촉매와 차트 근거를 함께 담을 것 (예: "RSI 52 건전 + 50일선 지지 + 관세 수혜")
 
 뉴스 이슈: ${issue.title}
 이슈 요약: ${(analysis.summary || issue.summary || '').slice(0, 300)}

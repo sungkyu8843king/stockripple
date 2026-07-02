@@ -369,6 +369,26 @@ function renderPage(issue, analysis, companies) {
     const trade  = parsed.trade;
     const fmtP   = v => (v > 0 ? '+' : '') + v + '%';
 
+    // 차트 테크니컬 칩 ([FUND] 메타의 rsi/sig/volr/mom1m/atrm)
+    const fund = parsed.fund;
+    const sigInfo = {
+      strong_bullish: ['정배열 강세', 'var(--green)'], bullish: ['상승 추세', 'var(--green)'],
+      neutral: ['중립', 'var(--text3)'], bearish: ['하락 추세', 'var(--red)'],
+      strong_bearish: ['역배열 약세', 'var(--red)'], overbought: ['과열', 'var(--yellow)'],
+      oversold: ['과매도', 'var(--red)'], oversold_bull: ['눌림목 기회', 'var(--blue)'],
+    };
+    const techChip = (label, color) => `<span style="font-size:10px;font-weight:600;padding:3px 8px;border-radius:10px;border:1px solid ${color};color:${color}">${label}</span>`;
+    let techChips = '';
+    if (fund && (fund.rsi != null || fund.sig || fund.volr != null)) {
+      const parts = [];
+      if (fund.sig && sigInfo[fund.sig]) parts.push(techChip('📈 ' + sigInfo[fund.sig][0], sigInfo[fund.sig][1]));
+      if (fund.rsi != null) parts.push(techChip('RSI ' + fund.rsi, fund.rsi >= 70 ? 'var(--yellow)' : fund.rsi <= 30 ? 'var(--red)' : 'var(--text2)'));
+      if (fund.volr != null) parts.push(techChip('거래량 ' + fund.volr + '×', fund.volr >= 1.5 ? 'var(--blue)' : 'var(--text3)'));
+      if (fund.mom1m != null) parts.push(techChip('1개월 ' + fmtP(fund.mom1m), fund.mom1m >= 0 ? 'var(--green)' : 'var(--red)'));
+      if (fund.atrm != null) parts.push(techChip('월변동폭 ±' + fund.atrm + '%', 'var(--text3)'));
+      if (parts.length) techChips = `<div style="display:flex;gap:5px;flex-wrap:wrap;margin:8px 0 2px">${parts.join('')}</div>`;
+    }
+
     const tradeBox = trade ? `
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:10px;margin:8px 0;background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(47,129,247,.08));border:1px solid rgba(63,185,80,.25);border-radius:8px">
         <div style="text-align:center">
@@ -401,6 +421,7 @@ function renderPage(issue, analysis, companies) {
           ${upsidePct != null ? `<div class="upside-badge ${upsideClass}">${sign}${upsidePct}%</div>` : ''}
         </div>
         <div class="company-rationale">${escHtml(parsed.reason || '')}</div>
+        ${techChips}
         ${tradeBox}
         ${c.ripple_sector ? `<div class="company-ripple">파급 섹터: <span>${escHtml(c.ripple_sector)}</span></div>` : ''}
         <div class="company-footer">
