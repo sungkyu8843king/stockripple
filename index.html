@@ -3246,6 +3246,41 @@ const HEATMAP_TICKERS = {
     { t:'RTX',   n:'RTX' },          { t:'HON',   n:'Honeywell' },   { t:'DE',   n:'Deere' },
     // Finance (추가)
     { t:'C',     n:'Citigroup' },    { t:'SCHW',  n:'Charles Schwab'},
+    // 소비재·리테일 (추가2)
+    { t:'TGT',   n:'Target' },       { t:'LOW',   n:'Lowe\'s' },      { t:'TJX',  n:'TJX' },
+    { t:'CMG',   n:'Chipotle' },     { t:'YUM',   n:'Yum! Brands' },  { t:'MNST', n:'Monster Bev' },
+    { t:'KHC',   n:'Kraft Heinz' },  { t:'MDLZ',  n:'Mondelez' },     { t:'CL',   n:'Colgate' },
+    { t:'KMB',   n:'Kimberly-Clark'},{ t:'EL',    n:'Estee Lauder' }, { t:'DASH', n:'DoorDash' },
+    { t:'ETSY',  n:'Etsy' },
+    // 헬스케어 (추가2)
+    { t:'CVS',   n:'CVS Health' },   { t:'CI',    n:'Cigna' },        { t:'ELV',  n:'Elevance' },
+    { t:'BMY',   n:'Bristol-Myers'}, { t:'AMGN',  n:'Amgen' },        { t:'REGN', n:'Regeneron' },
+    { t:'ZTS',   n:'Zoetis' },       { t:'BSX',   n:'Boston Sci' },   { t:'MDT',  n:'Medtronic' },
+    { t:'SYK',   n:'Stryker' },
+    // 금융 (추가2)
+    { t:'BX',    n:'Blackstone' },   { t:'KKR',   n:'KKR' },          { t:'ICE',  n:'ICE' },
+    { t:'CME',   n:'CME Group' },    { t:'SPG',   n:'Simon Property'},{ t:'PGR',  n:'Progressive' },
+    { t:'TRV',   n:'Travelers' },    { t:'MET',   n:'MetLife' },      { t:'AIG',  n:'AIG' },
+    { t:'COF',   n:'Capital One' },  { t:'USB',   n:'US Bancorp' },   { t:'PNC',  n:'PNC' },
+    // 산업재·운송 (추가2)
+    { t:'MMM',   n:'3M' },           { t:'UNP',   n:'Union Pacific'}, { t:'CSX',  n:'CSX' },
+    { t:'DAL',   n:'Delta' },        { t:'UAL',   n:'United' },       { t:'LUV',  n:'Southwest' },
+    { t:'EMR',   n:'Emerson' },      { t:'ETN',   n:'Eaton' },        { t:'ITW',  n:'Illinois Tool'},
+    // 반도체·소프트웨어 (추가2)
+    { t:'MRVL',  n:'Marvell' },      { t:'ON',    n:'ON Semi' },      { t:'MCHP', n:'Microchip' },
+    { t:'ADI',   n:'Analog Devices'},{ t:'SWKS',  n:'Skyworks' },     { t:'NXPI', n:'NXP' },
+    { t:'ANET',  n:'Arista' },       { t:'DDOG',  n:'Datadog' },      { t:'MDB',  n:'MongoDB' },
+    { t:'TEAM',  n:'Atlassian' },    { t:'WDAY',  n:'Workday' },      { t:'OKTA', n:'Okta' },
+    { t:'ZS',    n:'Zscaler' },
+    // 에너지 (추가2)
+    { t:'SLB',   n:'Schlumberger' }, { t:'COP',   n:'ConocoPhillips'},{ t:'EOG',  n:'EOG Resources'},
+    { t:'VLO',   n:'Valero' },
+    // 통신·부동산 (추가2)
+    { t:'T',     n:'AT&T' },         { t:'VZ',    n:'Verizon' },      { t:'TMUS', n:'T-Mobile' },
+    { t:'CMCSA', n:'Comcast' },      { t:'PLD',   n:'Prologis' },     { t:'AMT',  n:'American Tower'},
+    { t:'EQIX',  n:'Equinix' },      { t:'DLR',   n:'Digital Realty'},{ t:'O',    n:'Realty Income'},
+    // 여행·레저 (추가2)
+    { t:'BKNG',  n:'Booking' },      { t:'MAR',   n:'Marriott' },     { t:'HLT',  n:'Hilton' },
   ],
   kr: [
     // 시총 Top 30
@@ -3296,7 +3331,26 @@ const HEATMAP_TICKERS = {
     { t:'000100.KS', n:'유한양행' },     { t:'145020.KQ', n:'휴젤' },         { t:'214150.KQ', n:'클래시스' },
     { t:'293490.KQ', n:'카카오게임즈' },
     // 소비재 (추가)
-    { t:'271560.KS', n:'오리온' },
+    { t:'271560.KS', n:'오리온' },     { t:'003230.KS', n:'삼양식품' },     { t:'007310.KS', n:'오뚜기' },
+    // 항공·운송·물류 (추가2)
+    { t:'003490.KS', n:'대한항공' },     { t:'000120.KS', n:'CJ대한통운' },
+    // 지주·종합상사 (추가2)
+    { t:'000880.KS', n:'한화' },         { t:'006260.KS', n:'LS' },           { t:'267250.KS', n:'HD현대' },
+    // 증권·보험·금융지주 (추가2)
+    { t:'006800.KS', n:'미래에셋증권' },  { t:'016360.KS', n:'삼성증권' },      { t:'071050.KS', n:'한국금융지주' },
+    { t:'138930.KS', n:'BNK금융지주' },  { t:'175330.KS', n:'JB금융지주' },    { t:'088350.KS', n:'한화생명' },
+    { t:'001450.KS', n:'현대해상' },
+    // 화학·소재·2차전지 (추가2)
+    { t:'020150.KS', n:'롯데에너지머티리얼즈' }, { t:'010060.KS', n:'OCI홀딩스' }, { t:'011780.KS', n:'금호석유' },
+    { t:'004000.KS', n:'롯데정밀화학' }, { t:'298040.KS', n:'효성첨단소재' },  { t:'005070.KS', n:'코스모신소재' },
+    { t:'357780.KS', n:'솔브레인' },
+    // 반도체·부품·장비 (추가2)
+    { t:'240810.KQ', n:'원익IPS' },      { t:'000990.KS', n:'DB하이텍' },      { t:'348210.KQ', n:'넥스틴' },
+    // 자동차부품·조선·철강 (추가2)
+    { t:'011210.KS', n:'현대위아' },      { t:'097230.KS', n:'HJ중공업' },      { t:'004020.KS', n:'현대제철' },
+    // 유통 (추가2)
+    { t:'004170.KS', n:'신세계' },       { t:'007070.KS', n:'GS리테일' },      { t:'069960.KS', n:'현대백화점' },
+    { t:'282330.KQ', n:'BGF리테일' },
   ],
 };
 let _hmMkt = 'us', _hmRange = '1d', _hmSession = 'regular';
