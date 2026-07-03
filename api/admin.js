@@ -348,19 +348,24 @@ async function fetchYahooMeta(ticker) {
 // ════════════════════════════════════════════════════════════
 async function handleStats(req, res) {
   try {
-    const { data, error } = await supabase
-      .from('analysis_companies')
-      .select(`
-        upside_pct, confidence, ripple_sector, entry_date, entry_price,
-        is_accurate_1d, actual_return_1d,
-        is_accurate_7d, actual_return_7d,
-        is_accurate_30d, actual_return_30d,
-        companies(ticker, name_ko, market)
-      `)
-      .limit(5000);
-    if (error) return res.status(500).json({ error: error.message });
-
-    const rows = data || [];
+    // PostgREST는 limit을 크게 줘도 1000행에서 자름 → range 페이지네이션으로 전체 로드
+    const rows = [];
+    for (let page = 0; page < 20; page++) {
+      const { data, error } = await supabase
+        .from('analysis_companies')
+        .select(`
+          upside_pct, confidence, ripple_sector, entry_date, entry_price,
+          is_accurate_1d, actual_return_1d,
+          is_accurate_7d, actual_return_7d,
+          is_accurate_30d, actual_return_30d,
+          companies(ticker, name_ko, market)
+        `)
+        .order('created_at', { ascending: false })
+        .range(page * 1000, page * 1000 + 999);
+      if (error) return res.status(500).json({ error: error.message });
+      rows.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
     if (!rows.length) return res.status(200).json({ ok: true, empty: true });
 
     const overall = {
@@ -437,14 +442,35 @@ async function handleStats(req, res) {
     const topLosers  = [...significant].sort((a, b) => a.compounded - b.compounded).slice(0, 10);
 
     const verified7dRets = verified7d.map(r => r.actual_return_7d).filter(v => v != null);
+
+    // 주간 리밸런싱 시뮬레이션: 같은 주(월요일 시작) 진입 추천을 동일 비중 바스켓으로
+    // 묶어 주별 평균 수익률을 시간순 복리. 거래별 순차 전액 재투자 가정은
+    // (1.046)^827 같은 천문학적 수치가 나와 지표로 무의미함.
+    const weekKey = (d) => {
+      const dt = new Date(d);
+      if (isNaN(dt)) return null;
+      dt.setUTCDate(dt.getUTCDate() - (dt.getUTCDay() + 6) % 7);
+      return dt.toISOString().slice(0, 10);
+    };
+    const byWeek = {};
+    for (const r of verified7d) {
+      const k = r.entry_date ? weekKey(r.entry_date) : null;
+      if (!k) continue;
+      (byWeek[k] = byWeek[k] || []).push(r.actual_return_7d);
+    }
+    const weeklyAvgs = Object.entries(byWeek)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, arr]) => avg(arr));
+
     const backtest = {
       totalTrades: verified7d.length,
       winRate:     verified7d.length ? Math.round(winners.length / verified7d.length * 100) : 0,
       avgReturn:   r2(avg(verified7dRets)),
       bestTrade:   verified7dRets.length ? r2(Math.max(...verified7dRets)) : 0,
       worstTrade:  verified7dRets.length ? r2(Math.min(...verified7dRets)) : 0,
-      // 복리 누적: 모든 거래를 동일 비중으로 순차 보유했을 때 자본 변화율
-      cumulativeReturn: compound(verified7dRets),
+      // 주간 복리: 주별 평균 수익률의 시간순 복리 (주 단위 리밸런싱 가정)
+      cumulativeReturn: compound(weeklyAvgs),
+      weeks: weeklyAvgs.length,
       minTradesFilter: MIN_TRADES,
       byPeriod: {
         '1d':  periodStats(rows, '1d',  0.3),

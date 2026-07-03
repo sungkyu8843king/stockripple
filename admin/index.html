@@ -532,10 +532,10 @@ tr:hover td { background: var(--bg3); }
           <div class="stat-card"><div class="stat-label">총 거래</div><div class="stat-value blue" id="btTrades">—</div></div>
           <div class="stat-card"><div class="stat-label">승률</div><div class="stat-value green" id="btWinRate">—</div></div>
           <div class="stat-card"><div class="stat-label">평균 수익률</div><div class="stat-value yellow" id="btAvgRet">—</div></div>
-          <div class="stat-card"><div class="stat-label">복리 누적 수익률</div><div class="stat-value green" id="btCumRet">—</div></div>
+          <div class="stat-card"><div class="stat-label">주간 복리 수익률</div><div class="stat-value green" id="btCumRet">—</div><div class="stat-label" id="btCumWeeks" style="margin-top:2px"></div></div>
         </div>
         <p style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.55">
-          📐 <b>복리 누적</b> = 모든 추천을 동일 비중·순차 보유했을 때 자본 변화율 <code style="background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:10px">(1+r₁)(1+r₂)...(1+rₙ) - 1</code><br>
+          📐 <b>주간 복리</b> = 같은 주에 진입한 추천을 동일 비중 바스켓(7일 보유)으로 묶고, 주별 평균 수익률을 시간순으로 복리한 시뮬레이션 <code style="background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:10px">(1+w₁)(1+w₂)...(1+wₙ) - 1</code><br>
           ⚠️ 실제 투자에는 수수료/세금/슬리피지/동시보유 제약 등이 추가됨. 단순 백테스트 지표이며 실현 수익을 보장하지 않음.
         </p>
       </div>
@@ -1339,6 +1339,8 @@ function renderBacktest(d) {
   const cumEl = document.getElementById('btCumRet');
   cumEl.textContent = fmtPctVal(bt.cumulativeReturn);
   cumEl.style.color = cumColor;
+  const cumWeeksEl = document.getElementById('btCumWeeks');
+  if (cumWeeksEl) cumWeeksEl.textContent = bt.weeks ? `${bt.weeks}주 리밸런싱` : '';
 
   // 신뢰도 버킷 테이블
   const confTbody = document.getElementById('btConfTable');
