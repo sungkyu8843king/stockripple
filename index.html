@@ -893,7 +893,7 @@ button { font-family: inherit; }
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:18px">🎯</span>
           <span style="font-size:16px;font-weight:700">지금 매수 후보</span>
-          <span style="font-size:11px;color:var(--text3)">매수가 · 목표 · 손절 · 기술 시그널 통합</span>
+          <span style="font-size:11px;color:var(--text3)">매수가 · 목표 · 손절 · 기술 시그널 · 수급 · 펀더멘털 통합</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
           <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none">
@@ -1944,6 +1944,7 @@ async function loadInsights() {
         // - AI 신뢰도 가중치 25점
         // - 예측 빈도 가중치 20점 (최근 5건까지)
         // - 미래 먹거리 테마 가중치 15점 (전략적 투자 노출 + 최신성)
+        // (이후 상위 후보군에 추가 보정: 기술 모멘텀 ±18, 수급 ±10, 펀더멘털 ±8 — 아래 참조)
         const accScore   = accuracy != null ? (accuracy / 100) * 50 : 35;
         const upScore    = Math.min(Math.max(avgUpside, 0), 30) / 30 * 40;
         const confScore  = (avgConf / 100) * 25;
@@ -2006,6 +2007,53 @@ async function loadInsights() {
     }
     candidatePool.sort((a, b) => b.score - a.score);
 
+    // 수급 + 펀더멘털 팩터: 모멘텀 반영 후 상위 24개만 배치 조회 (서버 15분 CDN 캐시)
+    // - 수급(KR만): 외인/기관 5일 누적 순매수·연속 매수일·거래량 대비 강도 → 최대 ±10점
+    //   "AI 점수는 높은데 외인·기관이 던지는 중"인 종목의 순위를 낮추고, 쌍끌이 매수는 올린다
+    // - 펀더멘털: 수익성(ROE·영업이익률)·성장(매출 YoY)·재무위험(부채) → 최대 ±8점
+    //   KR은 네이버 분기 재무제표, US는 DB에 캐시된 FMP 데이터 (FMP 한도 소모 없음)
+    const factorPool = candidatePool.slice(0, 24);
+    try {
+      const ft = factorPool.map(s => s.ticker).sort();  // 티커 정렬 → 동일 URL → CDN 캐시 히트
+      const r = await fetch(`/api/stock?type=score-factors&tickers=${ft.map(encodeURIComponent).join(',')}`);
+      if (r.ok) {
+        const j = await r.json();
+        for (const s of factorPool) {
+          const d = j.data?.[s.ticker];
+          if (!d) continue;
+          let flowAdj = 0;
+          if (d.flow) {
+            const f = d.flow;
+            const fPos = f.foreign5d > 0, iPos = f.inst5d > 0;
+            if (fPos && iPos)      flowAdj += 6;   // 외인+기관 쌍끌이 매수
+            else if (fPos)         flowAdj += 4;
+            else if (iPos)         flowAdj += 2;
+            if (f.foreign5d < 0 && f.inst5d < 0) flowAdj -= 6;   // 쌍매도
+            if (f.foreignStreak >= 3)  flowAdj += 2;   // 외인 3일+ 연속 순매수
+            if (f.foreignStreak <= -3) flowAdj -= 2;   // 외인 3일+ 연속 순매도
+            if (f.smartRatio != null)  flowAdj += Math.max(-2, Math.min(2, Math.round(f.smartRatio / 5)));
+            flowAdj = Math.max(-10, Math.min(10, flowAdj));
+          }
+          let fundAdj = 0;
+          if (d.fund) {
+            const g = d.fund;
+            if (g.roe != null)      fundAdj += g.roe > 15 ? 3 : g.roe > 5 ? 1 : g.roe < 0 ? -3 : 0;
+            if (g.opMargin != null) fundAdj += g.opMargin > 15 ? 2 : g.opMargin < 0 ? -3 : 0;
+            if (g.revYoY != null)   fundAdj += g.revYoY > 20 ? 2 : g.revYoY > 5 ? 1 : g.revYoY < -10 ? -2 : 0;
+            if (g.debtRatioPct != null && g.debtRatioPct > 400) fundAdj -= 3;  // KR: 부채비율 400%+
+            if (g.debtToEquity != null && g.debtToEquity > 3)   fundAdj -= 3;  // US: D/E 3+
+            fundAdj = Math.max(-8, Math.min(8, fundAdj));
+          }
+          s.flowAdj = flowAdj;
+          s.fundAdj = fundAdj;
+          s.factorFlow = d.flow || null;
+          s.factorFund = d.fund || null;
+          s.score = Math.round(s.score + flowAdj + fundAdj);
+        }
+      }
+    } catch {}
+    candidatePool.sort((a, b) => b.score - a.score);
+
     // 엄격 모드: AI 신뢰도 ≥80% 종목만
     const strictMode = document.getElementById('strictModeToggle')?.checked;
     const beforeStrict = candidatePool.length;
@@ -2062,6 +2110,8 @@ async function loadInsights() {
         const momentumSignal = _techCache[s.ticker]?.signal;
         if (momentumSignal === 'strong_bearish') tier = Math.min(tier, 1);
         else if (momentumSignal === 'bearish')   tier = Math.min(tier, 2);
+        // 외인·기관 쌍매도 + 외인 3일 이상 연속 매도면 수급 붕괴 — STRONG BUY 억제
+        if (s.factorFlow && s.factorFlow.foreign5d < 0 && s.factorFlow.inst5d < 0 && s.factorFlow.foreignStreak <= -3) tier = Math.min(tier, 2);
         const signal = tier === 3 ? { label: '🔥 STRONG BUY', color: '#fff', bg: 'linear-gradient(135deg,#ef4444,#dc2626)' }
                       : tier === 2 ? { label: '⭐ BUY',         color: '#fff', bg: 'linear-gradient(135deg,#3b82f6,#1d4ed8)' }
                       : tier === 1 ? { label: 'WATCH',          color: 'var(--text2)', bg: 'var(--bg3)' }
@@ -2160,6 +2210,26 @@ async function loadInsights() {
               <span style="color:var(--text3)">기술 지표 로딩...</span>
             </div>
 
+            <!-- 수급 chips (외인/기관 최근 5거래일 누적 순매수 — KR만) -->
+            ${s.factorFlow ? (() => {
+              const f = s.factorFlow;
+              const fmtSh = v => {
+                const a = Math.abs(v);
+                const sign = v > 0 ? '+' : v < 0 ? '-' : '';
+                return sign + (a >= 1e8 ? (a/1e8).toFixed(1) + '억' : a >= 1e4 ? Math.round(a/1e4).toLocaleString() + '만' : a.toLocaleString()) + '주';
+              };
+              const c = v => v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text3)';
+              const fchip = 'padding:2px 7px;border-radius:4px;font-weight:600;background:var(--bg3)';
+              return `<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:10px" title="최근 5거래일 누적 순매수 · 점수 반영 ${(s.flowAdj || 0) >= 0 ? '+' : ''}${s.flowAdj || 0}점">
+                <span style="color:var(--text3);font-weight:700">수급</span>
+                <span style="${fchip};color:${c(f.foreign5d)}">외인 ${fmtSh(f.foreign5d)}</span>
+                <span style="${fchip};color:${c(f.inst5d)}">기관 ${fmtSh(f.inst5d)}</span>
+                ${f.foreignStreak >= 3 ? `<span style="${fchip};color:var(--green)">🔥 외인 ${f.foreignStreak}일 연속 매수</span>`
+                  : f.foreignStreak <= -3 ? `<span style="${fchip};color:var(--red)">⚠️ 외인 ${-f.foreignStreak}일 연속 매도</span>` : ''}
+                ${f.smartRatio != null && Math.abs(f.smartRatio) >= 5 ? `<span style="${fchip};color:${c(f.smartRatio)}">강도 ${f.smartRatio > 0 ? '+' : ''}${f.smartRatio}%</span>` : ''}
+              </div>`;
+            })() : ''}
+
             <!-- 펀더멘털 chips (분석 시점 임베드된 데이터) -->
             ${fund ? (() => {
               const fchip = 'padding:2px 7px;border-radius:4px;font-weight:600;background:var(--bg3)';
@@ -2188,7 +2258,7 @@ async function loadInsights() {
             <div style="display:flex;align-items:center;gap:8px;margin-top:auto;font-size:10px;color:var(--text3)">
               <span>최근 ${s.predCount}건 분석</span>
               <span>·</span>
-              <span>점수 ${s.score}</span>
+              <span title="보정 내역 — 모멘텀 ${(s.momentumAdj||0) >= 0 ? '+' : ''}${s.momentumAdj||0} · 수급 ${(s.flowAdj||0) >= 0 ? '+' : ''}${s.flowAdj||0} · 펀더멘털 ${(s.fundAdj||0) >= 0 ? '+' : ''}${s.fundAdj||0}">점수 ${s.score}</span>
               <div style="flex:1;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-left:6px">
                 <div style="height:100%;width:${Math.min(s.score,100)}%;background:linear-gradient(90deg,#2f81f7,#a371f7)"></div>
               </div>

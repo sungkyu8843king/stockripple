@@ -14,9 +14,10 @@ const supabase = createClient(
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const type = (req.query?.type || 'price').toString();
-  if (type === 'chart')        return handleChart(req, res);
-  if (type === 'fundamentals') return handleFundamentals(req, res);
-  if (type === 'investors')    return handleInvestors(req, res);
+  if (type === 'chart')         return handleChart(req, res);
+  if (type === 'fundamentals')  return handleFundamentals(req, res);
+  if (type === 'investors')     return handleInvestors(req, res);
+  if (type === 'score-factors') return handleScoreFactors(req, res);
   return handlePrice(req, res);
 }
 
@@ -282,6 +283,122 @@ async function handleFundamentals(req, res) {
     source: 'fmp-stable',
     endpointStatus: status,
   });
+}
+
+// ─── 매수 후보 스코어링 팩터 배치 (수급 + 펀더멘털) ─────────────────
+// GET /api/stock?type=score-factors&tickers=005930.KS,AAPL,...  (최대 24개)
+// KR: 네이버 trend(수급 — 외인/기관 5일 누적·연속일) + finance/quarter(펀더멘털)
+// US: DB에 캐시된 FMP 펀더멘털만 사용 (FMP 일일 한도를 스코어링에 소모하지 않음)
+async function handleScoreFactors(req, res) {
+  const tickers = [...new Set(String(req.query.tickers || '').split(',').map(t => t.trim()).filter(Boolean))].slice(0, 24);
+  if (!tickers.length) return res.status(400).json({ error: 'tickers required' });
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=1800');
+
+  const HEADERS = { 'User-Agent': 'Mozilla/5.0 (compatible; StockRipple/1.0)' };
+  const num = v => {
+    const n = parseFloat(String(v ?? '').replace(/[+,%원배주\s]/g, ''));
+    return isNaN(n) ? null : n;
+  };
+
+  const krTickers = tickers.filter(t => /^\d{6}\.(KS|KQ)$/i.test(t));
+  const usTickers = tickers.filter(t => !krTickers.includes(t));
+
+  const data = {};
+
+  // ── US: DB 캐시된 펀더멘털 일괄 조회 ──
+  const usFundPromise = (async () => {
+    if (!usTickers.length) return;
+    try {
+      const { data: rows } = await supabase.from('companies')
+        .select('ticker, fundamentals').in('ticker', usTickers);
+      for (const row of rows || []) {
+        const f = row.fundamentals;
+        if (!f) continue;
+        data[row.ticker] = {
+          fund: {
+            roe: f.roe ?? null,
+            opMargin: f.operatingMargin ?? null,
+            netMargin: f.netMargin ?? null,
+            revYoY: f.revenueGrowthYoY ?? null,
+            debtToEquity: f.debtToEquity ?? null,
+          },
+        };
+      }
+    } catch {}
+  })();
+
+  // ── KR: 종목별 수급(trend) + 분기 펀더멘털 병렬 조회 ──
+  const krPromises = krTickers.map(async ticker => {
+    const code = ticker.slice(0, 6);
+    const out = { flow: null, fund: null };
+
+    const [trend, quart] = await Promise.all([
+      fetch(`https://m.stock.naver.com/api/stock/${code}/trend?pageSize=10&page=1`, { headers: HEADERS, signal: AbortSignal.timeout(7000) })
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`https://m.stock.naver.com/api/stock/${code}/finance/quarter`, { headers: HEADERS, signal: AbortSignal.timeout(7000) })
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+    ]);
+
+    if (Array.isArray(trend) && trend.length) {
+      const days = trend.map(d => ({
+        foreign: num(d.foreignerPureBuyQuant),
+        inst: num(d.organPureBuyQuant),
+        indiv: num(d.individualPureBuyQuant),
+        vol: num(d.accumulatedTradingVolume),
+      }));
+      const sum5 = k => days.slice(0, 5).reduce((a, d) => a + (d[k] || 0), 0);
+      // 최근일부터 같은 방향(순매수/순매도)이 이어진 일수 — 양수=매수 연속, 음수=매도 연속
+      const streak = k => {
+        let n = 0;
+        const sign = Math.sign(days[0]?.[k] || 0);
+        if (!sign) return 0;
+        for (const d of days) { if (Math.sign(d[k] || 0) === sign) n++; else break; }
+        return sign * n;
+      };
+      const vol5 = days.slice(0, 5).reduce((a, d) => a + (d.vol || 0), 0);
+      const smart5 = sum5('foreign') + sum5('inst');
+      out.flow = {
+        foreign5d: sum5('foreign'),
+        inst5d: sum5('inst'),
+        indiv5d: sum5('indiv'),
+        foreignStreak: streak('foreign'),
+        instStreak: streak('inst'),
+        // 5일 거래량 대비 외인+기관 순매수 비중(%) — 수급 강도 (종목 크기 무관 비교 가능)
+        smartRatio: vol5 ? Math.round(smart5 / vol5 * 1000) / 10 : null,
+      };
+    }
+
+    const fi = quart?.financeInfo;
+    if (fi?.trTitleList?.length && fi?.rowList?.length) {
+      const actuals = fi.trTitleList.filter(t => t.isConsensus !== 'Y');
+      const last = actuals[actuals.length - 1];
+      const yoy  = actuals[actuals.length - 5] || null;
+      if (last) {
+        const pick = key => {
+          const o = {};
+          for (const row of fi.rowList) o[row.title] = num(row.columns?.[key]?.value);
+          return o;
+        };
+        const fin = pick(last.key);
+        const prev = yoy ? pick(yoy.key) : null;
+        const pct = (a, b) => (a != null && b != null && b !== 0) ? Math.round((a - b) / Math.abs(b) * 1000) / 10 : null;
+        out.fund = {
+          roe: fin['ROE'] ?? null,
+          opMargin: fin['영업이익률'] ?? null,
+          netMargin: fin['순이익률'] ?? null,
+          revYoY: pct(fin['매출액'], prev?.['매출액']),
+          debtRatioPct: fin['부채비율'] ?? null,
+        };
+      }
+    }
+
+    if (out.flow || out.fund) data[ticker] = out;
+  });
+
+  await Promise.all([usFundPromise, ...krPromises]);
+  return res.status(200).json({ ok: true, data });
 }
 
 // ─── 펀더멘털 KR (네이버 증권 — integration + finance/quarter) ──────
