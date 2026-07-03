@@ -993,11 +993,6 @@ button { font-family: inherit; }
             <button class="hm-tab hm-range active" data-range="1d"  onclick="switchHeatmap(null, '1d')">일간</button>
             <button class="hm-tab hm-range"        data-range="1mo" onclick="switchHeatmap(null, '1mo')">월간</button>
           </div>
-          <div class="seg" id="heatmapSessionGroup" style="display:none">
-            <button class="hm-tab hm-session active" data-session="regular" onclick="switchHeatmap(null, null, 'regular')">데이</button>
-            <button class="hm-tab hm-session"        data-session="pre"     onclick="switchHeatmap(null, null, 'pre')">프리마켓</button>
-            <button class="hm-tab hm-session"        data-session="post"    onclick="switchHeatmap(null, null, 'post')">애프터마켓</button>
-          </div>
         </div>
       </div>
       <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;min-height:80px">
@@ -3529,28 +3524,13 @@ const HEATMAP_TICKERS = {
     { t:'024850.KQ', n:'HLB이노베이션' }, { t:'278650.KQ', n:'HLB바이오스텝' },
   ],
 };
-let _hmMkt = 'us', _hmRange = '1d', _hmSession = 'regular';
-const HM_SESSION_MARKETS = ['us', 'kr'];   // 프리마켓/애프터마켓 세션 토글을 지원하는 시장
+let _hmMkt = 'us', _hmRange = '1d';
 
-// 초기 로드 시점에도 세션 토글 표시 상태 반영 (switchHeatmap을 거치지 않고 바로 loadHeatmap()이 호출되므로)
-(function initHmSessionVisibility() {
-  const sessionGroup = document.getElementById('heatmapSessionGroup');
-  if (sessionGroup) {
-    sessionGroup.style.display = (_hmRange === '1d' && HM_SESSION_MARKETS.includes(_hmMkt)) ? 'inline-flex' : 'none';
-  }
-})();
-
-function switchHeatmap(mkt, range, session) {
-  if (mkt)   { _hmMkt = mkt; _hmSession = 'regular'; }
-  if (range) { _hmRange = range; _hmSession = 'regular'; }
-  if (session) _hmSession = session;
+function switchHeatmap(mkt, range) {
+  if (mkt)   _hmMkt = mkt;
+  if (range) _hmRange = range;
   document.querySelectorAll('.hm-mkt').forEach(b => b.classList.toggle('active', b.dataset.mkt === _hmMkt));
   document.querySelectorAll('.hm-range').forEach(b => b.classList.toggle('active', b.dataset.range === _hmRange));
-  document.querySelectorAll('.hm-session').forEach(b => b.classList.toggle('active', b.dataset.session === _hmSession));
-  const sessionGroup = document.getElementById('heatmapSessionGroup');
-  if (sessionGroup) {
-    sessionGroup.style.display = (_hmRange === '1d' && HM_SESSION_MARKETS.includes(_hmMkt)) ? 'inline-flex' : 'none';
-  }
   loadHeatmap();
 }
 
@@ -3723,8 +3703,7 @@ async function loadHeatmap() {
   const list = HEATMAP_TICKERS[_hmMkt] || [];
   const tickers = list.map(x => x.t);
   const nameMap = Object.fromEntries(list.map(x => [x.t, x.n]));
-  const sessionForKey = HM_SESSION_MARKETS.includes(_hmMkt) ? _hmSession : 'regular';
-  const structureKey = `${_hmMkt}|${_hmRange}|${sessionForKey}|${tickers.join(',')}`;
+  const structureKey = `${_hmMkt}|${_hmRange}|${tickers.join(',')}`;
   const needsRebuild = structureKey !== _hmStructureKey;
 
   if (needsRebuild) {
@@ -3733,33 +3712,52 @@ async function loadHeatmap() {
 
   try {
     let items;
-    if (_hmMkt === 'kr' && _hmRange === '1d' && _hmSession !== 'regular') {
-      // 국장 시간외(프리/애프터마켓) — Yahoo Finance는 KRX 시간외 데이터를 제공하지 않아 네이버 금융 시세를 사용
-      const codes = tickers.map(t => t.replace(/\.(KS|KQ)$/, ''));
-      const r = await fetch(`/api/kr-overtime?codes=${codes.join(',')}&session=${_hmSession}`);
-      const j = await r.json();
-      if (!j.ok) throw new Error('fetch failed');
-      const data = j.data || {};
-      items = tickers.map((t, i) => {
-        const d = data[codes[i]];
-        if (!d || d.pct == null) return null;
-        return { ticker: t, pct: d.pct, price: d.price, name: nameMap[t] || t };
-      }).filter(Boolean);
-    } else {
-      const r = await fetch(`/api/quotes?tickers=${tickers.join(',')}&range=${_hmRange}`);
-      const j = await r.json();
-      if (!j.ok) throw new Error('fetch failed');
-      const data = j.data || {};
-      items = tickers.map(t => {
-        const d = data[t];
-        if (!d) return null;
-        let pct;
-        if (_hmRange === '1mo') pct = d.periodChangePercent;
-        else if (_hmMkt === 'us' && _hmSession === 'pre') pct = d.preMarketChangePercent;
-        else if (_hmMkt === 'us' && _hmSession === 'post') pct = d.postMarketChangePercent;
-        else pct = d.changePercent;
-        return { ticker: t, pct, price: d.price, name: nameMap[t] || d.shortName || t };
-      }).filter(x => x && x.pct != null);
+    // 세션은 자동 감지: 야후 marketState(휴장일 반영) 기준으로 프리/애프터 시세를 자동 적용
+    let liveSession = null;   // 'pre' | 'post' | 'kr-ot' | null(정규/마감)
+    let domState = null;      // 다수결 marketState (상태 배지용)
+
+    const r = await fetch(`/api/quotes?tickers=${tickers.join(',')}&range=${_hmRange}`);
+    const j = await r.json();
+    if (!j.ok) throw new Error('fetch failed');
+    const data = j.data || {};
+
+    // marketState 다수결 (휴장·마감·프리장 판별 — 시계가 아니라 거래소 캘린더 기준)
+    const stateCount = {};
+    for (const d of Object.values(data)) {
+      if (d?.marketState) stateCount[d.marketState] = (stateCount[d.marketState] || 0) + 1;
+    }
+    domState = Object.entries(stateCount).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+    items = tickers.map(t => {
+      const d = data[t];
+      if (!d) return null;
+      let pct;
+      if (_hmRange === '1mo') pct = d.periodChangePercent;
+      else if (d.marketState === 'PRE' && d.preMarketChangePercent != null) { pct = d.preMarketChangePercent; liveSession = 'pre'; }
+      else if (d.marketState === 'POST' && d.postMarketChangePercent != null) { pct = d.postMarketChangePercent; liveSession = 'post'; }
+      else pct = d.changePercent;
+      return { ticker: t, pct, price: d.price, name: nameMap[t] || d.shortName || t };
+    }).filter(x => x && x.pct != null);
+
+    // 국장 시간외(15:40–18:00 KST) — Yahoo가 KRX 시간외를 제공하지 않아 네이버 시세를 덮어씀
+    if (_hmMkt === 'kr' && _hmRange === '1d') {
+      const kst = new Date(Date.now() + 9 * 3600 * 1000);
+      const km = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+      const kd = kst.getUTCDay();
+      if (kd >= 1 && kd <= 5 && km >= 940 && km < 1080) {
+        try {
+          const codes = tickers.map(t => t.replace(/\.(KS|KQ)$/, ''));
+          const or = await fetch(`/api/kr-overtime?codes=${codes.join(',')}&session=post`);
+          const oj = await or.json();
+          const od = oj?.data || {};
+          let applied = 0;
+          for (const it of items) {
+            const d = od[it.ticker.replace(/\.(KS|KQ)$/, '')];
+            if (d && d.pct != null) { it.pct = d.pct; it.price = d.price; applied++; }
+          }
+          if (applied > 0) liveSession = 'kr-ot';
+        } catch {}
+      }
     }
     items.sort((a, b) => (b.pct || 0) - (a.pct || 0));
     // 셀 클릭 동작 — 주식이면 company.html, 지수·자산·FX·크립토는 새창 TradingView
@@ -3830,7 +3828,7 @@ async function loadHeatmap() {
     if (upEl) upEl.textContent = `${now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })} 기준`;
     const statusEl = document.getElementById('heatmapMarketStatus');
     if (statusEl) {
-      const status = computeMarketStatus(_hmMkt);
+      const status = computeMarketStatusFromData(_hmMkt, domState, liveSession);
       statusEl.textContent = status.label;
       statusEl.style.background = status.bg;
       statusEl.style.color = status.fg;
@@ -3848,6 +3846,39 @@ async function loadHeatmap() {
 }
 
 function escAttr(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// 거래소 캘린더 기반 마켓 상태 — 야후 marketState가 1차 소스, 시계 기반은 폴백.
+// 공휴일에 시계만 보고 '프리장'으로 표시하던 문제 해결: 야후가 CLOSED면 시계가 뭐라든 휴장.
+function computeMarketStatusFromData(market, domState, liveSession) {
+  if (market === 'assets' || !domState) return computeMarketStatus(market);
+  const isUs = market !== 'kr';
+  if (liveSession === 'kr-ot') return { label: '🟠 국장 시간외 (15:40–18:00)', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };
+  switch (domState) {
+    case 'REGULAR':
+      return { label: isUs ? '🟢 미국 정규장' : '🟢 정규장 진행 중', bg: 'var(--green-dim)', fg: 'var(--green)' };
+    case 'PRE':
+      return liveSession === 'pre'
+        ? { label: '🟡 미국 프리장 (시세 반영 중)', bg: 'var(--yellow-dim)', fg: 'var(--yellow)' }
+        : { label: '🟡 개장 전', bg: 'var(--yellow-dim)', fg: 'var(--yellow)' };
+    case 'PREPRE':
+      return { label: '🟡 개장 전', bg: 'var(--yellow-dim)', fg: 'var(--yellow)' };
+    case 'POST':
+      return liveSession === 'post'
+        ? { label: '🟠 미국 애프터마켓 (시세 반영 중)', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' }
+        : { label: '🟠 미국 애프터마켓', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };
+    case 'POSTPOST':
+      return { label: '⚪ 마감', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
+    case 'CLOSED': {
+      // 시계로는 장중·프리·애프터여야 하는데 거래소는 CLOSED → 공휴일
+      const clock = computeMarketStatus(market);
+      const shouldBeOpen = /정규장|프리장|애프터|시간외/.test(clock.label);
+      if (shouldBeOpen) return { label: '🔴 휴장 (공휴일)', bg: 'var(--red-dim)', fg: 'var(--red)' };
+      return clock;  // 주말·야간 → 기존 라벨 그대로
+    }
+    default:
+      return computeMarketStatus(market);
+  }
+}
 
 // ─── 📅 선물·옵션 만기일 ───────────────────────────────────
 function nthWeekdayOfMonth(year, month, weekday, n) {
