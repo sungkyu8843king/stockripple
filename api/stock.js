@@ -86,6 +86,46 @@ async function handlePrice(req, res) {
 // ─── 펀더멘털 (FMP stable + DB 캐시 24h) ──────────────────────────
 const FUND_CACHE_TTL_MS = 24 * 60 * 60 * 1000;  // 24시간
 
+// FMP 한도 초과(429) 시 기본 밸류에이션 폴백 — Nasdaq은 쿼터 없음
+async function fetchNasdaqBasics(ticker) {
+  const H = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'application/json',
+  };
+  const num = (v) => {
+    if (v == null) return null;
+    const x = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+    return isNaN(x) ? null : x;
+  };
+  try {
+    const [sumR, infoR] = await Promise.all([
+      fetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(ticker)}/summary?assetclass=stocks`, { headers: H, signal: AbortSignal.timeout(6000) }),
+      fetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(ticker)}/info?assetclass=stocks`, { headers: H, signal: AbortSignal.timeout(6000) }),
+    ]);
+    const sum  = sumR.ok  ? (await sumR.json())?.data?.summaryData : null;
+    const info = infoR.ok ? (await infoR.json())?.data : null;
+    if (!sum && !info) return null;
+    const val = (o) => (o && typeof o === 'object') ? o.value : o;
+    return {
+      price:     num(info?.primaryData?.lastSalePrice) ?? num(val(sum?.PreviousClose)),
+      marketCap: num(val(sum?.MarketCap)),
+      company:   info?.companyName || null,
+      sector:    val(sum?.Sector) || null,
+      industry:  val(sum?.Industry) || null,
+    };
+  } catch { return null; }
+}
+
+// 새 결과의 null 필드를 기존 캐시 값으로 채움 (부분 실패가 캐시를 오염시키지 않도록)
+function mergeFundamentals(fresh, cached) {
+  if (!cached) return fresh;
+  const out = { ...fresh };
+  for (const k of Object.keys(cached)) {
+    if (out[k] == null && cached[k] != null) out[k] = cached[k];
+  }
+  return out;
+}
+
 async function handleFundamentals(req, res) {
   const { ticker, nocache } = req.query;
   if (!ticker) return res.status(400).json({ error: 'ticker required' });
@@ -108,8 +148,10 @@ async function handleFundamentals(req, res) {
     if (data?.fundamentals && data?.fundamentals_updated_at) {
       cached = data.fundamentals;
       cachedAge = Date.now() - new Date(data.fundamentals_updated_at).getTime();
+      // 핵심 수치가 전무한 캐시(과거 부분 실패로 오염)는 조기반환하지 않고 아래서 재시도
+      const cacheUsable = cached.marketCap != null || cached.revenue != null || cached.pe != null;
       // nocache=1이 아니면 캐시 있는 즉시 반환 (24h 넘었어도 stale 라벨로 표시)
-      if (!nocache) {
+      if (!nocache && cacheUsable) {
         const isFresh = cachedAge < FUND_CACHE_TTL_MS;
         return res.status(200).json({
           ...cached,
@@ -155,13 +197,22 @@ async function handleFundamentals(req, res) {
     fmp(`/stable/cash-flow-statement?symbol=${encodeURIComponent(ticker)}&period=quarter&limit=1`, 'cashflow'),
   ]);
 
-  // 모든 엔드포인트 실패(429 등)면 stale 캐시라도 반환
+  // 모든 엔드포인트 실패(429 등)면 Nasdaq 기본 시세로 보강 후 stale 캐시라도 반환
   const allFailed = !profile && !quote && !incomeQ && !balanceQ && !cashflowQ;
   if (allFailed && cached) {
     const is429 = Object.values(status).some(v => String(v).includes('429'));
-    return res.status(200).json({
+    const nb = await fetchNasdaqBasics(ticker);
+    const enriched = nb ? mergeFundamentals({
       ...cached,
-      source: 'db-cache-stale',
+      price: nb.price ?? cached.price,
+      marketCap: nb.marketCap ?? cached.marketCap,
+      company: cached.company || nb.company,
+      sector: cached.sector || nb.sector,
+      industry: cached.industry || nb.industry,
+    }, cached) : cached;
+    return res.status(200).json({
+      ...enriched,
+      source: nb ? 'db-cache-stale+nasdaq' : 'db-cache-stale',
       cachedAt: new Date(Date.now() - cachedAge).toISOString(),
       cacheAgeHours: Math.round(cachedAge / 3600000 * 10) / 10,
       warning: is429 ? 'FMP 일일 한도 초과 — 캐시 데이터 반환' : 'FMP API 호출 실패 — 캐시 데이터 반환',
@@ -169,6 +220,18 @@ async function handleFundamentals(req, res) {
     });
   }
   if (allFailed) {
+    // 캐시조차 없으면 Nasdaq 기본 시세라도 반환
+    const nb = await fetchNasdaqBasics(ticker);
+    if (nb && (nb.price != null || nb.marketCap != null)) {
+      return res.status(200).json({
+        ok: true, ticker,
+        company: nb.company, sector: nb.sector, industry: nb.industry,
+        price: nb.price, marketCap: nb.marketCap,
+        source: 'nasdaq-basic',
+        warning: 'FMP 한도 초과 — Nasdaq 기본 시세만 표시 (재무제표는 한도 리셋 후 새로고침)',
+        endpointStatus: status,
+      });
+    }
     const is429 = Object.values(status).some(v => String(v).includes('429'));
     // 다음 UTC 00:00 = 한국 시간 다음날 09:00
     const now = new Date();
@@ -270,16 +333,34 @@ async function handleFundamentals(req, res) {
     fiscalPeriod: inc?.period || null,
   };
 
-  // DB 캐시 저장 (다음 24h 동안 FMP 호출 절약)
-  try {
-    await supabase.from('companies').update({
-      fundamentals: fundData,
-      fundamentals_updated_at: new Date().toISOString(),
-    }).eq('ticker', ticker);
-  } catch {}
+  // 일부 엔드포인트 실패로 시총/현재가가 비면 Nasdaq으로 보강
+  if (fundData.marketCap == null || fundData.price == null) {
+    const nb = await fetchNasdaqBasics(ticker);
+    if (nb) {
+      fundData.price     = fundData.price     ?? nb.price;
+      fundData.marketCap = fundData.marketCap ?? nb.marketCap;
+      fundData.company   = fundData.company   || nb.company;
+      fundData.sector    = fundData.sector    || nb.sector;
+      fundData.industry  = fundData.industry  || nb.industry;
+    }
+  }
+
+  // 기존 캐시와 병합 (이번에 실패한 필드는 기존 값 유지)
+  const finalData = mergeFundamentals(fundData, cached);
+
+  // DB 캐시 저장 — 핵심 수치가 있을 때만 (부분 실패 결과로 캐시 오염 방지)
+  const hasCore = finalData.marketCap != null || finalData.revenue != null || finalData.pe != null;
+  if (hasCore) {
+    try {
+      await supabase.from('companies').update({
+        fundamentals: finalData,
+        fundamentals_updated_at: new Date().toISOString(),
+      }).eq('ticker', ticker);
+    } catch {}
+  }
 
   return res.status(200).json({
-    ...fundData,
+    ...finalData,
     source: 'fmp-stable',
     endpointStatus: status,
   });
