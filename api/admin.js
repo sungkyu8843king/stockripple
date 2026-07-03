@@ -16,6 +16,9 @@
  *  POST /api/admin?action=dart-upload-corp-codes → CSV 수동 업로드 (Vercel→한국 네트워크 느릴 때 fallback)
  *  POST /api/admin?action=verify-kr-names → DART corp_code 기반 KR 종목명 검증 + 자동 수정
  *  GET  /api/admin?action=dart-company-detail&ticker=005930.KS → DART 상세 (주주/임원/재무)
+ *  GET  /api/admin?action=ai-market-summary[&history=N] → AI 시장 종합 최신/과거 목록 (공개)
+ *  GET  /api/admin?action=daily-report&market=KR|US[&date=|&history=N] → 데일리 리포트 조회 (공개)
+ *  POST /api/admin?action=daily-report {market} → 데일리 리포트 생성 (장 마감 후 cron)
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
@@ -56,6 +59,8 @@ export default async function handler(req, res) {
   if (action === 'sec-filings')   return handleSecFilings(req, res);
   // ai-market-summary는 GET(조회)은 공개, POST(생성/갱신)만 admin 인증 필요
   if (action === 'ai-market-summary' && req.method === 'GET') return handleAiMarketSummaryGet(req, res);
+  // daily-report도 GET(조회)은 공개, POST(생성)만 admin 인증 필요
+  if (action === 'daily-report' && req.method === 'GET') return handleDailyReportGet(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -74,6 +79,7 @@ export default async function handler(req, res) {
   if (action === 'dart-upload-corp-codes') return handleDartUploadCorpCodes(req, res);
   if (action === 'verify-kr-names') return handleVerifyKrNames(req, res);
   if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
+  if (action === 'daily-report') return handleDailyReportPost(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -1415,6 +1421,16 @@ async function handleSecFilings(req, res) {
 // 18) AI 시장 종합 (24h 뉴스 → Claude 요약)
 // ════════════════════════════════════════════════════════════
 async function handleAiMarketSummaryGet(req, res) {
+  // ?history=N → 과거 리포트 목록 반환 (아카이브)
+  const history = Math.min(parseInt(req.query?.history) || 0, 90);
+  if (history > 0) {
+    const { data } = await supabase
+      .from('ai_market_summary')
+      .select('*').order('created_at', { ascending: false }).limit(history);
+    res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
+    return res.status(200).json({ ok: true, items: data || [] });
+  }
+
   // 최신 캐시된 요약 반환
   const { data } = await supabase
     .from('ai_market_summary')
@@ -1488,5 +1504,154 @@ ${ctx.slice(0, 12000)}
     return res.status(200).json({ ok: true, generated: true, ...row });
   } catch (e) {
     return res.status(500).json({ error: 'AI summary failed: ' + e.message });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// 19) 데일리 리포트 (국장/미장 — 장 마감 후 하루 정리)
+// ════════════════════════════════════════════════════════════
+const DR_INDICES = {
+  KR: [
+    { symbol: '^KS11',  name: 'KOSPI' },
+    { symbol: '^KQ11',  name: 'KOSDAQ' },
+    { symbol: 'KRW=X',  name: 'USD/KRW' },
+  ],
+  US: [
+    { symbol: '^GSPC',  name: 'S&P 500' },
+    { symbol: '^IXIC',  name: 'NASDAQ' },
+    { symbol: '^DJI',   name: 'DOW' },
+    { symbol: '^VIX',   name: 'VIX' },
+  ],
+};
+
+async function fetchDrIndexQuote(symbol, name) {
+  try {
+    const r = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'application/json' }, signal: AbortSignal.timeout(6000) }
+    );
+    if (!r.ok) return null;
+    const meta = (await r.json())?.chart?.result?.[0]?.meta;
+    if (!meta?.regularMarketPrice) return null;
+    const price = meta.regularMarketPrice;
+    const prev = meta.previousClose ?? meta.chartPreviousClose ?? null;
+    let changePercent = meta.regularMarketChangePercent ?? null;
+    if (changePercent == null && prev) changePercent = ((price - prev) / prev) * 100;
+    return { name, price, changePercent: changePercent != null ? Math.round(changePercent * 100) / 100 : null };
+  } catch { return null; }
+}
+
+// 리포트 대상 거래일: 해당 시장 타임존의 오늘 날짜 (장 마감 직후 생성 기준)
+function drReportDate(market) {
+  return new Date().toLocaleDateString('en-CA', { timeZone: market === 'KR' ? 'Asia/Seoul' : 'America/New_York' });
+}
+
+async function handleDailyReportGet(req, res) {
+  const market = ((req.query?.market || 'US') + '').toUpperCase() === 'KR' ? 'KR' : 'US';
+  const history = Math.min(parseInt(req.query?.history) || 0, 90);
+
+  res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
+
+  if (history > 0) {
+    const { data } = await supabase
+      .from('daily_reports').select('*')
+      .eq('market', market)
+      .order('report_date', { ascending: false }).limit(history);
+    return res.status(200).json({ ok: true, market, items: data || [] });
+  }
+
+  const date = ((req.query?.date || '') + '').slice(0, 10);
+  let q = supabase.from('daily_reports').select('*').eq('market', market);
+  const { data } = date
+    ? await q.eq('report_date', date).maybeSingle()
+    : await q.order('report_date', { ascending: false }).limit(1).maybeSingle();
+  if (!data) return res.status(404).json({ error: 'No report yet' });
+  return res.status(200).json({ ok: true, ...data });
+}
+
+async function handleDailyReportPost(req, res) {
+  if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
+
+  const market = ((req.body?.market || req.query?.market || 'US') + '').toUpperCase() === 'KR' ? 'KR' : 'US';
+  const reportDate = drReportDate(market);
+  const marketLabel = market === 'KR' ? '한국 증시(국장)' : '미국 증시(미장)';
+
+  // 1) 실제 지수 마감 데이터 (AI가 지어내지 않도록 직접 수집)
+  const indices = (await Promise.all(
+    DR_INDICES[market].map(x => fetchDrIndexQuote(x.symbol, x.name))
+  )).filter(Boolean);
+
+  // 2) 최근 24h 분석 이슈
+  const sinceIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { data: issues } = await supabase
+    .from('issues')
+    .select('title, summary, sectors, published_at, analyses(ai_summary, confidence_score)')
+    .eq('is_analyzed', true)
+    .gte('published_at', sinceIso)
+    .order('published_at', { ascending: false })
+    .limit(60);
+
+  if (!issues?.length && !indices.length) {
+    return res.status(200).json({ ok: true, generated: false, reason: 'No recent issues or index data' });
+  }
+
+  const ctx = (issues || []).map(i => {
+    return `[${(i.published_at || '').slice(0, 16)}] ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.summary || ''}`.slice(0, 400);
+  }).join('\n\n');
+
+  const idxStr = indices.map(i =>
+    `${i.name}: ${i.price}${i.changePercent != null ? ` (${i.changePercent >= 0 ? '+' : ''}${i.changePercent}%)` : ''}`
+  ).join(' | ');
+
+  const prompt = `당신은 한국어 금융 시장 분석가입니다. 오늘(${reportDate}) ${marketLabel} 장 마감 데일리 리포트를 작성하세요.
+
+■ 실제 지수 마감 데이터 (이 수치만 사용, 지어내지 말 것):
+${idxStr || '(지수 데이터 없음)'}
+
+■ 지난 24시간 뉴스/이슈 ${issues?.length || 0}건:
+${ctx.slice(0, 11000)}
+
+${marketLabel}과 직접 관련된 내용 위주로 정리하세요. 관련 없는 이슈는 제외합니다.
+
+다음 JSON만 반환 (다른 텍스트 없이):
+{
+  "headline": "오늘 ${marketLabel} 하루를 한 문장으로 (40자 내외)",
+  "mood": "상승 또는 하락 또는 혼조 (지수 데이터 기준)",
+  "recap": ["오늘 시장 흐름 요약 문장 1", "문장 2", "문장 3"],
+  "top_events": ["오늘 주요 이벤트/뉴스 1 (한 문장)", "이벤트 2", "이벤트 3"],
+  "sector_notes": ["섹터/종목 특징 1", "특징 2"],
+  "tomorrow": ["다음 거래일 관전 포인트 1", "포인트 2"]
+}
+
+규칙: 사실 기반, 객관적, 한국어, 추측 금지. 본문과 지수 데이터에 명시된 것만 사용.`;
+
+  try {
+    const msg = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const text = msg.content[0].text.trim();
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return res.status(500).json({ error: 'No JSON in response' });
+    const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
+
+    const row = {
+      market,
+      report_date: reportDate,
+      headline: parsed.headline || '',
+      mood: ['상승', '하락', '혼조'].includes(parsed.mood) ? parsed.mood : '혼조',
+      indices,
+      recap: parsed.recap || [],
+      top_events: parsed.top_events || [],
+      sector_notes: parsed.sector_notes || [],
+      tomorrow: parsed.tomorrow || [],
+      based_on_issues: issues?.length || 0,
+      created_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('daily_reports').upsert(row, { onConflict: 'market,report_date' });
+    if (error) return res.status(500).json({ error: 'DB upsert failed: ' + error.message });
+    return res.status(200).json({ ok: true, generated: true, ...row });
+  } catch (e) {
+    return res.status(500).json({ error: 'Daily report failed: ' + e.message });
   }
 }

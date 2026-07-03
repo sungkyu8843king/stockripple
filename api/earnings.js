@@ -31,6 +31,39 @@ async function fetchChart(ticker) {
   } catch { return null; }
 }
 
+// ─── Nasdaq: 다음 실적발표 예정일 + 컨센서스 EPS ──────────────────
+// FMP 무료 티어가 실적 캘린더를 막아둔(402) 경우의 예정일 소스.
+// Zacks 알고리즘 추정일이므로 dateEstimated=true 로 표시.
+const MONTHS = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
+async function fetchNasdaqEarningsDate(ticker) {
+  try {
+    const r = await fetch(
+      `https://api.nasdaq.com/api/analyst/${encodeURIComponent(ticker)}/earnings-date`,
+      { headers: BASE, signal: AbortSignal.timeout(6000) }
+    );
+    if (!r.ok) return null;
+    const j = await r.json();
+    const d = j?.data;
+    if (!d) return null;
+
+    let date = null;
+    // "Earnings announcement* for NVDA: Aug 26, 2026"
+    const am = (d.announcement || '').match(/:\s*([A-Z][a-z]{2})\w*\s+(\d{1,2}),\s*(\d{4})/);
+    if (am && MONTHS[am[1]]) date = `${am[3]}-${MONTHS[am[1]]}-${String(am[2]).padStart(2, '0')}`;
+    // "estimated to report earnings on  07/30/2026"
+    if (!date) {
+      const rm = (d.reportText || '').match(/report earnings on\s+(\d{2})\/(\d{2})\/(\d{4})/);
+      if (rm) date = `${rm[3]}-${rm[1]}-${rm[2]}`;
+    }
+    // "consensus EPS forecast for the quarter is $1.88"
+    const em = (d.reportText || '').match(/consensus EPS forecast for the quarter is \$(-?[\d.]+)/);
+    const epsForecast = em ? parseFloat(em[1]) : null;
+
+    if (!date && epsForecast == null) return null;
+    return { date, epsForecast };
+  } catch { return null; }
+}
+
 // ─── Yahoo insights: 목표가, 투자의견 ─────────────────────────────
 async function fetchInsights(ticker) {
   try {
@@ -153,10 +186,15 @@ async function handleEarnings() {
   const fmpRes = await fetchFMP(TICKERS);
   const fmpBySym = fmpRes.data || {};
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+
   const enrich = async (ticker) => {
-    const fmp  = fmpBySym[ticker] || null;
-    const meta = await fetchChart(ticker);
-    const ins  = await fetchInsights(ticker);
+    const fmp = fmpBySym[ticker] || null;
+    const [meta, ins, nasdaq] = await Promise.all([
+      fetchChart(ticker),
+      fetchInsights(ticker),
+      fetchNasdaqEarningsDate(ticker),
+    ]);
 
     const company      = meta?.shortName || meta?.longName || ticker;
     const currentPrice = meta?.regularMarketPrice ?? null;
@@ -168,12 +206,21 @@ async function handleEarnings() {
       recKey = rStr === 'buy' ? 'buy' : rStr === 'sell' ? 'sell' : rStr === 'hold' ? 'hold' : null;
     }
 
+    // 날짜: FMP 미래일 > Nasdaq 추정 예정일 > FMP 과거 발표일
+    let date = fmp?.date || null;
+    let dateEstimated = false;
+    if ((!date || date < todayStr) && nasdaq?.date && nasdaq.date >= todayStr) {
+      date = nasdaq.date;
+      dateEstimated = true;
+    }
+
     return {
       ticker,
       company,
-      date:         fmp?.date || null,
+      date,
+      dateEstimated,
       epsActual:    fmp?.eps ?? null,
-      epsConsensus: fmp?.epsEstimated ?? null,
+      epsConsensus: fmp?.epsEstimated ?? nasdaq?.epsForecast ?? null,
       revActual:    fmp?.revenue ?? null,
       revEstimate:  fmp?.revenueEstimated ?? null,
       callTime:     fmp?.time === 'bmo' ? 'BMO' : fmp?.time === 'amc' ? 'AMC' : null,

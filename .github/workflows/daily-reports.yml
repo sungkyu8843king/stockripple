@@ -1,0 +1,43 @@
+name: Daily Market Reports
+
+on:
+  schedule:
+    # 국장 마감 후: KST 16:40 = UTC 07:40 (평일)
+    - cron: '40 7 * * 1-5'
+    # 미장 마감 후: UTC 21:10 = EDT 17:10 / EST 16:10 (서머타임 여부와 무관하게 16:00 ET 마감 이후)
+    - cron: '10 21 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      market:
+        description: '시장 (KR 또는 US)'
+        required: true
+        default: 'US'
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Determine market
+        id: market
+        run: |
+          if [ -n "${{ github.event.inputs.market }}" ]; then
+            MARKET="${{ github.event.inputs.market }}"
+          elif [ "$(date -u +%H)" -lt 12 ]; then
+            MARKET="KR"   # UTC 오전 = KST 오후 (국장 마감)
+          else
+            MARKET="US"   # UTC 저녁 = ET 오후 (미장 마감)
+          fi
+          echo "market=$MARKET" >> "$GITHUB_OUTPUT"
+          echo "Market: $MARKET"
+
+      - name: Generate daily report
+        run: |
+          RESP=$(curl -s --max-time 120 -X POST \
+            "${{ secrets.VERCEL_URL }}/api/admin?action=daily-report" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"market": "${{ steps.market.outputs.market }}"}' || true)
+          echo "$RESP" | jq '{ok, generated, market, report_date, headline, error}' 2>/dev/null \
+            || echo "non-JSON response: $(echo "$RESP" | head -c 300)"
