@@ -844,6 +844,7 @@ function renderFundamentalsError(wrap, ticker, message, hint = '', resetKst = ''
 }
 
 function renderFundamentals(wrap, f, ticker) {
+  const isKrw = f.currency === 'KRW';
   // 포맷 헬퍼
   const fmtNum = (v, digits = 2) => v == null ? '—' : Number(v).toFixed(digits);
   const fmtPct = v => v == null ? '—' : (v > 0 ? '+' : '') + Number(v).toFixed(1) + '%';
@@ -851,6 +852,11 @@ function renderFundamentals(wrap, f, ticker) {
   const fmtMoney = v => {
     if (v == null) return '—';
     const abs = Math.abs(v);
+    if (isKrw) {
+      if (abs >= 1e12) return `${(v/1e12).toLocaleString(undefined, { maximumFractionDigits: 1 })}조원`;
+      if (abs >= 1e8)  return `${Math.round(v/1e8).toLocaleString()}억원`;
+      return `${Number(v).toLocaleString()}원`;
+    }
     if (abs >= 1e12) return `$${(v/1e12).toFixed(2)}T`;
     if (abs >= 1e9)  return `$${(v/1e9).toFixed(2)}B`;
     if (abs >= 1e6)  return `$${(v/1e6).toFixed(0)}M`;
@@ -874,6 +880,7 @@ function renderFundamentals(wrap, f, ticker) {
         ${f.source === 'db-cache' ? `<span style="font-size:10px;color:var(--green);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px">💾 캐시 ${f.cacheAgeHours}h 전</span>` : ''}
         ${f.source === 'db-cache-stale' ? `<span style="font-size:10px;color:var(--yellow);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px" title="${f.warning || ''}">⚠️ stale ${f.cacheAgeHours}h 전</span>` : ''}
         ${f.source === 'fmp-stable' ? `<span style="font-size:10px;color:var(--blue);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px">🆕 최신</span>` : ''}
+        ${f.source === 'naver' ? `<span style="font-size:10px;color:var(--green);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px">🇰🇷 네이버증권</span>` : ''}
         <button onclick="loadFundamentals('${escHtml(ticker)}', true)" style="margin-left:auto;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px" title="캐시 무시하고 FMP에서 최신 데이터 가져오기">🔄 새로고침</button>
       </div>
 
@@ -882,7 +889,7 @@ function renderFundamentals(wrap, f, ticker) {
         <div class="fund-group-title">💎 밸류에이션</div>
         <div class="fund-grid">
           <div class="fund-item"><div class="fund-label">시가총액</div><div class="fund-val">${fmtMoney(f.marketCap)}</div></div>
-          <div class="fund-item"><div class="fund-label">PER</div><div class="fund-val ${peColor}">${fmtNum(f.pe, 1)}</div><div class="fund-sub">${f.eps ? 'EPS $' + Number(f.eps).toFixed(2) : ''}</div></div>
+          <div class="fund-item"><div class="fund-label">PER</div><div class="fund-val ${peColor}">${fmtNum(f.pe, 1)}</div><div class="fund-sub">${f.eps ? 'EPS ' + (isKrw ? Number(f.eps).toLocaleString() + '원' : '$' + Number(f.eps).toFixed(2)) : ''}</div></div>
           <div class="fund-item"><div class="fund-label">PBR</div><div class="fund-val ${pbColor}">${fmtNum(f.pb, 2)}</div></div>
           <div class="fund-item"><div class="fund-label">PSR</div><div class="fund-val">${fmtNum(f.ps, 2)}</div></div>
         </div>
@@ -893,7 +900,9 @@ function renderFundamentals(wrap, f, ticker) {
         <div class="fund-group-title">💰 수익성</div>
         <div class="fund-grid">
           <div class="fund-item"><div class="fund-label">ROE</div><div class="fund-val ${roeColor}">${fmtPctRaw(f.roe)}</div><div class="fund-sub">자기자본수익률</div></div>
-          <div class="fund-item"><div class="fund-label">ROA</div><div class="fund-val">${fmtPctRaw(f.roa)}</div><div class="fund-sub">총자산수익률</div></div>
+          ${isKrw
+            ? `<div class="fund-item"><div class="fund-label">추정PER</div><div class="fund-val">${fmtNum(f.cnsPer, 1)}</div><div class="fund-sub">${f.cnsEps ? '추정EPS ' + Number(f.cnsEps).toLocaleString() + '원' : '컨센서스'}</div></div>`
+            : `<div class="fund-item"><div class="fund-label">ROA</div><div class="fund-val">${fmtPctRaw(f.roa)}</div><div class="fund-sub">총자산수익률</div></div>`}
           <div class="fund-item"><div class="fund-label">영업이익률</div><div class="fund-val ${opMarginColor}">${fmtPctRaw(f.operatingMargin)}</div></div>
           <div class="fund-item"><div class="fund-label">순이익률</div><div class="fund-val">${fmtPctRaw(f.netMargin)}</div></div>
         </div>
@@ -903,10 +912,17 @@ function renderFundamentals(wrap, f, ticker) {
       <div class="fund-group">
         <div class="fund-group-title">🏦 재무 안정성</div>
         <div class="fund-grid">
+          ${isKrw ? `
+          <div class="fund-item"><div class="fund-label">부채비율</div><div class="fund-val ${f.debtRatioPct == null ? '' : f.debtRatioPct < 100 ? 'good' : f.debtRatioPct < 200 ? '' : f.debtRatioPct < 400 ? 'warn' : 'bad'}">${fmtPctRaw(f.debtRatioPct)}</div><div class="fund-sub">${f.debtRatioPct != null ? (f.debtRatioPct < 100 ? '낮음' : f.debtRatioPct < 200 ? '보통' : f.debtRatioPct < 400 ? '높음' : '매우 높음') : ''}</div></div>
+          <div class="fund-item"><div class="fund-label">당좌비율</div><div class="fund-val ${f.quickRatioPct == null ? '' : f.quickRatioPct >= 100 ? 'good' : f.quickRatioPct >= 70 ? 'warn' : 'bad'}">${fmtPctRaw(f.quickRatioPct)}</div><div class="fund-sub">${f.quickRatioPct != null ? (f.quickRatioPct >= 100 ? '안전' : '주의') : ''}</div></div>
+          <div class="fund-item"><div class="fund-label">유보율</div><div class="fund-val dim">${f.retentionRatioPct != null ? Math.round(f.retentionRatioPct).toLocaleString() + '%' : '—'}</div></div>
+          <div class="fund-item"><div class="fund-label">BPS</div><div class="fund-val dim">${f.bps != null ? Number(f.bps).toLocaleString() + '원' : '—'}</div><div class="fund-sub">주당순자산</div></div>
+          ` : `
           <div class="fund-item"><div class="fund-label">부채비율 (D/E)</div><div class="fund-val ${debtColor}">${fmtNum(f.debtToEquity, 2)}</div><div class="fund-sub">${f.debtToEquity != null ? (f.debtToEquity < 0.5 ? '낮음' : f.debtToEquity < 1.5 ? '보통' : f.debtToEquity < 3 ? '높음' : '매우 높음') : ''}</div></div>
           <div class="fund-item"><div class="fund-label">유동비율</div><div class="fund-val ${currColor}">${fmtNum(f.currentRatio, 2)}</div><div class="fund-sub">${f.currentRatio != null ? (f.currentRatio > 2 ? '여유' : f.currentRatio > 1 ? '안전' : '위험') : ''}</div></div>
           <div class="fund-item"><div class="fund-label">총 부채</div><div class="fund-val dim">${fmtMoney(f.totalDebt)}</div></div>
           <div class="fund-item"><div class="fund-label">현금성 자산</div><div class="fund-val dim">${fmtMoney(f.totalCash)}</div></div>
+          `}
         </div>
       </div>
 
@@ -929,11 +945,20 @@ function renderFundamentals(wrap, f, ticker) {
             <div class="fund-val">${fmtMoney(f.netIncome)}</div>
             ${f.netIncomeGrowthYoY != null ? `<div class="fund-sub ${f.netIncomeGrowthYoY > 0 ? 'pos' : 'neg'}">YoY ${fmtPct(f.netIncomeGrowthYoY)}</div>` : ''}
           </div>
-          <div class="fund-item"><div class="fund-label">잉여현금흐름</div><div class="fund-val dim">${fmtMoney(f.freeCashFlow)}</div></div>
+          ${isKrw ? '' : `<div class="fund-item"><div class="fund-label">잉여현금흐름</div><div class="fund-val dim">${fmtMoney(f.freeCashFlow)}</div></div>`}
         </div>
       </div>
 
-      ${(f.sector || f.industry || f.beta) ? `
+      ${isKrw ? `
+      <div class="fund-group">
+        <div class="fund-group-title">🏷️ 배당·기타</div>
+        <div class="fund-grid">
+          ${f.dividendYield != null ? `<div class="fund-item"><div class="fund-label">배당수익률</div><div class="fund-val">${(f.dividendYield * 100).toFixed(2)}%</div>${f.dividendPerShare != null ? `<div class="fund-sub">주당 ${Number(f.dividendPerShare).toLocaleString()}원</div>` : ''}</div>` : ''}
+          ${f.high52w != null ? `<div class="fund-item"><div class="fund-label">52주 최고</div><div class="fund-val dim">${Number(f.high52w).toLocaleString()}원</div></div>` : ''}
+          ${f.low52w != null ? `<div class="fund-item"><div class="fund-label">52주 최저</div><div class="fund-val dim">${Number(f.low52w).toLocaleString()}원</div></div>` : ''}
+          ${f.foreignRatePct != null ? `<div class="fund-item"><div class="fund-label">외인소진율</div><div class="fund-val dim">${f.foreignRatePct.toFixed(2)}%</div><div class="fund-sub">외국인 보유비중</div></div>` : ''}
+        </div>
+      </div>` : (f.sector || f.industry || f.beta) ? `
       <div class="fund-group">
         <div class="fund-group-title">🏷️ 분류</div>
         <div class="fund-grid">

@@ -92,15 +92,8 @@ async function handleFundamentals(req, res) {
   if (nocache) res.setHeader('Cache-Control', 'no-store');
   else         res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
 
-  // 한국 종목은 FMP 무료 미지원
-  if (/\.KS$|\.KQ$/i.test(ticker)) {
-    return res.status(200).json({
-      ok: false,
-      ticker,
-      error: '한국 종목은 FMP 무료 티어 미지원',
-      hint: '미국 종목(AAPL, MSFT 등)만 펀더멘털 데이터 제공됩니다.',
-    });
-  }
+  // 한국 종목은 FMP 무료 미지원 → 네이버 증권 데이터로 제공
+  if (/\.KS$|\.KQ$/i.test(ticker)) return handleFundamentalsKR(req, res, ticker);
 
   // DB 캐시 확인 — nocache가 아니면 캐시 있으면 무조건 사용 (FMP 절약)
   let cached = null;
@@ -289,6 +282,115 @@ async function handleFundamentals(req, res) {
     source: 'fmp-stable',
     endpointStatus: status,
   });
+}
+
+// ─── 펀더멘털 KR (네이버 증권 — integration + finance/quarter) ──────
+// FMP 무료 티어가 한국 종목을 지원하지 않아 네이버 데이터로 대체한다.
+// 밸류에이션(PER/PBR/EPS/BPS/배당)은 integration, 실적·재무비율은 분기 재무제표에서.
+async function handleFundamentalsKR(req, res, ticker) {
+  const code = String(ticker).match(/^(\d{6})\./)?.[1];
+  if (!code) return res.status(400).json({ ok: false, ticker, error: 'invalid KR ticker' });
+
+  res.setHeader('Cache-Control', req.query.nocache ? 'no-store' : 'public, s-maxage=3600, stale-while-revalidate=86400');
+
+  const HEADERS = { 'User-Agent': 'Mozilla/5.0 (compatible; StockRipple/1.0)' };
+  const getJson = async url => {
+    const r = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error(`Naver HTTP ${r.status}`);
+    return r.json();
+  };
+
+  try {
+    const [integ, quart] = await Promise.all([
+      getJson(`https://m.stock.naver.com/api/stock/${code}/integration`),
+      getJson(`https://m.stock.naver.com/api/stock/${code}/finance/quarter`).catch(() => null),
+    ]);
+
+    // "24.53배" / "12,372원" / "0.55%" / "3,336,059" → 숫자
+    const num = v => {
+      const n = parseFloat(String(v ?? '').replace(/[+,%원배주\s]/g, ''));
+      return isNaN(n) ? null : n;
+    };
+    // "1,774조 3,456억" / "9,053억" → 원 단위
+    const krMoney = s => {
+      if (!s) return null;
+      let t = 0;
+      const jo  = String(s).match(/([\d,.]+)\s*조/);
+      const eok = String(s).match(/([\d,.]+)\s*억/);
+      if (jo)  t += parseFloat(jo[1].replace(/,/g, '')) * 1e12;
+      if (eok) t += parseFloat(eok[1].replace(/,/g, '')) * 1e8;
+      return t || null;
+    };
+
+    const info = {};
+    for (const it of integ?.totalInfos || []) info[it.code] = it.value;
+
+    // 분기 재무제표 — 마지막 실적 분기(컨센서스 제외)와 4분기 전(YoY 비교용)
+    let fin = null, finPrev = null, fiscalPeriod = null;
+    const fi = quart?.financeInfo;
+    if (fi?.trTitleList?.length && fi?.rowList?.length) {
+      const actuals = fi.trTitleList.filter(t => t.isConsensus !== 'Y');
+      const last = actuals[actuals.length - 1];
+      const yoy  = actuals[actuals.length - 5] || null;  // 4분기 전
+      fiscalPeriod = last ? `${last.title} 분기` : null;
+      const pick = key => {
+        const out = {};
+        for (const row of fi.rowList) out[row.title] = num(row.columns?.[key]?.value);
+        return out;
+      };
+      if (last) fin = pick(last.key);
+      if (yoy)  finPrev = pick(yoy.key);
+    }
+
+    const pct = (a, b) => (a != null && b != null && b !== 0) ? ((a - b) / Math.abs(b) * 100) : null;
+    const eokToKrw = v => v != null ? v * 1e8 : null;
+
+    const marketCap = krMoney(info.marketValue);
+    const revenue = eokToKrw(fin?.['매출액']);
+    const dividendYieldPct = num(info.dividendYieldRatio);
+
+    return res.status(200).json({
+      ok: true,
+      ticker,
+      currency: 'KRW',
+      source: 'naver',
+      company: integ?.stockName || null,
+      // 밸류에이션
+      marketCap,
+      pe:  num(info.per),
+      pb:  num(info.pbr),
+      eps: num(info.eps),
+      bps: num(info.bps),
+      ps:  (marketCap && revenue) ? marketCap / (revenue * 4) : null,  // 분기 매출 × 4 연환산
+      cnsPer: num(info.cnsPer),
+      cnsEps: num(info.cnsEps),
+      // 수익성 (분기)
+      roe:             fin?.['ROE'] ?? null,
+      operatingMargin: fin?.['영업이익률'] ?? null,
+      netMargin:       fin?.['순이익률'] ?? null,
+      // 재무 안정성 (KR식 %)
+      debtRatioPct:      fin?.['부채비율'] ?? null,
+      quickRatioPct:     fin?.['당좌비율'] ?? null,
+      retentionRatioPct: fin?.['유보율'] ?? null,
+      // 실적 (분기, 원 단위)
+      revenue,
+      operatingIncome: eokToKrw(fin?.['영업이익']),
+      netIncome:       eokToKrw(fin?.['당기순이익']),
+      revenueGrowthYoY:   pct(fin?.['매출액'],   finPrev?.['매출액']),
+      operatingGrowthYoY: pct(fin?.['영업이익'], finPrev?.['영업이익']),
+      netIncomeGrowthYoY: pct(fin?.['당기순이익'], finPrev?.['당기순이익']),
+      // 배당·기타
+      dividendYield: dividendYieldPct != null ? dividendYieldPct / 100 : null,
+      dividendPerShare: num(info.dividend),
+      high52w: num(info.highPriceOf52Weeks),
+      low52w:  num(info.lowPriceOf52Weeks),
+      foreignRatePct: num(info.foreignRate),
+      fiscalPeriod,
+      reportDate: null,
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, ticker, error: 'Naver 데이터 조회 실패: ' + err.message });
+  }
 }
 
 // ─── 투자자별 매매동향 (KR 전용 — 네이버 증권 비공식 API) ──────────
