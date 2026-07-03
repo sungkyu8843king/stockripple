@@ -58,14 +58,15 @@ export default async function handler(req, res) {
   faf('/api/analyze', { limit: 5 });
   faf('/api/admin?action=extract-investments', { since_hours: 48, max: 25 });
   faf('/api/admin?action=dart-poll', { days: 2 });
+  faf('/api/admin?action=dart-sync-corp-codes');  // 신규 KR 종목의 corp_code 자동 매핑 (예: 히트맵에 추가된 HLB류)
   faf('/api/admin?action=ai-market-summary');
   faf('/api/check-accuracy');
 
   return res.status(200).json({
     success: true,
     timestamp: new Date().toISOString(),
-    message: '8개 작업을 백그라운드에서 실행 중 (각각 독립 실행, 최대 55초)',
-    jobs: ['fetch-news','fetch-rss','trump','analyze','extract-investments','dart-poll','ai-market-summary','check-accuracy'],
+    message: '9개 작업을 백그라운드에서 실행 중 (각각 독립 실행, 최대 55초)',
+    jobs: ['fetch-news','fetch-rss','trump','analyze','extract-investments','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy'],
   });
 }
 
