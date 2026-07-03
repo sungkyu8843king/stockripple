@@ -1435,7 +1435,10 @@ async function handleAiMarketSummaryGet(req, res) {
   const { data } = await supabase
     .from('ai_market_summary')
     .select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
-  if (!data) return res.status(404).json({ error: 'No summary yet. POST /api/admin?action=ai-market-summary to generate.' });
+  if (!data) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(404).json({ error: 'No summary yet. POST /api/admin?action=ai-market-summary to generate.' });
+  }
   res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
   return res.status(200).json({ ok: true, ...data });
 }
@@ -1550,13 +1553,12 @@ async function handleDailyReportGet(req, res) {
   const market = ((req.query?.market || 'US') + '').toUpperCase() === 'KR' ? 'KR' : 'US';
   const history = Math.min(parseInt(req.query?.history) || 0, 90);
 
-  res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
-
   if (history > 0) {
     const { data } = await supabase
       .from('daily_reports').select('*')
       .eq('market', market)
       .order('report_date', { ascending: false }).limit(history);
+    res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
     return res.status(200).json({ ok: true, market, items: data || [] });
   }
 
@@ -1565,7 +1567,12 @@ async function handleDailyReportGet(req, res) {
   const { data } = date
     ? await q.eq('report_date', date).maybeSingle()
     : await q.order('report_date', { ascending: false }).limit(1).maybeSingle();
-  if (!data) return res.status(404).json({ error: 'No report yet' });
+  if (!data) {
+    // 404를 CDN에 캐시하면 리포트 생성 직후에도 한동안 "없음"으로 보임
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(404).json({ error: 'No report yet' });
+  }
+  res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
   return res.status(200).json({ ok: true, ...data });
 }
 
