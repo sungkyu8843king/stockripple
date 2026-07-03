@@ -2,6 +2,7 @@
  * stock.js — stock-price + stock-chart 통합
  *  GET /api/stock?type=price&ticker=X       → 현재가, 시총 (캐시 1시간)
  *  GET /api/stock?type=chart&ticker=X&range=3mo → 차트 데이터 (raw points)
+ *  GET /api/stock?type=investors&ticker=005930.KS&count=20 → 투자자별 일별 순매수 (KR 전용)
  */
 import { createClient } from '@supabase/supabase-js';
 
@@ -15,6 +16,7 @@ export default async function handler(req, res) {
   const type = (req.query?.type || 'price').toString();
   if (type === 'chart')        return handleChart(req, res);
   if (type === 'fundamentals') return handleFundamentals(req, res);
+  if (type === 'investors')    return handleInvestors(req, res);
   return handlePrice(req, res);
 }
 
@@ -287,6 +289,57 @@ async function handleFundamentals(req, res) {
     source: 'fmp-stable',
     endpointStatus: status,
   });
+}
+
+// ─── 투자자별 매매동향 (KR 전용 — 네이버 증권 비공식 API) ──────────
+// 개인/기관/외국인 일별 순매수 수량 + 외국인 보유율. 미국 종목은 이런
+// 투자자 구분 데이터 자체가 없으므로 ok:false로 응답한다.
+async function handleInvestors(req, res) {
+  const { ticker, count } = req.query;
+  if (!ticker) return res.status(400).json({ error: 'ticker required' });
+
+  const m = String(ticker).match(/^(\d{6})\.(KS|KQ)$/i);
+  if (!m) {
+    return res.status(200).json({
+      ok: false, ticker,
+      error: '투자자별 매매동향은 한국 종목(.KS/.KQ)만 제공됩니다.',
+    });
+  }
+  const code = m[1];
+  const pageSize = Math.min(Math.max(parseInt(count, 10) || 20, 1), 60);
+
+  res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600');
+
+  try {
+    const r = await fetch(`https://m.stock.naver.com/api/stock/${code}/trend?pageSize=${pageSize}&page=1`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StockRipple/1.0)' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) throw new Error(`Naver HTTP ${r.status}`);
+    const list = await r.json();
+    if (!Array.isArray(list)) throw new Error('unexpected response shape');
+
+    // "+6,951,718" / "-5,007,053" / "46.76%" → 숫자
+    const num = v => {
+      const n = parseFloat(String(v ?? '').replace(/[+,%\s]/g, ''));
+      return isNaN(n) ? null : n;
+    };
+
+    const days = list.map(d => ({
+      date: `${d.bizdate.slice(0, 4)}-${d.bizdate.slice(4, 6)}-${d.bizdate.slice(6, 8)}`,
+      close: num(d.closePrice),
+      change: num(d.compareToPreviousClosePrice),
+      individual: num(d.individualPureBuyQuant),
+      institution: num(d.organPureBuyQuant),
+      foreign: num(d.foreignerPureBuyQuant),
+      foreignHoldRatio: num(d.foreignerHoldRatio),
+      volume: num(d.accumulatedTradingVolume),
+    }));
+
+    return res.status(200).json({ ok: true, ticker, code, days, source: 'naver' });
+  } catch (err) {
+    return res.status(500).json({ ok: false, ticker, error: err.message });
+  }
 }
 
 // ─── 차트 데이터 (일봉 N개월) ─────────────────────────────

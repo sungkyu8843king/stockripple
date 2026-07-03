@@ -499,6 +499,9 @@ function renderPage(company, records, priceData) {
     <!-- 🇰🇷 DART 상세 (주주/임원/재무) — KR 종목만 -->
     <div id="dartDetailWrap"></div>
 
+    <!-- 🧭 투자자별 매매동향 — KR 종목만 -->
+    <div id="investorTrendWrap"></div>
+
     <!-- 📜 SEC 공시 — US 종목만 -->
     <div id="secFilingsWrap"></div>
 
@@ -586,8 +589,11 @@ function renderPage(company, records, priceData) {
   // 펀더멘털 (병렬)
   loadFundamentals(ticker);
 
-  // KR 종목: DART 상세 데이터 로드
-  if (isKr) loadDartDetail(ticker);
+  // KR 종목: DART 상세 데이터 + 투자자별 매매동향 로드
+  if (isKr) {
+    loadDartDetail(ticker);
+    loadInvestorTrend(ticker);
+  }
   // US 종목: SEC 공시 + 옵션 체인 로드
   if (!isKr) {
     loadSecFilings(ticker);
@@ -1152,6 +1158,98 @@ async function loadOptionsChain(ticker) {
 }
 
 // ─── 🇰🇷 DART 상세 (KR 종목) ───────────────────────────────
+// ── 투자자별 매매동향 (KR 전용) ──────────────────────────
+async function loadInvestorTrend(ticker) {
+  const wrap = document.getElementById('investorTrendWrap');
+  if (!wrap) return;
+  wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:24px">
+    <div style="font-size:14px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px">
+      🧭 투자자별 매매동향 <span class="spinner" style="width:12px;height:12px;border-width:2px"></span>
+    </div>
+  </div>`;
+
+  try {
+    const r = await fetch('/api/stock?type=investors&ticker=' + encodeURIComponent(ticker) + '&count=20');
+    const d = await r.json();
+    if (!r.ok || !d.ok || !d.days?.length) {
+      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:12px;color:var(--text3)">
+        🧭 투자자별 매매동향 데이터 사용 불가 — ${escHtml(d.error || 'unknown')}
+      </div>`;
+      return;
+    }
+    wrap.innerHTML = renderInvestorTrend(d);
+  } catch (e) {
+    wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:12px;color:var(--red)">투자자별 매매동향 로드 실패: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderInvestorTrend(d) {
+  const days = d.days;
+  const fmtNet = v => {
+    if (v == null) return '<span style="color:var(--text3)">—</span>';
+    const cls = v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text3)';
+    const sign = v > 0 ? '+' : '';
+    return `<span style="color:${cls};font-variant-numeric:tabular-nums">${sign}${v.toLocaleString()}</span>`;
+  };
+  const fmtClose = day => {
+    const ch = day.change;
+    const cls = ch > 0 ? 'var(--green)' : ch < 0 ? 'var(--red)' : 'var(--text3)';
+    const arrow = ch > 0 ? '▲' : ch < 0 ? '▼' : '—';
+    return `${day.close != null ? day.close.toLocaleString() : '—'}
+      <span style="color:${cls};font-size:11px">${arrow}${ch != null ? Math.abs(ch).toLocaleString() : ''}</span>`;
+  };
+
+  // 최근 5일 누적 순매수
+  const sum5 = key => days.slice(0, 5).reduce((a, day) => a + (day[key] || 0), 0);
+  const chip = (label, v) => {
+    const cls = v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text3)';
+    const bg  = v > 0 ? 'var(--green-dim)' : v < 0 ? 'var(--red-dim)' : 'var(--bg3)';
+    return `<span style="background:${bg};color:${cls};padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600">
+      ${label} ${v > 0 ? '+' : ''}${v.toLocaleString()}주</span>`;
+  };
+
+  const td = 'padding:7px 8px;border-bottom:1px solid var(--border);';
+  const rows = days.map(day => `
+    <tr>
+      <td style="${td}white-space:nowrap;color:var(--text2)">${day.date.slice(5)}</td>
+      <td style="${td}white-space:nowrap">${fmtClose(day)}</td>
+      <td style="${td}text-align:right">${fmtNet(day.individual)}</td>
+      <td style="${td}text-align:right">${fmtNet(day.institution)}</td>
+      <td style="${td}text-align:right">${fmtNet(day.foreign)}</td>
+      <td style="${td}text-align:right;color:var(--text2)">${day.foreignHoldRatio != null ? day.foreignHoldRatio.toFixed(2) + '%' : '—'}</td>
+    </tr>`).join('');
+
+  return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:24px">
+    <div style="font-size:14px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      🧭 투자자별 매매동향
+      <span style="font-size:11px;color:var(--text3);font-weight:400">일별 순매수 · 주 단위 · 네이버증권</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <span style="font-size:12px;color:var(--text3);align-self:center">최근 5일 누적:</span>
+      ${chip('개인', sum5('individual'))}
+      ${chip('기관', sum5('institution'))}
+      ${chip('외국인', sum5('foreign'))}
+    </div>
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;margin-top:12px">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead>
+          <tr style="color:var(--text3);font-size:11px;text-align:right">
+            <th style="text-align:left;padding:6px 8px;position:sticky;top:0;background:var(--bg2)">날짜</th>
+            <th style="text-align:left;padding:6px 8px;position:sticky;top:0;background:var(--bg2)">종가</th>
+            <th style="padding:6px 8px;position:sticky;top:0;background:var(--bg2)">개인</th>
+            <th style="padding:6px 8px;position:sticky;top:0;background:var(--bg2)">기관</th>
+            <th style="padding:6px 8px;position:sticky;top:0;background:var(--bg2)">외국인</th>
+            <th style="padding:6px 8px;position:sticky;top:0;background:var(--bg2)">외인보유율</th>
+          </tr>
+        </thead>
+        <tbody style="border-top:1px solid var(--border)">
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
 async function loadDartDetail(ticker) {
   const wrap = document.getElementById('dartDetailWrap');
   if (!wrap) return;
