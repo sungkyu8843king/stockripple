@@ -87,6 +87,37 @@ export default async function handler(req, res) {
 // ════════════════════════════════════════════════════════════
 // 1) 회사 AI 종합 분석 (공개)
 // ════════════════════════════════════════════════════════════
+// 실시간 시세 스냅샷 — AI가 학습시점 기억(분사/재상장/인수 이전 상태)으로
+// 상장 여부를 잘못 서술하는 것을 막는 사실 근거 (예: SNDK 2025-02 WDC에서 분사 재상장)
+async function fetchLiveSnapshot(ticker) {
+  try {
+    const r = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) }
+    );
+    if (!r.ok) return null;
+    const result = (await r.json())?.chart?.result?.[0];
+    const meta = result?.meta;
+    if (!meta?.regularMarketPrice) return null;
+    const closes = (result?.indicators?.quote?.[0]?.close || []).filter(v => v != null);
+    const price = meta.regularMarketPrice;
+    const prev  = closes.length >= 2 ? closes[closes.length - 2] : null;
+    const first = closes.length ? closes[0] : null;
+    return {
+      name: meta.longName || meta.shortName || null,
+      exchange: meta.fullExchangeName || meta.exchangeName || null,
+      price,
+      currency: meta.currency || 'USD',
+      dayChangePct: prev ? Math.round((price - prev) / prev * 10000) / 100 : null,
+      w52Low: meta.fiftyTwoWeekLow ?? null,
+      w52High: meta.fiftyTwoWeekHigh ?? null,
+      perf1yPct: first ? Math.round((price - first) / first * 1000) / 10 : null,
+      firstTradeDate: meta.firstTradeDate ? new Date(meta.firstTradeDate * 1000).toISOString().slice(0, 10) : null,
+      asOf: meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString().slice(0, 10) : null,
+    };
+  } catch { return null; }
+}
+
 async function handleSummary(req, res) {
   const ticker = (req.query?.ticker || '').toString().trim().toUpperCase();
   if (!ticker) return res.status(400).json({ error: 'ticker required' });
@@ -99,6 +130,8 @@ async function handleSummary(req, res) {
       .eq('ticker', ticker)
       .single();
     if (!company) return res.status(404).json({ error: 'company not found' });
+
+    const live = await fetchLiveSnapshot(ticker);
 
     const { data: recent } = await supabase
       .from('analysis_companies')
@@ -123,6 +156,15 @@ async function handleSummary(req, res) {
       strategicCtx = await mod.formatMergedBetsForPrompt(supabase, ticker);
     } catch {}
 
+    const liveCtx = live ? `📡 실시간 시장 데이터 (Yahoo Finance, ${live.asOf || '오늘'} 기준 — 사실 판단의 최우선 근거):
+- 종목명: ${live.name || ticker} — ${live.exchange || '?'} 에서 현재 정상 거래 중인 상장 종목
+- 현재가: ${live.price} ${live.currency}${live.dayChangePct != null ? ` (전일 대비 ${live.dayChangePct >= 0 ? '+' : ''}${live.dayChangePct}%)` : ''}
+- 52주 범위: ${live.w52Low ?? '?'} ~ ${live.w52High ?? '?'}
+- 최근 1년 수익률: ${live.perf1yPct != null ? `${live.perf1yPct >= 0 ? '+' : ''}${live.perf1yPct}%` : '?'}
+- 최초 거래일: ${live.firstTradeDate || '?'}${live.firstTradeDate && live.firstTradeDate > '2020-01-01' ? ' ← 최근 신규상장/분사 재상장/재편 가능성. 당신의 학습 지식이 이 티커를 과거 폐지·인수된 종목으로 기억하더라도 현재는 별개의 정상 거래 종목임' : ''}
+` : `📡 실시간 시장 데이터: 조회 실패 — 상장/거래 상태를 단정하지 말 것.
+`;
+
     const prompt = `당신은 주식 분석 전문가입니다. 아래 회사에 대해 한국 투자자를 위한 종합 분석 보고서를 작성하세요.
 
 회사 정보:
@@ -131,6 +173,7 @@ async function handleSummary(req, res) {
 - 영문명: ${company.name_en || '없음'}
 - 시장: ${company.market === 'KR' ? '한국' : '미국'}
 
+${liveCtx}
 ${strategicCtx ? `🎯 전략적 투자/지분 (본업 외 미래 성장축 — 매우 중요):\n${strategicCtx}\n\n이 정보는 주가 선반영 논리의 핵심 단서입니다. 예: SK텔레콤이 Anthropic에 투자했다면 Claude(AI) 성공 → SKT 주가 선반영. 종합 근거(thesis)와 전략적 노출(strategic_exposure) 작성 시 반드시 반영.\n` : ''}
 최근 AI 분석들 (${analyses.length}건):
 ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   - 섹터: ${a.sector||'미분류'}, 예상 상승: ${a.upside??'?'}%, 신뢰도: ${a.confidence??'?'}%\n   - 근거: ${a.rationale.slice(0, 200)}`).join('\n')}
@@ -147,6 +190,9 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
 
 규칙:
 - 사실 기반, 한국어, 객관적, 추측 금지
+- ⚠️ 실시간 시장 데이터가 당신의 학습 지식과 충돌하면 반드시 실시간 데이터가 우선. 지식 컷오프 이후 분사·재상장·합병·구조 변화가 있었을 수 있음
+- 실시간 데이터가 존재하는 종목에 '상장폐지', '거래 불가', '인수되어 비활성' 등의 서술 절대 금지
+- 확실하지 않은 과거 기업 이력(인수/합병/모회사 관계)은 단정하지 말 것
 - 위에 제공된 "전략적 투자/지분" 정보가 있다면 thesis와 strategic_exposure에 반드시 활용 (특히 ⭐ 표시된 항목)
 - 전략적 투자 정보가 없으면 strategic_exposure는 빈 문자열 ""로 반환`;
 
@@ -164,6 +210,7 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
       ok: true,
       ticker,
       company: { name_ko: company.name_ko, name_en: company.name_en, market: company.market, sector: company.sector },
+      live,
       ...parsed,
       analyses_count: analyses.length,
     });
@@ -1530,16 +1577,21 @@ const DR_INDICES = {
 async function fetchDrIndexQuote(symbol, name) {
   try {
     const r = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`,
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`,
       { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'application/json' }, signal: AbortSignal.timeout(6000) }
     );
     if (!r.ok) return null;
-    const meta = (await r.json())?.chart?.result?.[0]?.meta;
+    const result = (await r.json())?.chart?.result?.[0];
+    const meta = result?.meta;
     if (!meta?.regularMarketPrice) return null;
     const price = meta.regularMarketPrice;
-    const prev = meta.previousClose ?? meta.chartPreviousClose ?? null;
-    let changePercent = meta.regularMarketChangePercent ?? null;
-    if (changePercent == null && prev) changePercent = ((price - prev) / prev) * 100;
+    // 전일 종가는 일별 종가 시계열에서 (KR 지수는 meta.previousClose가 null이고
+    // chartPreviousClose는 range 시작 이전 종가라 등락률이 틀어짐)
+    const closes = (result?.indicators?.quote?.[0]?.close || []).filter(v => v != null);
+    const prev = closes.length >= 2 ? closes[closes.length - 2] : (meta.previousClose ?? null);
+    let changePercent = null;
+    if (prev) changePercent = ((price - prev) / prev) * 100;
+    else changePercent = meta.regularMarketChangePercent ?? null;
     return { name, price, changePercent: changePercent != null ? Math.round(changePercent * 100) / 100 : null };
   } catch { return null; }
 }

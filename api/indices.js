@@ -23,22 +23,32 @@ export default async function handler(req, res) {
   const fetchOne = async ({ id, symbol }) => {
     try {
       const encoded = encodeURIComponent(symbol);
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=2d`;
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=5d`;
       const r = await fetch(url, { headers, signal: AbortSignal.timeout(6000) });
       if (!r.ok) return { id, price: null, changePercent: null, change: null };
       const json = await r.json();
-      const meta = json.chart?.result?.[0]?.meta;
+      const result = json.chart?.result?.[0];
+      const meta = result?.meta;
       if (!meta) return { id, price: null, changePercent: null, change: null };
 
-      const price = meta.regularMarketPrice ?? meta.previousClose ?? null;
-      const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? null;
-      let changePercent = meta.regularMarketChangePercent ?? null;
-      let change = meta.regularMarketChange ?? null;
+      // 일별 종가 시계열 (마지막 값은 장중이면 현재가)
+      const closes = (result?.indicators?.quote?.[0]?.close || []).filter(v => v != null);
 
-      // fallback: calculate from previous close if not provided
-      if (changePercent == null && price != null && prevClose != null && prevClose !== 0) {
+      const price = meta.regularMarketPrice ?? closes[closes.length - 1] ?? meta.previousClose ?? null;
+
+      // 전일 종가: 시계열의 끝에서 두 번째 값이 정답.
+      // KR 지수(^KS11 등)는 meta.previousClose가 null이고 chartPreviousClose는
+      // range 시작 이전 종가(며칠 전)라 등락률이 크게 틀어짐 — meta 폴백은 최후에만.
+      let prevClose = closes.length >= 2 ? closes[closes.length - 2] : (meta.previousClose ?? null);
+
+      let changePercent = null;
+      let change = null;
+      if (price != null && prevClose) {
         change = price - prevClose;
         changePercent = (change / prevClose) * 100;
+      } else {
+        changePercent = meta.regularMarketChangePercent ?? null;
+        change = meta.regularMarketChange ?? null;
       }
 
       return { id, price, changePercent, change, prevClose, currency: meta.currency };
