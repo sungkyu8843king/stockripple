@@ -432,14 +432,16 @@ async function handleStats(req, res) {
     const r2 = (x) => x == null ? null : Math.round(x * 100) / 100;
 
     const MIN_TRADES = 3;  // 표본 1-2개는 노이즈 → 제외
+    // 종목별 순차 복리는 거래 수가 많으면 천문학적 수치로 폭주(74건 × +25% → +15억%)
+    // → 평균 수익률 기준 정렬 + 승률 표시로 교체
     const byTicker = Object.values(byTickerMap).map(t => ({
       ...t, n: t.returns.length,
-      avg:        r2(avg(t.returns)),
-      compounded: compound(t.returns),  // 복리 누적
+      avg:     r2(avg(t.returns)),
+      winRate: Math.round(t.returns.filter(v => v > 0).length / t.returns.length * 100),
     }));
     const significant = byTicker.filter(t => t.n >= MIN_TRADES);
-    const topWinners = [...significant].sort((a, b) => b.compounded - a.compounded).slice(0, 10);
-    const topLosers  = [...significant].sort((a, b) => a.compounded - b.compounded).slice(0, 10);
+    const topWinners = [...significant].sort((a, b) => b.avg - a.avg).slice(0, 10);
+    const topLosers  = [...significant].sort((a, b) => a.avg - b.avg).slice(0, 10);
 
     const verified7dRets = verified7d.map(r => r.actual_return_7d).filter(v => v != null);
 

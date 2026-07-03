@@ -565,26 +565,26 @@ tr:hover td { background: var(--bg3); }
       <!-- 종목별 Top -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div class="card">
-          <div class="card-title">🏆 누적 수익 TOP 10 <span style="font-size:11px;color:var(--text3);font-weight:400">(거래 3회 이상)</span></div>
+          <div class="card-title">🏆 평균 수익 TOP 10 <span style="font-size:11px;color:var(--text3);font-weight:400">(거래 3회 이상)</span></div>
           <div style="font-size:11px;color:var(--text3);padding:6px 12px 8px;line-height:1.5">
             <b>거래수</b>: 동일 종목 추천 횟수 · <b>평균</b>: 7일 수익률 단순평균 ·
-            <b>누적</b>: <span style="color:var(--blue)">복리</span> 누적 수익률 (모든 거래를 동일 비중·순차 보유 시 자본 변화율)
+            <b>승률</b>: 7일 수익률이 플러스였던 비율
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>티커</th><th>이름</th><th>거래</th><th>평균 (1회)</th><th>복리 누적</th></tr></thead>
+              <thead><tr><th>티커</th><th>이름</th><th>거래</th><th>평균 (1회)</th><th>승률</th></tr></thead>
               <tbody id="btWinnersTable"><tr><td colspan="5" class="loading-row">—</td></tr></tbody>
             </table>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">📉 누적 손실 BOTTOM 10 <span style="font-size:11px;color:var(--text3);font-weight:400">(거래 3회 이상)</span></div>
+          <div class="card-title">📉 평균 손실 BOTTOM 10 <span style="font-size:11px;color:var(--text3);font-weight:400">(거래 3회 이상)</span></div>
           <div style="font-size:11px;color:var(--text3);padding:6px 12px 8px;line-height:1.5">
             ※ 단일 거래(n=1)는 노이즈로 제외 — 통계적 의미가 있는 3회 이상만 표시
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>티커</th><th>이름</th><th>거래</th><th>평균 (1회)</th><th>복리 누적</th></tr></thead>
+              <thead><tr><th>티커</th><th>이름</th><th>거래</th><th>평균 (1회)</th><th>승률</th></tr></thead>
               <tbody id="btLosersTable"><tr><td colspan="5" class="loading-row">—</td></tr></tbody>
             </table>
           </div>
@@ -1366,14 +1366,14 @@ function renderBacktest(d) {
     </tr>
   `).join('');
 
-  // 위너/루저 테이블 (복리 누적 기준)
+  // 위너/루저 테이블 (평균 7일 수익률 기준, 승률 표시)
   const renderTickerRow = t => `
     <tr>
       <td><code style="color:${t.market === 'KR' ? '#0066cc' : '#7c3aed'};font-size:11px">${escHtml(t.ticker)}</code></td>
       <td style="font-size:12px">${escHtml(t.name)}</td>
       <td>${t.n}</td>
-      <td style="color:${retColor(t.avg)}">${fmtPctVal(t.avg)}</td>
-      <td style="color:${retColor(t.compounded)};font-weight:700">${fmtPctVal(t.compounded)}</td>
+      <td style="color:${retColor(t.avg)};font-weight:700">${fmtPctVal(t.avg)}</td>
+      <td style="color:${accColor(t.winRate)}">${t.winRate != null ? t.winRate + '%' : '—'}</td>
     </tr>`;
   const emptyRow = `<tr><td colspan="5" style="color:var(--text3);text-align:center;padding:14px">3회 이상 추천된 종목이 부족합니다 (분석 누적 필요)</td></tr>`;
   document.getElementById('btWinnersTable').innerHTML = (bt.topWinners || []).length ? bt.topWinners.map(renderTickerRow).join('') : emptyRow;
