@@ -1,7 +1,8 @@
 name: Analyze Backlog
 
-# 장중 수집 워크플로(market-hours-fetch)와 별개로, 24시간 매시간 미분석 이슈를 소화한다.
-# — 미국장 뉴스는 KST 밤에 쏟아지는데 기존 워크플로는 KST 09~16시만 돌아서 백로그가 쌓였음
+# 장중 수집 워크플로(market-hours-fetch)와 별개로, 24시간 매시간 RSS 수집 + 미분석 이슈를 소화한다.
+# — 미국장 뉴스는 KST 밤에 쏟아지는데 기존 워크플로는 KST 09~16시만 돌아서 밤 사이 수집 공백이 있었음
+#   → RSS 수집(무료)을 여기에 포함해 24시간 커버. NewsAPI(일 100콜 제한)는 장중 워크플로에만 둔다
 # — analyze API가 48시간 지난 미분석 이슈를 자동 스킵 처리하므로 오래된 뉴스에 비용을 쓰지 않음
 # — 미분석이 없으면 첫 라운드에서 바로 종료 (Claude 호출 없음)
 
@@ -16,6 +17,13 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - name: Fetch RSS News
+        run: |
+          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/fetch-rss" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            -H "Content-Type: application/json" || true)
+          echo "$RESP" | jq -r '.saved // "done"' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
+
       # analyze API가 배치가 꽉 차면 스스로 다음 배치를 체이닝하므로 (waitUntil)
       # 여기서는 1회만 호출한다 — max_chain 8 = 최대 40건/시간, 미분석 없으면 즉시 종료
       # Vercel 60s 타임아웃 시 JSON이 아닌 에러 텍스트가 올 수 있어 jq 실패를 방어 (pipefail 대비)

@@ -3,7 +3,9 @@ name: Market Hours News Fetch
 on:
   schedule:
     # KST 09:00~16:00 = UTC 00:00~07:00, 30분마다
-    - cron: '0,30 0,1,2,3,4,5,6,7 * * 1-5'   # 평일만
+    # 주의: :00/:30 정각은 GitHub 스케줄러가 가장 혼잡해 실행이 대부분 탈락함
+    # (실측: 하루 16회 스케줄 중 ~3회만 실행) — :07/:37로 비켜서 배치
+    - cron: '7,37 0-7 * * 1-5'   # 평일만
   workflow_dispatch:  # 수동 실행 가능
 
 jobs:
@@ -23,9 +25,10 @@ jobs:
 
       - name: Fetch NewsAPI
         run: |
-          curl -s -X POST "${{ secrets.VERCEL_URL }}/api/fetch-news" \
+          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/fetch-news" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
-            -H "Content-Type: application/json" | jq '.saved // "done"'
+            -H "Content-Type: application/json" || true)
+          echo "$RESP" | jq -r '.saved // "done"' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
       # analyze API가 배치가 꽉 차면 스스로 다음 배치를 체이닝하므로 1회만 호출 (기본 max_chain 4 = 최대 20건)
       # 주의: Vercel 60s 타임아웃 시 JSON이 아닌 에러 텍스트가 오는데, 이때 jq 파싱 실패가
