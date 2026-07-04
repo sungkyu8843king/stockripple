@@ -254,7 +254,11 @@ export default async function handler(req, res) {
         }
       }
 
-      await supabase.from('issues').update({ is_analyzed: true }).eq('id', issue.id);
+      // AI가 판정한 섹터를 표준 태그로 변환해 이슈에 역태깅 — 피드 고정 태그('글로벌, 주식')만으로는
+      // 프론트의 카테고리 탭/섹터 칩(sectors 배열 contains 검색)에 잡히지 않는 문제 해결
+      const derivedTags = deriveSectorTags(issue, analysis);
+      const mergedSectors = Array.from(new Set([...(issue.sectors || []), ...derivedTags]));
+      await supabase.from('issues').update({ is_analyzed: true, sectors: mergedSectors }).eq('id', issue.id);
       results.analyzed++;
       results.processed.push({
         title: issue.title?.slice(0, 80) || '(제목 없음)',
@@ -300,6 +304,42 @@ function triggerNextChain(req, limit, nextChainCount, maxChain) {
     body: JSON.stringify({ limit, chain_count: nextChainCount, max_chain: maxChain }),
     signal: AbortSignal.timeout(8000),
   }).catch(() => {});
+}
+
+// ─── 표준 섹터 태깅 — 분석 결과(직접·파급 섹터 + 제목)에서 프론트 필터용 태그 추출 ───
+// 프론트(index.html)의 카테고리 탭·섹터 칩과 짝을 이루는 태그 집합. 여기에 태그를 추가하면
+// index.html의 catFilters / filter-chip도 함께 확인할 것.
+const SECTOR_TAG_RULES = [
+  ['AI',       /(?:^|[^a-z])ai(?:[^a-z]|$)|인공지능|생성형|llm|챗gpt|chatgpt|claude|copilot|에이전트/i],
+  ['반도체',    /반도체|hbm|파운드리|메모리|d램|dram|낸드|nand|웨이퍼|semiconductor|엔비디아|nvidia|gpu|칩(?:[^a-힣]|$)|chip/i],
+  ['전기차',    /전기차|테슬라|tesla|자율주행|(?:^|[^a-z])ev(?:[^a-z]|$)|모빌리티/i],
+  ['배터리',    /배터리|이차전지|2차전지|양극재|음극재|전고체|리튬|battery/i],
+  ['바이오',    /바이오|제약|신약|임상|fda|헬스케어|의료|glp-?1|비만치료|항암|biotech|pharma/i],
+  ['에너지',    /에너지|원전|원자력|smr|태양광|풍력|수소|정유|유가|lng|전력|energy|solar|nuclear/i],
+  ['핀테크',    /핀테크|결제|송금|fintech|payment/i],
+  ['금융',     /금융|은행|보험|증권|금리|연준|fed(?:[^a-z]|$)|중앙은행|채권/i],
+  ['크립토',    /암호화폐|비트코인|이더리움|스테이블코인|블록체인|crypto|bitcoin|stablecoin/i],
+  ['클라우드',  /클라우드|데이터센터|cloud|aws|azure|saas/i],
+  ['로봇',     /로봇|휴머노이드|robot/i],
+  ['방산·우주', /방산|국방|미사일|무기|전투기|위성|우주|로켓|발사체|defense|missile|aerospace/i],
+  ['게임',     /게임|엔씨소프트|크래프톤|넥슨|넷마블|gaming/i],
+  ['엔터',     /엔터테인먼트|k-?팝|아이돌|하이브|콘텐츠|드라마|영화|ott|넷플릭스|스트리밍/i],
+  ['소비재',    /소비재|유통|화장품|뷰티|식품|음료|리테일|패션|이커머스/i],
+  ['자동차',    /자동차|현대차|기아|완성차|(?:^|[^a-z])oem(?:[^a-z]|$)/i],
+  ['물류·운송', /물류|해운|운송|항공|운임|공급망|logistics|shipping/i],
+];
+
+function deriveSectorTags(issue, analysis) {
+  const hay = [
+    issue.title || '',
+    ...(analysis.directSectors || []),
+    ...((analysis.rippleEffects || []).map(r => r.sector || '')),
+  ].join(' ');
+  const tags = [];
+  for (const [tag, re] of SECTOR_TAG_RULES) {
+    if (re.test(hay)) tags.push(tag);
+  }
+  return tags;
 }
 
 // ─── 티커-회사명 일치 검증 (AI 환각 차단) ────────────────

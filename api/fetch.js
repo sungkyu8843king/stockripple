@@ -44,7 +44,11 @@ async function handleNews(res) {
   if (!NEWS_API_KEY) return res.status(500).json({ error: 'NEWS_API_KEY not configured' });
 
   const results = { fetched: 0, saved: 0, errors: [] };
-  for (const query of QUERIES.slice(0, 5)) {
+  // NewsAPI 무료 쿼터(100콜/일) 때문에 회당 5쿼리만 실행하되, 고정 slice는 뒤쪽 쿼리
+  // (바이오·한국어)가 영원히 안 돌므로 실행 시각 기준으로 시작점을 순환시킨다
+  const rotStart = (new Date().getUTCHours() * 2 + (new Date().getUTCMinutes() >= 30 ? 1 : 0)) % QUERIES.length;
+  const selected = Array.from({ length: 5 }, (_, i) => QUERIES[(rotStart + i) % QUERIES.length]);
+  for (const query of selected) {
     try {
       const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query.q)}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${NEWS_API_KEY}`;
       const response = await fetch(url);
