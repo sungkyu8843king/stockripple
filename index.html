@@ -1883,6 +1883,10 @@ async function tryDirectLookup(input) {
     const matches = (rawMatches || []).slice().sort((a, b) => {
       const ra = rankOf(a), rb = rankOf(b);
       if (ra !== rb) return ra - rb;
+      // 동점이면 한국 정식 상장(.KS/.KQ) 우선 — 같은 회사의 미국 OTC(SSNLF류)로 빠지는 것 방지
+      const ka = /\.K[SQ]$/i.test(a.ticker || '') ? 0 : 1;
+      const kb = /\.K[SQ]$/i.test(b.ticker || '') ? 0 : 1;
+      if (ka !== kb) return ka - kb;
       return (a.name_ko || a.name_en || '').localeCompare(b.name_ko || b.name_en || '');
     });
 
