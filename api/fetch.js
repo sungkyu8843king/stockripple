@@ -53,8 +53,10 @@ async function handleNews(res) {
 
       for (const article of data.articles || []) {
         results.fetched++;
-        const existing = await supabase.from('issues').select('id').eq('source_url', article.url).single();
-        if (existing.data) continue;
+        // 주의: .single()/.maybeSingle()은 행이 2개 이상이면 에러를 반환하고, 에러를 "없음"으로
+        // 해석하면 중복이 수집마다 1개씩 불어나는 자가증폭이 된다 → limit(1) 배열 체크 사용
+        const { data: existing } = await supabase.from('issues').select('id').eq('source_url', article.url).limit(1);
+        if (existing?.length) continue;
         const { error } = await supabase.from('issues').insert({
           title: article.title,
           summary: article.description || article.content?.slice(0, 500),
@@ -148,8 +150,9 @@ async function handleRss(res) {
         const hasKeyword = KO_STOCK_KEYWORDS.some(kw => item.title.includes(kw));
         if (!hasKeyword) continue;
       }
-      const { data: exists } = await supabase.from('issues').select('id').eq('source_url', item.link).maybeSingle();
-      if (exists) continue;
+      // maybeSingle()은 중복이 이미 존재하면 에러 → "없음"으로 오인 → 중복 증폭. limit(1)로 체크
+      const { data: exists } = await supabase.from('issues').select('id').eq('source_url', item.link).limit(1);
+      if (exists?.length) continue;
       results.fetched++;
       const cleanText = s => s ? s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : null;
       const title = feed.isTrump

@@ -937,11 +937,13 @@ async function upsertCompany(co, priceData = null) {
     if (!nameKo || nameKo.length < 2) nameKo = officialName;
   }
 
-  const { data: existing } = await supabase
+  // .single()은 중복 행 존재 시 에러 → "없음"으로 오인해 회사가 또 생성됨 → limit(1) 사용
+  const { data: existingRows } = await supabase
     .from('companies')
     .select('id, name_en, name_ko')
     .eq('ticker', co.ticker)
-    .single();
+    .limit(1);
+  const existing = existingRows?.[0];
 
   // 기존 row가 있어도 공식 영어명이 비어 있으면 업데이트
   if (existing) {
