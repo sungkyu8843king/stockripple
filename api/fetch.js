@@ -96,6 +96,10 @@ const RSS_FEEDS = [
   { url: 'https://www.mk.co.kr/rss/30000001/',                  name: '매일경제',     sectors: ['증권', '주식'],   isKorean: true },
 
   // 해외 — Reuters 대체 (feeds.reuters.com 폐쇄)
+  // Bloomberg 공개 RSS (politics/industries는 markets와 중복 심하고 연예 기사 섞여 제외)
+  { url: 'https://feeds.bloomberg.com/markets/news.rss',         name: 'Bloomberg Markets',    sectors: ['주식', '글로벌'] },
+  { url: 'https://feeds.bloomberg.com/economics/news.rss',       name: 'Bloomberg Economics',  sectors: ['경제', '글로벌'] },
+  { url: 'https://feeds.bloomberg.com/technology/news.rss',      name: 'Bloomberg Technology', sectors: ['IT', '글로벌'] },
   { url: 'http://feeds.bbci.co.uk/news/business/rss.xml',        name: 'BBC Business', sectors: ['글로벌', '경제'] },
   { url: 'https://feeds.marketwatch.com/marketwatch/topstories/', name: 'MarketWatch', sectors: ['주식', '글로벌'] },
   { url: 'https://www.investing.com/rss/news_25.rss',           name: 'Investing 주식',sectors: ['주식', '글로벌'] },
