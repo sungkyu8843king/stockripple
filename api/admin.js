@@ -61,6 +61,8 @@ export default async function handler(req, res) {
   if (action === 'ai-market-summary' && req.method === 'GET') return handleAiMarketSummaryGet(req, res);
   // daily-report도 GET(조회)은 공개, POST(생성)만 admin 인증 필요
   if (action === 'daily-report' && req.method === 'GET') return handleDailyReportGet(req, res);
+  // weekly-schedule도 GET(조회)은 공개, POST(생성)만 admin 인증 필요
+  if (action === 'weekly-schedule' && req.method === 'GET') return handleWeeklyScheduleGet(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -80,6 +82,7 @@ export default async function handler(req, res) {
   if (action === 'verify-kr-names') return handleVerifyKrNames(req, res);
   if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
   if (action === 'daily-report') return handleDailyReportPost(req, res);
+  if (action === 'weekly-schedule') return handleWeeklySchedulePost(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -1583,6 +1586,126 @@ ${ctx.slice(0, 12000)}
   } catch (e) {
     return res.status(500).json({ error: 'AI summary failed: ' + e.message });
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// 18-b) 주간 일정 (토·일 cron — 다음 주차 경제지표/실적/연준 일정)
+// ════════════════════════════════════════════════════════════
+async function handleWeeklyScheduleGet(req, res) {
+  const { data } = await supabase
+    .from('weekly_schedule')
+    .select('*').order('week_start', { ascending: false }).limit(1).maybeSingle();
+  if (!data) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(404).json({ error: 'No weekly schedule yet.' });
+  }
+  res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
+  return res.status(200).json({ ok: true, ...data });
+}
+
+async function handleWeeklySchedulePost(req, res) {
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : `https://${req.headers.host}`;
+
+  // ── 다음 주 월~일 범위 (KST) ──
+  const KST_MS = 9 * 3600000;
+  const nowK = new Date(Date.now() + KST_MS);
+  const dowK = nowK.getUTCDay();                    // KST 요일 (0=일)
+  const daysToMon = ((8 - dowK) % 7) || 7;          // 다음 월요일까지 일수 (오늘 월요일이면 다음 주 월요일)
+  const monK = new Date(Date.UTC(nowK.getUTCFullYear(), nowK.getUTCMonth(), nowK.getUTCDate() + daysToMon));
+  const weekStart = monK.toISOString().slice(0, 10);
+  const rangeStartMs = monK.getTime() - KST_MS;     // KST 월요일 00:00의 UTC 시각
+  const rangeEndMs = rangeStartMs + 7 * 86400000;
+
+  // 주차 라벨: 해당 월 1일의 요일 오프셋 기준 (예: 2026-07-06 → "2026년 7월 2주 차")
+  const firstOfMonth = new Date(Date.UTC(monK.getUTCFullYear(), monK.getUTCMonth(), 1));
+  const weekOfMonth = Math.ceil((monK.getUTCDate() + firstOfMonth.getUTCDay()) / 7);
+  const weekLabel = `${monK.getUTCFullYear()}년 ${monK.getUTCMonth() + 1}월 ${weekOfMonth}주 차`;
+
+  // ── 1) 경제지표 + 연준 일정 (자체 market-pulse edge — ForexFactory IP 차단 우회) ──
+  const econRes = await fetch(`${base}/api/market-pulse?type=economic&limit=60`, { signal: AbortSignal.timeout(15000) })
+    .then(r => r.json()).catch(() => ({ items: [] }));
+  const econItems = (econRes.items || []).filter(e => {
+    const t = new Date(e.date).getTime();
+    return t >= rangeStartMs && t < rangeEndMs;
+  });
+
+  // ── 2) 주요 기업 실적 예정 (12개 메가캡 중 다음 주 발표분) ──
+  const earnRes = await fetch(`${base}/api/earnings`, { signal: AbortSignal.timeout(20000) })
+    .then(r => r.json()).catch(() => ({ items: [] }));
+  const earnItems = (earnRes.items || []).filter(e => {
+    if (!e.date) return false;
+    const t = new Date(`${e.date}T12:00:00Z`).getTime();
+    return t >= rangeStartMs && t < rangeEndMs;
+  });
+
+  if (!econItems.length && !earnItems.length) {
+    return res.status(200).json({ ok: true, generated: false, reason: '다음 주 일정 데이터 없음', weekStart });
+  }
+
+  // ── 3) 일자별 조립 (KST 시각 기준) ──
+  const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
+  const FLAG = { USD: '🇺🇸', EUR: '🇪🇺', JPY: '🇯🇵' };
+  const dayMap = {};
+  const addItem = (dateStr, item) => { (dayMap[dateStr] ||= []).push(item); };
+
+  for (const e of econItems) {
+    const dK = new Date(new Date(e.date).getTime() + KST_MS);
+    const isFed = /speaks|testifies|speech|fomc member|fed chair|fomc press/i.test(e.title || '');
+    addItem(dK.toISOString().slice(0, 10), {
+      time: dK.toISOString().slice(11, 16),
+      type: isFed ? '연준' : '지표',
+      title: `${FLAG[e.country] || e.country} ${e.titleKo || e.title}${e.forecast ? ` (예상 ${e.forecast})` : ''}`,
+      stars: e.impact === 'High' ? 3 : 2,
+    });
+  }
+  for (const e of earnItems) {
+    addItem(e.date, {
+      time: e.callTime === 'BMO' ? '장전' : e.callTime === 'AMC' ? '장후' : '',
+      type: '실적',
+      title: `${e.company || e.ticker} (${e.ticker})${e.epsConsensus != null ? ` — 컨센서스 EPS $${Number(e.epsConsensus).toFixed(2)}` : ''}${e.dateEstimated ? ' ※예정일 추정' : ''}`,
+      stars: 2,
+    });
+  }
+
+  const days = Object.entries(dayMap)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, items]) => ({
+      date,
+      weekday: DAY_KO[new Date(`${date}T00:00:00Z`).getUTCDay()],
+      items: items.sort((a, b) => (a.time || '99').localeCompare(b.time || '99')),
+    }));
+
+  // ── 4) 하이라이트: Claude로 시장 영향 큰 순 5개 요약 (실패 시 High 지표로 폴백) ──
+  let highlights = econItems.filter(e => e.impact === 'High').slice(0, 5)
+    .map(e => `${e.titleKo || e.title}`);
+  if (anthropic) {
+    try {
+      const flat = days.flatMap(d => d.items.map(i => `${d.date}(${d.weekday}) ${i.time} [${i.type}] ${i.title}`)).join('\n');
+      const msg = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 600,
+        messages: [{ role: 'user', content: `다음 주(${weekLabel}) 미국 시장 일정입니다. 시장 파급력이 큰 순서로 하이라이트 5개를 한 문장씩 뽑아주세요. 날짜를 "(7/8)" 형식으로 포함. JSON만 반환: {"highlights":["...","..."]}\n\n${flat.slice(0, 4000)}` }],
+      });
+      const m = msg.content[0].text.match(/\{[\s\S]*\}/);
+      if (m) {
+        const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
+        if (Array.isArray(parsed.highlights) && parsed.highlights.length) highlights = parsed.highlights.slice(0, 6);
+      }
+    } catch {}
+  }
+
+  const row = {
+    week_start: weekStart,
+    week_label: weekLabel,
+    highlights,
+    days,
+    based_on: { econ: econItems.length, earnings: earnItems.length },
+    created_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from('weekly_schedule').upsert(row, { onConflict: 'week_start' });
+  if (error) return res.status(500).json({ error: `weekly_schedule upsert 실패: ${error.message} (db/weekly-schedule.sql 실행 여부 확인)` });
+  return res.status(200).json({ ok: true, generated: true, ...row });
 }
 
 // ════════════════════════════════════════════════════════════

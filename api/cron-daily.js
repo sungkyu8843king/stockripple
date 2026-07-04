@@ -62,11 +62,18 @@ export default async function handler(req, res) {
   faf('/api/admin?action=ai-market-summary');
   faf('/api/check-accuracy');
 
+  // 토·일(cron 01:00 UTC = KST 오전 10시, 요일 동일)에는 다음 주차 주요 일정 생성
+  const utcDay = new Date().getUTCDay();
+  const isWeekend = utcDay === 6 || utcDay === 0;
+  if (isWeekend) faf('/api/admin?action=weekly-schedule');
+
+  const jobs = ['fetch-news','fetch-rss','trump','analyze','extract-investments','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy'];
+  if (isWeekend) jobs.push('weekly-schedule');
   return res.status(200).json({
     success: true,
     timestamp: new Date().toISOString(),
-    message: '9개 작업을 백그라운드에서 실행 중 (각각 독립 실행, 최대 55초)',
-    jobs: ['fetch-news','fetch-rss','trump','analyze','extract-investments','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy'],
+    message: `${jobs.length}개 작업을 백그라운드에서 실행 중 (각각 독립 실행, 최대 55초)`,
+    jobs,
   });
 }
 

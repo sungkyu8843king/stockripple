@@ -10,7 +10,9 @@ export default async function handler(req) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get('type') || 'economic';
   if (type === 'trump') return handleTrump();
-  return handleEconomic();
+  // limit: 기본 30, 최대 80 (weekly-schedule이 다음 주 항목까지 잘리지 않게 60으로 호출)
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit')) || 30, 1), 80);
+  return handleEconomic(limit);
 }
 
 // ─── Trump Truth Social ────────────────────────────────────────────────────
@@ -83,7 +85,7 @@ function normalizeTitle(s) {
 }
 
 // ─── ForexFactory 경제지표 ─────────────────────────────────────────────────
-async function handleEconomic() {
+async function handleEconomic(limit = 30) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
@@ -211,8 +213,24 @@ async function handleEconomic() {
       else if (eMs > exMs) fmpByKey[key] = e;
     }
 
+    // ForexFactory가 완전히 비면(IP 차단·nextweek.json 404 등) FMP 캘린더 단독으로 구성
+    // FMP date는 UTC ("2026-07-06 12:30:00") — 'T'+'Z' 정규화로 런타임 로컬타임 오해 방지
+    let usedFmpFallback = false;
+    if (!raw.length && fmpArr.length) {
+      usedFmpFallback = true;
+      raw = fmpArr.map(e => ({
+        title:    e.event || e.title || '',
+        country:  (e.currency || COUNTRY_TO_CURRENCY[(e.country || '').toUpperCase()] || '').toUpperCase(),
+        date:     typeof e.date === 'string' && !/[TZ+]/.test(e.date) ? e.date.replace(' ', 'T') + 'Z' : e.date,
+        impact:   ['High', 'Medium', 'Low'].includes(e.impact) ? e.impact : 'Medium',
+        forecast: e.estimate != null ? String(e.estimate) : '',
+        previous: e.previous != null ? String(e.previous) : '',
+        actual:   e.actual   != null ? String(e.actual)   : '',
+      }));
+    }
+
     if (!raw.length) {
-      return new Response(JSON.stringify({ ok: false, error: 'ForexFactory returned empty', items: [], fmpCount: fmpArr.length }), { headers: corsHeaders });
+      return new Response(JSON.stringify({ ok: false, error: 'ForexFactory+FMP both empty', items: [], fmpCount: fmpArr.length }), { headers: corsHeaders });
     }
 
     raw = raw.filter(e =>
@@ -254,12 +272,13 @@ async function handleEconomic() {
         return t >= windowStart && t <= windowEnd;
       })
       .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .slice(0, 30);
+      .slice(0, limit);
 
     return new Response(JSON.stringify({
       ok: true,
       items,
       ts: Date.now(),
+      source: usedFmpFallback ? 'fmp-only' : 'forexfactory+fmp',
       fmp: { ok: !!fmpArr.length, count: fmpArr.length, withActual: fmpArr.filter(e => e?.actual != null).length, status: fmpStatus },
     }), { headers: corsHeaders });
   } catch (e) {
