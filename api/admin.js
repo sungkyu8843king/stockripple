@@ -1608,12 +1608,14 @@ async function handleWeeklySchedulePost(req, res) {
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : `https://${req.headers.host}`;
 
-  // ── 다음 주 월~일 범위 (KST) ──
+  // ── 대상 주 월~일 범위 (KST) ──
+  // 토·일: 다음 주를 생성 / 월~금: 진행 중인 이번 주를 갱신
+  // (ForexFactory가 nextweek 데이터를 늦게 여는 경우가 있어, 주중 매일 upsert로 지표를 채워넣는다)
   const KST_MS = 9 * 3600000;
   const nowK = new Date(Date.now() + KST_MS);
   const dowK = nowK.getUTCDay();                    // KST 요일 (0=일)
-  const daysToMon = ((8 - dowK) % 7) || 7;          // 다음 월요일까지 일수 (오늘 월요일이면 다음 주 월요일)
-  const monK = new Date(Date.UTC(nowK.getUTCFullYear(), nowK.getUTCMonth(), nowK.getUTCDate() + daysToMon));
+  const dayOffset = dowK === 6 ? 2 : dowK === 0 ? 1 : -(dowK - 1);
+  const monK = new Date(Date.UTC(nowK.getUTCFullYear(), nowK.getUTCMonth(), nowK.getUTCDate() + dayOffset));
   const weekStart = monK.toISOString().slice(0, 10);
   const rangeStartMs = monK.getTime() - KST_MS;     // KST 월요일 00:00의 UTC 시각
   const rangeEndMs = rangeStartMs + 7 * 86400000;
@@ -1677,9 +1679,13 @@ async function handleWeeklySchedulePost(req, res) {
       items: items.sort((a, b) => (a.time || '99').localeCompare(b.time || '99')),
     }));
 
-  // ── 4) 하이라이트: Claude로 시장 영향 큰 순 5개 요약 (실패 시 High 지표로 폴백) ──
+  // ── 4) 하이라이트: Claude로 시장 영향 큰 순 5개 요약 (실패 시 High 지표 → 실적 순 폴백) ──
   let highlights = econItems.filter(e => e.impact === 'High').slice(0, 5)
     .map(e => `${e.titleKo || e.title}`);
+  if (!highlights.length && earnItems.length) {
+    highlights = earnItems.slice(0, 5).map(e =>
+      `${e.company || e.ticker} 실적 발표 (${e.date?.slice(5).replace('-', '/')})`);
+  }
   if (anthropic) {
     try {
       const flat = days.flatMap(d => d.items.map(i => `${d.date}(${d.weekday}) ${i.time} [${i.type}] ${i.title}`)).join('\n');

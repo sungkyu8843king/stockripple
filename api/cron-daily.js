@@ -62,13 +62,10 @@ export default async function handler(req, res) {
   faf('/api/admin?action=ai-market-summary');
   faf('/api/check-accuracy');
 
-  // 토·일(cron 01:00 UTC = KST 오전 10시, 요일 동일)에는 다음 주차 주요 일정 생성
-  const utcDay = new Date().getUTCDay();
-  const isWeekend = utcDay === 6 || utcDay === 0;
-  if (isWeekend) faf('/api/admin?action=weekly-schedule');
+  // 주간 일정: 토·일은 다음 주 생성, 평일은 진행 중인 주 갱신 (지표 늦게 열리는 경우 자동 보충)
+  faf('/api/admin?action=weekly-schedule');
 
-  const jobs = ['fetch-news','fetch-rss','trump','analyze','extract-investments','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy'];
-  if (isWeekend) jobs.push('weekly-schedule');
+  const jobs = ['fetch-news','fetch-rss','trump','analyze','extract-investments','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy','weekly-schedule'];
   return res.status(200).json({
     success: true,
     timestamp: new Date().toISOString(),
