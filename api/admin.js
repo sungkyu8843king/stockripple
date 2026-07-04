@@ -1625,24 +1625,82 @@ async function handleWeeklySchedulePost(req, res) {
   const weekOfMonth = Math.ceil((monK.getUTCDate() + firstOfMonth.getUTCDay()) / 7);
   const weekLabel = `${monK.getUTCFullYear()}년 ${monK.getUTCMonth() + 1}월 ${weekOfMonth}주 차`;
 
-  // ── 1) 경제지표 + 연준 일정 (자체 market-pulse edge — ForexFactory IP 차단 우회) ──
-  const econRes = await fetch(`${base}/api/market-pulse?type=economic&limit=60`, { signal: AbortSignal.timeout(15000) })
-    .then(r => r.json()).catch(() => ({ items: [] }));
+  // ── 1) 데이터 소스 병렬 수집 ──
+  //  a. 경제지표+연준 (자체 market-pulse edge — ForexFactory IP 차단 우회)
+  //  b. 주요 기업 실적 (메가캡+조기발표조 20종목)
+  //  c. 미 국채 입찰 (TreasuryDirect 공식 API — Note/Bond)
+  //  d. 최근 뉴스 (예정 이벤트 추출용 — 상장/지수편입/주총/월매출 등)
+  const [econRes, earnRes, tdRes, newsRes] = await Promise.all([
+    fetch(`${base}/api/market-pulse?type=economic&limit=60`, { signal: AbortSignal.timeout(15000) })
+      .then(r => r.json()).catch(() => ({ items: [] })),
+    fetch(`${base}/api/earnings`, { signal: AbortSignal.timeout(20000) })
+      .then(r => r.json()).catch(() => ({ items: [] })),
+    fetch('https://www.treasurydirect.gov/TA_WS/securities/upcoming?format=json',
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) })
+      .then(r => r.json()).catch(() => []),
+    supabase.from('issues')
+      .select('title, published_at')
+      .gte('published_at', new Date(Date.now() - 10 * 86400000).toISOString())
+      .order('published_at', { ascending: false })
+      .limit(350),
+  ]);
+
   const econItems = (econRes.items || []).filter(e => {
     const t = new Date(e.date).getTime();
     return t >= rangeStartMs && t < rangeEndMs;
   });
-
-  // ── 2) 주요 기업 실적 예정 (12개 메가캡 중 다음 주 발표분) ──
-  const earnRes = await fetch(`${base}/api/earnings`, { signal: AbortSignal.timeout(20000) })
-    .then(r => r.json()).catch(() => ({ items: [] }));
   const earnItems = (earnRes.items || []).filter(e => {
     if (!e.date) return false;
     const t = new Date(`${e.date}T12:00:00Z`).getTime();
     return t >= rangeStartMs && t < rangeEndMs;
   });
 
-  if (!econItems.length && !earnItems.length) {
+  // 국채 입찰: Note/Bond만 (Bill 단기물은 노이즈). 입찰은 통상 13:00 ET = 익일 02:00 KST
+  const tdItems = (Array.isArray(tdRes) ? tdRes : []).filter(s => {
+    if (!/^(Note|Bond)$/i.test(s.securityType || '')) return false;
+    const t = new Date(`${(s.auctionDate || '').slice(0, 10)}T17:00:00Z`).getTime(); // 13:00 EDT
+    return t >= rangeStartMs && t < rangeEndMs;
+  }).map(s => {
+    const ym = (s.securityTerm || '').match(/^(\d+)-Year/);
+    const years = ym ? Math.round(parseInt(ym[1]) + ((s.securityTerm.match(/(\d+)-Month/) || [])[1] ? 1 : 0)) : null;
+    return {
+      dateUtcMs: new Date(`${(s.auctionDate || '').slice(0, 10)}T17:00:00Z`).getTime(),
+      title: `🇺🇸 ${years ? `${years}년물` : s.securityTerm} 국채 입찰${/Month/.test(s.securityTerm || '') ? ' (리오프닝)' : ''}`,
+    };
+  });
+
+  // 뉴스에서 다음 주 예정 이벤트 추출 (상장·지수 편입·주총·잠정실적·월매출 등)
+  let newsEvents = [];
+  if (anthropic && newsRes?.data?.length) {
+    try {
+      const titles = newsRes.data.map(n => n.title).filter(Boolean).slice(0, 300).join('\n');
+      const msg = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 1200,
+        messages: [{ role: 'user', content: `아래는 최근 10일간 수집된 금융 뉴스 제목들입니다. 이 중에서 ${weekStart} ~ ${new Date(rangeEndMs - 86400000).toISOString().slice(0, 10)} 사이에 예정된 "구체적 이벤트"만 추출하세요 (기업 상장/ADR 상장, 지수 편입, 주주총회, 잠정 실적발표, 월간 매출 발표, 제품 출시, 정책 시행 등).
+
+규칙:
+- 뉴스에 날짜나 시점("다음 주", "7월 7일" 등)이 실제로 언급된 이벤트만. 날짜 추측/창작 절대 금지
+- 이미 지나간 일, 단순 시황/전망 기사는 제외
+- 확실한 것이 없으면 빈 배열
+
+JSON만 반환: {"events":[{"date":"YYYY-MM-DD","title":"이벤트 설명 (30자 내)"}]}
+
+뉴스 제목:
+${titles.slice(0, 15000)}` }],
+      });
+      const m = msg.content[0].text.match(/\{[\s\S]*\}/);
+      if (m) {
+        const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
+        newsEvents = (parsed.events || []).filter(e => {
+          if (!e?.date || !e?.title) return false;
+          const t = new Date(`${e.date}T12:00:00Z`).getTime();
+          return t >= rangeStartMs && t < rangeEndMs;
+        }).slice(0, 10);
+      }
+    } catch {}
+  }
+
+  if (!econItems.length && !earnItems.length && !tdItems.length && !newsEvents.length) {
     return res.status(200).json({ ok: true, generated: false, reason: '다음 주 일정 데이터 없음', weekStart });
   }
 
@@ -1670,6 +1728,18 @@ async function handleWeeklySchedulePost(req, res) {
       stars: 2,
     });
   }
+  for (const t of tdItems) {
+    const dK = new Date(t.dateUtcMs + KST_MS);
+    addItem(dK.toISOString().slice(0, 10), {
+      time: dK.toISOString().slice(11, 16),
+      type: '지표',
+      title: t.title,
+      stars: 2,
+    });
+  }
+  for (const ev of newsEvents) {
+    addItem(ev.date, { time: '', type: '이벤트', title: ev.title, stars: 3 });
+  }
 
   const days = Object.entries(dayMap)
     .sort((a, b) => a[0].localeCompare(b[0]))
@@ -1679,9 +1749,11 @@ async function handleWeeklySchedulePost(req, res) {
       items: items.sort((a, b) => (a.time || '99').localeCompare(b.time || '99')),
     }));
 
-  // ── 4) 하이라이트: Claude로 시장 영향 큰 순 5개 요약 (실패 시 High 지표 → 실적 순 폴백) ──
-  let highlights = econItems.filter(e => e.impact === 'High').slice(0, 5)
-    .map(e => `${e.titleKo || e.title}`);
+  // ── 4) 하이라이트: Claude로 시장 영향 큰 순 요약 (실패 시 이벤트 → High 지표 → 실적 순 폴백) ──
+  let highlights = [
+    ...newsEvents.slice(0, 3).map(e => `${e.title} (${e.date.slice(5).replace('-', '/')})`),
+    ...econItems.filter(e => e.impact === 'High').slice(0, 3).map(e => `${e.titleKo || e.title}`),
+  ].slice(0, 6);
   if (!highlights.length && earnItems.length) {
     highlights = earnItems.slice(0, 5).map(e =>
       `${e.company || e.ticker} 실적 발표 (${e.date?.slice(5).replace('-', '/')})`);

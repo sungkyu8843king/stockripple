@@ -3700,9 +3700,10 @@ async function loadAiMarketSummary() {
 
 // ─── 📌 주간 주요 일정 (토·일 cron 생성) ─────────────────────
 const WS_TYPE_STYLE = {
-  '지표': ['var(--blue)',   'rgba(47,129,247,.12)'],
-  '연준': ['var(--yellow)', 'rgba(210,153,34,.12)'],
-  '실적': ['var(--green)',  'rgba(63,185,80,.12)'],
+  '지표':   ['var(--blue)',   'rgba(47,129,247,.12)'],
+  '연준':   ['var(--yellow)', 'rgba(210,153,34,.12)'],
+  '실적':   ['var(--green)',  'rgba(63,185,80,.12)'],
+  '이벤트': ['var(--red)',    'rgba(248,81,73,.12)'],
 };
 async function loadWeeklySchedule() {
   const card = document.getElementById('weeklyScheduleCard');
