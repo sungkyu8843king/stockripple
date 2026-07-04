@@ -1059,14 +1059,6 @@ button { font-family: inherit; }
           <button class="filter-chip" data-sector="크립토">크립토</button>
           <button class="filter-chip" data-sector="자동차">자동차</button>
           <button class="filter-chip" data-sector="물류·운송">물류·운송</button>
-          <div class="filter-sep"></div>
-          <div class="search-box" style="position:relative">
-            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--text3)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL, 005930.KS)"
-                   onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
-            <button onclick="tryDirectLookup(document.getElementById('searchInput').value)"
-                    title="티커 직접 조회 (Yahoo Finance에서 자동 등록)" class="icon-btn" style="margin-left:4px;white-space:nowrap">🔍 종목 조회</button>
-          </div>
         </div>
       </div>
 
@@ -1086,6 +1078,19 @@ button { font-family: inherit; }
 
   <!-- 우측 사이드바 -->
   <aside class="sidebar" id="sidebar">
+    <!-- 🔍 종목 조회 (피드 검색 + 티커 직접 조회) -->
+    <div class="sidebar-card" id="stockLookupCard">
+      <div style="padding:10px 12px">
+        <div class="search-box" style="position:relative;display:flex;align-items:center;gap:6px">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--text3);flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)" style="flex:1;min-width:0"
+                 onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
+          <button onclick="tryDirectLookup(document.getElementById('searchInput').value)"
+                  title="티커 직접 조회 (Yahoo Finance에서 자동 등록)" class="icon-btn" style="white-space:nowrap;flex-shrink:0">🔍 종목 조회</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 🤖 AI 시장 종합 -->
     <div class="sidebar-card" id="aiMarketSummaryCard">
       <div class="sidebar-card-header">
