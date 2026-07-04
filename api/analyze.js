@@ -75,7 +75,19 @@ export default async function handler(req, res) {
 
   const results = { analyzed: 0, errors: [], corrections: [], excluded: [], processed: [] };
 
+  // 시간 예산: Vercel maxDuration 60s. 2-패스 분석은 이슈당 ~20초라 한도 초과 시
+  // FUNCTION_INVOCATION_TIMEOUT으로 죽으면서 체이닝까지 끊긴다 → 40초 넘으면
+  // 남은 이슈를 시작하지 않고 정상 응답 후 체이닝으로 넘긴다.
+  const t0 = Date.now();
+  const TIME_BUDGET_MS = 40000;
+  let timeBudgetHit = false;
+
   for (const issue of issues) {
+    if (Date.now() - t0 > TIME_BUDGET_MS) {
+      timeBudgetHit = true;
+      results.errors.push(`시간 예산 초과 — 남은 ${issues.length - results.analyzed}건은 체이닝으로 이월`);
+      break;
+    }
     const issueStart = Date.now();
     try {
       const analysis = await analyzeIssue(issue);
@@ -85,6 +97,16 @@ export default async function handler(req, res) {
         await supabase.from('issues').delete().eq('id', issue.id);
         results.errors.push(`Irrelevant (score ${analysis.relevance_score}), deleted: "${issue.title?.slice(0, 60)}"`);
         continue;
+      }
+
+      // 이전 실행이 타임아웃으로 죽었으면 is_analyzed=false인 채 analyses 행이 남아있을 수 있음
+      // → 재분석 시 중복되지 않도록 기존 분석을 지우고 새로 삽입
+      const { data: staleAnalyses } = await supabase
+        .from('analyses').select('id').eq('issue_id', issue.id);
+      if (staleAnalyses?.length) {
+        const staleIds = staleAnalyses.map(a => a.id);
+        await supabase.from('analysis_companies').delete().in('analysis_id', staleIds);
+        await supabase.from('analyses').delete().in('id', staleIds);
       }
 
       const { data: savedAnalysis, error: analysisErr } = await supabase
@@ -253,14 +275,14 @@ export default async function handler(req, res) {
     }
   }
 
-  // 이번 배치가 꽉 찼다면(=limit만큼 처리) 백로그가 더 남아있을 가능성이 높음 → 다음 배치를 이어서 트리거
-  // waitUntil로 감싸서 res.json() 응답 이후에도 이 요청이 실제로 전송될 때까지 함수 인스턴스가
-  // 살아있도록 보장 (평범한 fire-and-forget fetch는 응답 직후 인스턴스가 얼어붙어 유실될 수 있음)
-  if (!issue_id && issues.length === limit && chainCount < MAX_CHAIN - 1) {
+  // 이번 배치가 꽉 찼거나(=limit만큼 처리) 시간 예산으로 중단했다면 백로그가 남아있을
+  // 가능성이 높음 → 다음 배치를 이어서 트리거. waitUntil로 감싸서 res.json() 응답 이후에도
+  // 이 요청이 실제로 전송될 때까지 함수 인스턴스가 살아있도록 보장
+  if (!issue_id && (issues.length === limit || timeBudgetHit) && chainCount < MAX_CHAIN - 1) {
     waitUntil(triggerNextChain(req, limit, chainCount + 1, MAX_CHAIN));
   }
 
-  return res.status(200).json({ ...results, reanalyzed, staleSkipped, chainCount, maxChain: MAX_CHAIN });
+  return res.status(200).json({ ...results, reanalyzed, staleSkipped, timeBudgetHit, chainCount, maxChain: MAX_CHAIN });
 }
 
 function triggerNextChain(req, limit, nextChainCount, maxChain) {
