@@ -62,6 +62,9 @@ export default async function handler(req, res) {
         if (!price) continue;
 
         const actualReturn = Math.round(((price - row.entry_price) / row.entry_price) * 10000) / 100;
+        // 변동 0% = 그 사이 거래일이 없었을 가능성 (주말/휴장) → 채점 보류하고 다음 실행에서 재시도
+        // (진짜 보합 마감도 드물게 있지만, 거래 없는 기간을 '빗나감'으로 채점하는 왜곡이 훨씬 큼)
+        if (actualReturn === 0) continue;
         // 적중 기준: ① 방향 일치 + ② 최소 실제 수익률 달성 (노이즈 제거)
         // 예) 예측 +22%이면 방향(상승) + 실제 0.3%↑ 이상이어야 적중
         const directionOk = row.upside_pct > 0 ? actualReturn > 0 : actualReturn < 0;
