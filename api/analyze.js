@@ -82,6 +82,9 @@ export default async function handler(req, res) {
   const TIME_BUDGET_MS = 40000;
   let timeBudgetHit = false;
 
+  // 시장 레짐 (호출당 1회): 약세 국면이면 매수 게재 기준 상향 — buy-only 시스템 방어
+  const regime = await fetchMarketRegime().catch(() => ({ us: 'neutral', kr: 'neutral', vix: null }));
+
   for (const issue of issues) {
     if (Date.now() - t0 > TIME_BUDGET_MS) {
       timeBudgetHit = true;
@@ -177,8 +180,26 @@ export default async function handler(req, res) {
       });
 
       if (uniqCandidates.length) {
+        // 자기 적중률 피드백: 이 티커들의 과거 7일 검증 이력 (시스템이 자기 실적에서 학습)
+        const histMap = {};
+        try {
+          const { data: hist } = await supabase
+            .from('analysis_companies')
+            .select('is_accurate_7d, companies!inner(ticker)')
+            .in('companies.ticker', uniqCandidates.map(c => c.co.ticker))
+            .not('is_accurate_7d', 'is', null)
+            .limit(500);
+          for (const h of hist || []) {
+            const t = h.companies?.ticker;
+            if (!t) continue;
+            const m = (histMap[t] ||= { n: 0, hit: 0 });
+            m.n++;
+            if (h.is_accurate_7d) m.hit++;
+          }
+        } catch {}
+
         // ── 2단계: 애널리스트 패스 — 실제 시장 데이터를 보고 매수/제외 결정 ──
-        const decisions = await decideTrades(issue, analysis, uniqCandidates);
+        const decisions = await decideTrades(issue, analysis, uniqCandidates, regime);
 
         for (const cand of uniqCandidates) {
           const t = cand.co.ticker.toUpperCase();
@@ -201,11 +222,24 @@ export default async function handler(req, res) {
 
           clampTrade(d, s);
           const momScore = scoreTechnicals(s);
-          let composite = (d.confidence ?? 50) + (cand.fundScore ?? 0) + momScore;
+
+          // 자기 적중률 피드백: 4회 이상 검증된 종목의 과거 성적을 점수에 반영
+          let trackAdj = 0, trackNote = '';
+          const h = histMap[cand.co.ticker];
+          if (h && h.n >= 4) {
+            const rate = h.hit / h.n;
+            if (rate < 0.3) { trackAdj = -10; trackNote = `과거 적중 ${h.hit}/${h.n}`; }
+            else if (rate >= 0.6) trackAdj = 5;
+          }
+
+          let composite = (d.confidence ?? 50) + (cand.fundScore ?? 0) + momScore + trackAdj;
           composite = Math.max(0, Math.min(100, Math.round(composite)));
-          // 게재 게이트: AI 확신 + 펀더멘털 + 모멘텀 종합 60점 미만은 게재하지 않음 (소수 정예)
-          if (composite < 60) {
-            results.excluded.push(`${cand.co.ticker}: 종합점수 ${composite} 미달 (AI ${d.confidence ?? 50}, 펀더 ${cand.fundScore ?? '-'}, 모멘텀 ${momScore})`);
+
+          // 게재 게이트: 기본 60점, 해당 시장이 약세 레짐이면 70점으로 상향 (소수 정예)
+          const mkt = (cand.co.market === 'KR' || /\.K[SQ]$/i.test(cand.co.ticker)) ? regime.kr : regime.us;
+          const gateMin = mkt === 'bear' ? 70 : 60;
+          if (composite < gateMin) {
+            results.excluded.push(`${cand.co.ticker}: 종합점수 ${composite} < ${gateMin}${mkt === 'bear' ? ' (약세장 상향)' : ''} (AI ${d.confidence ?? 50}, 펀더 ${cand.fundScore ?? '-'}, 모멘텀 ${momScore}${trackNote ? ', ' + trackNote : ''})`);
             continue;
           }
 
@@ -411,6 +445,35 @@ async function resolveTickerByName(co) {
   return null;
 }
 
+// ─── 시장 레짐 판정 — 하락 국면에서는 매수 게재 기준 상향 (buy-only 시스템의 최대 리스크 방어) ───
+async function fetchMarketRegime() {
+  const get = async (sym) => {
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=3mo`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000) });
+      if (!r.ok) return null;
+      const j = await r.json();
+      const closes = (j.chart?.result?.[0]?.indicators?.quote?.[0]?.close || []).filter(v => v != null);
+      if (closes.length < 50) return null;
+      const last = closes[closes.length - 1];
+      const sma50 = closes.slice(-50).reduce((a, b) => a + b, 0) / 50;
+      const ret5d = closes.length > 5 ? ((last - closes[closes.length - 6]) / closes[closes.length - 6]) * 100 : 0;
+      return { last, aboveSma50: last > sma50, ret5d };
+    } catch { return null; }
+  };
+  const [us, kr, vixData] = await Promise.all([get('^GSPC'), get('^KS11'), get('^VIX')]);
+  const vix = vixData?.last ?? null;
+  const regimeOf = (m) => {
+    if (!m) return 'neutral';
+    let score = 0;
+    score += m.aboveSma50 ? 1 : -1;
+    if (m.ret5d < -2) score -= 1; else if (m.ret5d > 0) score += 1;
+    if (vix != null) { if (vix >= 25) score -= 2; else if (vix <= 15) score += 1; }
+    return score >= 1 ? 'bull' : score <= -1 ? 'bear' : 'neutral';
+  };
+  return { us: regimeOf(us), kr: regimeOf(kr), vix, usRet5d: us?.ret5d, krRet5d: kr?.ret5d };
+}
+
 // ─── 차트 테크니컬 (추세·모멘텀·수급·변동성) — 애널리스트 패스의 입력 데이터 ────────
 async function fetchPriceStats(ticker) {
   try {
@@ -577,7 +640,7 @@ function clampTrade(d, stats) {
 }
 
 // ─── 2단계: 애널리스트 패스 — 실데이터를 보고 매수/제외 결정 ────────
-async function decideTrades(issue, analysis, candidates) {
+async function decideTrades(issue, analysis, candidates, regime) {
   const rows = candidates.map(c => ({
     ticker: c.co.ticker,
     name: c.co.name_ko || c.co.name_en,
@@ -618,6 +681,9 @@ async function decideTrades(issue, analysis, candidates) {
 - pct_from_52w_high > -5 (신고가 부근) → 저항 없음, 추세 지속 유리. 단 rsi 과열 동반 시 눌림목 대기
 - key_thesis에는 뉴스 촉매와 차트 근거를 함께 담을 것 (예: "RSI 52 건전 + 50일선 지지 + 관세 수혜")
 - key_thesis/key_risk는 일반 투자자가 읽는 문장 — above_sma50, ret_3m 같은 데이터 필드명 그대로 쓰지 말고 "50일선 위 안착", "3개월 +15% 추세"처럼 풀어 쓸 것
+
+현재 시장 레짐: 미국 ${regime?.us || '?'}, 한국 ${regime?.kr || '?'}${regime?.vix != null ? `, VIX ${Math.round(regime.vix)}` : ''}
+→ bear 레짐 시장의 종목은 원칙 4를 훨씬 엄격히 적용 (지수가 꺾인 장에서 개별 매수는 예외적 확신이 있을 때만)
 
 뉴스 이슈: ${issue.title}
 이슈 요약: ${(analysis.summary || issue.summary || '').slice(0, 300)}
