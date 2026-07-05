@@ -7,10 +7,12 @@ const supabase = createClient(
 );
 
 const PERIODS = [
-  { key: '1d',  days: 1,  minActual: 0.3  },  // 최소 0.3% 실제 변동 있어야 "적중"
-  { key: '3d',  days: 3,  minActual: 0.5  },  // 최소 0.5%
-  { key: '7d',  days: 7,  minActual: 1.5  },  // 최소 1.5%
-  { key: '30d', days: 30, minActual: 3.0  },  // 최소 3.0%
+  // grace: 채점 유효 기간. 예: 1일 정확도는 진입 후 1~4일 사이에만 채점
+  // (그 이후에 현재가로 재면 '1일' 수익률이 아니라 엉뚱한 기간을 재는 것 → 통계 오염)
+  { key: '1d',  days: 1,  minActual: 0.3, grace: 3  },
+  { key: '3d',  days: 3,  minActual: 0.5, grace: 3  },
+  { key: '7d',  days: 7,  minActual: 1.5, grace: 5  },
+  { key: '30d', days: 30, minActual: 3.0, grace: 10 },
 ];
 
 export default async function handler(req, res) {
@@ -25,16 +27,31 @@ export default async function handler(req, res) {
   const t0 = Date.now();
   const TIME_BUDGET_MS = 48000;
 
-  for (const { key, days, minActual } of PERIODS) {
+  for (const { key, days, minActual, grace } of PERIODS) {
     if (Date.now() - t0 > TIME_BUDGET_MS) { results.errors.push('시간 예산 초과 — 다음 실행에서 계속'); break; }
     const cutoff = new Date(now - days * 24 * 60 * 60 * 1000).toISOString();
+
+    // 채점 시기를 놓친 행(진입 후 days+grace 초과)은 일괄 만료 처리 —
+    // check_date만 찍고 is_accurate는 null 유지 → 큐에서 빠지되 통계에는 미포함
+    const staleCutoff = new Date(now - (days + grace) * 24 * 60 * 60 * 1000).toISOString();
+    try {
+      const { count: expired } = await supabase
+        .from('analysis_companies')
+        .update({ [`check_date_${key}`]: now.toISOString() }, { count: 'exact' })
+        .not('entry_price', 'is', null)
+        .is(`check_date_${key}`, null)
+        .lte('entry_date', staleCutoff);
+      if (expired) results[`expired_${key}`] = expired;
+    } catch {}
+
     const { data: due, error } = await supabase
       .from('analysis_companies')
-      .select('id, entry_price, upside_pct, companies(ticker)')
+      .select('id, entry_price, upside_pct, entry_date, companies(ticker)')
       .not('entry_price', 'is', null)
       .is(`check_date_${key}`, null)
       .lte('entry_date', cutoff)
-      .limit(50);
+      .order('entry_date', { ascending: false })   // 최신 우선 — 제때(유효 기간 내) 채점
+      .limit(60);
 
     if (error) { results.errors.push(`${key} query: ${error.message}`); continue; }
 
