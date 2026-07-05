@@ -39,3 +39,20 @@ jobs:
           echo "analyzed=$N staleSkipped=$SKIP"
           if [ -n "$CORR" ]; then echo "ticker corrections: $CORR"; fi
           if [ "$N" = "?" ]; then echo "non-JSON response: $(echo "$RESP" | head -c 200)"; fi
+
+      # 예측 정확도 검증 — Vercel cron이 불안정해 GH Actions에서 매시간 실행 (due 항목만 처리, 멱등)
+      - name: Check Accuracy (예측 검증)
+        run: |
+          RESP=$(curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/check-accuracy" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" || true)
+          echo "$RESP" | head -c 300; echo
+
+      # Vercel daily cron 백업: 01시(UTC)대 실행 시 오케스트레이터 호출 (뉴스수집/AI요약 등)
+      - name: Daily Orchestrator 백업 (01 UTC에만)
+        run: |
+          if [ "$(date -u +%H)" = "01" ]; then
+            curl -s --max-time 30 -X POST "${{ secrets.VERCEL_URL }}/api/cron-daily" \
+              -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" | head -c 300; echo
+          else
+            echo "skip (01 UTC에만 실행)"
+          fi

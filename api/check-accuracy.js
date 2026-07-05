@@ -21,7 +21,12 @@ export default async function handler(req, res) {
   const now = new Date();
   const results = { checked_1d: 0, checked_3d: 0, checked_7d: 0, checked_30d: 0, errors: [] };
 
+  // 시간 예산: maxDuration 60s 내에서 안전하게 종료 (초과분은 다음 실행이 이어서 처리)
+  const t0 = Date.now();
+  const TIME_BUDGET_MS = 48000;
+
   for (const { key, days, minActual } of PERIODS) {
+    if (Date.now() - t0 > TIME_BUDGET_MS) { results.errors.push('시간 예산 초과 — 다음 실행에서 계속'); break; }
     const cutoff = new Date(now - days * 24 * 60 * 60 * 1000).toISOString();
     const { data: due, error } = await supabase
       .from('analysis_companies')
@@ -34,6 +39,7 @@ export default async function handler(req, res) {
     if (error) { results.errors.push(`${key} query: ${error.message}`); continue; }
 
     for (const row of due || []) {
+      if (Date.now() - t0 > TIME_BUDGET_MS) break;
       try {
         const price = await fetchPrice(row.companies?.ticker);
         if (!price) continue;
@@ -53,7 +59,7 @@ export default async function handler(req, res) {
         }).eq('id', row.id);
 
         results[`checked_${key}`]++;
-        await sleep(300);
+        await sleep(150);
       } catch (err) {
         results.errors.push(`${key} ${row.companies?.ticker}: ${err.message}`);
       }
