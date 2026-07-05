@@ -133,11 +133,28 @@ function renderMap() {
   const W = 720, H = 420, P = { l: 46, r: 20, t: 24, b: 34 };
   const iw = W - P.l - P.r, ih = H - P.t - P.b;
   const secs = DATA.sectors;
+  const rOf = s => 6 + Math.min(17, Math.sqrt(s.companies?.length || 0) * 5);
+  // 버블 반경 + 라벨 높이만큼 플롯 영역을 안쪽으로 들여서 가장자리 잘림 방지
+  const maxR = Math.max(...secs.map(rOf));
+  const inX = maxR + 10, inTop = maxR + 18, inBot = maxR + 6;
   const maxX = Math.max(...secs.map(s => s.cnt30)), maxY = Math.max(...secs.map(s => s.cnt7));
   const medX = median(secs.map(s => s.cnt30)), medY = median(secs.map(s => s.cnt7));
-  const sx = v => P.l + Math.sqrt(v / maxX) * iw;
-  const sy = v => P.t + ih - Math.sqrt(v / (maxY || 1)) * ih;
+  const sx = v => P.l + inX + Math.sqrt(v / maxX) * (iw - inX * 2);
+  const sy = v => P.t + inTop + (1 - Math.sqrt(v / (maxY || 1))) * (ih - inTop - inBot);
   const midX = sx(medX), midY = sy(medY);
+
+  // 라벨 겹침 회피: 위 → 아래 → 더 위 순으로 빈 자리 탐색
+  const placedLabels = [];
+  const labelY = (x, y, r, text) => {
+    const w = text.length * 10;
+    const lx = x - w / 2;
+    const hits = (ly) => placedLabels.some(p => Math.abs(p.y - ly) < 11 && lx < p.x + p.w && lx + w > p.x);
+    let ly = y - r - 5;
+    if (hits(ly)) ly = y + r + 11;
+    if (hits(ly)) ly = y - r - 16;
+    placedLabels.push({ x: lx, y: ly, w });
+    return ly;
+  };
 
   let svg = `
     <rect x="${P.l}" y="${P.t}" width="${iw}" height="${ih}" fill="none"/>
@@ -152,12 +169,13 @@ function renderMap() {
   `;
   for (const s of secs) {
     const x = sx(s.cnt30), y = sy(s.cnt7);
-    const r = 6 + Math.min(20, Math.sqrt((s.companies?.length || 0)) * 6);
+    const r = rOf(s);
     const hot = s.heat >= 1.1;
     const color = hot ? 'var(--red)' : s.heat <= 0.7 ? 'var(--blue)' : 'var(--yellow)';
+    const ly = labelY(x, y, r, s.tag);
     svg += `<g class="bubble" data-tag="${escHtml(s.tag)}" onclick="select('${escHtml(s.tag)}')">
-      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" fill-opacity="0.55" stroke="${color}"/>
-      <text x="${x.toFixed(1)}" y="${(y - r - 4).toFixed(1)}" text-anchor="middle">${escHtml(s.tag)}</text>
+      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" fill-opacity="0.45" stroke="${color}"/>
+      <text x="${x.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle">${escHtml(s.tag)}</text>
     </g>`;
   }
   document.getElementById('mapSvg').innerHTML = svg;
