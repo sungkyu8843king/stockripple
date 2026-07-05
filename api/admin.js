@@ -1613,7 +1613,8 @@ const SM_TAG_RULES = [
   ['소비재',    /소비재|유통|화장품|뷰티|식품|음료|리테일|패션|이커머스/i],
   ['자동차',    /자동차|현대차|기아|완성차|(?:^|[^a-z])oem(?:[^a-z]|$)/i],
   ['물류·운송', /물류|해운|운송|항공|운임|공급망|logistics|shipping/i],
-  ['건설·부동산', /건설|부동산|시멘트|인프라|주택|토목|리츠/i],
+  // 주의: '인프라'는 "AI 인프라/클라우드 인프라/전력 인프라"에 광범위하게 등장 → 건설로 오분류되므로 제외
+  ['건설·부동산', /건설|부동산|시멘트|주택|토목|리츠|재건축|아파트/i],
   ['철강·소재',  /철강|포스코|구리|알루미늄|소재|화학|정밀화학/i],
 ];
 function smTagsOf(text) {
@@ -1627,10 +1628,12 @@ async function handleSectorMapGet(req, res) {
   const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
   const since7Ms = Date.now() - 7 * 86400000;
 
+  // 시간 기준은 뉴스 발행 시점(published_at) — 분석 시점(created_at)은 백로그 일괄 처리 때
+  // 옛 뉴스가 "최근"으로 잡혀 단기/장기 비율이 왜곡됨
   const { data: analyses, error } = await supabase
     .from('analyses')
-    .select('created_at, direct_sectors, ripple_effects, analysis_companies(upside_pct, confidence, ripple_sector, entry_date, rationale, companies(ticker, name_ko, name_en, market))')
-    .gte('created_at', since30)
+    .select('created_at, direct_sectors, ripple_effects, issues!inner(published_at), analysis_companies(upside_pct, confidence, ripple_sector, entry_date, rationale, companies(ticker, name_ko, name_en, market))')
+    .gte('issues.published_at', since30)
     .order('created_at', { ascending: false })
     .limit(1500);
   if (error) return res.status(500).json({ error: error.message });
@@ -1640,7 +1643,7 @@ async function handleSectorMapGet(req, res) {
   const edgeW = {};
 
   for (const a of analyses || []) {
-    const isRecent = new Date(a.created_at).getTime() >= since7Ms;
+    const isRecent = new Date(a.issues?.published_at || a.created_at).getTime() >= since7Ms;
     const fromTags = [...new Set(smTagsOf((a.direct_sectors || []).join(' ')))];
     const toTags = new Set();
     for (const r of a.ripple_effects || []) smTagsOf(r?.sector || '').forEach(t => toTags.add(t));
