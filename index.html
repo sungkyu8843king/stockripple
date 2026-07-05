@@ -251,6 +251,7 @@ button { font-family: inherit; }
 .ticker-name { color: var(--text3); font-weight: 600; font-size: 11px; letter-spacing: 0.02em; }
 .ticker-price { color: var(--text); font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .ticker-chg { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
+.ticker-spark { width: 44px; height: 14px; flex-shrink: 0; opacity: .9; }
 .ticker-chg.up { color: var(--green); }
 .ticker-chg.dn { color: var(--red); }
 .ticker-chg.flat { color: var(--text3); }
@@ -907,21 +908,21 @@ button { font-family: inherit; }
 <!-- Indices Ticker Bar -->
 <div class="indices-ticker" id="indicesTicker">
   <div class="ticker-track" id="tickerTrack">
-    <div class="ticker-item"><span class="ticker-name">S&amp;P 500</span><span class="ticker-price" id="tk-sp500">—</span><span class="ticker-chg flat" id="tk-sp500-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">NASDAQ</span><span class="ticker-price" id="tk-nasdaq">—</span><span class="ticker-chg flat" id="tk-nasdaq-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">DOW</span><span class="ticker-price" id="tk-dow">—</span><span class="ticker-chg flat" id="tk-dow-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">KOSPI</span><span class="ticker-price" id="tk-kospi">—</span><span class="ticker-chg flat" id="tk-kospi-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">KOSDAQ</span><span class="ticker-price" id="tk-kosdaq">—</span><span class="ticker-chg flat" id="tk-kosdaq-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">비트코인</span><span class="ticker-price" id="tk-btc">—</span><span class="ticker-chg flat" id="tk-btc-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">금</span><span class="ticker-price" id="tk-gold">—</span><span class="ticker-chg flat" id="tk-gold-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">WTI유</span><span class="ticker-price" id="tk-oil">—</span><span class="ticker-chg flat" id="tk-oil-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">USD/KRW</span><span class="ticker-price" id="tk-usdkrw">—</span><span class="ticker-chg flat" id="tk-usdkrw-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">VIX</span><span class="ticker-price" id="tk-vix">—</span><span class="ticker-chg flat" id="tk-vix-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">US 10Y</span><span class="ticker-price" id="tk-us10y">—</span><span class="ticker-chg flat" id="tk-us10y-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">DXY</span><span class="ticker-price" id="tk-dxy">—</span><span class="ticker-chg flat" id="tk-dxy-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">ETH</span><span class="ticker-price" id="tk-eth">—</span><span class="ticker-chg flat" id="tk-eth-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">NIKKEI</span><span class="ticker-price" id="tk-nikkei">—</span><span class="ticker-chg flat" id="tk-nikkei-chg">—</span></div>
-    <div class="ticker-item"><span class="ticker-name">HSI</span><span class="ticker-price" id="tk-hsi">—</span><span class="ticker-chg flat" id="tk-hsi-chg">—</span></div>
+    <div class="ticker-item"><span class="ticker-name">S&amp;P 500</span><span class="ticker-price" id="tk-sp500">—</span><span class="ticker-chg flat" id="tk-sp500-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="sp500"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">NASDAQ</span><span class="ticker-price" id="tk-nasdaq">—</span><span class="ticker-chg flat" id="tk-nasdaq-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="nasdaq"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">DOW</span><span class="ticker-price" id="tk-dow">—</span><span class="ticker-chg flat" id="tk-dow-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="dow"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">KOSPI</span><span class="ticker-price" id="tk-kospi">—</span><span class="ticker-chg flat" id="tk-kospi-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="kospi"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">KOSDAQ</span><span class="ticker-price" id="tk-kosdaq">—</span><span class="ticker-chg flat" id="tk-kosdaq-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="kosdaq"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">비트코인</span><span class="ticker-price" id="tk-btc">—</span><span class="ticker-chg flat" id="tk-btc-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="btc"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">금</span><span class="ticker-price" id="tk-gold">—</span><span class="ticker-chg flat" id="tk-gold-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="gold"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">WTI유</span><span class="ticker-price" id="tk-oil">—</span><span class="ticker-chg flat" id="tk-oil-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="oil"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">USD/KRW</span><span class="ticker-price" id="tk-usdkrw">—</span><span class="ticker-chg flat" id="tk-usdkrw-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="usdkrw"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">VIX</span><span class="ticker-price" id="tk-vix">—</span><span class="ticker-chg flat" id="tk-vix-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="vix"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">US 10Y</span><span class="ticker-price" id="tk-us10y">—</span><span class="ticker-chg flat" id="tk-us10y-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="us10y"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">DXY</span><span class="ticker-price" id="tk-dxy">—</span><span class="ticker-chg flat" id="tk-dxy-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="dxy"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">ETH</span><span class="ticker-price" id="tk-eth">—</span><span class="ticker-chg flat" id="tk-eth-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="eth"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">NIKKEI</span><span class="ticker-price" id="tk-nikkei">—</span><span class="ticker-chg flat" id="tk-nikkei-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="nikkei"></svg></div>
+    <div class="ticker-item"><span class="ticker-name">HSI</span><span class="ticker-price" id="tk-hsi">—</span><span class="ticker-chg flat" id="tk-hsi-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="hsi"></svg></div>
   </div>
 </div>
 
@@ -1971,6 +1972,18 @@ function fmtIdx(val, fmt) {
   return Number(val).toLocaleString('ko-KR', {maximumFractionDigits: 2});
 }
 
+// 최근 세션(24h) 미니 차트 — 44×14 SVG path 생성
+function sparkPath(points) {
+  if (!Array.isArray(points) || points.length < 2) return '';
+  const w = 44, h = 14;
+  const min = Math.min(...points), max = Math.max(...points);
+  const span = (max - min) || 1;
+  const step = w / (points.length - 1);
+  return points.map((p, i) =>
+    `${i ? 'L' : 'M'}${(i * step).toFixed(1)},${(h - 1.5 - ((p - min) / span) * (h - 3)).toFixed(1)}`
+  ).join('');
+}
+
 async function loadIndices() {
   try {
     const r = await fetch('/api/indices');
@@ -1987,11 +2000,17 @@ async function loadIndices() {
       const chgStr = changePercent != null ? `${chgSign}${changePercent.toFixed(2)}%` : '—';
       const priceStr = fmtIdx(price, idx.fmt);
 
-      // ticker bar
-      const tkPrice = document.getElementById(`tk-${idx.id}`);
-      const tkChg = document.getElementById(`tk-${idx.id}-chg`);
-      if (tkPrice) tkPrice.textContent = priceStr;
-      if (tkChg) { tkChg.textContent = chgStr; tkChg.className = `ticker-chg ${chgClass}`; }
+      // ticker bar — 마퀴 루프용 복제본(id 중복)까지 모두 갱신
+      document.querySelectorAll(`[id="tk-${idx.id}"]`).forEach(el => { el.textContent = priceStr; });
+      document.querySelectorAll(`[id="tk-${idx.id}-chg"]`).forEach(el => {
+        el.textContent = chgStr; el.className = `ticker-chg ${chgClass}`;
+      });
+      // 24h 스파크라인
+      if (Array.isArray(d.spark) && d.spark.length > 1) {
+        const color = changePercent > 0 ? 'var(--green)' : changePercent < 0 ? 'var(--red)' : 'var(--text3)';
+        const path = `<path d="${sparkPath(d.spark)}" fill="none" stroke="${color}" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/>`;
+        document.querySelectorAll(`[data-spark="${idx.id}"]`).forEach(el => { el.innerHTML = path; });
+      }
 
       // sidebar
       const siVal = document.getElementById(`si-${idx.id}`);

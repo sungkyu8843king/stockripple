@@ -1,6 +1,6 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
 
   const SYMBOLS = [
     { id: 'sp500',  symbol: '^GSPC'  },
@@ -13,6 +13,11 @@ export default async function handler(req, res) {
     { id: 'oil',    symbol: 'CL=F'   },
     { id: 'usdkrw', symbol: 'KRW=X'  },
     { id: 'vix',    symbol: '^VIX'   },
+    { id: 'us10y',  symbol: '^TNX'   },
+    { id: 'dxy',    symbol: 'DX-Y.NYB' },
+    { id: 'eth',    symbol: 'ETH-USD' },
+    { id: 'nikkei', symbol: '^N225'  },
+    { id: 'hsi',    symbol: '^HSI'   },
   ];
 
   const headers = {
@@ -23,11 +28,17 @@ export default async function handler(req, res) {
   const fetchOne = async ({ id, symbol }) => {
     try {
       const encoded = encodeURIComponent(symbol);
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=5d`;
-      const r = await fetch(url, { headers, signal: AbortSignal.timeout(6000) });
-      if (!r.ok) return { id, price: null, changePercent: null, change: null };
-      const json = await r.json();
-      const result = json.chart?.result?.[0];
+      // 일봉(가격·전일종가)과 15분봉(최근 세션 스파크라인)을 병렬 수집
+      const [dailyRes, intraRes] = await Promise.allSettled([
+        fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=5d`,
+          { headers, signal: AbortSignal.timeout(6000) }).then(r => r.ok ? r.json() : null),
+        fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=15m&range=1d`,
+          { headers, signal: AbortSignal.timeout(6000) }).then(r => r.ok ? r.json() : null),
+      ]);
+      const daily = dailyRes.status === 'fulfilled' ? dailyRes.value : null;
+      const intra = intraRes.status === 'fulfilled' ? intraRes.value : null;
+
+      const result = daily?.chart?.result?.[0];
       const meta = result?.meta;
       if (!meta) return { id, price: null, changePercent: null, change: null };
 
@@ -51,7 +62,19 @@ export default async function handler(req, res) {
         change = meta.regularMarketChange ?? null;
       }
 
-      return { id, price, changePercent, change, prevClose, currency: meta.currency };
+      // 스파크라인: 최근 세션(암호화폐는 최근 24시간) 15분봉 종가, 최대 24포인트로 다운샘플
+      let spark = null;
+      const intraCloses = (intra?.chart?.result?.[0]?.indicators?.quote?.[0]?.close || []).filter(v => v != null);
+      if (intraCloses.length >= 3) {
+        const step = Math.max(1, Math.ceil(intraCloses.length / 24));
+        spark = intraCloses.filter((_, i) => i % step === 0);
+        if (spark[spark.length - 1] !== intraCloses[intraCloses.length - 1]) {
+          spark.push(intraCloses[intraCloses.length - 1]);  // 마지막 값은 항상 포함
+        }
+        spark = spark.map(v => Number(Number(v).toPrecision(6)));
+      }
+
+      return { id, price, changePercent, change, prevClose, currency: meta.currency, spark };
     } catch {
       return { id, price: null, changePercent: null, change: null };
     }
