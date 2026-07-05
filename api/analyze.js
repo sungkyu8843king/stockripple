@@ -617,6 +617,7 @@ async function decideTrades(issue, analysis, candidates) {
 - bollinger_pct_b > 1.0 → 밴드 상단 돌파 상태. 단기 되돌림 위험, entry를 보수적으로
 - pct_from_52w_high > -5 (신고가 부근) → 저항 없음, 추세 지속 유리. 단 rsi 과열 동반 시 눌림목 대기
 - key_thesis에는 뉴스 촉매와 차트 근거를 함께 담을 것 (예: "RSI 52 건전 + 50일선 지지 + 관세 수혜")
+- key_thesis/key_risk는 일반 투자자가 읽는 문장 — above_sma50, ret_3m 같은 데이터 필드명 그대로 쓰지 말고 "50일선 위 안착", "3개월 +15% 추세"처럼 풀어 쓸 것
 
 뉴스 이슈: ${issue.title}
 이슈 요약: ${(analysis.summary || issue.summary || '').slice(0, 300)}
