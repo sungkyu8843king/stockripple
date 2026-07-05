@@ -1641,6 +1641,8 @@ async function handleSectorMapGet(req, res) {
   const nodes = {};
   const nodeOf = (t) => (nodes[t] ||= { tag: t, cnt7: 0, cnt30: 0, comps: new Map() });
   const edgeW = {};
+  // 종목 랭킹: 30일간 분석 등장 빈도 + 최신 매수논리(th) — "다음에 뭐 담지?" 섹션용
+  const stockStats = {};
 
   for (const a of analyses || []) {
     const isRecent = new Date(a.issues?.published_at || a.created_at).getTime() >= since7Ms;
@@ -1661,9 +1663,23 @@ async function handleSectorMapGet(req, res) {
     for (const ac of a.analysis_companies || []) {
       const co = ac.companies;
       if (!co?.ticker) continue;
-      let mom1m = null;
+      let mom1m = null, keyThesis = null;
       const fm = (ac.rationale || '').match(/\[FUND\](\{[^\n]*\})/);
       if (fm) { try { mom1m = JSON.parse(fm[1]).mom1m ?? null; } catch {} }
+      const tm = (ac.rationale || '').match(/\[TRADE\](\{[^\n]*\})/);
+      if (tm) { try { keyThesis = JSON.parse(tm[1]).th ?? null; } catch {} }
+
+      // 종목 랭킹 집계
+      const st = (stockStats[co.ticker] ||= {
+        ticker: co.ticker, name: co.name_ko || co.name_en || co.ticker,
+        market: co.market || (/\.K[SQ]$/i.test(co.ticker) ? 'KR' : 'US'),
+        cnt: 0, sumUp: 0, nUp: 0, bestConf: 0, th: null, latest: '', tags: new Set(),
+      });
+      st.cnt++;
+      if (ac.upside_pct != null) { st.sumUp += Number(ac.upside_pct); st.nUp++; }
+      if ((ac.confidence || 0) > st.bestConf) st.bestConf = ac.confidence || 0;
+      if ((ac.entry_date || '') > st.latest) { st.latest = ac.entry_date || ''; if (keyThesis) st.th = keyThesis; }
+      smTagsOf(ac.ripple_sector || '').forEach(t => st.tags.add(t));
       for (const t of smTagsOf(ac.ripple_sector || '')) {
         const m = nodeOf(t).comps;
         const prev = m.get(co.ticker);
@@ -1700,11 +1716,23 @@ async function handleSectorMapGet(req, res) {
     .filter(e => e.weight >= 2)
     .sort((a, b) => b.weight - a.weight);
 
+  const top_stocks = Object.values(stockStats)
+    .filter(s => s.cnt >= 1)
+    .sort((a, b) => b.cnt - a.cnt || b.bestConf - a.bestConf)
+    .slice(0, 30)
+    .map(s => ({
+      ticker: s.ticker, name: s.name, market: s.market, cnt: s.cnt,
+      avgUpside: s.nUp ? Math.round((s.sumUp / s.nUp) * 10) / 10 : null,
+      bestConf: s.bestConf || null,
+      th: s.th, latest: (s.latest || '').slice(0, 10),
+      tags: [...s.tags].slice(0, 3),
+    }));
+
   res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
   return res.status(200).json({
     ok: true, window_days: 30, based_on: (analyses || []).length,
     generated_at: new Date().toISOString(),
-    sectors, edges,
+    sectors, edges, top_stocks,
   });
 }
 

@@ -9,7 +9,7 @@
   --bg: #f6f7fa; --card: #ffffff; --border: #e5e8ee; --border2: #d3d8e2;
   --text: #171b26; --text2: #4b5262; --text3: #8b93a5;
   --blue: #3861f6; --green: #0f9d58; --red: #e5484d; --yellow: #c98a06;
-  --blue-dim: rgba(56,97,246,.09); --green-dim: rgba(15,157,88,.1); --red-dim: rgba(229,72,77,.1);
+  --blue-dim: rgba(56,97,246,.09); --green-dim: rgba(15,157,88,.1); --red-dim: rgba(229,72,77,.1); --yellow-dim: rgba(201,138,6,.12);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: var(--bg); color: var(--text); font-family: 'Pretendard', -apple-system, 'Noto Sans KR', sans-serif; }
@@ -19,56 +19,91 @@ header { display: flex; align-items: center; gap: 12px; padding: 14px 0; }
 .back { font-size: 14px; color: var(--text2); font-weight: 600; }
 h1 { font-size: 20px; font-weight: 800; }
 .sub { font-size: 12.5px; color: var(--text3); margin: 2px 0 16px; line-height: 1.6; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
-.card-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; overflow: hidden; }
+.card-title { font-size: 14.5px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .meta { font-size: 11px; color: var(--text3); font-weight: 400; }
+.up { color: var(--green); } .dn { color: var(--red); }
 
-/* 사분면 맵 */
+/* ── 사분면 맵 ── */
 #mapSvg { width: 100%; height: auto; display: block; touch-action: manipulation; }
 .q-label { font-size: 13px; font-weight: 800; fill: #c6ccd9; }
 .q-sub { font-size: 8.5px; fill: #c6ccd9; }
 .axis-label { font-size: 9px; fill: var(--text3); }
-.bubble { cursor: pointer; transition: opacity .15s; }
-.bubble:hover circle { stroke: var(--text); stroke-width: 1.5; }
+.bubble { cursor: pointer; }
+.bubble:hover circle { stroke-width: 2; }
 .bubble.selected circle { stroke: var(--text); stroke-width: 2; }
-.bubble text { font-size: 9.5px; fill: var(--text2); font-weight: 600; pointer-events: none; }
+.bubble text { font-size: 9.5px; fill: var(--text2); font-weight: 700; pointer-events: none; }
+/* 히트 스트립 */
+.strip { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+.strip div { height: 100%; min-width: 2px; cursor: pointer; }
 
-/* 섹터 상세 */
-.flow-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
-.sector-chip {
-  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
-  font-size: 12.5px; font-weight: 700; padding: 7px 12px; border-radius: 10px;
-  background: var(--blue-dim); color: var(--blue); border: 1px solid transparent;
+/* ── 산업 흐름 (밸류체인 카드 체인) ── */
+.chain-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px; }
+.chain { display: flex; align-items: stretch; gap: 10px; min-width: min-content; }
+.chain-col {
+  background: var(--card); border: 1.5px solid var(--border2); border-radius: 14px;
+  padding: 12px; min-width: 170px; max-width: 210px; flex-shrink: 0;
 }
-.sector-chip:hover { border-color: var(--blue); }
-.sector-chip .w { font-size: 10px; font-weight: 600; opacity: .65; }
-.sector-chip.current { background: var(--text); color: #fff; cursor: default; }
-.arrow { color: var(--text3); font-size: 15px; }
-.grp-title { font-size: 12px; font-weight: 700; color: var(--text2); margin: 14px 0 8px; display: flex; align-items: center; gap: 6px; }
-.co-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
-.co-card {
-  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-  padding: 10px 12px; display: block;
+.chain-col.current { border-color: var(--text); box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+.chain-col.dim { opacity: .85; }
+.chain-head { font-size: 13px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: baseline; gap: 6px; }
+.chain-head .w { font-size: 10px; color: var(--text3); font-weight: 600; }
+.chain-arrow { display: flex; align-items: center; font-size: 18px; color: var(--text3); flex-shrink: 0; }
+.chain-chip {
+  display: block; font-size: 12px; font-weight: 600; padding: 7px 10px; margin-bottom: 6px;
+  border-radius: 9px; background: var(--red-dim); color: #b3383c; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.chain-chip:hover { filter: brightness(.95); }
+.chain-chip .pct { float: right; font-weight: 700; font-size: 11px; }
+.chain-chip.sec { background: var(--blue-dim); color: var(--blue); }
+.chain-empty { font-size: 11px; color: var(--text3); }
+
+/* ── 종목 카드 ── */
+.grp-title { font-size: 12.5px; font-weight: 700; color: var(--text2); margin: 14px 0 8px; }
+.co-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 8px; }
+.co-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: block; }
 .co-card:hover { border-color: var(--blue); }
 .co-top { display: flex; align-items: baseline; gap: 6px; }
 .co-ticker { font-size: 11px; font-weight: 700; color: var(--blue); font-family: monospace; }
-.co-name { font-size: 12.5px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co-name { font-size: 12.5px; font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .co-up { font-size: 12px; font-weight: 700; color: var(--green); }
-.co-meta { font-size: 10.5px; color: var(--text3); margin-top: 4px; display: flex; gap: 8px; }
+.co-meta { font-size: 10.5px; color: var(--text3); margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
 .empty { font-size: 12px; color: var(--text3); padding: 8px 0; }
 
-/* 섹터 리스트 */
-.sec-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
+/* ── 종목 랭킹 ── */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.tab { font-size: 12px; font-weight: 700; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--text2); cursor: pointer; }
+.tab.active { background: var(--text); color: #fff; border-color: var(--text); }
+.rk-row { display: flex; align-items: center; gap: 10px; padding: 11px 4px; border-bottom: 1px solid var(--border); }
+.rk-row:last-child { border-bottom: none; }
+.rk-row:hover { background: var(--bg); }
+.rk-num { width: 20px; text-align: center; font-size: 13px; font-weight: 800; color: var(--text3); flex-shrink: 0; }
+.rk-main { flex: 1; min-width: 0; }
+.rk-name-line { display: flex; align-items: baseline; gap: 6px; }
+.rk-name { font-size: 13.5px; font-weight: 700; }
+.rk-tk { font-size: 10.5px; color: var(--text3); font-family: monospace; }
+.rk-mkt { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 5px; background: var(--blue-dim); color: var(--blue); }
+.rk-th { font-size: 11.5px; color: var(--text3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-right { text-align: right; flex-shrink: 0; }
+.rk-stat { font-size: 11px; color: var(--text2); }
+.rk-chg { font-size: 12.5px; font-weight: 700; font-family: monospace; }
+
+/* ── 섹터 구성 리스트 ── */
+.sec-row { display: flex; align-items: center; gap: 10px; padding: 12px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
 .sec-row:last-child { border-bottom: none; }
 .sec-row:hover { background: var(--bg); }
-.sec-name { font-size: 13.5px; font-weight: 700; width: 92px; flex-shrink: 0; }
-.sec-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; }
-.sec-badge.hot { background: var(--red-dim); color: var(--red); }
-.sec-badge.cool { background: var(--blue-dim); color: var(--blue); }
-.sec-next { flex: 1; font-size: 11px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sec-stat { font-size: 11px; color: var(--text2); font-family: monospace; flex-shrink: 0; }
-@media (max-width: 640px) { .sec-next { display: none; } }
+.sec-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.sec-main { flex: 1; min-width: 0; }
+.sec-name-line { display: flex; align-items: center; gap: 7px; }
+.sec-name { font-size: 14px; font-weight: 800; }
+.sec-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.sec-badge.hot { background: var(--green-dim); color: var(--green); }
+.sec-badge.cold { background: var(--red-dim); color: var(--red); }
+.sec-badge.accel { background: var(--yellow-dim); color: var(--yellow); }
+.sec-desc { font-size: 11.5px; color: var(--text3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sec-share { width: 46px; text-align: right; font-size: 13px; font-weight: 700; color: var(--text2); flex-shrink: 0; }
+.sec-chg { width: 58px; text-align: right; font-size: 13px; font-weight: 800; font-family: monospace; flex-shrink: 0; }
 .loading { text-align: center; color: var(--text3); font-size: 13px; padding: 40px 0; }
 </style>
 </head>
@@ -78,29 +113,65 @@ h1 { font-size: 20px; font-weight: 800; }
     <a href="/" class="back">← 피드</a>
     <h1>🧭 섹터 파급 지도</h1>
   </header>
-  <p class="sub">최근 30일 뉴스 분석에서 집계한 섹터별 파급 강도입니다. <b>버블을 누르면</b> 그 섹터가 뜨면 다음으로 움직이는 섹터와, 그 섹터의 수혜 종목을 보여줍니다.<br>가로축=30일 누적 파급(장기) · 세로축=최근 7일 파급(단기) · 버블 크기=연결 종목 수</p>
+  <p class="sub"><b>산업/섹터 → 파급 흐름 → 종목</b> 순으로 좁혀가며 살펴보세요. 최근 30일 뉴스 분석에서 집계한 섹터별 파급 강도와, 섹터가 뜰 때 다음으로 움직이는 섹터·종목입니다.</p>
 
   <div class="card">
     <div class="card-title">산업/섹터 사분면 <span class="meta" id="mapMeta"></span></div>
     <svg id="mapSvg" viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="strip" id="heatStrip" title="섹터별 파급 비중 × 오늘 등락"></div>
   </div>
 
-  <div class="card" id="detailCard" style="display:none">
-    <div class="card-title" id="detailTitle"></div>
-    <div id="detailBody"></div>
+  <div class="card" id="flowCard" style="display:none">
+    <div class="card-title">⚡ 산업 흐름 <span class="meta" id="flowMeta">섹터를 선택하세요</span></div>
+    <div class="chain-scroll"><div class="chain" id="chainBody"></div></div>
+    <div id="flowStocks"></div>
   </div>
 
   <div class="card">
-    <div class="card-title">전체 섹터 <span class="meta">단기 파급 순</span></div>
+    <div class="card-title">💡 다음에 뭐 담지? <span class="meta">최근 30일 분석에서 가장 자주 등장한 종목</span></div>
+    <div class="tabs" id="rkTabs">
+      <button class="tab active" data-sort="cnt">인기</button>
+      <button class="tab" data-sort="conf">신뢰도</button>
+      <button class="tab" data-sort="upside">목표수익률</button>
+      <button class="tab" data-sort="chg">오늘 급등</button>
+    </div>
+    <div id="rankList"><div class="loading">불러오는 중...</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">산업(섹터) 구성 <span class="meta">뉴스 파급 비중 · 대표 종목 당일 등락</span></div>
     <div id="sectorList"><div class="loading">불러오는 중...</div></div>
   </div>
 </div>
 
 <script>
-let DATA = null;
-let selected = null;
+let DATA = null, QUOTES = {}, selected = null, rkSort = 'cnt';
 
 const escHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtChg = v => v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(1)}%`;
+const chgCls = v => v > 0 ? 'up' : v < 0 ? 'dn' : '';
+
+const SEC_DESC = {
+  'AI': '묻고 답하고 코딩까지, 요즘 모든 것의 두뇌',
+  '반도체': '스마트폰도 AI도, 이 작은 칩 없이는',
+  '전기차': '기름 대신 전기로 달리는 차, 그리고 자율주행',
+  '배터리': '전기차의 심장, 에너지를 담는 통',
+  '바이오': '약 짓고, 병 찾아내고, 수술까지',
+  '에너지': 'AI 데이터센터도 결국 전기를 먹고 산다',
+  '핀테크': '지갑 대신 폰으로 결제하는 세상',
+  '금융': '월급 들어오고 대출 나가는, 돈이 사는 곳',
+  '크립토': '비트코인부터 스테이블코인까지',
+  '클라우드': '인터넷 저편의 컴퓨터를 빌려 쓰는 법',
+  '로봇': '사람 대신 움직이는 손과 발',
+  '방산·우주': '전투기와 미사일, 그리고 우주로',
+  '게임': '출근길 지하철 절반이 하고 있는 것',
+  '엔터': 'K-팝과 드라마, 문화를 수출하는 산업',
+  '소비재': '장바구니에 담기는 모든 것',
+  '자동차': '차 한 대엔 부품 3만 개, 그걸 다 만드는 곳',
+  '물류·운송': '주문한 물건이 문 앞까지 오는 길',
+  '건설·부동산': '집 짓고 도시 세우는 사람들',
+  '철강·소재': '철·구리·리튬, 모든 공장의 장보기 목록',
+};
 
 async function load() {
   try {
@@ -110,22 +181,40 @@ async function load() {
       document.getElementById('sectorList').innerHTML = '<div class="empty">아직 집계할 분석 데이터가 부족합니다.</div>';
       return;
     }
-    document.getElementById('mapMeta').textContent = `분석 ${DATA.based_on}건 기반 · 30일`;
+    document.getElementById('mapMeta').textContent = `분석 ${DATA.based_on}건 · 30일 · 버블 크기=연결 종목 수`;
     renderMap();
+    renderRank();
     renderList();
-    // 가장 뜨거운 섹터 자동 선택
     select(DATA.sectors[0].tag);
+    loadQuotes();  // 등락률은 비동기로 나중에 채움
   } catch (e) {
     document.getElementById('sectorList').innerHTML = `<div class="empty">로드 실패: ${escHtml(e.message)}</div>`;
   }
 }
 
-function nextOf(tag, n = 5) {
-  return (DATA.edges || []).filter(e => e.from === tag).slice(0, n);
+/* 실시간 등락: 랭킹 종목 + 섹터 대표 3종목 일괄 조회 */
+async function loadQuotes() {
+  const set = new Set();
+  (DATA.top_stocks || []).forEach(s => set.add(s.ticker));
+  DATA.sectors.forEach(s => (s.companies || []).slice(0, 3).forEach(c => set.add(c.ticker)));
+  const tickers = [...set].slice(0, 150);
+  if (!tickers.length) return;
+  try {
+    const r = await fetch(`/api/quotes?tickers=${encodeURIComponent(tickers.join(','))}`);
+    const j = await r.json();
+    QUOTES = j.data || {};
+    renderRank(); renderList(); renderStrip();
+    if (selected) select(selected, true);
+  } catch {}
 }
-function inflowOf(tag, n = 3) {
-  return (DATA.edges || []).filter(e => e.to === tag).slice(0, n);
+const chgOf = t => QUOTES[t]?.changePercent ?? null;
+function sectorChg(s) {
+  const vals = (s.companies || []).slice(0, 3).map(c => chgOf(c.ticker)).filter(v => v != null);
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
+
+function nextOf(tag, n = 5) { return (DATA.edges || []).filter(e => e.from === tag).slice(0, n); }
+function inflowOf(tag, n = 2) { return (DATA.edges || []).filter(e => e.to === tag).slice(0, n); }
 function sectorOf(tag) { return DATA.sectors.find(s => s.tag === tag); }
 
 /* ── 사분면 버블맵 ── */
@@ -134,7 +223,6 @@ function renderMap() {
   const iw = W - P.l - P.r, ih = H - P.t - P.b;
   const secs = DATA.sectors;
   const rOf = s => 6 + Math.min(17, Math.sqrt(s.companies?.length || 0) * 5);
-  // 버블 반경 + 라벨 높이만큼 플롯 영역을 안쪽으로 들여서 가장자리 잘림 방지
   const maxR = Math.max(...secs.map(rOf));
   const inX = maxR + 10, inTop = maxR + 18, inBot = maxR + 6;
   const maxX = Math.max(...secs.map(s => s.cnt30)), maxY = Math.max(...secs.map(s => s.cnt7));
@@ -143,12 +231,10 @@ function renderMap() {
   const sy = v => P.t + inTop + (1 - Math.sqrt(v / (maxY || 1))) * (ih - inTop - inBot);
   const midX = sx(medX), midY = sy(medY);
 
-  // 라벨 겹침 회피: 위 → 아래 → 더 위 순으로 빈 자리 탐색
   const placedLabels = [];
   const labelY = (x, y, r, text) => {
-    const w = text.length * 10;
-    const lx = x - w / 2;
-    const hits = (ly) => placedLabels.some(p => Math.abs(p.y - ly) < 11 && lx < p.x + p.w && lx + w > p.x);
+    const w = text.length * 10, lx = x - w / 2;
+    const hits = ly => placedLabels.some(p => Math.abs(p.y - ly) < 11 && lx < p.x + p.w && lx + w > p.x);
     let ly = y - r - 5;
     if (hits(ly)) ly = y + r + 11;
     if (hits(ly)) ly = y - r - 16;
@@ -157,21 +243,18 @@ function renderMap() {
   };
 
   let svg = `
-    <rect x="${P.l}" y="${P.t}" width="${iw}" height="${ih}" fill="none"/>
     <line x1="${midX}" y1="${P.t}" x2="${midX}" y2="${P.t + ih}" stroke="var(--border2)" stroke-dasharray="3,4"/>
     <line x1="${P.l}" y1="${midY}" x2="${P.l + iw}" y2="${midY}" stroke="var(--border2)" stroke-dasharray="3,4"/>
     <text class="q-label" x="${P.l + 10}" y="${P.t + 18}">부상</text><text class="q-sub" x="${P.l + 10}" y="${P.t + 30}">단기 급부상</text>
-    <text class="q-label" x="${P.l + iw - 44}" y="${P.t + 18}">주도</text><text class="q-sub" x="${P.l + iw - 44}" y="${P.t + 30}">현재 시장 주도</text>
+    <text class="q-label" x="${P.l + iw - 44}" y="${P.t + 18}">주도</text><text class="q-sub" x="${P.l + iw - 60}" y="${P.t + 30}">현재 시장 주도</text>
     <text class="q-label" x="${P.l + 10}" y="${P.t + ih - 16}">소외</text>
     <text class="q-label" x="${P.l + iw - 58}" y="${P.t + ih - 16}">식는 중</text>
     <text class="axis-label" x="${P.l + iw / 2 - 30}" y="${H - 8}">장기 파급(30일) →</text>
     <text class="axis-label" x="12" y="${P.t + ih / 2}" transform="rotate(-90 14 ${P.t + ih / 2})">단기 파급(7일) →</text>
   `;
   for (const s of secs) {
-    const x = sx(s.cnt30), y = sy(s.cnt7);
-    const r = rOf(s);
-    const hot = s.heat >= 1.1;
-    const color = hot ? 'var(--red)' : s.heat <= 0.7 ? 'var(--blue)' : 'var(--yellow)';
+    const x = sx(s.cnt30), y = sy(s.cnt7), r = rOf(s);
+    const color = s.heat >= 1.1 ? 'var(--red)' : s.heat <= 0.7 ? 'var(--blue)' : 'var(--yellow)';
     const ly = labelY(x, y, r, s.tag);
     svg += `<g class="bubble" data-tag="${escHtml(s.tag)}" onclick="select('${escHtml(s.tag)}')">
       <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" fill-opacity="0.45" stroke="${color}"/>
@@ -179,80 +262,146 @@ function renderMap() {
     </g>`;
   }
   document.getElementById('mapSvg').innerHTML = svg;
+  renderStrip();
 }
 function median(arr) { const a = arr.slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)] || 1; }
 
-/* ── 섹터 상세: 다음 섹터 + 종목 ── */
-function select(tag) {
+/* 히트 스트립: 폭=파급 비중, 색=당일 등락(없으면 heat) */
+function renderStrip() {
+  const total = DATA.sectors.reduce((a, s) => a + s.cnt30, 0) || 1;
+  document.getElementById('heatStrip').innerHTML = DATA.sectors.map(s => {
+    const w = Math.max(1.5, (s.cnt30 / total) * 100);
+    const chg = sectorChg(s);
+    let bg;
+    if (chg != null) {
+      const a = Math.min(1, Math.abs(chg) / 3) * 0.75 + 0.15;
+      bg = chg >= 0 ? `rgba(15,157,88,${a})` : `rgba(229,72,77,${a})`;
+    } else {
+      bg = s.heat >= 1.1 ? 'rgba(229,72,77,.4)' : 'rgba(56,97,246,.3)';
+    }
+    return `<div style="width:${w}%;background:${bg}" title="${escHtml(s.tag)} ${chg != null ? fmtChg(chg) : ''}" onclick="select('${escHtml(s.tag)}')"></div>`;
+  }).join('');
+}
+
+/* ── 산업 흐름: 밸류체인 카드 체인 ── */
+function select(tag, keepScroll) {
   selected = tag;
   document.querySelectorAll('.bubble').forEach(b => b.classList.toggle('selected', b.dataset.tag === tag));
   const s = sectorOf(tag);
   if (!s) return;
-  const card = document.getElementById('detailCard');
+  const card = document.getElementById('flowCard');
   card.style.display = '';
 
-  const heatTxt = s.heat >= 1.1 ? `<span style="color:var(--red);font-weight:700">가속 ×${s.heat}</span>`
-               : s.heat <= 0.7 ? `<span style="color:var(--blue);font-weight:700">감속 ×${s.heat}</span>`
-               : `<span style="color:var(--text3)">유지 ×${s.heat}</span>`;
-  document.getElementById('detailTitle').innerHTML =
-    `🔎 ${escHtml(tag)} <span class="meta">7일 ${s.cnt7}건 · 30일 ${s.cnt30}건 · ${heatTxt}</span>`;
+  const nexts = nextOf(tag, 4);
+  const inflows = inflowOf(tag, 2);
+  document.getElementById('flowMeta').innerHTML =
+    `<b>${escHtml(tag)}</b>가 뜨면 다음으로 움직이는 섹터 · 파급 ${s.cnt30}건`;
 
-  const nexts = nextOf(tag);
-  const inflows = inflowOf(tag);
+  const chipOf = (c) => {
+    const chg = chgOf(c.ticker);
+    return `<a class="chain-chip" href="/company.html?ticker=${encodeURIComponent(c.ticker)}" title="${escHtml(c.name)}">
+      ${escHtml(c.name)} <span class="pct ${chgCls(chg)}">${chg != null ? fmtChg(chg) : (c.upside != null ? '목표+' + c.upside + '%' : '')}</span></a>`;
+  };
+  const colOf = (colTag, cls, headExtra) => {
+    const cs = sectorOf(colTag);
+    const chips = (cs?.companies || []).slice(0, 3).map(chipOf).join('') || '<div class="chain-empty">종목 없음</div>';
+    return `<div class="chain-col ${cls}">
+      <div class="chain-head" ${cls !== 'current' ? `style="cursor:pointer" onclick="select('${escHtml(colTag)}')"` : ''}>${escHtml(colTag)} ${headExtra || ''}</div>
+      ${chips}</div>`;
+  };
 
-  let html = '';
-  // 파급 흐름 체인
-  html += `<div class="grp-title">⚡ 파급 흐름 — 이 섹터가 뜨면 다음은?</div>`;
-  if (nexts.length) {
-    html += `<div class="flow-row"><span class="sector-chip current">${escHtml(tag)}</span><span class="arrow">→</span>` +
-      nexts.map(e => `<span class="sector-chip" onclick="select('${escHtml(e.to)}')">${escHtml(e.to)} <span class="w">×${e.weight}</span></span>`).join('<span class="arrow">·</span>') +
-      `</div>`;
-  } else {
-    html += `<div class="empty">아직 집계된 파급 연결이 없습니다.</div>`;
-  }
+  let chain = '';
   if (inflows.length) {
-    html += `<div class="flow-row" style="opacity:.75"><span style="font-size:11px;color:var(--text3)">유입:</span>` +
-      inflows.map(e => `<span class="sector-chip" style="background:var(--bg);color:var(--text2)" onclick="select('${escHtml(e.from)}')">${escHtml(e.from)} <span class="w">×${e.weight}</span></span>`).join('<span class="arrow">→</span>') +
-      `<span class="arrow">→</span><span style="font-size:12px;font-weight:700">${escHtml(tag)}</span></div>`;
+    chain += inflows.map(e => colOf(e.from, 'dim', `<span class="w">유입 ×${e.weight}</span>`)).join('<div class="chain-arrow">→</div>');
+    chain += '<div class="chain-arrow">→</div>';
   }
+  chain += colOf(tag, 'current', `<span class="w">현재</span>`);
+  if (nexts.length) {
+    chain += '<div class="chain-arrow">→</div>';
+    chain += nexts.map(e => colOf(e.to, '', `<span class="w">다음 ×${e.weight}</span>`)).join('<div class="chain-arrow">·</div>');
+  }
+  document.getElementById('chainBody').innerHTML = chain;
 
-  // 이 섹터의 종목
-  html += coGroup(`💼 ${tag} 수혜 종목`, s.companies);
-  // 다음 섹터들의 종목 (미리 보기)
-  for (const e of nexts.slice(0, 3)) {
-    const ns = sectorOf(e.to);
-    if (ns?.companies?.length) html += coGroup(`↳ 다음 섹터 <b>${escHtml(e.to)}</b>의 종목 (미리 담아두기 후보)`, ns.companies.slice(0, 4));
-  }
-  document.getElementById('detailBody').innerHTML = html;
-  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // 선택 섹터 종목 전체
+  document.getElementById('flowStocks').innerHTML = coGroup(`💼 ${tag} 수혜 종목 전체`, s.companies);
+  if (!keepScroll) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function coGroup(title, comps) {
   if (!comps?.length) return `<div class="grp-title">${title}</div><div class="empty">최근 30일 추천 종목 없음</div>`;
-  return `<div class="grp-title">${title}</div><div class="co-grid">` + comps.map(c => `
-    <a class="co-card" href="/company.html?ticker=${encodeURIComponent(c.ticker)}">
+  return `<div class="grp-title">${title}</div><div class="co-grid">` + comps.map(c => {
+    const chg = chgOf(c.ticker);
+    return `<a class="co-card" href="/company.html?ticker=${encodeURIComponent(c.ticker)}">
       <div class="co-top">
         <span class="co-ticker">${escHtml(c.ticker)}</span>
         <span class="co-name">${escHtml(c.name)}</span>
-        ${c.upside != null ? `<span class="co-up">+${c.upside}%</span>` : ''}
+        ${chg != null ? `<span class="rk-chg ${chgCls(chg)}">${fmtChg(chg)}</span>` : (c.upside != null ? `<span class="co-up">+${c.upside}%</span>` : '')}
       </div>
       <div class="co-meta">
+        ${c.upside != null ? `<span>목표 +${c.upside}%</span>` : ''}
         ${c.confidence != null ? `<span>신뢰도 ${c.confidence}%</span>` : ''}
-        ${c.mom1m != null ? `<span style="color:${c.mom1m >= 0 ? 'var(--green)' : 'var(--red)'}">1M ${c.mom1m > 0 ? '+' : ''}${c.mom1m}%</span>` : ''}
-        ${c.entry_date ? `<span>${escHtml(c.entry_date.slice(5))}</span>` : ''}
+        ${c.mom1m != null ? `<span class="${chgCls(c.mom1m)}">1M ${fmtChg(c.mom1m)}</span>` : ''}
       </div>
-    </a>`).join('') + `</div>`;
+    </a>`;
+  }).join('') + `</div>`;
 }
 
-/* ── 전체 리스트 ── */
+/* ── 다음에 뭐 담지? 랭킹 ── */
+document.getElementById('rkTabs').addEventListener('click', e => {
+  const btn = e.target.closest('.tab');
+  if (!btn) return;
+  document.querySelectorAll('#rkTabs .tab').forEach(t => t.classList.toggle('active', t === btn));
+  rkSort = btn.dataset.sort;
+  renderRank();
+});
+
+function renderRank() {
+  const list = (DATA.top_stocks || []).slice();
+  const sorters = {
+    cnt:    (a, b) => b.cnt - a.cnt || (b.bestConf || 0) - (a.bestConf || 0),
+    conf:   (a, b) => (b.bestConf || 0) - (a.bestConf || 0) || b.cnt - a.cnt,
+    upside: (a, b) => (b.avgUpside || 0) - (a.avgUpside || 0),
+    chg:    (a, b) => (chgOf(b.ticker) ?? -999) - (chgOf(a.ticker) ?? -999),
+  };
+  list.sort(sorters[rkSort] || sorters.cnt);
+  document.getElementById('rankList').innerHTML = list.slice(0, 15).map((s, i) => {
+    const chg = chgOf(s.ticker);
+    return `<a class="rk-row" href="/company.html?ticker=${encodeURIComponent(s.ticker)}">
+      <span class="rk-num">${i + 1}</span>
+      <div class="rk-main">
+        <div class="rk-name-line">
+          <span class="rk-name">${escHtml(s.name)}</span>
+          <span class="rk-tk">${escHtml(s.ticker)}</span>
+          <span class="rk-mkt">${s.market === 'KR' ? '국장' : '미장'}</span>
+        </div>
+        <div class="rk-th">${s.th ? '💡 ' + escHtml(s.th) : (s.tags || []).map(t => '#' + escHtml(t)).join(' ')}</div>
+      </div>
+      <div class="rk-right">
+        <div class="rk-chg ${chgCls(chg)}">${chg != null ? fmtChg(chg) : ''}</div>
+        <div class="rk-stat">등장 ${s.cnt}회${s.avgUpside != null ? ` · 목표 +${s.avgUpside}%` : ''}${s.bestConf ? ` · 신뢰 ${s.bestConf}%` : ''}</div>
+      </div>
+    </a>`;
+  }).join('') || '<div class="empty">데이터 없음</div>';
+}
+
+/* ── 섹터 구성 리스트 (antwiki 스타일) ── */
 function renderList() {
+  const total = DATA.sectors.reduce((a, s) => a + s.cnt30, 0) || 1;
   document.getElementById('sectorList').innerHTML = DATA.sectors.map(s => {
-    const nexts = nextOf(s.tag, 3).map(e => e.to).join(' → ');
-    const badge = s.heat >= 1.1 ? '<span class="sec-badge hot">가속</span>' : s.heat <= 0.7 ? '<span class="sec-badge cool">감속</span>' : '';
-    return `<div class="sec-row" onclick="select('${escHtml(s.tag)}')">
-      <span class="sec-name">${escHtml(s.tag)}</span>${badge}
-      <span class="sec-next">${nexts ? '→ ' + escHtml(nexts) : ''}</span>
-      <span class="sec-stat">7일 ${s.cnt7} · 30일 ${s.cnt30} · 종목 ${s.companies?.length || 0}</span>
+    const share = Math.round((s.cnt30 / total) * 100);
+    const chg = sectorChg(s);
+    const badge = chg != null
+      ? (chg >= 0.8 ? '<span class="sec-badge hot">강세</span>' : chg <= -0.8 ? '<span class="sec-badge cold">약세</span>' : '')
+      : (s.heat >= 1.3 ? '<span class="sec-badge accel">가속</span>' : '');
+    const dot = chg != null ? (chg >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--border2)';
+    return `<div class="sec-row" onclick="select('${escHtml(s.tag)}');document.getElementById('flowCard').scrollIntoView({behavior:'smooth'})">
+      <span class="sec-dot" style="background:${dot}"></span>
+      <div class="sec-main">
+        <div class="sec-name-line"><span class="sec-name">${escHtml(s.tag)}</span>${badge}</div>
+        <div class="sec-desc">${escHtml(SEC_DESC[s.tag] || '')}</div>
+      </div>
+      <span class="sec-share">${share}%</span>
+      <span class="sec-chg ${chgCls(chg)}">${chg != null ? fmtChg(chg) : '—'}</span>
     </div>`;
   }).join('');
 }
