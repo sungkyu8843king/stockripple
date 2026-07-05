@@ -456,13 +456,13 @@ tr:hover td { background: var(--bg3); }
       </div>
       <div class="stats-grid" id="accuracyStats">
         <div class="stat-card"><div class="stat-label">1일 체크 완료</div><div class="stat-value blue" id="acc-1d-total">—</div></div>
-        <div class="stat-card"><div class="stat-label">1일 방향 정확도</div><div class="stat-value green" id="acc-1d-rate">—</div></div>
+        <div class="stat-card"><div class="stat-label">1일 방향 정확도</div><div class="stat-value green" id="acc-1d-rate">—</div><div style="font-size:10.5px;color:var(--text-muted);margin-top:3px" id="acc-1d-split"></div></div>
         <div class="stat-card"><div class="stat-label">3일 체크 완료</div><div class="stat-value blue" id="acc-3d-total">—</div></div>
-        <div class="stat-card"><div class="stat-label">3일 방향 정확도</div><div class="stat-value green" id="acc-3d-rate">—</div></div>
+        <div class="stat-card"><div class="stat-label">3일 방향 정확도</div><div class="stat-value green" id="acc-3d-rate">—</div><div style="font-size:10.5px;color:var(--text-muted);margin-top:3px" id="acc-3d-split"></div></div>
         <div class="stat-card"><div class="stat-label">7일 체크 완료</div><div class="stat-value blue" id="acc-7d-total">—</div></div>
-        <div class="stat-card"><div class="stat-label">7일 방향 정확도</div><div class="stat-value green" id="acc-7d-rate">—</div></div>
+        <div class="stat-card"><div class="stat-label">7일 방향 정확도</div><div class="stat-value green" id="acc-7d-rate">—</div><div style="font-size:10.5px;color:var(--text-muted);margin-top:3px" id="acc-7d-split"></div></div>
         <div class="stat-card"><div class="stat-label">30일 체크 완료</div><div class="stat-value blue" id="acc-30d-total">—</div></div>
-        <div class="stat-card"><div class="stat-label">30일 방향 정확도</div><div class="stat-value green" id="acc-30d-rate">—</div></div>
+        <div class="stat-card"><div class="stat-label">30일 방향 정확도</div><div class="stat-value green" id="acc-30d-rate">—</div><div style="font-size:10.5px;color:var(--text-muted);margin-top:3px" id="acc-30d-split"></div></div>
       </div>
       <div class="card">
         <div class="card-title">1일 후 결과</div>
@@ -1038,19 +1038,39 @@ function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// 2-패스 애널리스트 파이프라인 배포 시각 — 구형/신형 구간 분리 기준
+const PIPELINE_V2_AT = '2026-07-02T13:43';
+
 async function loadAccuracy() {
   const periods = ['1d', '3d', '7d', '30d'];
-  const rate = arr => arr?.length
-    ? Math.round(arr.filter(r => r[`is_accurate_${Object.keys(r)[0].split('_').pop()}`] === true).length / arr.length * 100) + '%'
-    : '—';
 
   for (const p of periods) {
-    const { data } = await sb.from('analysis_companies')
-      .select(`is_accurate_${p}`).not(`check_date_${p}`, 'is', null);
-    document.getElementById(`acc-${p}-total`).textContent = data?.length ?? '—';
-    const correct = data?.filter(r => r[`is_accurate_${p}`] === true).length ?? 0;
-    document.getElementById(`acc-${p}-rate`).textContent = data?.length
-      ? Math.round(correct / data.length * 100) + '%' : '—';
+    // count 쿼리 사용: select-rows 방식은 PostgREST 기본 1000행 캡에 걸려 총계가 잘림
+    const cnt = (mods) => {
+      let q = sb.from('analysis_companies').select('id', { count: 'exact', head: true }).not(`check_date_${p}`, 'is', null);
+      return mods ? mods(q) : q;
+    };
+    const [total, hit, nTotal, nHit] = await Promise.all([
+      cnt(),
+      cnt(q => q.eq(`is_accurate_${p}`, true)),
+      cnt(q => q.gte('entry_date', PIPELINE_V2_AT)),
+      cnt(q => q.eq(`is_accurate_${p}`, true).gte('entry_date', PIPELINE_V2_AT)),
+    ]);
+    document.getElementById(`acc-${p}-total`).textContent = (total.count ?? 0).toLocaleString();
+    document.getElementById(`acc-${p}-rate`).textContent = total.count
+      ? Math.round((hit.count || 0) / total.count * 100) + '%' : '—';
+
+    const splitEl = document.getElementById(`acc-${p}-split`);
+    if (splitEl) {
+      if (nTotal.count) {
+        const oldT = (total.count || 0) - nTotal.count;
+        const oldH = (hit.count || 0) - (nHit.count || 0);
+        const newR = Math.round((nHit.count || 0) / nTotal.count * 100);
+        splitEl.textContent = `구형 ${oldT ? Math.round(oldH / oldT * 100) + '%' : '—'} (${oldT.toLocaleString()}) → 신형 ${newR}% (${nTotal.count.toLocaleString()})`;
+      } else {
+        splitEl.textContent = '신형 파이프라인 검증 대기';
+      }
+    }
 
     const { data: rows } = await sb.from('analysis_companies')
       .select(`upside_pct, entry_price, check_price_${p}, actual_return_${p}, is_accurate_${p}, companies(ticker, name_ko, currency)`)

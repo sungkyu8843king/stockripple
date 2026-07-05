@@ -1370,12 +1370,22 @@ function formatNum(n) {
   return n.toFixed(0);
 }
 
+// 2-패스 애널리스트 파이프라인 배포 시각 — 정확도 통계의 구/신 구간 분리 기준
+const PIPELINE_V2_AT = '2026-07-02T13:43';
+
 async function loadStats() {
-  const [issuesRes, companiesRes, upsideRes, accRes] = await Promise.all([
+  const accCnt = (extra) => {
+    let q = sb.from('analysis_companies').select('id', { count: 'exact', head: true }).not('is_accurate_1d', 'is', null);
+    return extra(q);
+  };
+  const [issuesRes, companiesRes, upsideRes, accTotal, accHit, accNewTotal, accNewHit] = await Promise.all([
     sb.from('analyses').select('*', { count: 'exact', head: true }),
     sb.from('companies').select('*', { count: 'exact', head: true }),
     sb.from('analysis_companies').select('upside_pct'),
-    sb.from('analysis_companies').select('is_accurate_1d').not('is_accurate_1d', 'is', null),
+    accCnt(q => q),
+    accCnt(q => q.eq('is_accurate_1d', true)),
+    accCnt(q => q.gte('entry_date', PIPELINE_V2_AT)),
+    accCnt(q => q.eq('is_accurate_1d', true).gte('entry_date', PIPELINE_V2_AT)),
   ]);
 
   document.getElementById('statIssues').textContent = issuesRes.count ?? 0;
@@ -1387,11 +1397,15 @@ async function loadStats() {
     document.getElementById('statUpside').textContent = `+${avg.toFixed(1)}%`;
   }
 
-  const accRows = accRes.data || [];
-  if (accRows.length) {
-    const accurate = accRows.filter(r => r.is_accurate_1d).length;
-    const rate = Math.round(accurate / accRows.length * 100);
-    document.getElementById('statAccuracy').textContent = `${rate}% (${accRows.length}건)`;
+  if (accTotal.count) {
+    const rate = Math.round((accHit.count || 0) / accTotal.count * 100);
+    let txt = `${rate}% (${accTotal.count.toLocaleString()}건)`;
+    // 신규 파이프라인 검증분이 쌓이면 분리 표시 (개편 효과 추적)
+    if ((accNewTotal.count || 0) >= 10) {
+      const newRate = Math.round((accNewHit.count || 0) / accNewTotal.count * 100);
+      txt = `${rate}% · 신규 ${newRate}% (${accNewTotal.count}건)`;
+    }
+    document.getElementById('statAccuracy').textContent = txt;
   }
 
   const { data: latest } = await sb.from('issues')
