@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>섹터 파급 지도 — StockRipple</title>
+<style>
+:root {
+  --bg: #f6f7fa; --card: #ffffff; --border: #e5e8ee; --border2: #d3d8e2;
+  --text: #171b26; --text2: #4b5262; --text3: #8b93a5;
+  --blue: #3861f6; --green: #0f9d58; --red: #e5484d; --yellow: #c98a06;
+  --blue-dim: rgba(56,97,246,.09); --green-dim: rgba(15,157,88,.1); --red-dim: rgba(229,72,77,.1);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Pretendard', -apple-system, 'Noto Sans KR', sans-serif; }
+a { color: inherit; text-decoration: none; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px 80px; }
+header { display: flex; align-items: center; gap: 12px; padding: 14px 0; }
+.back { font-size: 14px; color: var(--text2); font-weight: 600; }
+h1 { font-size: 20px; font-weight: 800; }
+.sub { font-size: 12.5px; color: var(--text3); margin: 2px 0 16px; line-height: 1.6; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+.card-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.meta { font-size: 11px; color: var(--text3); font-weight: 400; }
+
+/* 사분면 맵 */
+#mapSvg { width: 100%; height: auto; display: block; touch-action: manipulation; }
+.q-label { font-size: 13px; font-weight: 800; fill: #c6ccd9; }
+.q-sub { font-size: 8.5px; fill: #c6ccd9; }
+.axis-label { font-size: 9px; fill: var(--text3); }
+.bubble { cursor: pointer; transition: opacity .15s; }
+.bubble:hover circle { stroke: var(--text); stroke-width: 1.5; }
+.bubble.selected circle { stroke: var(--text); stroke-width: 2; }
+.bubble text { font-size: 9.5px; fill: var(--text2); font-weight: 600; pointer-events: none; }
+
+/* 섹터 상세 */
+.flow-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.sector-chip {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  font-size: 12.5px; font-weight: 700; padding: 7px 12px; border-radius: 10px;
+  background: var(--blue-dim); color: var(--blue); border: 1px solid transparent;
+}
+.sector-chip:hover { border-color: var(--blue); }
+.sector-chip .w { font-size: 10px; font-weight: 600; opacity: .65; }
+.sector-chip.current { background: var(--text); color: #fff; cursor: default; }
+.arrow { color: var(--text3); font-size: 15px; }
+.grp-title { font-size: 12px; font-weight: 700; color: var(--text2); margin: 14px 0 8px; display: flex; align-items: center; gap: 6px; }
+.co-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.co-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; display: block;
+}
+.co-card:hover { border-color: var(--blue); }
+.co-top { display: flex; align-items: baseline; gap: 6px; }
+.co-ticker { font-size: 11px; font-weight: 700; color: var(--blue); font-family: monospace; }
+.co-name { font-size: 12.5px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co-up { font-size: 12px; font-weight: 700; color: var(--green); }
+.co-meta { font-size: 10.5px; color: var(--text3); margin-top: 4px; display: flex; gap: 8px; }
+.empty { font-size: 12px; color: var(--text3); padding: 8px 0; }
+
+/* 섹터 리스트 */
+.sec-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.sec-row:last-child { border-bottom: none; }
+.sec-row:hover { background: var(--bg); }
+.sec-name { font-size: 13.5px; font-weight: 700; width: 92px; flex-shrink: 0; }
+.sec-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; flex-shrink: 0; }
+.sec-badge.hot { background: var(--red-dim); color: var(--red); }
+.sec-badge.cool { background: var(--blue-dim); color: var(--blue); }
+.sec-next { flex: 1; font-size: 11px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sec-stat { font-size: 11px; color: var(--text2); font-family: monospace; flex-shrink: 0; }
+@media (max-width: 640px) { .sec-next { display: none; } }
+.loading { text-align: center; color: var(--text3); font-size: 13px; padding: 40px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a href="/" class="back">← 피드</a>
+    <h1>🧭 섹터 파급 지도</h1>
+  </header>
+  <p class="sub">최근 30일 뉴스 분석에서 집계한 섹터별 파급 강도입니다. <b>버블을 누르면</b> 그 섹터가 뜨면 다음으로 움직이는 섹터와, 그 섹터의 수혜 종목을 보여줍니다.<br>가로축=30일 누적 파급(장기) · 세로축=최근 7일 파급(단기) · 버블 크기=연결 종목 수</p>
+
+  <div class="card">
+    <div class="card-title">산업/섹터 사분면 <span class="meta" id="mapMeta"></span></div>
+    <svg id="mapSvg" viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="card" id="detailCard" style="display:none">
+    <div class="card-title" id="detailTitle"></div>
+    <div id="detailBody"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">전체 섹터 <span class="meta">단기 파급 순</span></div>
+    <div id="sectorList"><div class="loading">불러오는 중...</div></div>
+  </div>
+</div>
+
+<script>
+let DATA = null;
+let selected = null;
+
+const escHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function load() {
+  try {
+    const r = await fetch('/api/admin?action=sector-map');
+    DATA = await r.json();
+    if (!DATA?.sectors?.length) {
+      document.getElementById('sectorList').innerHTML = '<div class="empty">아직 집계할 분석 데이터가 부족합니다.</div>';
+      return;
+    }
+    document.getElementById('mapMeta').textContent = `분석 ${DATA.based_on}건 기반 · 30일`;
+    renderMap();
+    renderList();
+    // 가장 뜨거운 섹터 자동 선택
+    select(DATA.sectors[0].tag);
+  } catch (e) {
+    document.getElementById('sectorList').innerHTML = `<div class="empty">로드 실패: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function nextOf(tag, n = 5) {
+  return (DATA.edges || []).filter(e => e.from === tag).slice(0, n);
+}
+function inflowOf(tag, n = 3) {
+  return (DATA.edges || []).filter(e => e.to === tag).slice(0, n);
+}
+function sectorOf(tag) { return DATA.sectors.find(s => s.tag === tag); }
+
+/* ── 사분면 버블맵 ── */
+function renderMap() {
+  const W = 720, H = 420, P = { l: 46, r: 20, t: 24, b: 34 };
+  const iw = W - P.l - P.r, ih = H - P.t - P.b;
+  const secs = DATA.sectors;
+  const maxX = Math.max(...secs.map(s => s.cnt30)), maxY = Math.max(...secs.map(s => s.cnt7));
+  const medX = median(secs.map(s => s.cnt30)), medY = median(secs.map(s => s.cnt7));
+  const sx = v => P.l + Math.sqrt(v / maxX) * iw;
+  const sy = v => P.t + ih - Math.sqrt(v / (maxY || 1)) * ih;
+  const midX = sx(medX), midY = sy(medY);
+
+  let svg = `
+    <rect x="${P.l}" y="${P.t}" width="${iw}" height="${ih}" fill="none"/>
+    <line x1="${midX}" y1="${P.t}" x2="${midX}" y2="${P.t + ih}" stroke="var(--border2)" stroke-dasharray="3,4"/>
+    <line x1="${P.l}" y1="${midY}" x2="${P.l + iw}" y2="${midY}" stroke="var(--border2)" stroke-dasharray="3,4"/>
+    <text class="q-label" x="${P.l + 10}" y="${P.t + 18}">부상</text><text class="q-sub" x="${P.l + 10}" y="${P.t + 30}">단기 급부상</text>
+    <text class="q-label" x="${P.l + iw - 44}" y="${P.t + 18}">주도</text><text class="q-sub" x="${P.l + iw - 44}" y="${P.t + 30}">현재 시장 주도</text>
+    <text class="q-label" x="${P.l + 10}" y="${P.t + ih - 16}">소외</text>
+    <text class="q-label" x="${P.l + iw - 58}" y="${P.t + ih - 16}">식는 중</text>
+    <text class="axis-label" x="${P.l + iw / 2 - 30}" y="${H - 8}">장기 파급(30일) →</text>
+    <text class="axis-label" x="12" y="${P.t + ih / 2}" transform="rotate(-90 14 ${P.t + ih / 2})">단기 파급(7일) →</text>
+  `;
+  for (const s of secs) {
+    const x = sx(s.cnt30), y = sy(s.cnt7);
+    const r = 6 + Math.min(20, Math.sqrt((s.companies?.length || 0)) * 6);
+    const hot = s.heat >= 1.1;
+    const color = hot ? 'var(--red)' : s.heat <= 0.7 ? 'var(--blue)' : 'var(--yellow)';
+    svg += `<g class="bubble" data-tag="${escHtml(s.tag)}" onclick="select('${escHtml(s.tag)}')">
+      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" fill-opacity="0.55" stroke="${color}"/>
+      <text x="${x.toFixed(1)}" y="${(y - r - 4).toFixed(1)}" text-anchor="middle">${escHtml(s.tag)}</text>
+    </g>`;
+  }
+  document.getElementById('mapSvg').innerHTML = svg;
+}
+function median(arr) { const a = arr.slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)] || 1; }
+
+/* ── 섹터 상세: 다음 섹터 + 종목 ── */
+function select(tag) {
+  selected = tag;
+  document.querySelectorAll('.bubble').forEach(b => b.classList.toggle('selected', b.dataset.tag === tag));
+  const s = sectorOf(tag);
+  if (!s) return;
+  const card = document.getElementById('detailCard');
+  card.style.display = '';
+
+  const heatTxt = s.heat >= 1.1 ? `<span style="color:var(--red);font-weight:700">가속 ×${s.heat}</span>`
+               : s.heat <= 0.7 ? `<span style="color:var(--blue);font-weight:700">감속 ×${s.heat}</span>`
+               : `<span style="color:var(--text3)">유지 ×${s.heat}</span>`;
+  document.getElementById('detailTitle').innerHTML =
+    `🔎 ${escHtml(tag)} <span class="meta">7일 ${s.cnt7}건 · 30일 ${s.cnt30}건 · ${heatTxt}</span>`;
+
+  const nexts = nextOf(tag);
+  const inflows = inflowOf(tag);
+
+  let html = '';
+  // 파급 흐름 체인
+  html += `<div class="grp-title">⚡ 파급 흐름 — 이 섹터가 뜨면 다음은?</div>`;
+  if (nexts.length) {
+    html += `<div class="flow-row"><span class="sector-chip current">${escHtml(tag)}</span><span class="arrow">→</span>` +
+      nexts.map(e => `<span class="sector-chip" onclick="select('${escHtml(e.to)}')">${escHtml(e.to)} <span class="w">×${e.weight}</span></span>`).join('<span class="arrow">·</span>') +
+      `</div>`;
+  } else {
+    html += `<div class="empty">아직 집계된 파급 연결이 없습니다.</div>`;
+  }
+  if (inflows.length) {
+    html += `<div class="flow-row" style="opacity:.75"><span style="font-size:11px;color:var(--text3)">유입:</span>` +
+      inflows.map(e => `<span class="sector-chip" style="background:var(--bg);color:var(--text2)" onclick="select('${escHtml(e.from)}')">${escHtml(e.from)} <span class="w">×${e.weight}</span></span>`).join('<span class="arrow">→</span>') +
+      `<span class="arrow">→</span><span style="font-size:12px;font-weight:700">${escHtml(tag)}</span></div>`;
+  }
+
+  // 이 섹터의 종목
+  html += coGroup(`💼 ${tag} 수혜 종목`, s.companies);
+  // 다음 섹터들의 종목 (미리 보기)
+  for (const e of nexts.slice(0, 3)) {
+    const ns = sectorOf(e.to);
+    if (ns?.companies?.length) html += coGroup(`↳ 다음 섹터 <b>${escHtml(e.to)}</b>의 종목 (미리 담아두기 후보)`, ns.companies.slice(0, 4));
+  }
+  document.getElementById('detailBody').innerHTML = html;
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function coGroup(title, comps) {
+  if (!comps?.length) return `<div class="grp-title">${title}</div><div class="empty">최근 30일 추천 종목 없음</div>`;
+  return `<div class="grp-title">${title}</div><div class="co-grid">` + comps.map(c => `
+    <a class="co-card" href="/company.html?ticker=${encodeURIComponent(c.ticker)}">
+      <div class="co-top">
+        <span class="co-ticker">${escHtml(c.ticker)}</span>
+        <span class="co-name">${escHtml(c.name)}</span>
+        ${c.upside != null ? `<span class="co-up">+${c.upside}%</span>` : ''}
+      </div>
+      <div class="co-meta">
+        ${c.confidence != null ? `<span>신뢰도 ${c.confidence}%</span>` : ''}
+        ${c.mom1m != null ? `<span style="color:${c.mom1m >= 0 ? 'var(--green)' : 'var(--red)'}">1M ${c.mom1m > 0 ? '+' : ''}${c.mom1m}%</span>` : ''}
+        ${c.entry_date ? `<span>${escHtml(c.entry_date.slice(5))}</span>` : ''}
+      </div>
+    </a>`).join('') + `</div>`;
+}
+
+/* ── 전체 리스트 ── */
+function renderList() {
+  document.getElementById('sectorList').innerHTML = DATA.sectors.map(s => {
+    const nexts = nextOf(s.tag, 3).map(e => e.to).join(' → ');
+    const badge = s.heat >= 1.1 ? '<span class="sec-badge hot">가속</span>' : s.heat <= 0.7 ? '<span class="sec-badge cool">감속</span>' : '';
+    return `<div class="sec-row" onclick="select('${escHtml(s.tag)}')">
+      <span class="sec-name">${escHtml(s.tag)}</span>${badge}
+      <span class="sec-next">${nexts ? '→ ' + escHtml(nexts) : ''}</span>
+      <span class="sec-stat">7일 ${s.cnt7} · 30일 ${s.cnt30} · 종목 ${s.companies?.length || 0}</span>
+    </div>`;
+  }).join('');
+}
+
+load();
+</script>
+</body>
+</html>

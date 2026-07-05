@@ -63,6 +63,8 @@ export default async function handler(req, res) {
   if (action === 'daily-report' && req.method === 'GET') return handleDailyReportGet(req, res);
   // weekly-schedule도 GET(조회)은 공개, POST(생성)만 admin 인증 필요
   if (action === 'weekly-schedule' && req.method === 'GET') return handleWeeklyScheduleGet(req, res);
+  // sector-map: 섹터 파급 지도 (공개, 계산 결과 CDN 캐시)
+  if (action === 'sector-map' && req.method === 'GET') return handleSectorMapGet(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -1586,6 +1588,118 @@ ${ctx.slice(0, 12000)}
   } catch (e) {
     return res.status(500).json({ error: 'AI summary failed: ' + e.message });
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// 18-a) 섹터 파급 지도 — 최근 30일 분석에서 섹터 노드/파급 엣지/종목 집계
+//   뉴스 분석의 "직접 섹터 → 파급 섹터" 방향성 데이터를 그래프로 변환.
+//   x=30일 강도(장기), y=7일 강도(단기) 사분면 + 섹터별 다음 섹터 + 추천 종목
+// ════════════════════════════════════════════════════════════
+const SM_TAG_RULES = [
+  ['AI',       /(?:^|[^a-z])ai(?:[^a-z]|$)|인공지능|생성형|llm|챗gpt|chatgpt|claude|copilot|에이전트/i],
+  ['반도체',    /반도체|hbm|파운드리|메모리|d램|dram|낸드|nand|웨이퍼|semiconductor|엔비디아|nvidia|gpu|칩(?:[^가-힣]|$)|chip/i],
+  ['전기차',    /전기차|테슬라|tesla|자율주행|(?:^|[^a-z])ev(?:[^a-z]|$)|모빌리티/i],
+  ['배터리',    /배터리|이차전지|2차전지|양극재|음극재|전고체|리튬|battery/i],
+  ['바이오',    /바이오|제약|신약|임상|fda|헬스케어|의료|glp-?1|비만치료|항암|biotech|pharma/i],
+  ['에너지',    /에너지|원전|원자력|smr|태양광|풍력|수소|정유|유가|lng|전력|energy|solar|nuclear/i],
+  ['핀테크',    /핀테크|결제|송금|fintech|payment/i],
+  ['금융',     /금융|은행|보험|증권|금리|연준|fed(?:[^a-z]|$)|중앙은행|채권/i],
+  ['크립토',    /암호화폐|비트코인|이더리움|스테이블코인|블록체인|crypto|bitcoin|stablecoin/i],
+  ['클라우드',  /클라우드|데이터센터|cloud|aws|azure|saas/i],
+  ['로봇',     /로봇|휴머노이드|robot/i],
+  ['방산·우주', /방산|국방|미사일|무기|전투기|위성|우주|로켓|발사체|defense|missile|aerospace/i],
+  ['게임',     /게임|엔씨소프트|크래프톤|넥슨|넷마블|gaming/i],
+  ['엔터',     /엔터테인먼트|k-?팝|아이돌|하이브|콘텐츠|드라마|영화|ott|넷플릭스|스트리밍/i],
+  ['소비재',    /소비재|유통|화장품|뷰티|식품|음료|리테일|패션|이커머스/i],
+  ['자동차',    /자동차|현대차|기아|완성차|(?:^|[^a-z])oem(?:[^a-z]|$)/i],
+  ['물류·운송', /물류|해운|운송|항공|운임|공급망|logistics|shipping/i],
+  ['건설·부동산', /건설|부동산|시멘트|인프라|주택|토목|리츠/i],
+  ['철강·소재',  /철강|포스코|구리|알루미늄|소재|화학|정밀화학/i],
+];
+function smTagsOf(text) {
+  if (!text) return [];
+  const tags = [];
+  for (const [tag, re] of SM_TAG_RULES) if (re.test(text)) tags.push(tag);
+  return tags;
+}
+
+async function handleSectorMapGet(req, res) {
+  const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
+  const since7Ms = Date.now() - 7 * 86400000;
+
+  const { data: analyses, error } = await supabase
+    .from('analyses')
+    .select('created_at, direct_sectors, ripple_effects, analysis_companies(upside_pct, confidence, ripple_sector, entry_date, rationale, companies(ticker, name_ko, name_en, market))')
+    .gte('created_at', since30)
+    .order('created_at', { ascending: false })
+    .limit(1500);
+  if (error) return res.status(500).json({ error: error.message });
+
+  const nodes = {};
+  const nodeOf = (t) => (nodes[t] ||= { tag: t, cnt7: 0, cnt30: 0, comps: new Map() });
+  const edgeW = {};
+
+  for (const a of analyses || []) {
+    const isRecent = new Date(a.created_at).getTime() >= since7Ms;
+    const fromTags = [...new Set(smTagsOf((a.direct_sectors || []).join(' ')))];
+    const toTags = new Set();
+    for (const r of a.ripple_effects || []) smTagsOf(r?.sector || '').forEach(t => toTags.add(t));
+
+    for (const t of new Set([...fromTags, ...toTags])) {
+      const n = nodeOf(t);
+      n.cnt30++;
+      if (isRecent) n.cnt7++;
+    }
+    for (const f of fromTags) for (const t of toTags) {
+      if (f !== t) edgeW[`${f}>${t}`] = (edgeW[`${f}>${t}`] || 0) + 1;
+    }
+
+    // 파급 섹터별 추천 종목 (티커당 최고 신뢰도 1건 유지)
+    for (const ac of a.analysis_companies || []) {
+      const co = ac.companies;
+      if (!co?.ticker) continue;
+      let mom1m = null;
+      const fm = (ac.rationale || '').match(/\[FUND\](\{[^\n]*\})/);
+      if (fm) { try { mom1m = JSON.parse(fm[1]).mom1m ?? null; } catch {} }
+      for (const t of smTagsOf(ac.ripple_sector || '')) {
+        const m = nodeOf(t).comps;
+        const prev = m.get(co.ticker);
+        if (!prev || (ac.confidence || 0) > (prev.confidence || 0)) {
+          m.set(co.ticker, {
+            ticker: co.ticker,
+            name: co.name_ko || co.name_en || co.ticker,
+            market: co.market || (/\.K[SQ]$/i.test(co.ticker) ? 'KR' : 'US'),
+            upside: ac.upside_pct, confidence: ac.confidence,
+            mom1m, entry_date: (ac.entry_date || '').slice(0, 10),
+          });
+        }
+      }
+    }
+  }
+
+  const sectors = Object.values(nodes)
+    .filter(n => n.cnt30 >= 2)
+    .map(n => ({
+      tag: n.tag, cnt7: n.cnt7, cnt30: n.cnt30,
+      // heat: 최근 7일 강도가 30일 주평균 대비 몇 배인가 (>1 가속, <1 감속)
+      heat: n.cnt30 ? Math.round((n.cnt7 / Math.max(1, n.cnt30 / 4.3)) * 100) / 100 : 0,
+      companies: [...n.comps.values()]
+        .sort((a, b) => (b.confidence || 0) - (a.confidence || 0) || (b.entry_date || '').localeCompare(a.entry_date || ''))
+        .slice(0, 6),
+    }))
+    .sort((a, b) => b.cnt7 - a.cnt7 || b.cnt30 - a.cnt30);
+
+  const edges = Object.entries(edgeW)
+    .map(([k, weight]) => { const [from, to] = k.split('>'); return { from, to, weight }; })
+    .filter(e => e.weight >= 2)
+    .sort((a, b) => b.weight - a.weight);
+
+  res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
+  return res.status(200).json({
+    ok: true, window_days: 30, based_on: (analyses || []).length,
+    generated_at: new Date().toISOString(),
+    sectors, edges,
+  });
 }
 
 // ════════════════════════════════════════════════════════════
