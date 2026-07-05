@@ -32,7 +32,8 @@ export default async function handler(req, res) {
       const [dailyRes, intraRes] = await Promise.allSettled([
         fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=5d`,
           { headers, signal: AbortSignal.timeout(6000) }).then(r => r.ok ? r.json() : null),
-        fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=15m&range=1d`,
+        // range=2d: 주말·휴장 시 range=1d는 봉이 거의 없음(선물류) → 마지막 봉 기준 24h 창으로 절단
+        fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=15m&range=2d`,
           { headers, signal: AbortSignal.timeout(6000) }).then(r => r.ok ? r.json() : null),
       ]);
       const daily = dailyRes.status === 'fulfilled' ? dailyRes.value : null;
@@ -62,14 +63,23 @@ export default async function handler(req, res) {
         change = meta.regularMarketChange ?? null;
       }
 
-      // 스파크라인: 최근 세션(암호화폐는 최근 24시간) 15분봉 종가, 최대 24포인트로 다운샘플
+      // 스파크라인: 마지막 봉 기준 최근 24시간 창의 15분봉 종가, 최대 24포인트로 다운샘플
       let spark = null;
-      const intraCloses = (intra?.chart?.result?.[0]?.indicators?.quote?.[0]?.close || []).filter(v => v != null);
-      if (intraCloses.length >= 3) {
-        const step = Math.max(1, Math.ceil(intraCloses.length / 24));
-        spark = intraCloses.filter((_, i) => i % step === 0);
-        if (spark[spark.length - 1] !== intraCloses[intraCloses.length - 1]) {
-          spark.push(intraCloses[intraCloses.length - 1]);  // 마지막 값은 항상 포함
+      const intraResult = intra?.chart?.result?.[0];
+      const intraTs = intraResult?.timestamp || [];
+      const intraRaw = intraResult?.indicators?.quote?.[0]?.close || [];
+      const pts = [];
+      for (let i = 0; i < intraRaw.length; i++) {
+        if (intraRaw[i] != null && intraTs[i] != null) pts.push({ t: intraTs[i], c: intraRaw[i] });
+      }
+      if (pts.length >= 3) {
+        const lastT = pts[pts.length - 1].t;
+        const windowed = pts.filter(p => p.t >= lastT - 24 * 3600).map(p => p.c);
+        const src = windowed.length >= 3 ? windowed : pts.map(p => p.c);
+        const step = Math.max(1, Math.ceil(src.length / 24));
+        spark = src.filter((_, i) => i % step === 0);
+        if (spark[spark.length - 1] !== src[src.length - 1]) {
+          spark.push(src[src.length - 1]);  // 마지막 값은 항상 포함
         }
         spark = spark.map(v => Number(Number(v).toPrecision(6)));
       }
