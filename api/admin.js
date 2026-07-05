@@ -1667,8 +1667,10 @@ async function handleSectorMapGet(req, res) {
       for (const t of smTagsOf(ac.ripple_sector || '')) {
         const m = nodeOf(t).comps;
         const prev = m.get(co.ticker);
-        if (!prev || (ac.confidence || 0) > (prev.confidence || 0)) {
+        // 티커당 최신 분석 1건 유지 — 구형 파이프라인의 느슨한 섹터 매칭보다 신형(검증된) 분석 우선
+        if (!prev || (ac.entry_date || '') > (prev._ed || '')) {
           m.set(co.ticker, {
+            _ed: ac.entry_date || '',
             ticker: co.ticker,
             name: co.name_ko || co.name_en || co.ticker,
             market: co.market || (/\.K[SQ]$/i.test(co.ticker) ? 'KR' : 'US'),
@@ -1688,7 +1690,8 @@ async function handleSectorMapGet(req, res) {
       heat: n.cnt30 ? Math.round((n.cnt7 / Math.max(1, n.cnt30 / 4.3)) * 100) / 100 : 0,
       companies: [...n.comps.values()]
         .sort((a, b) => (b.confidence || 0) - (a.confidence || 0) || (b.entry_date || '').localeCompare(a.entry_date || ''))
-        .slice(0, 6),
+        .slice(0, 6)
+        .map(({ _ed, ...c }) => c),
     }))
     .sort((a, b) => b.cnt7 - a.cnt7 || b.cnt30 - a.cnt30);
 
