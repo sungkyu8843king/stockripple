@@ -1531,6 +1531,15 @@ async function handleAiMarketSummaryGet(req, res) {
 async function handleAiMarketSummaryPost(req, res) {
   if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
 
+  // 신선도 가드: 최근 생성본이 3시간 내면 재생성 스킵(매시간·브라우저에서 자주 불려도 Claude 낭비 없음)
+  if (!req.body?.force) {
+    const { data: last } = await supabase.from('ai_market_summary')
+      .select('created_at').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (last?.created_at && Date.now() - new Date(last.created_at).getTime() < 3 * 3600 * 1000) {
+      return res.status(200).json({ ok: true, generated: false, reason: 'fresh', ageMin: Math.round((Date.now() - new Date(last.created_at).getTime()) / 60000) });
+    }
+  }
+
   // 최근 24h 분석된 이슈 60건 수집
   const sinceIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const { data: issues } = await supabase
@@ -2156,6 +2165,8 @@ async function handleLiveRefresh(req, res) {
   // RSS 수집(무료) + 소량 AI 분석 — 분석은 미분석 이슈가 있을 때만 Claude 호출(비용은 뉴스량에 비례)
   faf('/api/fetch?type=rss');
   faf('/api/analyze', { limit: 4 });
+  // AI 시장 종합도 함께 갱신(서버 3h 신선도 가드로 Claude는 최대 3시간에 1회만) — 장중 브라우저가 열려 있으면 자동 최신화
+  faf('/api/admin?action=ai-market-summary');
   return res.status(200).json({ ok: true, triggered: true, market: mk.krOpen ? 'KR' : 'US' });
 }
 

@@ -82,3 +82,17 @@ jobs:
           # 미장: ET 평일, 마감 16:00 + 버퍼 → ET 17~23시에 catch-up (report_date = ET 당일)
           ET_DOW=$(TZ=America/New_York date +%u); ET_H=$(TZ=America/New_York date +%H); ET_DATE=$(TZ=America/New_York date +%F)
           if [ "$ET_DOW" -le 5 ] && [ "$ET_H" -ge 17 ]; then gen US "$ET_DATE"; else echo "US: 생성 창 아님 (dow=$ET_DOW h=$ET_H ET)"; fi
+
+      # AI 시장 종합 + 예정 catalyst 갱신 — 기존엔 cron-daily(하루 1회 01 UTC)에만 있어 GitHub 슬롯
+      # 드롭 시 며칠씩 멈췄음(실측 7/3 이후 정지). 매시간 도는 이 워크플로로 옮김.
+      # 서버에 신선도 가드가 있어 자주 불려도 낭비 없음(요약 3h 이내면 스킵, catalyst는 멱등).
+      - name: AI 시장 종합 + catalyst 갱신
+        run: |
+          echo "-- ai-market-summary --"
+          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=ai-market-summary" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
+            | jq -c '{ok,generated,reason,headline}' 2>/dev/null || echo "  (non-JSON)"
+          echo "-- catalysts --"
+          curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=catalysts" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
+            | jq -c '{ok,added,candidates}' 2>/dev/null || echo "  (non-JSON)"
