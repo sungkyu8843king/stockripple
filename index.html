@@ -3860,7 +3860,9 @@ const _drToasted = new Set();   // 세션 내 중복 토스트 방지 (market+re
 async function getDrData(mkt) {
   if (_drCache[mkt] === undefined) {
     try {
-      const r = await fetch(`/api/admin?action=daily-report&market=${mkt}`);
+      // 60초 버킷 캐시버스터 — 재생성된 리포트가 엣지 stale 캐시에 막히지 않고 바로 반영되도록
+      const bust = Math.floor(Date.now() / 60000);
+      const r = await fetch(`/api/admin?action=daily-report&market=${mkt}&_t=${bust}`);
       _drCache[mkt] = r.ok ? await r.json() : null;
     } catch { _drCache[mkt] = null; }
   }

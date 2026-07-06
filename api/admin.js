@@ -2024,7 +2024,7 @@ async function handleCatalystsGet(req, res) {
   const market = ((req.query?.market || '') + '').toUpperCase();
   const mkt = market === 'KR' || market === 'US' ? market : null;
   const items = await fetchUpcomingCatalysts(mkt);
-  res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
   return res.status(200).json({ ok: true, market: mkt || 'ALL', items });
 }
 
@@ -2117,7 +2117,8 @@ async function handleDailyReportGet(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     return res.status(404).json({ error: 'No report yet' });
   }
-  res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
+  // 최신 리포트는 재생성 직후 빨리 반영되도록 짧게 캐시 (기존 600s는 재생성 후 최대 10분 stale)
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   return res.status(200).json({ ok: true, ...data });
 }
 
