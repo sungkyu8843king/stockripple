@@ -64,8 +64,10 @@ export default async function handler(req, res) {
 
   // 주간 일정: 토·일은 다음 주 생성, 평일은 진행 중인 주 갱신 (지표 늦게 열리는 경우 자동 보충)
   faf('/api/admin?action=weekly-schedule');
+  // 예정 catalyst: 지난 이벤트 정리 + 최근 뉴스에서 forward catalyst 자동 추출
+  faf('/api/admin?action=catalysts');
 
-  const jobs = ['fetch-news','fetch-rss','trump','analyze','extract-investments','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy','weekly-schedule'];
+  const jobs = ['fetch-news','fetch-rss','trump','analyze','extract-investments','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy','weekly-schedule','catalysts'];
   return res.status(200).json({
     success: true,
     timestamp: new Date().toISOString(),

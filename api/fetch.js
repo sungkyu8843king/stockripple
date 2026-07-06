@@ -23,21 +23,25 @@ export default async function handler(req, res) {
 
 // ─── NewsAPI 수집 ────────────────────────────────────────
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
+// 주의: NewsAPI는 한국어 인덱스가 없음(지원 언어에 ko 미포함) → 한국어 텍스트 쿼리는 사실상 0건이었다.
+// KR 대장주/catalyst는 영어 고유명사(Samsung/SK Hynix/HLB…)로 검색해야 실제로 잡히고,
+// 한국어 본문 수집은 RSS(handleRss)가 담당한다. language는 쿼리별 지정 가능(기본 en).
 const QUERIES = [
   { q: 'Trump tariff trade policy executive order sanctions',     sectors: ['정치·외교', '무역', '관세'] },
   { q: 'Federal Reserve interest rate inflation monetary policy', sectors: ['경제지표', '금리', '연준'] },
   { q: 'earnings revenue profit quarterly results beat miss',     sectors: ['실적발표', '주식'] },
-  { q: 'semiconductor AI chip NVDA AMD Intel TSMC',               sectors: ['반도체', 'AI'] },
+  { q: 'semiconductor AI chip NVDA AMD Intel TSMC HBM',           sectors: ['반도체', 'AI'] },
   { q: 'electric vehicle battery EV Tesla BYD',                   sectors: ['전기차', '배터리'] },
-  { q: 'pharmaceutical biotech drug FDA approval',                sectors: ['바이오', '제약'] },
+  { q: 'pharmaceutical biotech drug FDA approval PDUFA',          sectors: ['바이오', '제약'] },
   { q: 'cloud computing software Microsoft Google Amazon',        sectors: ['클라우드', 'IT'] },
   { q: 'fintech banking cryptocurrency Bitcoin Ethereum',         sectors: ['핀테크', '금융'] },
   { q: 'renewable energy solar wind climate',                     sectors: ['에너지', '친환경'] },
   { q: 'supply chain logistics shipping freight',                 sectors: ['물류', '공급망'] },
-  { q: '트럼프 관세 무역 외교 제재',                              sectors: ['정치·외교', '무역', '관세'] },
-  { q: '금리 인플레이션 CPI 연준 한국은행',                        sectors: ['경제지표', '금리'] },
-  { q: '반도체 AI 인공지능 삼성 SK하이닉스',                       sectors: ['반도체', 'AI'] },
-  { q: '실적 어닝 매출 영업이익 주가',                             sectors: ['실적발표', '주식'] },
+  // ── KR 대장주/catalyst (영어 고유명사로 검색해야 실제로 잡힘) ──
+  { q: 'Samsung Electronics SK Hynix Korea chip memory earnings guidance',        sectors: ['반도체', '한국', '실적발표'] },
+  { q: 'Korea biotech HLB Celltrion Samsung Biologics FDA clinical approval',     sectors: ['바이오', '제약', '한국'] },
+  { q: 'South Korea Kospi Kosdaq IPO listing Nasdaq ADR MSCI index inclusion',    sectors: ['한국', '상장', '증권'] },
+  { q: 'Bank of Korea won KRW Korea economy export',                              sectors: ['경제지표', '한국', '환율'] },
 ];
 
 async function handleNews(res) {
@@ -50,7 +54,7 @@ async function handleNews(res) {
   const selected = Array.from({ length: 5 }, (_, i) => QUERIES[(rotStart + i) % QUERIES.length]);
   for (const query of selected) {
     try {
-      const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query.q)}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${NEWS_API_KEY}`;
+      const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query.q)}&language=${query.lang || 'en'}&sortBy=publishedAt&pageSize=5&apiKey=${NEWS_API_KEY}`;
       const response = await fetch(url);
       const data = await response.json();
       if (data.status !== 'ok') { results.errors.push(`Query "${query.q}": ${data.message}`); continue; }
@@ -91,8 +95,11 @@ const KO_STOCK_KEYWORDS = [
   '펀드', 'ETF', '투자', '시가총액', '시총',
   '증권', '배당', '공매도', '선물', '옵션',
   '관세', '무역', '수출', '수입', '제재',
-  'IPO', '상장', '공모', '유상증자',
+  'IPO', '상장', '공모', '유상증자', '편입', 'ADR',
   '삼성', 'SK', 'LG', '현대', '포스코', '카카오', '네이버', 'NAVER',
+  // 바이오/제약 catalyst — 기존 필터에 없어 HLB·K-bio 뉴스가 통째로 버려지던 gap 보강
+  '바이오', '제약', '임상', '신약', '치료제', '항암', '허가', '승인', 'FDA', '식약처', 'PDUFA',
+  '리보세라닙', 'HLB', '셀트리온', '유한양행', '삼성바이오', 'SK바이오',
 ];
 const RSS_FEEDS = [
   // 한국 — User-Agent 차단 우회 위해 mobile 헤더 추가

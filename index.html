@@ -795,6 +795,9 @@ button { font-family: inherit; }
 .dr-big .dr-list { font-size:14px !important; line-height:1.65 !important; }
 .dr-big .dr-list li { margin-bottom:3px; }
 .dr-big .dr-mood { font-size:12px; padding:4px 10px; }
+/* 다가오는 핵심 catalyst 콜아웃 */
+.dr-cat { font-size:11px; color:var(--text1); background:var(--bg3); border-left:2.5px solid var(--purple); border-radius:4px; padding:4px 8px; line-height:1.45; }
+.dr-big .dr-cat { font-size:13.5px !important; padding:6px 10px; }
 @media (max-width: 1100px) { .dr-fab { display:flex; } }   /* 모바일에서 FAB 표시 (기본 규칙보다 뒤에 와야 우선 적용) */
 .arch-item { padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:6px; }
 .arch-item:hover { background:rgba(255,255,255,.04); }
@@ -3835,6 +3838,9 @@ function dailyReportHTML(d, compact) {
     </div>
     <div class="dr-headline" style="font-size:13px;font-weight:600;line-height:1.4;margin-bottom:10px">${escHtml(d.headline || '')}</div>
     ${idxChips}
+    ${Array.isArray(d.catalysts) && d.catalysts.length ? `
+    <div class="dr-sec" style="font-size:10px;color:var(--purple);font-weight:700;margin:2px 0 4px">📌 다가오는 핵심 이벤트</div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:9px">${d.catalysts.map(c => `<div class="dr-cat">${escHtml(c)}</div>`).join('')}</div>` : ''}
     <div class="dr-sec" style="font-size:10px;color:var(--blue);font-weight:700;margin-bottom:3px">📋 오늘 시장 흐름</div>
     ${list(d.recap)}
     <div class="dr-sec" style="font-size:10px;color:var(--yellow);font-weight:700;margin:8px 0 3px">⚡ 주요 이벤트</div>

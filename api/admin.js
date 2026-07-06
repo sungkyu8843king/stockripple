@@ -65,6 +65,8 @@ export default async function handler(req, res) {
   if (action === 'weekly-schedule' && req.method === 'GET') return handleWeeklyScheduleGet(req, res);
   // sector-map: 섹터 파급 지도 (공개, 계산 결과 CDN 캐시)
   if (action === 'sector-map' && req.method === 'GET') return handleSectorMapGet(req, res);
+  // catalysts: 예정 catalyst 레지스트리 GET(조회)은 공개, POST(생성/추출)만 admin
+  if (action === 'catalysts' && req.method === 'GET') return handleCatalystsGet(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -85,6 +87,7 @@ export default async function handler(req, res) {
   if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
   if (action === 'daily-report') return handleDailyReportPost(req, res);
   if (action === 'weekly-schedule') return handleWeeklySchedulePost(req, res);
+  if (action === 'catalysts') return handleCatalystsPost(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -1978,6 +1981,119 @@ function drReportDate(market) {
   return new Date().toLocaleDateString('en-CA', { timeZone: market === 'KR' ? 'Asia/Seoul' : 'America/New_York' });
 }
 
+// ════════════════════════════════════════════════════════════
+// 19) 예정 catalyst 레지스트리 (seed 수동 + 뉴스 기반 AI 추출)
+// ════════════════════════════════════════════════════════════
+function catalystTodayKST() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+}
+
+// market: 'KR'|'US'|null → 해당 시장 + GLOBAL, 아직 안 지난 것, 중요도·날짜 순
+async function fetchUpcomingCatalysts(market) {
+  const today = catalystTodayKST();
+  let q = supabase.from('catalysts').select('*').eq('status', 'upcoming');
+  if (market) q = q.in('market', [market, 'GLOBAL']);
+  const { data, error } = await q
+    .order('importance', { ascending: false })
+    .order('event_date', { ascending: true, nullsFirst: false })
+    .limit(40);
+  if (error) return [];   // 테이블 미생성(마이그레이션 전) 등에도 리포트 생성은 계속되도록
+  return (data || []).filter(c => !c.event_date || c.event_date >= today);
+}
+
+function normalizeCatalystRow(c, origin) {
+  if (!c || !c.title) return null;
+  const market = ['KR', 'US', 'GLOBAL'].includes((c.market || '').toUpperCase()) ? c.market.toUpperCase() : 'GLOBAL';
+  const cat = (c.category || '기타').toString().slice(0, 20);
+  const ed = /^\d{4}-\d{2}-\d{2}$/.test(c.event_date || '') ? c.event_date : null;
+  const key = (c.dedupe_key
+    || `ai:${market}:${(c.ticker || c.company || '').toString().toLowerCase().replace(/\s+/g, '')}:${cat}:${ed || (c.date_text || '').toString().slice(0, 12)}`
+  ).slice(0, 200);
+  return {
+    market, ticker: c.ticker || null, company: c.company || null,
+    title: c.title.toString().slice(0, 200), category: cat,
+    event_date: ed, date_text: c.date_text || null,
+    importance: [1, 2, 3].includes(+c.importance) ? +c.importance : 2,
+    status: 'upcoming', origin: origin || c.origin || 'ai',
+    source: c.source || null, note: c.note || null,
+    dedupe_key: key, updated_at: new Date().toISOString(),
+  };
+}
+
+async function handleCatalystsGet(req, res) {
+  const market = ((req.query?.market || '') + '').toUpperCase();
+  const mkt = market === 'KR' || market === 'US' ? market : null;
+  const items = await fetchUpcomingCatalysts(mkt);
+  res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
+  return res.status(200).json({ ok: true, market: mkt || 'ALL', items });
+}
+
+async function handleCatalystsPost(req, res) {
+  const today = catalystTodayKST();
+
+  // (a) 수동 추가/수정 — body.insert = 객체 또는 배열
+  if (req.body?.insert) {
+    const rows = (Array.isArray(req.body.insert) ? req.body.insert : [req.body.insert])
+      .map(r => normalizeCatalystRow(r, r.origin || 'seed')).filter(Boolean);
+    if (!rows.length) return res.status(400).json({ error: 'no valid rows' });
+    const { error } = await supabase.from('catalysts').upsert(rows, { onConflict: 'dedupe_key' });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ ok: true, inserted: rows.length });
+  }
+
+  // (b) 지난 이벤트 정리 (event_date < 오늘 → passed)
+  await supabase.from('catalysts')
+    .update({ status: 'passed', updated_at: new Date().toISOString() })
+    .eq('status', 'upcoming').not('event_date', 'is', null).lt('event_date', today);
+
+  // (c) 최근 뉴스 제목 → forward catalyst AI 추출
+  if (!anthropic) return res.status(200).json({ ok: true, aiExtract: false, reason: 'no ANTHROPIC_API_KEY' });
+
+  const { data: news } = await supabase.from('issues')
+    .select('title, published_at')
+    .gte('published_at', new Date(Date.now() - 14 * 86400000).toISOString())
+    .order('published_at', { ascending: false }).limit(300);
+  if (!news?.length) return res.status(200).json({ ok: true, aiExtract: true, added: 0, reason: 'no news' });
+
+  const { data: existing } = await supabase.from('catalysts').select('title, ticker').eq('status', 'upcoming').limit(60);
+  const existingStr = (existing || []).map(e => `- ${e.ticker || ''} ${e.title}`).join('\n');
+  const titles = news.map(n => n.title).filter(Boolean).slice(0, 260).join('\n');
+
+  let parsed = { catalysts: [] };
+  try {
+    const msg = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 1600,
+      messages: [{ role: 'user', content: `아래 최근 2주 금융 뉴스 제목에서 "앞으로 예정된 대형 catalyst"만 추출하세요.
+대상: FDA/식약처 심사·PDUFA, 상장/IPO/ADR/나스닥 상장, 지수 편입(MSCI 등), 잠정/정식 실적발표 예정, 대형 정책 시행, 대형 M&A 종결.
+제외: 이미 벌어진 일, 단순 시황/전망 기사. 날짜 미명시면 event_date=null, date_text에 퍼지 표기(예: "7월 말").
+
+이미 등록된 것(중복 추출 금지):
+${existingStr || '(없음)'}
+
+JSON만 반환 (다른 텍스트 없이):
+{"catalysts":[{"market":"KR|US|GLOBAL","ticker":"티커 또는 null","company":"기업명","title":"이벤트(35자내)","category":"FDA|IPO|실적|편입|정책|M&A|기타","event_date":"YYYY-MM-DD 또는 null","date_text":"퍼지 시점 또는 null","importance":1|2|3}]}
+
+뉴스 제목:
+${titles.slice(0, 14000)}` }],
+    });
+    const m = msg.content[0].text.match(/\{[\s\S]*\}/);
+    if (m) parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
+  } catch (e) {
+    return res.status(200).json({ ok: true, aiExtract: true, added: 0, error: e.message });
+  }
+
+  const rows = (parsed.catalysts || []).map(c => normalizeCatalystRow(c, 'ai')).filter(Boolean)
+    .filter(r => !r.event_date || r.event_date >= today);
+  let added = 0;
+  if (rows.length) {
+    // 기존 seed/수동 항목을 덮지 않도록 ignoreDuplicates
+    const { error, count } = await supabase.from('catalysts')
+      .upsert(rows, { onConflict: 'dedupe_key', ignoreDuplicates: true, count: 'exact' });
+    if (!error) added = count ?? rows.length;
+  }
+  return res.status(200).json({ ok: true, aiExtract: true, candidates: rows.length, added });
+}
+
 async function handleDailyReportGet(req, res) {
   const market = ((req.query?.market || 'US') + '').toUpperCase() === 'KR' ? 'KR' : 'US';
   const history = Math.min(parseInt(req.query?.history) || 0, 90);
@@ -2039,31 +2155,47 @@ async function handleDailyReportPost(req, res) {
     `${i.name}: ${i.price}${i.changePercent != null ? ` (${i.changePercent >= 0 ? '+' : ''}${i.changePercent}%)` : ''}`
   ).join(' | ');
 
+  // 다가오는 대형 catalyst — 오늘 뉴스에 없어도 리포트가 미리 surface하도록 주입
+  const upcoming = await fetchUpcomingCatalysts(market);
+  const catStr = upcoming.length
+    ? upcoming.slice(0, 12).map(c => {
+        const when = c.event_date || c.date_text || '시점 미정';
+        const imp = c.importance >= 3 ? '★★★' : c.importance === 2 ? '★★' : '★';
+        return `- [${imp}] (${when}) ${c.company ? c.company + ' — ' : ''}${c.title}${c.category ? ` [${c.category}]` : ''}`;
+      }).join('\n')
+    : '(등록된 예정 catalyst 없음)';
+
   const prompt = `당신은 한국어 금융 시장 분석가입니다. 오늘(${reportDate}) ${marketLabel} 장 마감 데일리 리포트를 작성하세요.
 
 ■ 실제 지수 마감 데이터 (이 수치만 사용, 지어내지 말 것):
 ${idxStr || '(지수 데이터 없음)'}
 
-■ 지난 24시간 뉴스/이슈 ${issues?.length || 0}건:
-${ctx.slice(0, 11000)}
+■ 다가오는 대형 catalyst (예정 이벤트 — 오늘 뉴스에 없더라도 시장이 주목하는 핵심):
+${catStr}
 
-${marketLabel}과 직접 관련된 내용 위주로 정리하세요. 관련 없는 이슈는 제외합니다.
+■ 지난 24시간 뉴스/이슈 ${issues?.length || 0}건:
+${ctx.slice(0, 10000)}
+
+작성 지침:
+1. ${marketLabel}과 직접 관련된 내용 위주. 관련 없는 이슈는 제외.
+2. 오늘의 가장 큰 동인(핵심 catalyst) 1~2개를 먼저 판별해 headline과 recap 맨 앞에 세울 것 — 단순 나열 금지.
+3. 위 "예정 catalyst" 중 이 시장에 중요한 것(특히 ★★★)은 반드시 upcoming_catalysts에 반영하고, 필요하면 tomorrow에도 언급.
+4. 사실 기반·객관적·한국어. 추측/날짜 창작 금지 — 지수·본문·catalyst 목록에 있는 것만 사용.
 
 다음 JSON만 반환 (다른 텍스트 없이):
 {
-  "headline": "오늘 ${marketLabel} 하루를 한 문장으로 (40자 내외)",
+  "headline": "오늘 ${marketLabel}의 가장 큰 동인을 담은 한 문장 (40자 내외)",
   "mood": "상승 또는 하락 또는 혼조 (지수 데이터 기준)",
-  "recap": ["오늘 시장 흐름 요약 문장 1", "문장 2", "문장 3"],
+  "recap": ["가장 큰 동인부터, 오늘 시장 흐름 요약 문장 1", "문장 2", "문장 3"],
   "top_events": ["오늘 주요 이벤트/뉴스 1 (한 문장)", "이벤트 2", "이벤트 3"],
   "sector_notes": ["섹터/종목 특징 1", "특징 2"],
+  "upcoming_catalysts": ["다가오는 핵심 이벤트(시점 포함, 예: 'HLB FDA 재심사 결과 — 7월 말') 1", "이벤트 2", "이벤트 3"],
   "tomorrow": ["다음 거래일 관전 포인트 1", "포인트 2"]
-}
-
-규칙: 사실 기반, 객관적, 한국어, 추측 금지. 본문과 지수 데이터에 명시된 것만 사용.`;
+}`;
 
   try {
     const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 1500,
+      model: 'claude-haiku-4-5-20251001', max_tokens: 1700,
       messages: [{ role: 'user', content: prompt }],
     });
     const text = msg.content[0].text.trim();
@@ -2080,11 +2212,17 @@ ${marketLabel}과 직접 관련된 내용 위주로 정리하세요. 관련 없�
       recap: parsed.recap || [],
       top_events: parsed.top_events || [],
       sector_notes: parsed.sector_notes || [],
+      catalysts: Array.isArray(parsed.upcoming_catalysts) ? parsed.upcoming_catalysts.slice(0, 6) : [],
       tomorrow: parsed.tomorrow || [],
       based_on_issues: issues?.length || 0,
       created_at: new Date().toISOString(),
     };
-    const { error } = await supabase.from('daily_reports').upsert(row, { onConflict: 'market,report_date' });
+    // daily_reports.catalysts 컬럼 마이그레이션 전 배포에서도 리포트 생성이 죽지 않도록 방어
+    let { error } = await supabase.from('daily_reports').upsert(row, { onConflict: 'market,report_date' });
+    if (error && /catalysts/i.test(error.message || '')) {
+      const { catalysts, ...rowNoCat } = row;
+      ({ error } = await supabase.from('daily_reports').upsert(rowNoCat, { onConflict: 'market,report_date' }));
+    }
     if (error) return res.status(500).json({ error: 'DB upsert failed: ' + error.message });
     return res.status(200).json({ ok: true, generated: true, ...row });
   } catch (e) {
