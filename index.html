@@ -1050,6 +1050,7 @@ button { font-family: inherit; }
           <span class="sh-mark" style="background:var(--purple)"></span>
           <span class="sh-title">최신 분석 이슈</span>
           <span class="sh-desc">뉴스 → 파급 섹터 → 수혜 기업 분석</span>
+          <span id="feedLiveTag" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
         </div>
         <span style="font-size:11px;color:var(--text3)" id="issuesCount"></span>
       </div>
@@ -1088,6 +1089,10 @@ button { font-family: inherit; }
           <button class="filter-chip" data-sector="자동차">자동차</button>
           <button class="filter-chip" data-sector="물류·운송">물류·운송</button>
         </div>
+      </div>
+
+      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:12.5px;font-weight:700;text-align:center">
+        🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
       </div>
 
       <div id="issuesContainer">
@@ -1547,6 +1552,63 @@ async function loadIssues() {
   const cntEl = document.getElementById('issuesCount');
   if (cntEl) cntEl.textContent = `${(totalCount || data.length).toLocaleString()}건 · 페이지 ${currentPage}`;
   renderPagination();
+
+  // 실시간 폴링 기준점 갱신 + "새 이슈" 배너 리셋 (방금 최신본을 받았으므로)
+  _feedTopTs = data[0]?.published_at || _feedTopTs;
+  const _b = document.getElementById('newIssueBanner');
+  if (_b) _b.style.display = 'none';
+}
+
+// ─── 🟢 이슈 피드 실시간 갱신 (장중 폴링) ────────────────────
+let _feedTopTs = null;
+
+// KR(09:00–15:30 KST) 또는 US(09:30–16:00 ET) 정규장 여부
+function anyMarketOpenNow() {
+  const now = new Date();
+  const parse = tz => {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(now);
+    const g = t => p.find(x => x.type === t)?.value;
+    return { wd: g('weekday'), min: (parseInt(g('hour')) % 24) * 60 + parseInt(g('minute')) };
+  };
+  const wk = w => w !== 'Sat' && w !== 'Sun';
+  const kr = parse('Asia/Seoul'), us = parse('America/New_York');
+  const krOpen = wk(kr.wd) && kr.min >= 540 && kr.min <= 930;   // 09:00–15:30
+  const usOpen = wk(us.wd) && us.min >= 570 && us.min < 960;    // 09:30–16:00
+  return { krOpen, usOpen, any: krOpen || usOpen };
+}
+
+function updateFeedLiveTag() {
+  const el = document.getElementById('feedLiveTag');
+  if (!el) return;
+  const { krOpen, usOpen, any } = anyMarketOpenNow();
+  if (any) {
+    const who = krOpen && usOpen ? '국장·미장' : krOpen ? '국장' : '미장';
+    el.style.display = 'inline-flex';
+    el.style.background = 'var(--green-dim)'; el.style.color = 'var(--green)';
+    el.innerHTML = `<span class="live-pulse-dot"></span>실시간 · ${who} 장중`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// 기본 뷰(1페이지·전체·검색없음)에서만 장중에 새 이슈 개수를 폴링해 배너로 알림 (피드를 강제로 갈아엎지 않음)
+async function pollNewIssues() {
+  if (currentPage !== 1 || currentCategory !== 'all' || currentSector !== 'all' || searchQuery) return;
+  if (!anyMarketOpenNow().any || !_feedTopTs) return;
+  try {
+    const { count } = await sb.from('issues').select('id', { count: 'exact', head: true })
+      .eq('is_analyzed', true).gt('published_at', _feedTopTs);
+    const banner = document.getElementById('newIssueBanner');
+    const cnt = document.getElementById('newIssueCount');
+    if (banner && cnt && count > 0) { cnt.textContent = count; banner.style.display = 'block'; }
+  } catch {}
+}
+
+function showNewIssues() {
+  currentPage = 1;
+  loadIssues();
+  const top = document.getElementById('issuesContainer');
+  if (top) top.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderIssueCard(issue) {
@@ -4484,6 +4546,7 @@ function computeMarketStatus(market) {
     try { loadWeeklySchedule();   } catch (e) { console.error('wsched', e); }
     try { loadDailyReport();      } catch (e) { console.error('dailyReport', e); }
     try { checkNewReports();      } catch (e) { console.error('checkNewReports', e); }
+    try { updateFeedLiveTag();    } catch (e) { console.error('feedLiveTag', e); }
     try { loadSectorMomentum();   } catch (e) { console.error('sectorMo', e); }
     try { loadCorrelation();      } catch (e) { console.error('corr', e); }
   };
@@ -4504,6 +4567,9 @@ function computeMarketStatus(market) {
   setInterval(() => { try { delete _drCache.US; delete _drCache.KR; loadDailyReport(); checkNewReports(); } catch {} }, 3600000);
   // 만기일은 자정 지나면 갱신
   setInterval(() => { try { loadExpiries(); } catch {} }, 3600000);
+  // 이슈 피드 실시간: 장중 45초마다 새 이슈 감지(배너), 30초마다 LIVE 태그 갱신
+  setInterval(() => { try { pollNewIssues(); } catch {} }, 45000);
+  setInterval(() => { try { updateFeedLiveTag(); } catch {} }, 30000);
 })();
 
 // ─── 종목 검색 결과 카드 모달 ─────────────────────────────
