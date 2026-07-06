@@ -2003,6 +2003,8 @@ async function fetchUpcomingCatalysts(market) {
 
 function normalizeCatalystRow(c, origin) {
   if (!c || !c.title) return null;
+  const eff = origin || c.origin || 'ai';
+  if (eff === 'ai' && !c.source) return null;   // AI 추출분은 근거(source) 없으면 폐기
   const market = ['KR', 'US', 'GLOBAL'].includes((c.market || '').toUpperCase()) ? c.market.toUpperCase() : 'GLOBAL';
   const cat = (c.category || '기타').toString().slice(0, 20);
   const ed = /^\d{4}-\d{2}-\d{2}$/.test(c.event_date || '') ? c.event_date : null;
@@ -2064,14 +2066,20 @@ async function handleCatalystsPost(req, res) {
     const msg = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001', max_tokens: 1600,
       messages: [{ role: 'user', content: `아래 최근 2주 금융 뉴스 제목에서 "앞으로 예정된 대형 catalyst"만 추출하세요.
-대상: FDA/식약처 심사·PDUFA, 상장/IPO/ADR/나스닥 상장, 지수 편입(MSCI 등), 잠정/정식 실적발표 예정, 대형 정책 시행, 대형 M&A 종결.
-제외: 이미 벌어진 일, 단순 시황/전망 기사. 날짜 미명시면 event_date=null, date_text에 퍼지 표기(예: "7월 말").
+대상: FDA/식약처 심사·PDUFA, 상장/IPO/ADR/나스닥 상장, 지수 편입(MSCI/나스닥100 등), 잠정/정식 실적발표 예정, 대형 정책 시행, 대형 M&A 종결.
+제외: 이미 벌어진 일, 단순 시황/전망 기사.
+
+날짜 원칙 (매우 중요):
+- event_date는 뉴스 제목에 "구체적 날짜(예: 7월 23일, 2026-07-10)"가 명확히 적힌 경우에만 YYYY-MM-DD로 채운다.
+- 날짜가 애매/추정/미확정이거나 뉴스마다 엇갈리면 event_date=null 로 두고 date_text에 불확실성을 명시한다(예: "7월 말(미확정)", "7월 초 잠정").
+- 날짜를 추측하거나 창작하지 말 것. 확실하지 않으면 무조건 null.
+- 각 항목은 근거가 된 뉴스 제목의 요지를 source에 반드시 남긴다. source가 없으면 그 항목은 추출하지 않는다.
 
 이미 등록된 것(중복 추출 금지):
 ${existingStr || '(없음)'}
 
 JSON만 반환 (다른 텍스트 없이):
-{"catalysts":[{"market":"KR|US|GLOBAL","ticker":"티커 또는 null","company":"기업명","title":"이벤트(35자내)","category":"FDA|IPO|실적|편입|정책|M&A|기타","event_date":"YYYY-MM-DD 또는 null","date_text":"퍼지 시점 또는 null","importance":1|2|3}]}
+{"catalysts":[{"market":"KR|US|GLOBAL","ticker":"티커 또는 null","company":"기업명","title":"이벤트(35자내)","category":"FDA|IPO|실적|편입|정책|M&A|기타","event_date":"YYYY-MM-DD 또는 null","date_text":"시점/불확실성 표기 또는 null","importance":1|2|3,"source":"근거 뉴스 제목 요지"}]}
 
 뉴스 제목:
 ${titles.slice(0, 14000)}` }],
