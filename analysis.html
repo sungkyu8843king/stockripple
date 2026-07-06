@@ -298,7 +298,11 @@ async function loadStockPrice(ticker, el) {
     const data = await res.json();
     if (data.price) {
       const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: data.currency || 'USD', maximumFractionDigits: 2 });
-      el.innerHTML = `<span class="price">${fmt.format(data.price)}</span>`;
+      const cp = data.changePercent;
+      const chgHtml = (cp != null && !isNaN(cp))
+        ? ` <span class="price-chg" style="color:${cp >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700" title="당일 등락(최근 시세 기준)">${cp >= 0 ? '▲' : '▼'} ${cp >= 0 ? '+' : ''}${Number(cp).toFixed(2)}%</span>`
+        : '';
+      el.innerHTML = `<span class="price">${fmt.format(data.price)}</span>${chgHtml}`;
       if (data.marketCap) {
         const mc = data.marketCap >= 1e12
           ? `$${(data.marketCap/1e12).toFixed(1)}T`

@@ -26,11 +26,20 @@ async function handlePrice(req, res) {
   const { ticker } = req.query;
   if (!ticker) return res.status(400).json({ error: 'ticker required' });
 
-  const { data: cached } = await supabase
-    .from('companies')
-    .select('current_price, market_cap, price_updated_at, currency')
-    .eq('ticker', ticker)
-    .single();
+  // price_change_pct 컬럼 미적용(마이그레이션 전)에도 죽지 않도록 방어적 select
+  let cached;
+  {
+    const r = await supabase.from('companies')
+      .select('current_price, market_cap, price_updated_at, currency, price_change_pct')
+      .eq('ticker', ticker).single();
+    if (r.error && /price_change_pct/i.test(r.error.message || '')) {
+      cached = (await supabase.from('companies')
+        .select('current_price, market_cap, price_updated_at, currency')
+        .eq('ticker', ticker).single()).data;
+    } else {
+      cached = r.data;
+    }
+  }
 
   if (cached?.price_updated_at) {
     const age = Date.now() - new Date(cached.price_updated_at).getTime();
@@ -40,6 +49,7 @@ async function handlePrice(req, res) {
         price: cached.current_price,
         marketCap: cached.market_cap,
         currency: cached.currency,
+        changePercent: cached.price_change_pct ?? null,
         source: 'cache',
       });
     }
@@ -61,12 +71,18 @@ async function handlePrice(req, res) {
     const changePercent = meta.regularMarketChangePercent ?? null;
     const change = meta.regularMarketChange ?? null;
 
-    await supabase.from('companies').update({
+    const upd = {
       current_price: price,
       market_cap: marketCap,
       currency,
       price_updated_at: new Date().toISOString(),
-    }).eq('ticker', ticker);
+      price_change_pct: changePercent,
+    };
+    const ue = (await supabase.from('companies').update(upd).eq('ticker', ticker)).error;
+    if (ue && /price_change_pct/i.test(ue.message || '')) {
+      delete upd.price_change_pct;   // 마이그레이션 전이면 컬럼 없이 재시도
+      await supabase.from('companies').update(upd).eq('ticker', ticker);
+    }
 
     return res.status(200).json({ ticker, price, marketCap, currency, changePercent, change, source: 'yahoo' });
   } catch (err) {
@@ -76,6 +92,7 @@ async function handlePrice(req, res) {
         price: cached.current_price,
         marketCap: cached.market_cap,
         currency: cached.currency,
+        changePercent: cached.price_change_pct ?? null,
         source: 'cache_fallback',
       });
     }
