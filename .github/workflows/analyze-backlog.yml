@@ -56,3 +56,29 @@ jobs:
           else
             echo "skip (01 UTC에만 실행)"
           fi
+
+      # 데일리 리포트 캐치업 — 전용 daily-reports.yml 스케줄이 GitHub Actions에 자주 드롭되므로
+      # (실측: 7/6 국장 07:40 UTC 슬롯 누락), 매시간 도는 이 워크플로에서 멱등 생성한다.
+      # "해당 시장이 마감(+버퍼)했는데 오늘자 리포트가 아직 없으면 1회 생성" → 어느 시간대 run이든
+      # 처음 뜨는 놈이 채워넣고, 이후 run은 이미 존재하므로 스킵 (upsert라 중복도 안전).
+      - name: Daily Report catch-up (KR/US)
+        run: |
+          gen() {
+            local MKT="$1" TODAY="$2"
+            local LATEST
+            LATEST=$(curl -s --max-time 20 "${{ secrets.VERCEL_URL }}/api/admin?action=daily-report&market=$MKT" \
+              | jq -r '.report_date // "none"' 2>/dev/null || echo none)
+            if [ "$LATEST" = "$TODAY" ]; then echo "$MKT: 이미 $TODAY 리포트 존재 — 스킵"; return; fi
+            echo "$MKT: $TODAY 리포트 없음 (최신=$LATEST) — 생성 요청"
+            curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=daily-report" \
+              -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
+              -d "{\"market\":\"$MKT\"}" \
+              | jq -c '{ok,generated,market,report_date,error}' 2>/dev/null \
+              || echo "  (non-JSON 응답 — 서버에서 생성은 계속될 수 있음)"
+          }
+          # 국장: KST 평일, 마감 15:30 + 버퍼 → KST 17~23시에 catch-up (report_date = KST 당일)
+          KST_DOW=$(TZ=Asia/Seoul date +%u); KST_H=$(TZ=Asia/Seoul date +%H); KST_DATE=$(TZ=Asia/Seoul date +%F)
+          if [ "$KST_DOW" -le 5 ] && [ "$KST_H" -ge 17 ]; then gen KR "$KST_DATE"; else echo "KR: 생성 창 아님 (dow=$KST_DOW h=$KST_H KST)"; fi
+          # 미장: ET 평일, 마감 16:00 + 버퍼 → ET 17~23시에 catch-up (report_date = ET 당일)
+          ET_DOW=$(TZ=America/New_York date +%u); ET_H=$(TZ=America/New_York date +%H); ET_DATE=$(TZ=America/New_York date +%F)
+          if [ "$ET_DOW" -le 5 ] && [ "$ET_H" -ge 17 ]; then gen US "$ET_DATE"; else echo "US: 생성 창 아님 (dow=$ET_DOW h=$ET_H ET)"; fi
