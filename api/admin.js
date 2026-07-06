@@ -67,6 +67,8 @@ export default async function handler(req, res) {
   if (action === 'sector-map' && req.method === 'GET') return handleSectorMapGet(req, res);
   // catalysts: 예정 catalyst 레지스트리 GET(조회)은 공개, POST(생성/추출)만 admin
   if (action === 'catalysts' && req.method === 'GET') return handleCatalystsGet(req, res);
+  // live-refresh: 장중 브라우저 구동 수집 트리거 (공개·장중게이트·레이트리밋, 내부는 ADMIN_SECRET로 수집 호출)
+  if (action === 'live-refresh') return handleLiveRefresh(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -2100,6 +2102,61 @@ ${titles.slice(0, 14000)}` }],
     if (!error) added = count ?? rows.length;
   }
   return res.status(200).json({ ok: true, aiExtract: true, candidates: rows.length, added });
+}
+
+// ════════════════════════════════════════════════════════════
+// 20) 장중 실시간 수집 트리거 (브라우저 구동)
+// ════════════════════════════════════════════════════════════
+let _liveLastTrigger = 0;   // 워밍 인스턴스 내 버스트 방지(베스트에포트)
+
+// KR 09:00–15:40 KST / US 09:30–16:00 ET (평일) 정규장 여부
+function liveMarketState() {
+  const now = new Date();
+  const parse = tz => {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(now);
+    const g = t => p.find(x => x.type === t)?.value;
+    return { wd: g('weekday'), min: (parseInt(g('hour')) % 24) * 60 + parseInt(g('minute')) };
+  };
+  const wk = w => w !== 'Sat' && w !== 'Sun';
+  const kr = parse('Asia/Seoul'), us = parse('America/New_York');
+  const krOpen = wk(kr.wd) && kr.min >= 540 && kr.min <= 940;   // 09:00–15:40 (마감 직후까지 여유)
+  const usOpen = wk(us.wd) && us.min >= 570 && us.min < 960;    // 09:30–16:00
+  return { krOpen, usOpen, any: krOpen || usOpen };
+}
+
+async function handleLiveRefresh(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  const mk = liveMarketState();
+  if (!mk.any) return res.status(200).json({ ok: true, triggered: false, reason: 'market closed' });
+
+  const now = Date.now();
+  // (1) 인스턴스 버스트 방지: 같은 워밍 인스턴스에서 60s 내 재호출 차단
+  if (now - _liveLastTrigger < 60000) {
+    return res.status(200).json({ ok: true, triggered: false, reason: 'throttled' });
+  }
+  // (2) 인스턴스 간 레이트리밋: 최근 75s 내 수집된 이슈가 있으면 이미 방금 수집된 것 → 스킵
+  try {
+    const { data: recent } = await supabase.from('issues')
+      .select('created_at').order('created_at', { ascending: false }).limit(1);
+    const lastMs = recent?.[0]?.created_at ? new Date(recent[0].created_at).getTime() : 0;
+    if (now - lastMs < 75000) {
+      _liveLastTrigger = now;
+      return res.status(200).json({ ok: true, triggered: false, reason: 'recently collected', ageSec: Math.round((now - lastMs) / 1000) });
+    }
+  } catch { /* 조회 실패해도 아래로 진행 */ }
+
+  _liveLastTrigger = now;
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req.headers.host}`;
+  const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.ADMIN_SECRET}` };
+  const faf = (path, body) => {
+    fetch(`${base}${path}`, { method: 'POST', headers: authHeaders, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(55000) }).catch(() => {});
+  };
+  // RSS 수집(무료) + 소량 AI 분석 — 분석은 미분석 이슈가 있을 때만 Claude 호출(비용은 뉴스량에 비례)
+  faf('/api/fetch?type=rss');
+  faf('/api/analyze', { limit: 4 });
+  return res.status(200).json({ ok: true, triggered: true, market: mk.krOpen ? 'KR' : 'US' });
 }
 
 async function handleDailyReportGet(req, res) {

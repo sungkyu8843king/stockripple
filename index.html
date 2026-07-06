@@ -1611,6 +1611,12 @@ function showNewIssues() {
   if (top) top.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// 장중 브라우저 구동 수집 트리거 — 서버가 장중게이트·레이트리밋 처리(사이트 열려 있는 동안만 수집)
+async function triggerLiveCollect() {
+  if (!anyMarketOpenNow().any) return;
+  try { await fetch('/api/admin?action=live-refresh', { method: 'POST' }); } catch {}
+}
+
 function renderIssueCard(issue) {
   const analysis = issue.analyses?.[0];
   const companies = analysis?.analysis_companies?.slice(0, 3) || [];
@@ -4570,6 +4576,9 @@ function computeMarketStatus(market) {
   // 이슈 피드 실시간: 장중 45초마다 새 이슈 감지(배너), 30초마다 LIVE 태그 갱신
   setInterval(() => { try { pollNewIssues(); } catch {} }, 45000);
   setInterval(() => { try { updateFeedLiveTag(); } catch {} }, 30000);
+  // 장중 브라우저 구동 수집: 즉시 1회 + 120초마다 (서버가 게이트·레이트리밋)
+  try { triggerLiveCollect(); } catch {}
+  setInterval(() => { try { triggerLiveCollect(); } catch {} }, 120000);
 })();
 
 // ─── 종목 검색 결과 카드 모달 ─────────────────────────────
