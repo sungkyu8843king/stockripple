@@ -64,12 +64,21 @@ jobs:
       - name: Daily Report catch-up (KR/US)
         run: |
           gen() {
-            local MKT="$1" TODAY="$2"
-            local LATEST
-            LATEST=$(curl -s --max-time 20 "${{ secrets.VERCEL_URL }}/api/admin?action=daily-report&market=$MKT" \
-              | jq -r '.report_date // "none"' 2>/dev/null || echo none)
-            if [ "$LATEST" = "$TODAY" ]; then echo "$MKT: 이미 $TODAY 리포트 존재 — 스킵"; return; fi
-            echo "$MKT: $TODAY 리포트 없음 (최신=$LATEST) — 생성 요청"
+            local MKT="$1" TODAY="$2" CLOSE_EPOCH="$3"
+            local RESP LATEST CREATED CREATED_EPOCH
+            RESP=$(curl -s --max-time 20 "${{ secrets.VERCEL_URL }}/api/admin?action=daily-report&market=$MKT")
+            LATEST=$(echo "$RESP"  | jq -r '.report_date // "none"' 2>/dev/null || echo none)
+            CREATED=$(echo "$RESP" | jq -r '.created_at // ""'      2>/dev/null || echo "")
+            if [ "$LATEST" = "$TODAY" ]; then
+              # 오늘자가 있어도 "마감 전에 생성된 것"(장 시작 전 수동 배포 등)이면 마감 데이터로 재생성
+              CREATED_EPOCH=$(date -d "$CREATED" +%s 2>/dev/null || echo 0)
+              if [ "$CREATED_EPOCH" -ge "$CLOSE_EPOCH" ]; then
+                echo "$MKT: 이미 $TODAY 마감 후 리포트 존재 (created=$CREATED) — 스킵"; return
+              fi
+              echo "$MKT: $TODAY 리포트가 마감 전 생성본 (created=$CREATED) — 마감 데이터로 재생성"
+            else
+              echo "$MKT: $TODAY 리포트 없음 (최신=$LATEST) — 생성 요청"
+            fi
             curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=daily-report" \
               -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
               -d "{\"market\":\"$MKT\"}" \
@@ -78,10 +87,12 @@ jobs:
           }
           # 국장: KST 평일, 마감 15:30 + 버퍼 → KST 17~23시에 catch-up (report_date = KST 당일)
           KST_DOW=$(TZ=Asia/Seoul date +%u); KST_H=$(TZ=Asia/Seoul date +%H); KST_DATE=$(TZ=Asia/Seoul date +%F)
-          if [ "$KST_DOW" -le 5 ] && [ "$KST_H" -ge 17 ]; then gen KR "$KST_DATE"; else echo "KR: 생성 창 아님 (dow=$KST_DOW h=$KST_H KST)"; fi
+          KR_CLOSE=$(TZ=Asia/Seoul date -d "$KST_DATE 15:30" +%s)
+          if [ "$KST_DOW" -le 5 ] && [ "$KST_H" -ge 17 ]; then gen KR "$KST_DATE" "$KR_CLOSE"; else echo "KR: 생성 창 아님 (dow=$KST_DOW h=$KST_H KST)"; fi
           # 미장: ET 평일, 마감 16:00 + 버퍼 → ET 17~23시에 catch-up (report_date = ET 당일)
           ET_DOW=$(TZ=America/New_York date +%u); ET_H=$(TZ=America/New_York date +%H); ET_DATE=$(TZ=America/New_York date +%F)
-          if [ "$ET_DOW" -le 5 ] && [ "$ET_H" -ge 17 ]; then gen US "$ET_DATE"; else echo "US: 생성 창 아님 (dow=$ET_DOW h=$ET_H ET)"; fi
+          US_CLOSE=$(TZ=America/New_York date -d "$ET_DATE 16:00" +%s)
+          if [ "$ET_DOW" -le 5 ] && [ "$ET_H" -ge 17 ]; then gen US "$ET_DATE" "$US_CLOSE"; else echo "US: 생성 창 아님 (dow=$ET_DOW h=$ET_H ET)"; fi
 
       # AI 시장 종합 + 예정 catalyst 갱신 — 기존엔 cron-daily(하루 1회 01 UTC)에만 있어 GitHub 슬롯
       # 드롭 시 며칠씩 멈췄음(실측 7/3 이후 정지). 매시간 도는 이 워크플로로 옮김.
