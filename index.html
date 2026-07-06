@@ -773,6 +773,29 @@ button { font-family: inherit; }
 .dr-tab.active { color:#fff; background:var(--blue); border-color:var(--blue); }
 .dr-tab:hover:not(.active) { color:var(--text1); }
 .dr-mood { font-size:10px; font-weight:700; padding:3px 8px; border-radius:999px; color:#fff; }
+/* 새 리포트 알림 뱃지 */
+.dr-new-pill { font-size:9px; font-weight:800; letter-spacing:.3px; color:#fff; background:var(--red); padding:2px 6px; border-radius:999px; margin-left:6px; vertical-align:middle; animation:drPulse 1.6s ease-in-out infinite; }
+.dr-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--red); margin-left:5px; vertical-align:middle; box-shadow:0 0 0 2px var(--bg2); }
+@keyframes drPulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+/* 모바일 데일리 리포트 플로팅 버튼 + 바텀시트 */
+.dr-fab { display:none; position:fixed; bottom:20px; right:16px; z-index:9200; width:56px; height:56px; border-radius:50%; border:none; background:var(--blue); color:#fff; font-size:23px; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.28); align-items:center; justify-content:center; }
+.dr-fab:active { transform:scale(.94); }
+.dr-fab .dr-fab-dot { position:absolute; top:9px; right:9px; width:12px; height:12px; border-radius:50%; background:var(--red); border:2px solid var(--blue); display:none; }
+.dr-fab.has-new .dr-fab-dot { display:block; }
+.dr-sheet { position:fixed; inset:0; z-index:9300; background:rgba(19,23,34,.55); backdrop-filter:blur(4px); display:none; align-items:flex-end; justify-content:center; animation:fadeIn .15s ease; }
+.dr-sheet.show { display:flex; }
+.dr-sheet-panel { background:var(--bg2); width:100%; max-width:620px; max-height:88vh; border-radius:18px 18px 0 0; border:1px solid var(--border); border-bottom:none; display:flex; flex-direction:column; overflow:hidden; animation:drSlideUp .22s cubic-bezier(.2,.8,.2,1); }
+@keyframes drSlideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.dr-sheet-head { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 8px; border-bottom:1px solid var(--border); }
+.dr-sheet-grip { position:absolute; top:6px; left:50%; transform:translateX(-50%); width:36px; height:4px; border-radius:2px; background:var(--border); }
+.dr-sheet-body { padding:12px 18px 26px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+/* 바텀시트 안에서는 가독성 위해 폰트 확대 (사이드바 인라인 스타일을 !important로 덮음) */
+.dr-big .dr-headline { font-size:16px !important; line-height:1.45 !important; }
+.dr-big .dr-sec { font-size:12px !important; margin-top:12px !important; }
+.dr-big .dr-list { font-size:14px !important; line-height:1.65 !important; }
+.dr-big .dr-list li { margin-bottom:3px; }
+.dr-big .dr-mood { font-size:12px; padding:4px 10px; }
+@media (max-width: 1100px) { .dr-fab { display:flex; } }   /* 모바일에서 FAB 표시 (기본 규칙보다 뒤에 와야 우선 적용) */
 .arch-item { padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:6px; }
 .arch-item:hover { background:rgba(255,255,255,.04); }
 .arch-back { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--blue); cursor:pointer; margin-bottom:10px; }
@@ -1119,12 +1142,12 @@ button { font-family: inherit; }
     <!-- 📰 데일리 리포트 (국장/미장) -->
     <div class="sidebar-card" id="dailyReportCard">
       <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📰 데일리 리포트</span>
+        <span class="sidebar-card-title">📰 데일리 리포트<span id="drNewPill" class="dr-new-pill" style="display:none">NEW</span></span>
         <span onclick="openReportArchive(_drTab === 'KR' ? 'dr-kr' : 'dr-us')" style="font-size:11px;color:var(--blue);cursor:pointer">지난 리포트</span>
       </div>
       <div style="display:flex;gap:6px;padding:10px 16px 0">
-        <button class="dr-tab active" id="drTabUS" onclick="switchDrTab('US')">🇺🇸 미장</button>
-        <button class="dr-tab" id="drTabKR" onclick="switchDrTab('KR')">🇰🇷 국장</button>
+        <button class="dr-tab active" id="drTabUS" onclick="switchDrTab('US')">🇺🇸 미장<span class="dr-dot" id="drDotUS" style="display:none"></span></button>
+        <button class="dr-tab" id="drTabKR" onclick="switchDrTab('KR')">🇰🇷 국장<span class="dr-dot" id="drDotKR" style="display:none"></span></button>
       </div>
       <div style="padding:10px 16px 12px" id="dailyReportBody">
         <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
@@ -3791,7 +3814,7 @@ function dailyReportHTML(d, compact) {
   const moodColor = d.mood === '상승' ? 'var(--green)' : d.mood === '하락' ? 'var(--red)' : 'var(--yellow)';
   const moodIcon  = d.mood === '상승' ? '▲' : d.mood === '하락' ? '▼' : '◆';
   const list = (items) => Array.isArray(items) && items.length
-    ? `<ul style="margin:0;padding-left:14px;font-size:11.5px;color:var(--text2);line-height:1.55">${items.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>`
+    ? `<ul class="dr-list" style="margin:0;padding-left:14px;font-size:11.5px;color:var(--text2);line-height:1.55">${items.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>`
     : '<div style="font-size:11px;color:var(--text3)">—</div>';
 
   const idxChips = Array.isArray(d.indices) && d.indices.length
@@ -3810,18 +3833,81 @@ function dailyReportHTML(d, compact) {
       <span class="dr-mood" style="background:${moodColor}">${moodIcon} ${escHtml(d.mood || '혼조')}</span>
       <span style="font-size:11px;color:var(--text3)">${escHtml(d.report_date || '')} · ${d.based_on_issues || 0}건 분석</span>
     </div>
-    <div style="font-size:13px;font-weight:600;line-height:1.4;margin-bottom:10px">${escHtml(d.headline || '')}</div>
+    <div class="dr-headline" style="font-size:13px;font-weight:600;line-height:1.4;margin-bottom:10px">${escHtml(d.headline || '')}</div>
     ${idxChips}
-    <div style="font-size:10px;color:var(--blue);font-weight:700;margin-bottom:3px">📋 오늘 시장 흐름</div>
+    <div class="dr-sec" style="font-size:10px;color:var(--blue);font-weight:700;margin-bottom:3px">📋 오늘 시장 흐름</div>
     ${list(d.recap)}
-    <div style="font-size:10px;color:var(--yellow);font-weight:700;margin:8px 0 3px">⚡ 주요 이벤트</div>
+    <div class="dr-sec" style="font-size:10px;color:var(--yellow);font-weight:700;margin:8px 0 3px">⚡ 주요 이벤트</div>
     ${list(d.top_events)}
     ${!compact ? `
-    <div style="font-size:10px;color:var(--green);font-weight:700;margin:8px 0 3px">🔍 섹터·종목 특징</div>
+    <div class="dr-sec" style="font-size:10px;color:var(--green);font-weight:700;margin:8px 0 3px">🔍 섹터·종목 특징</div>
     ${list(d.sector_notes)}` : ''}
-    <div style="font-size:10px;color:var(--blue);font-weight:700;margin:8px 0 3px">👁 다음 거래일 관전 포인트</div>
+    <div class="dr-sec" style="font-size:10px;color:var(--blue);font-weight:700;margin:8px 0 3px">👁 다음 거래일 관전 포인트</div>
     ${list(d.tomorrow)}
   `;
+}
+
+let _drSheetTab = 'US';
+const _drToasted = new Set();   // 세션 내 중복 토스트 방지 (market+report_date)
+
+// 최신 리포트 데이터 조회 (market별 캐시)
+async function getDrData(mkt) {
+  if (_drCache[mkt] === undefined) {
+    try {
+      const r = await fetch(`/api/admin?action=daily-report&market=${mkt}`);
+      _drCache[mkt] = r.ok ? await r.json() : null;
+    } catch { _drCache[mkt] = null; }
+  }
+  return _drCache[mkt];
+}
+
+const _drSeenKey = mkt => 'sr_seen_dr_' + mkt;
+function _drIsUnseen(mkt) {
+  const d = _drCache[mkt];
+  if (!d || !d.report_date) return false;
+  const seen = localStorage.getItem(_drSeenKey(mkt));
+  return seen != null && d.report_date > seen;   // seen이 null이면 최초 방문 → 기준선(아래 checkNewReports에서 설정)
+}
+
+// 이미 본 것으로 표시 (해당 시장의 뱃지/점 제거)
+function markReportSeen(mkt) {
+  const d = _drCache[mkt];
+  if (d && d.report_date) localStorage.setItem(_drSeenKey(mkt), d.report_date);
+  refreshReportBadges();
+}
+
+// 사이드바 탭 점 · NEW 필 · 모바일 FAB 점 갱신
+function refreshReportBadges() {
+  const unseenUS = _drIsUnseen('US'), unseenKR = _drIsUnseen('KR');
+  const set = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+  set('drDotUS', unseenUS);         set('drDotKR', unseenKR);
+  set('drSheetDotUS', unseenUS);    set('drSheetDotKR', unseenKR);
+  set('drNewPill', unseenUS || unseenKR);
+  document.getElementById('drFab')?.classList.toggle('has-new', unseenUS || unseenKR);
+}
+
+// 새 리포트 감지 → 뱃지 갱신 + 토스트 (최초 방문은 기준선만 설정, 알림 없음)
+async function checkNewReports() {
+  await Promise.all([getDrData('US'), getDrData('KR')]);
+  const toToast = [];
+  for (const mkt of ['KR', 'US']) {
+    const d = _drCache[mkt];
+    if (!d || !d.report_date) continue;
+    if (localStorage.getItem(_drSeenKey(mkt)) == null) {
+      // 최초 방문: 현재 최신본을 '이미 본 것'으로 기준선 설정 (첫 진입 스팸 방지)
+      localStorage.setItem(_drSeenKey(mkt), d.report_date);
+      continue;
+    }
+    if (_drIsUnseen(mkt) && !_drToasted.has(mkt + d.report_date)) {
+      _drToasted.add(mkt + d.report_date);
+      toToast.push(mkt);
+    }
+  }
+  refreshReportBadges();
+  if (toToast.length) {
+    const label = toToast.map(m => m === 'KR' ? '국장' : '미장').join('·');
+    try { showToast(`📰 새 ${label} 데일리 리포트가 올라왔어요`, 'info'); } catch {}
+  }
 }
 
 async function loadDailyReport(market) {
@@ -3829,14 +3915,11 @@ async function loadDailyReport(market) {
   if (!body) return;
   const mkt = market || _drTab;
   try {
-    if (_drCache[mkt] === undefined) {
-      const r = await fetch(`/api/admin?action=daily-report&market=${mkt}`);
-      _drCache[mkt] = r.ok ? await r.json() : null;
-    }
-    const d = _drCache[mkt];
+    const d = await getDrData(mkt);
     body.innerHTML = d
       ? dailyReportHTML(d, true)
       : `<div style="color:var(--text3);font-size:11px;text-align:center;padding:10px">아직 리포트 없음 — ${mkt === 'KR' ? '국장' : '미장'} 마감 후 자동 생성됩니다</div>`;
+    refreshReportBadges();
   } catch { body.innerHTML = '<div style="color:var(--red);font-size:11px">로드 실패</div>'; }
 }
 
@@ -3844,8 +3927,34 @@ function switchDrTab(mkt) {
   _drTab = mkt;
   document.getElementById('drTabUS').classList.toggle('active', mkt === 'US');
   document.getElementById('drTabKR').classList.toggle('active', mkt === 'KR');
-  loadDailyReport(mkt);
+  loadDailyReport(mkt).then(() => markReportSeen(mkt));   // 탭을 직접 보면 읽음 처리
 }
+
+// ─── 📱 모바일 데일리 리포트 바텀시트 ─────────────────────
+async function renderDrSheet() {
+  const body = document.getElementById('drSheetBody');
+  if (!body) return;
+  const mkt = _drSheetTab;
+  document.getElementById('drSheetTabUS').classList.toggle('active', mkt === 'US');
+  document.getElementById('drSheetTabKR').classList.toggle('active', mkt === 'KR');
+  body.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:24px 0">로딩 중...</div>';
+  const d = await getDrData(mkt);
+  body.innerHTML = d
+    ? dailyReportHTML(d, false)
+    : `<div style="color:var(--text3);font-size:13px;text-align:center;padding:24px 0">아직 리포트 없음 — ${mkt === 'KR' ? '국장' : '미장'} 마감 후 자동 생성됩니다<br><span style="font-size:11px">국장은 평일 16:40, 미장은 익일 06:10경(KST) 올라옵니다</span></div>`;
+  markReportSeen(mkt);
+}
+function openDrSheet() {
+  _drSheetTab = _drTab || 'US';
+  document.getElementById('drSheet').classList.add('show');
+  document.body.style.overflow = 'hidden';
+  renderDrSheet();
+}
+function closeDrSheet() {
+  document.getElementById('drSheet').classList.remove('show');
+  document.body.style.overflow = '';
+}
+function switchDrSheetTab(mkt) { _drSheetTab = mkt; renderDrSheet(); }
 
 // ─── 📚 지난 리포트 아카이브 모달 ─────────────────────────
 let _archTab = 'ai';
@@ -4366,6 +4475,7 @@ function computeMarketStatus(market) {
     try { loadAiMarketSummary();  } catch (e) { console.error('aims', e); }
     try { loadWeeklySchedule();   } catch (e) { console.error('wsched', e); }
     try { loadDailyReport();      } catch (e) { console.error('dailyReport', e); }
+    try { checkNewReports();      } catch (e) { console.error('checkNewReports', e); }
     try { loadSectorMomentum();   } catch (e) { console.error('sectorMo', e); }
     try { loadCorrelation();      } catch (e) { console.error('corr', e); }
   };
@@ -4382,8 +4492,8 @@ function computeMarketStatus(market) {
   setInterval(() => { try { loadCorrelation(); } catch {} }, 1800000);
   // 1시간 AI 시장 종합 (cron이 매일 새로 만들지만 새로고침)
   setInterval(() => { try { loadAiMarketSummary(); } catch {} }, 3600000);
-  // 1시간 데일리 리포트 새로고침 (장 마감 후 자동생성분 반영)
-  setInterval(() => { try { delete _drCache.US; delete _drCache.KR; loadDailyReport(); } catch {} }, 3600000);
+  // 1시간 데일리 리포트 새로고침 (장 마감 후 자동생성분 반영) + 새 리포트 감지/알림
+  setInterval(() => { try { delete _drCache.US; delete _drCache.KR; loadDailyReport(); checkNewReports(); } catch {} }, 3600000);
   // 만기일은 자정 지나면 갱신
   setInterval(() => { try { loadExpiries(); } catch {} }, 3600000);
 })();
@@ -4447,6 +4557,28 @@ document.addEventListener('keydown', e => {
 .sp-name-sub { font-size: 11px; color: var(--text3); font-weight: 400; }
 .sp-arrow { font-size: 11px; color: var(--blue); margin-top: 4px; font-weight: 500; }
 </style>
+
+<!-- 📰 데일리 리포트 모바일 플로팅 버튼 + 바텀시트 -->
+<button class="dr-fab" id="drFab" onclick="openDrSheet()" aria-label="데일리 리포트 열기" title="데일리 리포트">📰<span class="dr-fab-dot"></span></button>
+<div class="dr-sheet" id="drSheet" onclick="if(event.target===this)closeDrSheet()">
+  <div class="dr-sheet-panel">
+    <div class="dr-sheet-head">
+      <span class="dr-sheet-grip"></span>
+      <span style="font-size:14px;font-weight:800;display:flex;align-items:center;gap:6px">📰 데일리 리포트</span>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span onclick="closeDrSheet();openReportArchive(_drSheetTab==='KR'?'dr-kr':'dr-us')" style="font-size:12px;color:var(--blue);cursor:pointer">지난 리포트</span>
+        <button class="cal-close-btn" onclick="closeDrSheet()">✕</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;padding:12px 18px 0">
+      <button class="dr-tab active" id="drSheetTabUS" onclick="switchDrSheetTab('US')">🇺🇸 미장<span class="dr-dot" id="drSheetDotUS" style="display:none"></span></button>
+      <button class="dr-tab" id="drSheetTabKR" onclick="switchDrSheetTab('KR')">🇰🇷 국장<span class="dr-dot" id="drSheetDotKR" style="display:none"></span></button>
+    </div>
+    <div class="dr-sheet-body dr-big" id="drSheetBody">
+      <div style="color:var(--text3);font-size:13px;text-align:center;padding:24px 0">로딩 중...</div>
+    </div>
+  </div>
+</div>
 
 <!-- 종목 검색 결과 카드 모달 -->
 <div id="searchPickerModal" style="display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px" onclick="closeSearchPicker(event)">
