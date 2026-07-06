@@ -43,7 +43,10 @@ async function handlePrice(req, res) {
 
   if (cached?.price_updated_at) {
     const age = Date.now() - new Date(cached.price_updated_at).getTime();
-    if (age < 3600000) {
+    const hasChg = cached.price_change_pct != null;
+    // 등락률이 이미 있으면 1시간 캐시. 등락률 없는 구버전 캐시는 60초 지나면 새로 받아 채운다
+    // (수동 캐시 만료 없이도 자동 치유 — 단 60초 가드로 Yahoo 과호출 방지)
+    if (age < 3600000 && (hasChg || age < 60000)) {
       return res.status(200).json({
         ticker,
         price: cached.current_price,
@@ -68,8 +71,17 @@ async function handlePrice(req, res) {
     const price = meta.regularMarketPrice || meta.previousClose;
     const marketCap = meta.marketCap || null;
     const currency = meta.currency || 'USD';
-    const changePercent = meta.regularMarketChangePercent ?? null;
-    const change = meta.regularMarketChange ?? null;
+    // Yahoo 차트 API meta에는 regularMarketChangePercent/previousClose가 없다(그건 quote API 필드).
+    // 전일 종가(chartPreviousClose)로 당일 등락을 직접 계산한다.
+    const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? null;
+    let changePercent = meta.regularMarketChangePercent ?? null;
+    if (changePercent == null && price != null && prevClose) {
+      changePercent = Math.round(((price - prevClose) / prevClose) * 10000) / 100;
+    }
+    let change = meta.regularMarketChange ?? null;
+    if (change == null && price != null && prevClose) {
+      change = Math.round((price - prevClose) * 100) / 100;
+    }
 
     const upd = {
       current_price: price,
