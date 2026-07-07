@@ -582,12 +582,15 @@ async function handleFundamentalsKR(req, res, ticker) {
     const recommMean = cons?.recommMean != null ? Number(cons.recommMean) : null;
 
     // 동종업계 비교 (같은 화면에서 이미 받아온 데이터, 최대 5개)
+    // 주의: industryCompareInfo.marketValue는 totalInfos.marketValue("1,730조 4,985억" 텍스트)와 달리
+    // "조/억" 단위 표기가 없는 순수 숫자 문자열이며 단위는 백만원(×1e6) — 억원(×1e8)으로 오인하면
+    // 시총이 1만 배 부풀려짐 (실측: SK하이닉스 1,568,657,905 × 1e6 ≈ 157조원, 실제 규모와 일치)
     const peers = (integ?.industryCompareInfo || []).slice(0, 5).map(p => ({
       ticker: `${p.itemCode}.${p.sosok === '1' ? 'KQ' : 'KS'}`,
       name: p.stockName,
       price: num(p.closePrice),
       changePercent: num(p.fluctuationsRatio),
-      marketCap: num(p.marketValue) != null ? num(p.marketValue) * 1e8 : null,   // 억원 단위로 옴
+      marketCap: num(p.marketValue) != null ? num(p.marketValue) * 1e6 : null,
     })).filter(p => p.price != null);
 
     return res.status(200).json({
