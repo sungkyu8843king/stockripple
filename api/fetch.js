@@ -108,6 +108,12 @@ const RSS_FEEDS = [
   { url: 'https://www.edaily.co.kr/rss/rss.asp?sitetype=stock', name: '이데일리',     sectors: ['증권', '주식'],   isKorean: true },
   { url: 'https://www.mk.co.kr/rss/30000001/',                  name: '매일경제',     sectors: ['증권', '주식'],   isKorean: true },
 
+  // 국내 바이오·제약 전문지 — 일반 경제지가 놓치는 K-bio 임상/FDA/IPO 뉴스 커버
+  // (HLB 리보세라닙 FDA 재심사 등 대형 catalyst가 issues에 전혀 안 잡히던 gap 보강, 2026-07)
+  { url: 'https://www.koreabiomed.com/rss/allArticle.xml',      name: 'KoreaBiomed',  sectors: ['바이오', '제약'], isKorean: true },
+  { url: 'https://www.hitnews.co.kr/rss/allArticle.xml',        name: 'HiT뉴스',      sectors: ['바이오', '제약'], isKorean: true },
+  { url: 'https://www.biotimes.co.kr/rss/allArticle.xml',       name: '바이오타임즈', sectors: ['바이오', '제약'], isKorean: true },
+
   // 해외 — Reuters 대체 (feeds.reuters.com 폐쇄)
   // Bloomberg 공개 RSS (politics/industries는 markets와 중복 심하고 연예 기사 섞여 제외)
   { url: 'https://feeds.bloomberg.com/markets/news.rss',         name: 'Bloomberg Markets',    sectors: ['주식', '글로벌'] },
