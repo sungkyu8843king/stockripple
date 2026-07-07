@@ -418,9 +418,8 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
     if (!m) throw new Error('No JSON in AI response');
     const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
 
-    let _dbgWriteErr = null;
     try {
-      const { error: upErr } = await supabase.from('company_ai_summary').upsert({
+      await supabase.from('company_ai_summary').upsert({
         ticker,
         overview: parsed.overview,
         thesis: parsed.thesis,
@@ -431,11 +430,9 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
         analyses_count: analyses.length,
         created_at: new Date().toISOString(),
       }, { onConflict: 'ticker' });
-      if (upErr) _dbgWriteErr = upErr.message + ' | ' + (upErr.details || '') + ' | ' + (upErr.hint || '') + ' | code=' + upErr.code;
-    } catch (e) { _dbgWriteErr = 'THROW: ' + e.message; }
+    } catch {}
 
     return res.status(200).json({
-      _dbgWriteErr,
       ok: true,
       ticker,
       company: { name_ko: company.name_ko, name_en: company.name_en, market: company.market, sector: company.sector },
