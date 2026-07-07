@@ -259,21 +259,25 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // 대시보드 본체(nav+패널 HTML)와 업무 로직(JS: panels 라벨/showPanel/runPipeline 등
 // 전부)을 인증된 API에서 받아와 각각 #appRoot / 동적 <script>로 주입한다.
-// 로그인 전에는 이 마크업·로직이 DOM/소스 어디에도 존재하지 않는다
-// (view-source로는 로그인 폼 + 이 부트스트랩 코드만 보임 — view-source는
-// 브라우저에서 실행되는 JS 자체를 완전히 숨길 수는 없지만, 메뉴명·기능명이
-// 드러나는 업무 로직 대부분을 인증 뒤로 옮겨 노출 범위를 최소화했다).
+// 로그인 전에는 이 마크업·로직이 DOM/소스 어디에도 존재하지 않는다.
+//
+// 이메일 화이트리스트 검사도 여기서만 함 — 클라이언트에 허용 이메일 목록을
+// 따로 두지 않는다. 서버(lib/auth.js ADMIN_EMAILS)가 유일한 판단 주체이고,
+// /api/admin-shell·/api/admin-logic이 401을 주면 그게 곧 "권한 없음"이다
+// (두 소스가 어긋날 일이 없고, view-source에 이메일 주소가 남지도 않는다).
+// 반환값: 'ok' | 'unauthorized' | 'error'
 let _shellLoaded = false;
 async function loadDashboardShell() {
-  if (_shellLoaded) return true;
+  if (_shellLoaded) return 'ok';
   const token = await getAuthToken();
-  if (!token) return false;
+  if (!token) return 'error';
   try {
     const [htmlRes, jsRes] = await Promise.all([
       fetch('/api/admin-shell', { headers: { Authorization: `Bearer ${token}` } }),
       fetch('/api/admin-logic', { headers: { Authorization: `Bearer ${token}` } }),
     ]);
-    if (!htmlRes.ok || !jsRes.ok) return false;
+    if (htmlRes.status === 401 || jsRes.status === 401) return 'unauthorized';
+    if (!htmlRes.ok || !jsRes.ok) return 'error';
     const [html, js] = await Promise.all([htmlRes.text(), jsRes.text()]);
     document.getElementById('appRoot').innerHTML = html;
     // innerHTML로 넣은 <script>는 실행되지 않으므로, 업무 로직은 별도 <script>
@@ -286,28 +290,13 @@ async function loadDashboardShell() {
       btn.addEventListener('click', () => showPanel(btn.dataset.panel));
     });
     _shellLoaded = true;
-    return true;
-  } catch { return false; }
+    return 'ok';
+  } catch { return 'error'; }
 }
-
-// 어드민 페이지 접근 화이트리스트 — 실제 권한 검증은 서버(lib/auth.js ADMIN_EMAILS)에서
-// 하므로 이건 UX 가드일 뿐이지만, 화이트리스트 밖 계정은 여기서 즉시 로그아웃시켜
-// 대시보드 화면 자체가 보이지 않도록 한다. 관리자를 추가하려면 서버 env(ADMIN_EMAILS)와
-// 이 배열을 함께 갱신할 것.
-const ADMIN_ALLOWED_EMAILS = ['tjdrb8423@gmail.com'];
 
 function showAdminLoginError(msg) {
   const el = document.getElementById('loginError');
   if (el) { el.style.color = 'var(--red)'; el.textContent = msg; }
-}
-
-// 세션은 있지만 화이트리스트 밖 이메일이면 로그아웃 처리 후 false 반환
-async function enforceAdminEmail(email) {
-  if (email && ADMIN_ALLOWED_EMAILS.includes(email.toLowerCase())) return true;
-  await sb.auth.signOut();
-  document.getElementById('loginOverlay').style.display = 'flex';
-  showAdminLoginError(`관리자 권한이 없는 계정입니다${email ? ` (${email})` : ''}`);
-  return false;
 }
 
 async function adminSignInGoogle() {
@@ -344,8 +333,9 @@ async function doLoginSb() {
     return;
   }
   if (!data?.session?.access_token) { errEl.textContent = '로그인 실패'; return; }
-  if (!(await enforceAdminEmail(data.session.user?.email))) return;
-  if (!(await loadDashboardShell())) { errEl.textContent = '대시보드 로드 실패 — 새로고침 후 다시 시도해주세요'; return; }
+  const result = await loadDashboardShell();
+  if (result === 'unauthorized') { await sb.auth.signOut(); errEl.textContent = '관리자 권한이 없는 계정입니다'; return; }
+  if (result !== 'ok') { errEl.textContent = '대시보드 로드 실패 — 새로고침 후 다시 시도해주세요'; return; }
   document.getElementById('loginOverlay').style.display = 'none';
   loadDashStats();
   initPresenceWatch();
@@ -358,56 +348,30 @@ async function getAuthToken() {
   return sessionStorage.getItem('sr_admin_secret') || null;
 }
 
-// ── 실시간 접속자 현황 (Supabase Realtime Presence) ───────────────
-// 공개 페이지(index.html/company.html/analysis.html)가 'site-presence' 채널에
-// track()으로 자신을 등록하고, 여기서는 track 없이 구독만 해서 그 상태를 관찰한다
-// (관리자 본인의 admin 페이지 접속은 방문자 수에 포함되지 않음).
-let _presenceCh = null;
-function initPresenceWatch() {
-  if (_presenceCh) return;
-  _presenceCh = sb.channel('site-presence');
-  _presenceCh.on('presence', { event: 'sync' }, () => {
-    const state = _presenceCh.presenceState();
-    const keys = Object.keys(state);
-    const el = document.getElementById('ds-live-visitors');
-    if (el) el.textContent = keys.length;
-    const pages = {};
-    for (const k of keys) {
-      const p = state[k]?.[0]?.page || '?';
-      pages[p] = (pages[p] || 0) + 1;
-    }
-    const pagesEl = document.getElementById('ds-live-pages');
-    if (pagesEl) {
-      const sorted = Object.entries(pages).sort((a, b) => b[1] - a[1]);
-      pagesEl.innerHTML = sorted.length
-        ? sorted.map(([p, n]) => `${escHtml(p)} · ${n}명`).join('<br>')
-        : '접속자 없음';
-    }
-  });
-  _presenceCh.subscribe();
-}
-// 페이지 로드 시 인증 확인 — Supabase 세션(화이트리스트 이메일만) 또는 ADMIN_SECRET(자동화)
+// 페이지 로드 시 인증 확인 — Supabase 세션 또는 ADMIN_SECRET(자동화) 둘 중 하나면 시도.
+// 실제 통과 여부는 loadDashboardShell()의 서버 응답(401 여부)으로만 판단한다.
 (async () => {
   const { data } = await sb.auth.getSession();
-  if (data?.session?.access_token) {
-    if (!(await enforceAdminEmail(data.session.user?.email))) return;
-    if (!(await loadDashboardShell())) {
-      document.getElementById('loginOverlay').style.display = 'flex';
-      showAdminLoginError('대시보드 로드 실패 — 새로고침 후 다시 시도해주세요');
-      return;
-    }
-    loadDashStats();
-    initPresenceWatch();
-  } else if (sessionStorage.getItem('sr_admin_secret')) {
-    if (!(await loadDashboardShell())) {
-      document.getElementById('loginOverlay').style.display = 'flex';
-      return;
-    }
-    loadDashStats();
-  } else {
+  const hasSecret = !!sessionStorage.getItem('sr_admin_secret');
+  if (!data?.session?.access_token && !hasSecret) {
     document.getElementById('loginOverlay').style.display = 'flex';
     setTimeout(() => document.getElementById('sbEmail').focus(), 100);
+    return;
   }
+  const result = await loadDashboardShell();
+  if (result === 'unauthorized') {
+    if (data?.session) await sb.auth.signOut();
+    document.getElementById('loginOverlay').style.display = 'flex';
+    showAdminLoginError('관리자 권한이 없는 계정입니다');
+    return;
+  }
+  if (result !== 'ok') {
+    document.getElementById('loginOverlay').style.display = 'flex';
+    showAdminLoginError('대시보드 로드 실패 — 새로고침 후 다시 시도해주세요');
+    return;
+  }
+  loadDashStats();
+  initPresenceWatch();
 })();
 </script>
 </body>

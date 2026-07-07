@@ -1020,4 +1020,33 @@ async function loadFeedbackBadge() {
   const n = data?.items?.length || 0;
   badge.textContent = n;
   badge.style.display = n > 0 ? 'inline-block' : 'none';
+}
+
+// ── 실시간 접속자 현황 (Supabase Realtime Presence) ───────────────
+// 공개 페이지(index.html/company.html/analysis.html)가 'site-presence' 채널에
+// track()으로 자신을 등록하고, 여기서는 track 없이 구독만 해서 그 상태를 관찰한다
+// (관리자 본인의 admin 페이지 접속은 방문자 수에 포함되지 않음).
+let _presenceCh = null;
+function initPresenceWatch() {
+  if (_presenceCh) return;
+  _presenceCh = sb.channel('site-presence');
+  _presenceCh.on('presence', { event: 'sync' }, () => {
+    const state = _presenceCh.presenceState();
+    const keys = Object.keys(state);
+    const el = document.getElementById('ds-live-visitors');
+    if (el) el.textContent = keys.length;
+    const pages = {};
+    for (const k of keys) {
+      const p = state[k]?.[0]?.page || '?';
+      pages[p] = (pages[p] || 0) + 1;
+    }
+    const pagesEl = document.getElementById('ds-live-pages');
+    if (pagesEl) {
+      const sorted = Object.entries(pages).sort((a, b) => b[1] - a[1]);
+      pagesEl.innerHTML = sorted.length
+        ? sorted.map(([p, n]) => `${escHtml(p)} · ${n}명`).join('<br>')
+        : '접속자 없음';
+    }
+  });
+  _presenceCh.subscribe();
 }
