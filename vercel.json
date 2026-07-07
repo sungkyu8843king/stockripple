@@ -9,8 +9,8 @@
     "api/admin.js":          { "maxDuration": 60 },
     "api/cron-daily.js":     { "maxDuration": 60 },
     "api/analyze.js":        { "maxDuration": 60 },
-    "api/check-accuracy.js": { "maxDuration": 60 },
-    "api/kr-market.js":      { "maxDuration": 60 }
+    "api/kr-market.js":      { "maxDuration": 60 },
+    "api/market-data.js":    { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/analysis/:id", "destination": "/analysis.html" },
@@ -22,8 +22,17 @@
     { "source": "/api/fix-company-names", "destination": "/api/admin?action=fix-names" },
     { "source": "/api/stats-backtest",    "destination": "/api/admin?action=stats" },
     { "source": "/api/company-summary",   "destination": "/api/admin?action=summary" },
+    { "source": "/api/check-accuracy",    "destination": "/api/admin?action=check-accuracy" },
+    { "source": "/api/admin-shell",       "destination": "/api/admin-static?asset=shell" },
+    { "source": "/api/admin-logic",       "destination": "/api/admin-static?asset=logic" },
 
     { "source": "/api/stock-price", "destination": "/api/stock?type=price" },
-    { "source": "/api/stock-chart", "destination": "/api/stock?type=chart" }
+    { "source": "/api/stock-chart", "destination": "/api/stock?type=chart" },
+
+    { "source": "/api/quotes",       "destination": "/api/market-data?source=quotes" },
+    { "source": "/api/technicals",   "destination": "/api/market-data?source=technicals" },
+    { "source": "/api/earnings",     "destination": "/api/market-data?source=earnings" },
+    { "source": "/api/market-pulse", "destination": "/api/market-data?source=market-pulse" },
+    { "source": "/api/kr-overtime",  "destination": "/api/market-data?source=kr-overtime" }
   ]
 }

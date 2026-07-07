@@ -1,12 +1,19 @@
 /**
- * admin-shell.js — 어드민 대시보드 본체 마크업 (인증 전용)
- * GET /api/admin-shell → nav+panel 마크업 반환 (verifyAdmin 통과해야만)
+ * admin-static.js — 어드민 대시보드 마크업(shell) + 업무로직(logic) 통합 서빙 (인증 전용)
+ * GET /api/admin-static?asset=shell → nav+panel HTML 마크업 (구 /api/admin-shell)
+ * GET /api/admin-static?asset=logic → 대시보드 JS 업무 로직 (구 /api/admin-logic)
+ *
+ * 원래 2개 파일(admin-shell.js/admin-logic.js)이었으나 Vercel Hobby 플랜의
+ * 서버리스 함수 12개 제한에 걸려 하나로 합침 — 프론트 fetch 경로는
+ * vercel.json rewrites로 그대로 유지(/api/admin-shell, /api/admin-logic).
  *
  * admin/index.html은 정적 파일이라 로그인 여부와 무관하게 '보기 소스'로 전체
  * 메뉴/패널 구조가 그대로 노출되는 문제가 있었다. 이 마크업을 서버 함수 뒤로
  * 옮겨 유효한 관리자 토큰(Supabase 세션 또는 ADMIN_SECRET)이 있어야만
  * 내려주도록 한다 — 페이지 최초 응답에는 로그인 폼과 빈 컨테이너만 존재.
  */
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { verifyAdmin } from '../lib/auth.js';
 
 const SHELL_HTML = `
@@ -543,7 +550,15 @@ const SHELL_HTML = `
 export default async function handler(req, res) {
   const auth = await verifyAdmin(req.headers.authorization);
   if (!auth.ok) return res.status(401).json({ error: auth.error });
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+
   res.setHeader('Cache-Control', 'no-store');
+
+  if (req.query.asset === 'logic') {
+    const code = readFileSync(join(process.cwd(), 'lib', 'admin-dashboard-logic.txt'), 'utf8');
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    return res.status(200).send(code);
+  }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(200).send(SHELL_HTML);
 }
