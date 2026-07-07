@@ -1379,6 +1379,16 @@ try {
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// 실시간 접속자 표시용 (관리자 대시보드) — 페이지뷰 집계가 아니라 현재 열려있는 탭 수 근사치
+(function trackPresence() {
+  try {
+    let sid = sessionStorage.getItem('sr_sid');
+    if (!sid) { sid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; sessionStorage.setItem('sr_sid', sid); }
+    const ch = sb.channel('site-presence', { config: { presence: { key: sid } } });
+    ch.subscribe(status => { if (status === 'SUBSCRIBED') ch.track({ page: location.pathname }); });
+  } catch {}
+})();
+
 const PAGE_SIZE = 20;
 let currentPage = 1;
 let currentSector = 'all';

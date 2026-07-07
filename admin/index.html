@@ -170,46 +170,67 @@ tr:hover td { background: var(--bg3); }
 .login-logo { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
 .login-sub { font-size: 13px; color: var(--text3); margin-bottom: 28px; }
 .login-error { font-size: 12px; color: var(--red); margin-top: 10px; min-height: 18px; }
+
+/* Auth modal — index.html/analysis.html/portfolio.html과 동일한 로그인 UI로 통일 */
+.auth-logo { font-size: 15px; font-weight: 800; color: var(--text2); margin-bottom: 14px; }
+.auth-logo span { color: var(--blue); }
+.auth-title { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+.auth-sub { font-size: 13px; color: var(--text3); margin-bottom: 18px; }
+.auth-btn-google {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 11px; border: 1px solid var(--border-strong); border-radius: 10px;
+  background: #fff; color: #0a0a0a; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background .15s;
+}
+.auth-btn-google:hover { background: var(--bg3); }
+.auth-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0; font-size: 12px; color: var(--text3); }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.auth-field { text-align: left; margin-bottom: 12px; }
+.auth-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 5px; }
+.auth-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg2); font-size: 14px; font-family: inherit; color: var(--text); }
+.auth-input:focus { border-color: var(--blue); outline: none; }
+.auth-submit-btn {
+  width: 100%; padding: 11px; border: none; border-radius: 10px; margin-top: 4px;
+  background: var(--blue); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.auth-submit-btn:hover { background: #0052a3; }
+.auth-error { font-size: 12px; color: var(--red); min-height: 16px; margin-bottom: 4px; text-align: left; }
+.auth-switch { text-align: center; font-size: 12.5px; color: var(--text3); margin-top: 16px; }
+.auth-link { background: none; border: none; color: var(--blue); font-weight: 600; cursor: pointer; font-size: inherit; padding: 0; }
 </style>
 </head>
 <body>
 
 <div class="login-overlay" id="loginOverlay" style="display:none">
   <div class="login-box">
-    <div class="login-logo">StockRipple</div>
-    <div class="login-sub">관리자 패널 로그인</div>
+    <div class="auth-logo">Stock<span>Ripple</span></div>
+    <div class="auth-title">로그인</div>
+    <div class="auth-sub">관리자 계정만 접근할 수 있습니다.</div>
 
-    <!-- 탭 -->
-    <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border)">
-      <button id="tabSb" onclick="switchLoginTab('sb')" style="flex:1;padding:8px;background:none;border:none;color:var(--text);border-bottom:2px solid var(--blue);font-weight:600;cursor:pointer;font-size:13px">Supabase 계정</button>
-      <button id="tabSec" onclick="switchLoginTab('sec')" style="flex:1;padding:8px;background:none;border:none;color:var(--text3);border-bottom:2px solid transparent;cursor:pointer;font-size:13px">ADMIN_SECRET</button>
-    </div>
-
-    <!-- Supabase 로그인 (기본) -->
+    <button type="button" class="auth-btn-google" onclick="adminSignInGoogle()">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Google로 계속하기
+    </button>
+    <div class="auth-divider"><span>이메일로 계속하기</span></div>
     <form id="loginSbForm" autocomplete="off" onsubmit="event.preventDefault();doLoginSb()">
       <input type="text" name="fakeu" style="display:none" autocomplete="username" tabindex="-1">
       <input type="password" name="fakep" style="display:none" autocomplete="new-password" tabindex="-1">
-      <div class="form-group">
-        <input type="email" id="sbEmail" class="form-input" placeholder="example@email.com"
+      <div class="auth-field">
+        <label for="sbEmail">이메일</label>
+        <input type="email" id="sbEmail" class="auth-input" placeholder="example@email.com" required
           autocomplete="off" name="ae_${Date.now()}" readonly onfocus="this.removeAttribute('readonly')">
       </div>
-      <div class="form-group">
-        <input type="password" id="sbPassword" class="form-input" placeholder="비밀번호"
+      <div class="auth-field">
+        <label for="sbPassword" id="sbPassLabel">비밀번호</label>
+        <input type="password" id="sbPassword" class="auth-input" placeholder="6자 이상" required minlength="6"
           autocomplete="new-password" name="ap_${Date.now()}" readonly onfocus="this.removeAttribute('readonly')">
       </div>
-      <button type="submit" class="btn btn-primary" style="width:100%">로그인</button>
+      <div class="auth-error" id="loginError"></div>
+      <button type="submit" id="loginSbSubmitBtn" class="auth-submit-btn">로그인</button>
     </form>
-
-    <!-- ADMIN_SECRET 로그인 -->
-    <div id="loginSecForm" style="display:none">
-      <div class="form-group">
-        <input type="password" id="loginInput" class="form-input" placeholder="ADMIN_SECRET"
-          onkeydown="if(event.key==='Enter')doLogin()">
-      </div>
-      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">로그인</button>
+    <div class="auth-switch" id="loginSwitchText">
+      계정이 없나요? <button type="button" onclick="switchAdminAuthMode('signup')" class="auth-link">회원가입</button>
     </div>
-
-    <div class="login-error" id="loginError"></div>
   </div>
 </div>
 
@@ -285,6 +306,11 @@ tr:hover td { background: var(--bg3); }
         <div class="stat-card"><div class="stat-label">분석 완료</div><div class="stat-value green" id="ds-analyzed">—</div></div>
         <div class="stat-card"><div class="stat-label">미분석</div><div class="stat-value yellow" id="ds-pending">—</div></div>
         <div class="stat-card"><div class="stat-label">등록 기업</div><div class="stat-value blue" id="ds-companies">—</div></div>
+        <div class="stat-card">
+          <div class="stat-label">🟢 실시간 접속자</div>
+          <div class="stat-value green" id="ds-live-visitors">—</div>
+          <div id="ds-live-pages" style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.6"></div>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">전체 파이프라인 실행</div>
@@ -746,62 +772,100 @@ document.querySelectorAll('[data-panel]').forEach(btn => {
   btn.addEventListener('click', () => showPanel(btn.dataset.panel));
 });
 
-function getAdminSecret() { return sessionStorage.getItem('sr_admin_secret') || ''; }
-function saveAdminSecret() {
-  const val = document.getElementById('adminSecretInput').value.trim();
-  sessionStorage.setItem('sr_admin_secret', val);
-  showToast('저장되었습니다', 'success');
+// 어드민 페이지 접근 화이트리스트 — 실제 권한 검증은 서버(lib/auth.js ADMIN_EMAILS)에서
+// 하므로 이건 UX 가드일 뿐이지만, 화이트리스트 밖 계정은 여기서 즉시 로그아웃시켜
+// 대시보드 화면 자체가 보이지 않도록 한다. 관리자를 추가하려면 서버 env(ADMIN_EMAILS)와
+// 이 배열을 함께 갱신할 것.
+const ADMIN_ALLOWED_EMAILS = ['tjdrb8423@gmail.com'];
+
+function showAdminLoginError(msg) {
+  const el = document.getElementById('loginError');
+  if (el) { el.style.color = 'var(--red)'; el.textContent = msg; }
 }
 
-async function doLogin() {
-  const val = document.getElementById('loginInput').value.trim();
-  if (!val) return;
-  const errEl = document.getElementById('loginError');
-  errEl.textContent = '';
-  try {
-    const res = await fetch('/api/admin-verify', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${val}` }
-    });
-    if (res.ok) {
-      sessionStorage.setItem('sr_admin_secret', val);
-      document.getElementById('loginOverlay').style.display = 'none';
-      loadDashStats();
-    } else {
-      errEl.textContent = '비밀번호가 올바르지 않습니다';
-      document.getElementById('loginInput').focus();
-    }
-  } catch(e) { errEl.textContent = '서버 연결 오류: ' + e.message; }
+// 세션은 있지만 화이트리스트 밖 이메일이면 로그아웃 처리 후 false 반환
+async function enforceAdminEmail(email) {
+  if (email && ADMIN_ALLOWED_EMAILS.includes(email.toLowerCase())) return true;
+  await sb.auth.signOut();
+  document.getElementById('loginOverlay').style.display = 'flex';
+  showAdminLoginError(`관리자 권한이 없는 계정입니다${email ? ` (${email})` : ''}`);
+  return false;
 }
 
-// Supabase 로그인
-function switchLoginTab(which) {
-  document.getElementById('loginSbForm').style.display  = which === 'sb' ? 'block' : 'none';
-  document.getElementById('loginSecForm').style.display = which === 'sec' ? 'block' : 'none';
-  document.getElementById('tabSb').style.cssText  = `flex:1;padding:8px;background:none;border:none;color:${which==='sb'?'var(--text)':'var(--text3)'};border-bottom:2px solid ${which==='sb'?'var(--blue)':'transparent'};font-weight:${which==='sb'?'600':'400'};cursor:pointer;font-size:13px`;
-  document.getElementById('tabSec').style.cssText = `flex:1;padding:8px;background:none;border:none;color:${which==='sec'?'var(--text)':'var(--text3)'};border-bottom:2px solid ${which==='sec'?'var(--blue)':'transparent'};font-weight:${which==='sec'?'600':'400'};cursor:pointer;font-size:13px`;
+async function adminSignInGoogle() {
+  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + '/admin/' } });
 }
+
+let _adminAuthMode = 'signin';
+function switchAdminAuthMode(mode) {
+  _adminAuthMode = mode;
+  const isSignIn = mode === 'signin';
+  document.querySelector('.auth-title').textContent = isSignIn ? '로그인' : '회원가입';
+  document.getElementById('sbPassLabel').textContent = isSignIn ? '비밀번호' : '비밀번호 (6자 이상)';
+  document.getElementById('loginSbSubmitBtn').textContent = isSignIn ? '로그인' : '가입하기';
+  document.getElementById('loginSwitchText').innerHTML = isSignIn
+    ? `계정이 없나요? <button type="button" onclick="switchAdminAuthMode('signup')" class="auth-link">회원가입</button>`
+    : `이미 계정이 있나요? <button type="button" onclick="switchAdminAuthMode('signin')" class="auth-link">로그인</button>`;
+  document.getElementById('loginError').textContent = '';
+}
+
 async function doLoginSb() {
   const email = document.getElementById('sbEmail').value.trim();
   const password = document.getElementById('sbPassword').value;
   const errEl = document.getElementById('loginError');
+  errEl.style.color = 'var(--red)';
   errEl.textContent = '';
   if (!email || !password) { errEl.textContent = '이메일과 비밀번호 입력'; return; }
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  const { data, error } = _adminAuthMode === 'signin'
+    ? await sb.auth.signInWithPassword({ email, password })
+    : await sb.auth.signUp({ email, password });
   if (error) { errEl.textContent = error.message; return; }
-  if (data?.session?.access_token) {
-    document.getElementById('loginOverlay').style.display = 'none';
-    loadDashStats();
-  } else {
-    errEl.textContent = '로그인 실패';
+  if (_adminAuthMode === 'signup') {
+    errEl.style.color = 'var(--green)';
+    errEl.textContent = '가입 완료! 이메일 인증 후 로그인해주세요.';
+    return;
   }
+  if (!data?.session?.access_token) { errEl.textContent = '로그인 실패'; return; }
+  if (!(await enforceAdminEmail(data.session.user?.email))) return;
+  document.getElementById('loginOverlay').style.display = 'none';
+  loadDashStats();
+  initPresenceWatch();
 }
 
-// 통합 인증 토큰 — Supabase 세션 우선, 없으면 ADMIN_SECRET
+// 통합 인증 토큰 — Supabase 세션 우선, 없으면 ADMIN_SECRET(자동화용, UI에는 입력창 없음)
 async function getAuthToken() {
   const { data } = await sb.auth.getSession();
   if (data?.session?.access_token) return data.session.access_token;
   return sessionStorage.getItem('sr_admin_secret') || null;
+}
+
+// ── 실시간 접속자 현황 (Supabase Realtime Presence) ───────────────
+// 공개 페이지(index.html/company.html/analysis.html)가 'site-presence' 채널에
+// track()으로 자신을 등록하고, 여기서는 track 없이 구독만 해서 그 상태를 관찰한다
+// (관리자 본인의 admin 페이지 접속은 방문자 수에 포함되지 않음).
+let _presenceCh = null;
+function initPresenceWatch() {
+  if (_presenceCh) return;
+  _presenceCh = sb.channel('site-presence');
+  _presenceCh.on('presence', { event: 'sync' }, () => {
+    const state = _presenceCh.presenceState();
+    const keys = Object.keys(state);
+    const el = document.getElementById('ds-live-visitors');
+    if (el) el.textContent = keys.length;
+    const pages = {};
+    for (const k of keys) {
+      const p = state[k]?.[0]?.page || '?';
+      pages[p] = (pages[p] || 0) + 1;
+    }
+    const pagesEl = document.getElementById('ds-live-pages');
+    if (pagesEl) {
+      const sorted = Object.entries(pages).sort((a, b) => b[1] - a[1]);
+      pagesEl.innerHTML = sorted.length
+        ? sorted.map(([p, n]) => `${escHtml(p)} · ${n}명`).join('<br>')
+        : '접속자 없음';
+    }
+  });
+  _presenceCh.subscribe();
 }
 
 function log(elId, msg, type = '') {
@@ -1113,10 +1177,14 @@ async function runAccuracyCheck() {
   }
 }
 
-// 페이지 로드 시 인증 확인 — Supabase 세션 또는 ADMIN_SECRET 둘 중 하나만 있으면 통과
+// 페이지 로드 시 인증 확인 — Supabase 세션(화이트리스트 이메일만) 또는 ADMIN_SECRET(자동화)
 (async () => {
   const { data } = await sb.auth.getSession();
-  if (data?.session?.access_token || sessionStorage.getItem('sr_admin_secret')) {
+  if (data?.session?.access_token) {
+    if (!(await enforceAdminEmail(data.session.user?.email))) return;
+    loadDashStats();
+    initPresenceWatch();
+  } else if (sessionStorage.getItem('sr_admin_secret')) {
     loadDashStats();
   } else {
     document.getElementById('loginOverlay').style.display = 'flex';
