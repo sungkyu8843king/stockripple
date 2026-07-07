@@ -6,8 +6,6 @@
  *
  * 여러 티커를 한 번에 병렬 조회. 60초 캐시 + stale-while-revalidate.
  */
-export const config = { runtime: 'edge' };
-
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'application/json, */*',
@@ -28,26 +26,20 @@ async function mapWithConcurrency(items, concurrency, fn) {
   return results;
 }
 
-export default async function handler(req) {
-  const cors = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'public, s-maxage=3, stale-while-revalidate=10',
-  };
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=3, stale-while-revalidate=10');
 
-  const { searchParams } = new URL(req.url);
-  const param = searchParams.get('tickers') || '';
-  const range = (searchParams.get('range') || '1d').toString();
+  const param = (req.query.tickers || '').toString();
+  const range = (req.query.range || '1d').toString();
   const interval = range === '1mo' ? '1d' : range === '5d' ? '1d' : '1d';
-  const includeSeries = searchParams.get('include') === 'series';   // 상관관계 계산용 시계열 반환
+  const includeSeries = req.query.include === 'series';   // 상관관계 계산용 시계열 반환
   // 히트맵 US/KR 목록이 S&P500 전체(525)·코스피+코스닥 top100(236) 규모로 확장되어 상향
   // (기존 200 → 600). 아래 mapWithConcurrency로 동시 요청 수를 제한해 Yahoo 레이트리밋 방지.
   const tickers = param.split(',').map(t => t.trim()).filter(Boolean).slice(0, 600);
 
   if (!tickers.length) {
-    return new Response(JSON.stringify({ ok: false, error: 'tickers required', data: {} }), {
-      status: 400, headers: cors,
-    });
+    return res.status(400).json({ ok: false, error: 'tickers required', data: {} });
   }
 
   const fetchOne = async (ticker) => {
@@ -138,5 +130,5 @@ export default async function handler(req) {
   const results = await mapWithConcurrency(tickers, 60, fetchOne);
   const data = Object.fromEntries(results);
 
-  return new Response(JSON.stringify({ ok: true, data, ts: Date.now() }), { headers: cors });
+  return res.status(200).json({ ok: true, data, ts: Date.now() });
 }

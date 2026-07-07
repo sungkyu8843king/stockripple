@@ -8,8 +8,6 @@
  * KRX 시간외 세션 자체가 08:30–09:00(전일 종가 고정) / 15:40–18:00(종가매매+단일가)로
  * 정해져 있으므로, 네이버가 보내는 태그값에 의존하지 않고 KST 시각으로 직접 세션을 판별한다.
  */
-export const config = { runtime: 'edge' };
-
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'application/json, */*',
@@ -20,21 +18,15 @@ function kstMinuteOfDay() {
   return kst.getUTCHours() * 60 + kst.getUTCMinutes();
 }
 
-export default async function handler(req) {
-  const cors = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=15',
-  };
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=5, stale-while-revalidate=15');
 
-  const { searchParams } = new URL(req.url);
-  const codes = (searchParams.get('codes') || '').split(',').map(c => c.trim()).filter(Boolean).slice(0, 100);
-  const session = (searchParams.get('session') || '').toString();
+  const codes = (req.query.codes || '').toString().split(',').map(c => c.trim()).filter(Boolean).slice(0, 100);
+  const session = (req.query.session || '').toString();
 
   if (!codes.length || (session !== 'pre' && session !== 'post')) {
-    return new Response(JSON.stringify({ ok: false, error: 'codes and session=pre|post required', data: {} }), {
-      status: 400, headers: cors,
-    });
+    return res.status(400).json({ ok: false, error: 'codes and session=pre|post required', data: {} });
   }
 
   const minOfDay = kstMinuteOfDay();
@@ -43,7 +35,7 @@ export default async function handler(req) {
     : (minOfDay >= 940 && minOfDay < 1080);  // 15:40–18:00 시간외 종가매매+단일가
 
   if (!inWindow) {
-    return new Response(JSON.stringify({ ok: true, data: {}, ts: Date.now() }), { headers: cors });
+    return res.status(200).json({ ok: true, data: {}, ts: Date.now() });
   }
 
   try {
@@ -61,8 +53,8 @@ export default async function handler(req) {
       const pct = ((overPrice - closePrice) / closePrice) * 100;
       data[item.itemCode] = { pct: Math.round(pct * 100) / 100, price: overPrice };
     }
-    return new Response(JSON.stringify({ ok: true, data, ts: Date.now() }), { headers: cors });
+    return res.status(200).json({ ok: true, data, ts: Date.now() });
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: String(e), data: {} }), { status: 502, headers: cors });
+    return res.status(502).json({ ok: false, error: String(e), data: {} });
   }
 }

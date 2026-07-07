@@ -4,24 +4,18 @@
  * GET ?type=trump    → Truth Social RSS 최신 글
  * GET ?type=economic → ForexFactory 이번주/다음주 캘린더
  */
-export const config = { runtime: 'edge' };
-
-export default async function handler(req) {
-  const { searchParams } = new URL(req.url);
-  const type = searchParams.get('type') || 'economic';
-  if (type === 'trump') return handleTrump();
+export default async function handler(req, res) {
+  const type = (req.query.type || 'economic').toString();
+  if (type === 'trump') return handleTrump(res);
   // limit: 기본 30, 최대 80 (weekly-schedule이 다음 주 항목까지 잘리지 않게 60으로 호출)
-  const limit = Math.min(Math.max(parseInt(searchParams.get('limit')) || 30, 1), 80);
-  return handleEconomic(limit);
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 30, 1), 80);
+  return handleEconomic(res, limit);
 }
 
 // ─── Trump Truth Social ────────────────────────────────────────────────────
-async function handleTrump() {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300',
-  };
+async function handleTrump(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
 
   try {
     const r = await fetch('https://truthsocial.com/@realDonaldTrump.rss', {
@@ -34,13 +28,13 @@ async function handleTrump() {
       signal: AbortSignal.timeout(10000),
     });
     if (!r.ok) {
-      return new Response(JSON.stringify({ ok: false, error: `HTTP ${r.status}`, items: [] }), { headers: corsHeaders });
+      return res.status(200).json({ ok: false, error: `HTTP ${r.status}`, items: [] });
     }
     const xml   = await r.text();
     const items = parseRss(xml, 5);
-    return new Response(JSON.stringify({ ok: true, items, ts: Date.now() }), { headers: corsHeaders });
+    return res.status(200).json({ ok: true, items, ts: Date.now() });
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: e.message, items: [] }), { headers: corsHeaders });
+    return res.status(200).json({ ok: false, error: e.message, items: [] });
   }
 }
 
@@ -85,12 +79,9 @@ function normalizeTitle(s) {
 }
 
 // ─── ForexFactory 경제지표 ─────────────────────────────────────────────────
-async function handleEconomic(limit = 30) {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-store',
-  };
+async function handleEconomic(res, limit = 30) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store');
 
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -230,7 +221,7 @@ async function handleEconomic(limit = 30) {
     }
 
     if (!raw.length) {
-      return new Response(JSON.stringify({ ok: false, error: 'ForexFactory+FMP both empty', items: [], fmpCount: fmpArr.length }), { headers: corsHeaders });
+      return res.status(200).json({ ok: false, error: 'ForexFactory+FMP both empty', items: [], fmpCount: fmpArr.length });
     }
 
     raw = raw.filter(e =>
@@ -274,14 +265,14 @@ async function handleEconomic(limit = 30) {
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, limit);
 
-    return new Response(JSON.stringify({
+    return res.status(200).json({
       ok: true,
       items,
       ts: Date.now(),
       source: usedFmpFallback ? 'fmp-only' : 'forexfactory+fmp',
       fmp: { ok: !!fmpArr.length, count: fmpArr.length, withActual: fmpArr.filter(e => e?.actual != null).length, status: fmpStatus },
-    }), { headers: corsHeaders });
+    });
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: e.message, items: [] }), { status: 500, headers: corsHeaders });
+    return res.status(500).json({ ok: false, error: e.message, items: [] });
   }
 }

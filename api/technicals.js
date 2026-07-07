@@ -5,34 +5,26 @@
  *
  * Yahoo Finance v8/chart 6개월 일봉으로 SMA + RSI 계산. 무료, 인증 불필요.
  */
-export const config = { runtime: 'edge' };
-
 const BASE = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0',
   'Accept': 'application/json',
 };
 
-export default async function handler(req) {
-  const cors = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=900',  // 5분 캐시
-  };
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');  // 5분 캐시
 
-  const { searchParams } = new URL(req.url);
-  const tickers = (searchParams.get('tickers') || '')
+  const tickers = (req.query.tickers || '').toString()
     .split(',').map(t => t.trim()).filter(Boolean).slice(0, 15);
 
   if (!tickers.length) {
-    return new Response(JSON.stringify({ ok: false, error: 'tickers required', data: {} }), {
-      status: 400, headers: cors,
-    });
+    return res.status(400).json({ ok: false, error: 'tickers required', data: {} });
   }
 
   const results = await Promise.all(tickers.map(fetchTechnicals));
   const data = Object.fromEntries(results.filter(Boolean));
 
-  return new Response(JSON.stringify({ ok: true, data, ts: Date.now() }), { headers: cors });
+  return res.status(200).json({ ok: true, data, ts: Date.now() });
 }
 
 async function fetchTechnicals(ticker) {

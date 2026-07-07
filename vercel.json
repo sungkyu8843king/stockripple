@@ -10,7 +10,11 @@
     "api/cron-daily.js":     { "maxDuration": 60 },
     "api/analyze.js":        { "maxDuration": 60 },
     "api/check-accuracy.js": { "maxDuration": 60 },
-    "api/kr-market.js":      { "maxDuration": 60 }
+    "api/kr-market.js":      { "maxDuration": 60 },
+    "api/quotes.js":         { "maxDuration": 30 },
+    "api/market-pulse.js":   { "maxDuration": 30 },
+    "api/technicals.js":     { "maxDuration": 30 },
+    "api/earnings.js":       { "maxDuration": 30 }
   },
   "rewrites": [
     { "source": "/analysis/:id", "destination": "/analysis.html" },

@@ -3,8 +3,6 @@
  * GET /api/earnings            → 기업실적 (FMP 메인 + Yahoo 보조)
  * GET /api/earnings?type=analyst → 투자의견 (Yahoo insights)
  */
-export const config = { runtime: 'edge' };
-
 // 메가캡 + 어닝시즌 조기 발표조(은행·항공·소비재) — 주간 일정에서 다음 주 실적 커버용
 const TICKERS = ['AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AMD','INTC','QCOM','NFLX','ORCL',
                  'JPM','GS','BAC','WFC','DAL','PEP','UNH','JNJ'];
@@ -14,10 +12,9 @@ const BASE = {
   'Accept': 'application/json',
 };
 
-export default async function handler(req) {
-  const { searchParams } = new URL(req.url);
-  if (searchParams.get('type') === 'analyst') return handleAnalyst();
-  return handleEarnings();
+export default async function handler(req, res) {
+  if (req.query.type === 'analyst') return handleAnalyst(res);
+  return handleEarnings(res);
 }
 
 // ─── Yahoo v8/chart: 현재가, 회사명 ─────────────────────────────────
@@ -178,12 +175,9 @@ async function fetchFMP(tickers) {
 }
 
 // ─── Earnings handler ─────────────────────────────────────────────
-async function handleEarnings() {
-  const corsH = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=86400',
-  };
+async function handleEarnings(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
 
   const fmpRes = await fetchFMP(TICKERS);
   const fmpBySym = fmpRes.data || {};
@@ -243,21 +237,18 @@ async function handleEarnings() {
       return new Date(a.date) - new Date(b.date);
     });
 
-  return new Response(JSON.stringify({
+  return res.status(200).json({
     ok: true,
     items,
     fmp: { ok: !!fmpRes.data, count: fmpRes.count || 0 },
     ts: Date.now(),
-  }), { headers: corsH });
+  });
 }
 
 // ─── Analyst handler ──────────────────────────────────────────────
-async function handleAnalyst() {
-  const corsH = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-    'Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=86400',
-  };
+async function handleAnalyst(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
 
   const ANALYST_TICKERS = ['AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AMD','QCOM','NFLX'];
 
@@ -296,5 +287,5 @@ async function handleAnalyst() {
   const settled = await Promise.allSettled(ANALYST_TICKERS.map(fetchOne));
   const items = settled.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
 
-  return new Response(JSON.stringify({ ok: true, items, ts: Date.now() }), { headers: corsH });
+  return res.status(200).json({ ok: true, items, ts: Date.now() });
 }
