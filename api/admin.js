@@ -321,6 +321,26 @@ async function handleSummary(req, res) {
       });
     }
 
+    // 하루 전체 Claude 호출 상한 — 캐시가 어떤 이유로든 안 먹어도 비용이 무한정
+    // 늘어나지 않도록 하는 이중 안전장치. RPC 실패(마이그레이션 전 등)는 안전하게
+    // 통과시킨다 — 이 안전장치가 아직 없다고 기능 자체를 막지는 않음.
+    const DAILY_CLAUDE_CALL_LIMIT = 150;
+    try {
+      const { data: budgetCount } = await supabase.rpc('increment_ai_budget', {
+        p_day: new Date().toISOString().slice(0, 10),
+      });
+      if ((budgetCount ?? 0) > DAILY_CLAUDE_CALL_LIMIT) {
+        return res.status(200).json({
+          ok: false,
+          ticker,
+          company: { name_ko: company.name_ko, name_en: company.name_en, market: company.market, sector: company.sector },
+          live,
+          error: '오늘 AI 분석 요청량이 많아 잠시 제한 중입니다. 내일 다시 시도해주세요.',
+          budget_exceeded: true,
+        });
+      }
+    } catch {}
+
     const { data: recent } = await supabase
       .from('analysis_companies')
       .select('upside_pct, confidence, rationale, entry_date, ripple_sector, analyses(ai_summary, issues(title, published_at))')
