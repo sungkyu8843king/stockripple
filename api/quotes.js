@@ -13,6 +13,21 @@ const HEADERS = {
   'Accept': 'application/json, */*',
 };
 
+// 고정 개수 워커가 공유 큐를 소비하는 동시성 제한 map. Promise.all(items.map(fn))과 결과
+// 순서·형태는 동일하지만, 동시 in-flight 요청 수를 concurrency로 제한한다.
+async function mapWithConcurrency(items, concurrency, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
 export default async function handler(req) {
   const cors = {
     'Access-Control-Allow-Origin': '*',
@@ -25,7 +40,9 @@ export default async function handler(req) {
   const range = (searchParams.get('range') || '1d').toString();
   const interval = range === '1mo' ? '1d' : range === '5d' ? '1d' : '1d';
   const includeSeries = searchParams.get('include') === 'series';   // 상관관계 계산용 시계열 반환
-  const tickers = param.split(',').map(t => t.trim()).filter(Boolean).slice(0, 200);
+  // 히트맵 US/KR 목록이 S&P500 전체(525)·코스피+코스닥 top100(236) 규모로 확장되어 상향
+  // (기존 200 → 600). 아래 mapWithConcurrency로 동시 요청 수를 제한해 Yahoo 레이트리밋 방지.
+  const tickers = param.split(',').map(t => t.trim()).filter(Boolean).slice(0, 600);
 
   if (!tickers.length) {
     return new Response(JSON.stringify({ ok: false, error: 'tickers required', data: {} }), {
@@ -108,7 +125,10 @@ export default async function handler(req) {
     }
   };
 
-  const results = await Promise.all(tickers.map(fetchOne));
+  // 워커 풀 방식 동시성 제한 — 티커 수가 커져도(최대 600) 동시 아웃바운드 연결을
+  // concurrency 개로 고정. 슬로우 티커 하나가 배치 전체를 묶어두지 않도록 청크 방식 대신
+  // 공유 큐를 쓴다(먼저 끝난 워커가 바로 다음 티커를 가져감).
+  const results = await mapWithConcurrency(tickers, 60, fetchOne);
   const data = Object.fromEntries(results);
 
   return new Response(JSON.stringify({ ok: true, data, ts: Date.now() }), { headers: cors });
