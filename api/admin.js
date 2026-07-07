@@ -244,6 +244,32 @@ async function handleSummary(req, res) {
 
     const live = await fetchLiveSnapshot(ticker);
 
+    // 티커당 하루 1회만 Claude 재생성 — 2회차부터는 DB 캐시로 서빙 (방문자 트래픽에
+    // 비례해 API 비용이 느는 걸 방지). live(실시간 시세)는 캐시와 무관하게 항상 새로 받는다.
+    const { data: cached } = await supabase
+      .from('company_ai_summary')
+      .select('*')
+      .eq('ticker', ticker)
+      .single();
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    if (cached && Date.now() - new Date(cached.created_at).getTime() < ONE_DAY_MS) {
+      return res.status(200).json({
+        ok: true,
+        ticker,
+        company: { name_ko: company.name_ko, name_en: company.name_en, market: company.market, sector: company.sector },
+        live,
+        overview: cached.overview,
+        thesis: cached.thesis,
+        strategic_exposure: cached.strategic_exposure,
+        key_risks: cached.key_risks,
+        competitive_position: cached.competitive_position,
+        watch_points: cached.watch_points,
+        analyses_count: cached.analyses_count,
+        cached: true,
+        generated_at: cached.created_at,
+      });
+    }
+
     const { data: recent } = await supabase
       .from('analysis_companies')
       .select('upside_pct, confidence, rationale, entry_date, ripple_sector, analyses(ai_summary, issues(title, published_at))')
@@ -317,6 +343,20 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
     if (!m) throw new Error('No JSON in AI response');
     const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
 
+    try {
+      await supabase.from('company_ai_summary').upsert({
+        ticker,
+        overview: parsed.overview,
+        thesis: parsed.thesis,
+        strategic_exposure: parsed.strategic_exposure,
+        key_risks: parsed.key_risks,
+        competitive_position: parsed.competitive_position,
+        watch_points: parsed.watch_points,
+        analyses_count: analyses.length,
+        created_at: new Date().toISOString(),
+      }, { onConflict: 'ticker' });
+    } catch {}
+
     return res.status(200).json({
       ok: true,
       ticker,
@@ -324,6 +364,7 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
       live,
       ...parsed,
       analyses_count: analyses.length,
+      cached: false,
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });
