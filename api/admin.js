@@ -2059,13 +2059,41 @@ async function handleCatalystsPost(req, res) {
     .update({ status: 'passed', updated_at: new Date().toISOString() })
     .eq('status', 'upcoming').not('event_date', 'is', null).lt('event_date', today);
 
-  // (c) 최근 뉴스 제목 → forward catalyst AI 추출
-  if (!anthropic) return res.status(200).json({ ok: true, aiExtract: false, reason: 'no ANTHROPIC_API_KEY' });
-
   const { data: news } = await supabase.from('issues')
     .select('title, published_at')
     .gte('published_at', new Date(Date.now() - 14 * 86400000).toISOString())
     .order('published_at', { ascending: false }).limit(300);
+
+  // (b2) event_date가 없어 (b)의 날짜 기반 만료가 못 잡는 catalyst 정리 —
+  //      기업명 + 카테고리 키워드가 함께 등장하는 최근 뉴스가 있으면 "이미 벌어진 일"로 보고 passed 처리.
+  //      (예: 날짜가 "7/7 또는 7/24 유력"처럼 미확정 상태로 남아있던 삼성전자 실적이 실제 발표된 뒤에도
+  //       계속 "다가오는 핵심 이벤트"에 예정으로 재노출되던 문제 — 리포트가 같은 뉴스로 실적 결과를
+  //       recap에 쓰면서도 catalysts 섹션엔 여전히 미확정 예정으로 박아 자기모순을 일으켰음)
+  const CATEGORY_HAPPEN_PAT = {
+    'FDA': /FDA|식약처|승인|허가|CRL|심사\s*결과|임상\s*결과/,
+    'IPO': /상장|ADR|IPO|나스닥\s*상장/,
+    '실적': /실적|잠정|영업이익|매출|순이익|EPS|어닝/,
+    '편입': /편입|MSCI|나스닥100/,
+    '정책': /정책|법안|시행|규제/,
+    'M&A': /인수|합병|M&A|지분\s*취득/,
+  };
+  if (news?.length) {
+    const { data: undated } = await supabase.from('catalysts')
+      .select('id, company, category').eq('status', 'upcoming').is('event_date', null);
+    const titles2 = news.map(n => n.title).filter(Boolean);
+    const toResolve = (undated || []).filter(c => {
+      const pat = c.company && CATEGORY_HAPPEN_PAT[c.category];
+      return pat && titles2.some(t => t.includes(c.company) && pat.test(t));
+    });
+    if (toResolve.length) {
+      await supabase.from('catalysts')
+        .update({ status: 'passed', updated_at: new Date().toISOString() })
+        .in('id', toResolve.map(c => c.id));
+    }
+  }
+
+  // (c) 최근 뉴스 제목 → forward catalyst AI 추출
+  if (!anthropic) return res.status(200).json({ ok: true, aiExtract: false, reason: 'no ANTHROPIC_API_KEY' });
   if (!news?.length) return res.status(200).json({ ok: true, aiExtract: true, added: 0, reason: 'no news' });
 
   const { data: existing } = await supabase.from('catalysts').select('title, ticker').eq('status', 'upcoming').limit(60);
@@ -2257,6 +2285,10 @@ ${ctx.slice(0, 10000)}
 1. ${marketLabel}과 직접 관련된 내용 위주. 관련 없는 이슈는 제외.
 2. 오늘의 가장 큰 동인(핵심 catalyst) 1~2개를 먼저 판별해 headline과 recap 맨 앞에 세울 것 — 단순 나열 금지.
 3. 위 "예정 catalyst" 중 이 시장에 중요한 것(특히 ★★★)은 반드시 upcoming_catalysts에 반영하고, 필요하면 tomorrow에도 언급.
+   단, "지난 24시간 뉴스"에 그 catalyst가 이미 실제로 발생(실적 발표됨·FDA 결과 나옴·상장 완료 등)했다는
+   내용이 있으면 — 그 사실은 이미 recap/top_events에 반영했을 것이므로 — upcoming_catalysts에는
+   "예정"인 것처럼 다시 넣지 말고 제외한다. 같은 리포트 안에서 "이미 발표됨"과 "예정"을 동시에
+   말하는 자기모순을 절대 만들지 말 것.
 4. 사실 기반·객관적·한국어. 추측/날짜 창작 금지 — 지수·본문·catalyst 목록에 있는 것만 사용.
 
 다음 JSON만 반환 (다른 텍스트 없이):
