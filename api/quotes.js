@@ -130,5 +130,5 @@ export default async function handler(req, res) {
   const results = await mapWithConcurrency(tickers, 60, fetchOne);
   const data = Object.fromEntries(results);
 
-  return res.status(200).json({ ok: true, data, ts: Date.now() });
+  return res.status(200).json({ ok: true, data, ts: Date.now(), _rt: 'node-v2' });
 }
