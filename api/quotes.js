@@ -118,6 +118,13 @@ export default async function handler(req) {
         periodChangePercent: periodChangePercent != null ? Math.round(periodChangePercent * 100) / 100 : null,
         exchangeName: meta.exchangeName || meta.fullExchangeName || null,
         shortName:    meta.shortName || meta.longName || null,
+        // 종목 상세 페이지용 — 이미 받아온 meta에서 추가 파싱만 하는 것이라 별도 호출 비용 없음
+        dayHigh:  meta.regularMarketDayHigh ?? null,
+        dayLow:   meta.regularMarketDayLow ?? null,
+        volume:   meta.regularMarketVolume ?? null,
+        fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? null,
+        fiftyTwoWeekLow:  meta.fiftyTwoWeekLow ?? null,
+        firstTradeDate:   meta.firstTradeDate ? new Date(meta.firstTradeDate * 1000).toISOString().slice(0, 10) : null,
         ...(series ? { series } : {}),
       }];
     } catch {

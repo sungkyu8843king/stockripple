@@ -576,12 +576,38 @@ async function handleFundamentalsKR(req, res, ticker) {
     const revenue = eokToKrw(fin?.['매출액']);
     const dividendYieldPct = num(info.dividendYieldRatio);
 
+    // 애널리스트 컨센서스 (네이버 증권 — 국내 증권사 리포트 집계, recommMean 1=적극매수~5=적극매도)
+    const cons = integ?.consensusInfo;
+    const priceTargetMean = cons?.priceTargetMean ? num(cons.priceTargetMean) : null;
+    const recommMean = cons?.recommMean != null ? Number(cons.recommMean) : null;
+
+    // 동종업계 비교 (같은 화면에서 이미 받아온 데이터, 최대 5개)
+    const peers = (integ?.industryCompareInfo || []).slice(0, 5).map(p => ({
+      ticker: `${p.itemCode}.${p.sosok === '1' ? 'KQ' : 'KS'}`,
+      name: p.stockName,
+      price: num(p.closePrice),
+      changePercent: num(p.fluctuationsRatio),
+      marketCap: num(p.marketValue) != null ? num(p.marketValue) * 1e8 : null,   // 억원 단위로 옴
+    })).filter(p => p.price != null);
+
     return res.status(200).json({
       ok: true,
       ticker,
       currency: 'KRW',
       source: 'naver',
       company: integ?.stockName || null,
+      // 당일 시세 (헤더 레인지 바 · 거래량/거래대금용)
+      openPrice: num(info.openPrice),
+      dayHigh:   num(info.highPrice),
+      dayLow:    num(info.lowPrice),
+      volume:      num(info.accumulatedTradingVolume),
+      tradingValue: krMoney(info.accumulatedTradingValue),
+      // 애널리스트 컨센서스 (상승여력%는 프런트에서 화면에 표시 중인 실시간가 기준으로 계산 —
+      // Naver 자체 시세와 소폭 어긋날 수 있어 페이지 내 다른 가격 표시와 일관성 유지)
+      priceTargetMean,
+      recommMean,
+      // 동종업계 비교
+      peers,
       // 밸류에이션
       marketCap,
       pe:  num(info.per),
