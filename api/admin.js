@@ -414,8 +414,9 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
     if (!m) throw new Error('No JSON in AI response');
     const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
 
+    let cacheWriteError = null;
     try {
-      await supabase.from('company_ai_summary').upsert({
+      const { error: upsertError } = await supabase.from('company_ai_summary').upsert({
         ticker,
         overview: parsed.overview,
         thesis: parsed.thesis,
@@ -426,7 +427,8 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
         analyses_count: analyses.length,
         created_at: new Date().toISOString(),
       }, { onConflict: 'ticker' });
-    } catch {}
+      if (upsertError) cacheWriteError = upsertError.message;
+    } catch (e) { cacheWriteError = e.message; }
 
     return res.status(200).json({
       ok: true,
@@ -436,6 +438,7 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
       ...parsed,
       analyses_count: analyses.length,
       cached: false,
+      cache_write_error: cacheWriteError,
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });
