@@ -2077,13 +2077,17 @@ async function handleCatalystsPost(req, res) {
     '정책': /정책|법안|시행|규제/,
     'M&A': /인수|합병|M&A|지분\s*취득/,
   };
+  // "임박·예정·전망" 등 미래형 표현이 붙은 기사는 카테고리 키워드가 있어도 아직 안 벌어진 것 —
+  // (예: "SK하이닉스 ADR 상장 임박" 오탐 방지). event_date가 세팅되면 애초에 이 경로를 안 타지만
+  // null-date로 등록되는 catalyst 일반에 대한 방어 차원에서 둔다.
+  const NOT_HAPPENED_YET = /예정|임박|앞두고|앞서|전망|기대|추진\s*중|곧|예상|앞둔|D-\d/;
   if (news?.length) {
     const { data: undated } = await supabase.from('catalysts')
       .select('id, company, category').eq('status', 'upcoming').is('event_date', null);
     const titles2 = news.map(n => n.title).filter(Boolean);
     const toResolve = (undated || []).filter(c => {
       const pat = c.company && CATEGORY_HAPPEN_PAT[c.category];
-      return pat && titles2.some(t => t.includes(c.company) && pat.test(t));
+      return pat && titles2.some(t => t.includes(c.company) && pat.test(t) && !NOT_HAPPENED_YET.test(t));
     });
     if (toResolve.length) {
       await supabase.from('catalysts')
