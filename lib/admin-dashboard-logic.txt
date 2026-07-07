@@ -1,0 +1,960 @@
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', settings: 'API 키 설정' };
+
+function showPanel(name) {
+  document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById(`panel-${name}`)?.classList.add('active');
+  document.querySelector(`[data-panel="${name}"]`)?.classList.add('active');
+  document.getElementById('topbarTitle').textContent = panels[name] || name;
+
+  if (name === 'dashboard') loadDashStats();
+  if (name === 'issues') loadIssuesTable();
+  if (name === 'companies') loadCompaniesTable();
+  if (name === 'accuracy') loadAccuracy();
+  if (name === 'backtest' && !window._btLoaded) { window._btLoaded = true; loadBacktest(); }
+  if (name === 'investments') invLoad();
+}
+
+// panels 라벨도 추가
+window._panelsExtra = { investments: '🌟 전략투자 관리' };
+function log(elId, msg, type = '') {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.style.display = 'block';
+  const cls = { ok: 'log-ok', err: 'log-err', info: 'log-info', warn: 'log-warn' }[type] || '';
+  el.innerHTML += `<div class="${cls}">${new Date().toLocaleTimeString('ko-KR')} ${escHtml(msg)}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function callApi(path, body, logId, authMode = 'ADMIN') {
+  const token = await getAuthToken();
+  if (!token) { showToast('로그인이 필요합니다', 'error'); return null; }
+
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: body && Object.keys(body).length ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json();
+    if (!res.ok) { log(logId, `오류: ${data.error || res.status}`, 'err'); return null; }
+    return data;
+  } catch(e) { log(logId, `네트워크 오류: ${e.message}`, 'err'); return null; }
+}
+
+// ── 전체 파이프라인 (수집 + 분석 한번에) ───────────────────────────────────
+async function runPipeline(logId = 'pipelineLog') {
+  const el = document.getElementById(logId);
+  if (el) { el.style.display = 'block'; el.innerHTML = ''; }
+  log(logId, '🚀 전체 파이프라인 시작...', 'info');
+
+  const data = await callApi('/api/cron-daily', {}, logId, 'CRON_ADMIN');
+  if (!data) return;
+
+  if (data.jobs?.length) {
+    log(logId, `✅ ${data.jobs.length}개 작업을 백그라운드에서 실행 중:`, 'ok');
+    log(logId, data.jobs.join(' · '), 'info');
+    log(logId, '⏳ 각 작업은 최대 55초 내에 완료됩니다. 결과는 DB에 자동 저장됩니다.', 'info');
+  }
+
+  // 30초 후 통계 갱신 (작업들이 완료될 시점)
+  log(logId, '30초 후 통계를 자동 갱신합니다...', 'info');
+  setTimeout(async () => {
+    await loadDashStats();
+    log(logId, '📊 통계 갱신 완료', 'ok');
+    showToast('파이프라인 실행 완료!', 'success');
+  }, 30000);
+}
+
+// ── 뉴스만 수집 (분석 없음) ─────────────────────────────────────────────────
+async function runFetchOnly(logId = 'newsLog') {
+  const el = document.getElementById(logId);
+  if (el) { el.style.display = 'block'; el.innerHTML = ''; }
+  log(logId, '뉴스 수집 시작...', 'info');
+
+  const [newsData, rssData] = await Promise.all([
+    callApi('/api/fetch-news', {}, logId),
+    callApi('/api/fetch-rss', {}, logId),
+  ]);
+
+  if (newsData) {
+    log(logId, `NewsAPI: ${newsData.fetched ?? 0}건 확인, ${newsData.saved ?? 0}건 저장`, 'ok');
+    if (newsData.errors?.length) newsData.errors.forEach(e => log(logId, e, 'warn'));
+  }
+  if (rssData) {
+    log(logId, `RSS: ${rssData.fetched ?? 0}건 확인, ${rssData.saved ?? 0}건 저장`, 'ok');
+    if (rssData.errors?.length) rssData.errors.forEach(e => log(logId, e, 'warn'));
+  }
+  showToast('수집 완료', 'success');
+}
+
+// (하위 호환용 alias)
+async function runFetchNews(logId = 'newsLog') { return runFetchOnly(logId); }
+
+async function runAnalyze(issueId = null, limit = 3, logId = 'analyzeLog', maxChain = null) {
+  const el = document.getElementById(logId);
+  if (el) el.innerHTML = '';
+  const totalLabel = maxChain ? `최대 ${maxChain * 5}건 (체이닝, 백그라운드에서 계속 진행)` : `최대 ${limit}건`;
+  log(logId, `분석 시작 (${totalLabel})...`, 'info');
+
+  const body = issueId ? { issue_id: issueId } : { limit, ...(maxChain ? { max_chain: maxChain } : {}) };
+  const data = await callApi('/api/analyze', body, logId);
+  if (!data) return;
+
+  if (maxChain) {
+    log(logId, `1차 배치 완료: ${data.analyzed}건 — 서버가 최대 ${(data.maxChain || maxChain) * 5}건까지 자동으로 이어서 처리 중입니다 (몇 분 후 이슈 목록에서 진행 확인)`, 'ok');
+  } else {
+    log(logId, `분석 완료: ${data.analyzed}건`, 'ok');
+  }
+  if (data.errors?.length) data.errors.forEach(e => log(logId, e, 'warn'));
+  showToast(maxChain ? `1차 배치 ${data.analyzed}건 완료 — 백그라운드에서 계속 진행 중` : `${data.analyzed}건 분석 완료`, 'success');
+}
+
+async function runAiMarketSummary() {
+  const logId = 'quickLog';
+  const el = document.getElementById(logId);
+  if (el) el.innerHTML = '';
+  log(logId, '📰 AI 시장 종합 생성 중...', 'info');
+  const data = await callApi('/api/admin?action=ai-market-summary', {}, logId);
+  if (!data) return;
+  log(logId, `✓ 생성 완료: [${data.regime}] ${data.headline}`, 'ok');
+  showToast('AI 시장 종합 생성 완료', 'success');
+}
+
+async function runAnalyzeSingle() {
+  const id = document.getElementById('singleIssueId').value.trim();
+  if (!id) { showToast('이슈 ID를 입력하세요', 'error'); return; }
+  await runAnalyze(id, 1, 'analyzeLog');
+}
+
+async function loadDashStats() {
+  const [i, a, c] = await Promise.all([
+    sb.from('issues').select('*', { count: 'exact', head: true }),
+    sb.from('issues').select('*', { count: 'exact', head: true }).eq('is_analyzed', true),
+    sb.from('companies').select('*', { count: 'exact', head: true }),
+  ]);
+  document.getElementById('ds-issues').textContent = i.count ?? '—';
+  document.getElementById('ds-analyzed').textContent = a.count ?? '—';
+  document.getElementById('ds-pending').textContent = ((i.count ?? 0) - (a.count ?? 0));
+  document.getElementById('ds-companies').textContent = c.count ?? '—';
+}
+
+async function loadIssuesTable() {
+  const tbody = document.getElementById('issuesTable');
+  const { data, error } = await sb.from('issues').select('id,title,source_name,sectors,is_analyzed,published_at').order('published_at', { ascending: false }).limit(50);
+  if (error || !data?.length) { tbody.innerHTML = `<tr><td colspan="6" class="loading-row">${error?.message || '데이터 없음'}</td></tr>`; return; }
+
+  tbody.innerHTML = data.map(r => `
+    <tr>
+      <td><div class="truncate" title="${escHtml(r.title)}">${escHtml(r.title)}</div></td>
+      <td style="color:var(--text2);font-size:12px">${escHtml(r.source_name || '—')}</td>
+      <td style="font-size:11px;color:var(--text3)">${(r.sectors||[]).slice(0,2).join(', ')}</td>
+      <td>${r.is_analyzed ? '<span class="badge badge-green">완료</span>' : '<span class="badge badge-yellow">대기</span>'}</td>
+      <td style="font-size:11px;color:var(--text3);white-space:nowrap">${r.published_at ? new Date(r.published_at).toLocaleDateString('ko-KR') : '—'}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" onclick="location.href='/analysis.html?id=${r.id}'" title="분석 보기">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        ${!r.is_analyzed ? `<button class="icon-btn" onclick="analyzeAndRefresh('${r.id}')" title="분석 실행">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </button>` : ''}
+        <button class="icon-btn danger" onclick="deleteIssue('${r.id}')" title="삭제">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div></td>
+    </tr>`).join('');
+}
+
+async function analyzeAndRefresh(id) {
+  showToast('분석 시작...', 'info');
+  await runAnalyze(id, 1, 'quickLog');
+  await loadIssuesTable();
+}
+
+async function deleteIssue(id) {
+  if (!confirm('이 이슈를 삭제할까요?')) return;
+  const { error } = await sb.from('issues').delete().eq('id', id);
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast('삭제되었습니다', 'success');
+  loadIssuesTable();
+}
+
+async function loadCompaniesTable(autoFetch = true) {
+  const tbody = document.getElementById('companiesTable');
+  const { data, error } = await sb.from('companies').select('*').order('created_at', { ascending: false }).limit(100);
+  if (error || !data?.length) { tbody.innerHTML = `<tr><td colspan="7" class="loading-row">${error?.message || '데이터 없음'}</td></tr>`; return; }
+
+  tbody.innerHTML = data.map(c => {
+    const fmtPrice = c.current_price ? `${c.currency === 'KRW' ? '₩' : '$'}${Number(c.current_price).toLocaleString()}` : '—';
+    const fmtMc = c.market_cap ? (c.market_cap >= 1e12 ? `$${(c.market_cap/1e12).toFixed(1)}T` : c.market_cap >= 1e9 ? `$${(c.market_cap/1e9).toFixed(1)}B` : `$${(c.market_cap/1e6).toFixed(0)}M`) : '—';
+    const updated = c.price_updated_at ? new Date(c.price_updated_at).toLocaleDateString('ko-KR') : '—';
+    return `<tr id="tr-${escHtml(c.ticker)}">
+      <td class="ticker-cell">${escHtml(c.ticker)}</td>
+      <td>${escHtml(c.name_ko || c.name_en || '—')}</td>
+      <td><span class="badge ${c.market === 'KR' ? 'badge-blue' : 'badge-gray'}">${c.market || '—'}</span></td>
+      <td id="price-${escHtml(c.ticker)}" style="color:var(--text2)">${fmtPrice}</td>
+      <td style="color:var(--text2)">${fmtMc}</td>
+      <td style="font-size:11px;color:var(--text3)">${updated}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" onclick="refreshPrice('${escHtml(c.ticker)}')" title="주가 갱신">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.61"/></svg>
+        </button>
+      </div></td>
+    </tr>`;
+  }).join('');
+
+  // 가격 없는 기업 자동 조회 (순차, 0.5초 간격)
+  if (autoFetch) {
+    const noPrice = data.filter(c => !c.current_price);
+    for (const c of noPrice) {
+      await refreshPrice(c.ticker, true);
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+}
+
+async function refreshAllPrices() {
+  const { data } = await sb.from('companies').select('ticker').limit(100);
+  if (!data?.length) return;
+  showToast(`${data.length}개 주가 갱신 시작...`, 'info');
+  for (const c of data) {
+    await refreshPrice(c.ticker, true);
+    await new Promise(r => setTimeout(r, 400));
+  }
+  showToast('전체 갱신 완료', 'success');
+  loadCompaniesTable(false);
+}
+
+async function refreshPrice(ticker, silent = false) {
+  if (!silent) showToast(`${ticker} 갱신 중...`, 'info');
+  try {
+    const res = await fetch(`/api/stock-price?ticker=${encodeURIComponent(ticker)}`);
+    const data = await res.json();
+    if (data.price) {
+      const cell = document.getElementById(`price-${ticker}`);
+      if (cell) cell.textContent = `${data.currency === 'KRW' ? '₩' : '$'}${Number(data.price).toLocaleString()}`;
+      if (!silent) showToast(`${ticker}: ${data.price}`, 'success');
+    }
+  } catch(e) { if (!silent) showToast(e.message, 'error'); }
+}
+
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  const icons = { success: '✓', error: '✗', info: 'ℹ', warn: '⚠' };
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span>${icons[type] || ''}</span><span>${escHtml(msg)}</span>`;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 2-패스 애널리스트 파이프라인 배포 시각 — 구형/신형 구간 분리 기준
+const PIPELINE_V2_AT = '2026-07-02T13:43';
+
+async function loadAccuracy() {
+  const periods = ['1d', '3d', '7d', '30d'];
+
+  for (const p of periods) {
+    // count 쿼리 사용: select-rows 방식은 PostgREST 기본 1000행 캡에 걸려 총계가 잘림
+    const cnt = (mods) => {
+      let q = sb.from('analysis_companies').select('id', { count: 'exact', head: true }).not(`check_date_${p}`, 'is', null);
+      return mods ? mods(q) : q;
+    };
+    const [total, hit, nTotal, nHit] = await Promise.all([
+      cnt(),
+      cnt(q => q.eq(`is_accurate_${p}`, true)),
+      cnt(q => q.gte('entry_date', PIPELINE_V2_AT)),
+      cnt(q => q.eq(`is_accurate_${p}`, true).gte('entry_date', PIPELINE_V2_AT)),
+    ]);
+    document.getElementById(`acc-${p}-total`).textContent = (total.count ?? 0).toLocaleString();
+    document.getElementById(`acc-${p}-rate`).textContent = total.count
+      ? Math.round((hit.count || 0) / total.count * 100) + '%' : '—';
+
+    const splitEl = document.getElementById(`acc-${p}-split`);
+    if (splitEl) {
+      if (nTotal.count) {
+        const oldT = (total.count || 0) - nTotal.count;
+        const oldH = (hit.count || 0) - (nHit.count || 0);
+        const newR = Math.round((nHit.count || 0) / nTotal.count * 100);
+        splitEl.textContent = `구형 ${oldT ? Math.round(oldH / oldT * 100) + '%' : '—'} (${oldT.toLocaleString()}) → 신형 ${newR}% (${nTotal.count.toLocaleString()})`;
+      } else {
+        splitEl.textContent = '신형 파이프라인 검증 대기';
+      }
+    }
+
+    const { data: rows } = await sb.from('analysis_companies')
+      .select(`upside_pct, entry_price, check_price_${p}, actual_return_${p}, is_accurate_${p}, companies(ticker, name_ko, currency)`)
+      .not(`check_date_${p}`, 'is', null)
+      .order('entry_date', { ascending: false }).limit(50);
+    renderAccTable(`accuracy${p}Table`, rows, p);
+  }
+}
+
+function renderAccTable(tbodyId, rows, period) {
+  const tbody = document.getElementById(tbodyId);
+  const labelMap = { '1d': '1일', '3d': '3일', '7d': '7일', '30d': '30일' };
+  if (!rows?.length) { tbody.innerHTML = `<tr><td colspan="7" class="loading-row">아직 데이터 없음 (분석 후 ${labelMap[period]} 경과 시 자동 집계)</td></tr>`; return; }
+  const sym = r => r.companies?.currency === 'KRW' ? '₩' : '$';
+  tbody.innerHTML = rows.map(r => {
+    const ret = r[`actual_return_${period}`];
+    const retColor = ret > 0 ? 'var(--green)' : ret < 0 ? 'var(--red)' : 'var(--text2)';
+    const acc = r[`is_accurate_${period}`];
+    const accBadge = acc == null ? '<span class="badge badge-gray">—</span>'
+      : acc ? '<span class="badge badge-green">✓ 적중</span>'
+      : '<span class="badge badge-red">✗ 빗나감</span>';
+    return `<tr>
+      <td class="ticker-cell">${escHtml(r.companies?.ticker || '—')}</td>
+      <td>${escHtml(r.companies?.name_ko || '—')}</td>
+      <td style="color:var(--green)">+${r.upside_pct ?? '—'}%</td>
+      <td style="color:var(--text2)">${r.entry_price ? sym(r) + Number(r.entry_price).toLocaleString() : '—'}</td>
+      <td style="color:var(--text2)">${r[`check_price_${period}`] ? sym(r) + Number(r[`check_price_${period}`]).toLocaleString() : '—'}</td>
+      <td style="color:${retColor};font-weight:600">${ret != null ? (ret > 0 ? '+' : '') + ret + '%' : '—'}</td>
+      <td>${accBadge}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function runAccuracyCheck() {
+  showToast('정확도 체크 실행 중...', 'info');
+  const data = await callApi('/api/check-accuracy', {}, 'quickLog');
+  if (data) {
+    showToast(`7일: ${data.checked_7d}건, 30일: ${data.checked_30d}건 업데이트`, 'success');
+    loadAccuracy();
+  }
+}
+
+// 재분석 함수들
+function reanLog(msg, cls = '') {
+  const el = document.getElementById('reanLog');
+  el.style.display = 'block';
+  const colors = { ok: 'var(--green)', err: 'var(--red)', info: 'var(--blue)', warn: 'var(--yellow)' };
+  const div = document.createElement('div');
+  div.style.color = colors[cls] || 'var(--text2)';
+  div.textContent = `${new Date().toLocaleTimeString('ko-KR')} ${msg}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function reanRunSingle() {
+  const btn = document.getElementById('reanRunBtn');
+  const count = parseInt(document.getElementById('reanCount').value, 10) || 5;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '실행 중...';
+  reanLog(`🔄 최근 ${count}개 재분석 시작 (구버전 삭제 + 새 형식 분석)`, 'info');
+  startLiveCounter(`재분석 진행 중 (~${count * 8}초 예상)`);
+  const result = await callApi('/api/analyze', { force_recent: count, limit: count }, 'reanLog');
+  stopLiveCounter();
+  if (result) {
+    reanLog(`✓ 완료: 삭제 ${result.reanalyzed || 0}건, 새 분석 ${result.analyzed || 0}건`, 'ok');
+    for (const p of (result.processed || [])) {
+      const dur = Math.round((p.duration_ms || 0) / 100) / 10;
+      reanLog(`  ✓ ${p.title} (${dur}s) → ${(p.companies || []).join(', ')}`, 'ok');
+    }
+    if (result.errors?.length) result.errors.slice(0, 5).forEach(e => reanLog(`  ⚠️ ${e}`, 'warn'));
+  }
+  btn.disabled = false;
+  btn.textContent = orig;
+}
+
+async function reanRunFresh() {
+  reanLog('🆕 신규 미분석 이슈 처리', 'info');
+  startLiveCounter('신규 분석 진행 중');
+  const result = await callApi('/api/analyze', { limit: 5 }, 'reanLog');
+  stopLiveCounter();
+  if (result) {
+    reanLog(`✓ 완료: 분석 ${result.analyzed || 0}건`, 'ok');
+    for (const p of (result.processed || [])) {
+      const dur = Math.round((p.duration_ms || 0) / 100) / 10;
+      reanLog(`  ✓ ${p.title} (${dur}s) → ${(p.companies || []).join(', ')}`, 'ok');
+    }
+    if (result.errors?.length) result.errors.slice(0, 5).forEach(e => reanLog(`  ⚠️ ${e}`, 'warn'));
+  }
+}
+
+let _reanAutoStop = false;
+let _reanLiveTimer = null;
+function startLiveCounter(label) {
+  const start = Date.now();
+  stopLiveCounter();
+  const live = document.createElement('div');
+  live.id = 'reanLiveLine';
+  live.style.cssText = 'color:var(--blue);font-weight:600;padding:4px 0';
+  document.getElementById('reanLog').appendChild(live);
+  const update = () => {
+    const sec = Math.round((Date.now() - start) / 1000);
+    const dots = '.'.repeat((sec % 4));
+    live.textContent = `⏳ ${label} ${sec}초 경과${dots}`;
+  };
+  update();
+  _reanLiveTimer = setInterval(update, 250);
+  return start;
+}
+function stopLiveCounter() {
+  if (_reanLiveTimer) { clearInterval(_reanLiveTimer); _reanLiveTimer = null; }
+  document.getElementById('reanLiveLine')?.remove();
+}
+
+// 비활성화됨 — 탭을 열어둔 채 방치하면 무한정 계속 돌면서 Claude API 크레딧을 소모하는
+// 사고가 있어 기능을 완전히 꺼둠 (2026-07-01). 캐시된 페이지 등에서 잘못 호출되더라도 아무 동작 안 함.
+async function reanRunAuto() {
+  alert('이 기능은 비용 사고 방지를 위해 비활성화되었습니다.');
+}
+
+// 회사명 보정
+function fnTag(msg, color = 'var(--text2)') {
+  const el = document.getElementById('fixNamesLog');
+  el.style.display = 'block';
+  const div = document.createElement('div');
+  div.style.color = color;
+  div.textContent = `${new Date().toLocaleTimeString('ko-KR')} ${msg}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+function fnRenderResult(result, dryRun) {
+  fnTag(`✓ 스캔 ${result.scanned}개 중 ${result.updated}개 변경 ${dryRun ? '예정' : '완료'}`, 'var(--green)');
+  (result.updates || []).forEach(u => {
+    const before = `[${u.before.ko || '∅'} / ${u.before.en || '∅'}]`;
+    const after  = `[${u.after.name_ko || u.before.ko || '∅'} / ${u.after.name_en || u.before.en || '∅'}]`;
+    fnTag(`  ${u.ticker}: ${before} → ${after}  ${u.reason ? '(' + u.reason + ')' : ''}`);
+  });
+  (result.errors || []).slice(0, 5).forEach(e => fnTag(`⚠️ ${e}`, 'var(--red)'));
+}
+
+// 실시간 상태 박스 제어
+let _fnElapsedTimer = null;
+let _fnStop = false;
+function fnShowStatus(text) {
+  document.getElementById('fnStatus').style.display = 'block';
+  document.getElementById('fnStatusText').textContent = text;
+}
+function fnHideStatus() {
+  document.getElementById('fnStatus').style.display = 'none';
+  if (_fnElapsedTimer) clearInterval(_fnElapsedTimer);
+  _fnElapsedTimer = null;
+}
+function fnStartElapsed() {
+  const start = Date.now();
+  if (_fnElapsedTimer) clearInterval(_fnElapsedTimer);
+  document.getElementById('fnElapsed').textContent = '0';
+  _fnElapsedTimer = setInterval(() => {
+    document.getElementById('fnElapsed').textContent = Math.round((Date.now() - start) / 1000);
+  }, 250);
+}
+function fnSetProgress(curr, total) {
+  document.getElementById('fnBatchN').textContent = curr;
+  document.getElementById('fnBatchT').textContent = total;
+  document.getElementById('fnProgBar').style.width = total ? `${Math.min(100, (curr/total)*100)}%` : '0';
+}
+
+async function fixNames(dryRun) {
+  document.getElementById('fixNamesLog').innerHTML = '';
+  fnTag(dryRun ? '🔍 기본 모드 미리보기...' : '🏷️ 기본 모드 실행...', 'var(--blue)');
+  fnShowStatus(dryRun ? '기본 미리보기 진행 중...' : '기본 보정 진행 중...');
+  fnStartElapsed();
+  const result = await callApi('/api/fix-company-names', { dry_run: dryRun }, 'fixNamesLog');
+  fnHideStatus();
+  if (result) fnRenderResult(result, dryRun);
+}
+
+// AI 검증 모드: 작은 배치 자동 반복 + 실시간 상태
+async function fixNamesAi(dryRun) {
+  const log = document.getElementById('fixNamesLog');
+  log.innerHTML = '';
+  _fnStop = false;
+  const previewBtn = document.getElementById('fnAiPreviewBtn');
+  const runBtn     = document.getElementById('fnAiRunBtn');
+  const targetBtn  = dryRun ? previewBtn : runBtn;
+  const origText = targetBtn.textContent;
+  targetBtn.textContent = '🛑 중단';
+  targetBtn.onclick = () => { _fnStop = true; fnTag('🛑 중단 요청, 현재 배치 후 종료', 'var(--yellow)'); };
+  previewBtn.disabled = dryRun ? false : true;
+  runBtn.disabled = dryRun ? true : false;
+
+  const batchSize = Math.max(3, Math.min(20, parseInt(document.getElementById('fnBatchSize').value, 10) || 10));
+  fnTag(dryRun ? `🔍 AI 검증 미리보기 (배치 1, ${batchSize}개)` : `🤖 AI 검증 자동 반복 시작 (배치 ${batchSize}개씩)`, 'var(--blue)');
+  fnShowStatus('첫 배치 시작...');
+  fnStartElapsed();
+
+  let offset = 0;
+  let totalUpdated = 0;
+  let totalProcessed = 0;
+  let totalKnown = null;
+  let batch = 1;
+
+  while (!_fnStop) {
+    fnShowStatus(`📦 배치 ${batch} 처리 중 (offset ${offset}, ${batchSize}개)...`);
+    fnSetProgress(batch - 1, totalKnown ? Math.ceil(totalKnown / batchSize) : '?');
+    fnTag(`📦 배치 ${batch} (offset ${offset}, ${batchSize}개)`, 'var(--text3)');
+
+    const result = await callApi('/api/fix-company-names',
+      { dry_run: dryRun, ai_verify: true, batch_size: batchSize, batch_offset: offset },
+      'fixNamesLog');
+    if (!result) { fnTag(`❌ 배치 ${batch} 실패 (네트워크 또는 타임아웃) — 배치 크기 줄여 재시도하세요`, 'var(--red)'); break; }
+
+    if (totalKnown == null) totalKnown = result.total;
+    totalProcessed += result.scanned || 0;
+    totalUpdated   += result.updated || 0;
+
+    fnRenderResult(result, dryRun);
+    if (result.timing) {
+      fnTag(`  ⏱ Yahoo ${(result.timing.yhMs/1000).toFixed(1)}s · Claude ${(result.timing.aiMs/1000).toFixed(1)}s · 총 ${(result.timing.totalMs/1000).toFixed(1)}s`, 'var(--text3)');
+    }
+    fnSetProgress(batch, Math.ceil(totalKnown / batchSize));
+
+    if (dryRun) break;
+    if (result.nextOffset == null) {
+      fnTag(`🎯 완료: 전체 ${totalUpdated}개 변경 (스캔 ${totalProcessed}/${totalKnown})`, 'var(--green)');
+      break;
+    }
+    offset = result.nextOffset;
+    batch++;
+    await new Promise(r => setTimeout(r, 800));
+  }
+
+  if (_fnStop) fnTag(`🛑 중단됨: ${totalUpdated}개 변경됨, 다음 offset ${offset}`, 'var(--yellow)');
+  fnHideStatus();
+  targetBtn.textContent = origText;
+  targetBtn.onclick = () => (dryRun ? fixNamesAi(true) : fixNamesAi(false));
+  previewBtn.disabled = false;
+  runBtn.disabled = false;
+}
+
+// ─── 통계 + 백테스트 ───────────────────────────
+async function loadBacktest() {
+  const token = await getAuthToken();
+  if (!token) { showToast('로그인 필요', 'error'); return; }
+  showToast('통계 집계 중...', 'info');
+  try {
+    const res = await fetch('/api/stats-backtest', {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!res.ok) { showToast(`HTTP ${res.status}`, 'error'); return; }
+    const d = await res.json();
+    if (d.empty) {
+      document.getElementById('btUpdated').textContent = '검증된 데이터 없음 — 분석 + 시간 경과 필요';
+      return;
+    }
+    renderBacktest(d);
+    document.getElementById('btUpdated').textContent = '업데이트: ' + new Date().toLocaleTimeString('ko-KR');
+  } catch(e) {
+    showToast(`에러: ${e.message}`, 'error');
+  }
+}
+
+function renderBacktest(d) {
+  const o = d.overall || {};
+  document.getElementById('btTotal').textContent = (o.total || 0).toLocaleString();
+  document.getElementById('btV7d').textContent   = (o.verified7d || 0).toLocaleString();
+  document.getElementById('btAcc7d').textContent  = o.accuracy7d  != null ? `${o.accuracy7d}%`  : '—';
+  document.getElementById('btAcc30d').textContent = o.accuracy30d != null ? `${o.accuracy30d}%` : '—';
+
+  const bt = d.backtest || {};
+  document.getElementById('btTrades').textContent = (bt.totalTrades || 0).toLocaleString();
+  document.getElementById('btWinRate').textContent = `${bt.winRate || 0}%`;
+  document.getElementById('btAvgRet').textContent = fmtPctVal(bt.avgReturn);
+  const cumColor = (bt.cumulativeReturn || 0) >= 0 ? 'var(--green)' : 'var(--red)';
+  const cumEl = document.getElementById('btCumRet');
+  cumEl.textContent = fmtPctVal(bt.cumulativeReturn);
+  cumEl.style.color = cumColor;
+  const cumWeeksEl = document.getElementById('btCumWeeks');
+  if (cumWeeksEl) cumWeeksEl.textContent = bt.weeks ? `${bt.weeks}주 리밸런싱` : '';
+
+  // 신뢰도 버킷 테이블
+  const confTbody = document.getElementById('btConfTable');
+  confTbody.innerHTML = (d.byConfidence || []).map(b => `
+    <tr>
+      <td><span class="badge ${b.bucket === '80-100' ? 'badge-green' : b.bucket === '60-80' ? 'badge-blue' : 'badge-gray'}">${b.bucket}</span></td>
+      <td>${(b.total || 0).toLocaleString()}</td>
+      <td style="color:${accColor(b.accuracy7d)}">${b.accuracy7d != null ? b.accuracy7d + '%' : '—'}</td>
+      <td style="color:${retColor(b.avgActualReturn7d)}">${fmtPctVal(b.avgActualReturn7d)}</td>
+      <td style="color:var(--text2)">${fmtPctVal(b.avgUpside)}</td>
+    </tr>
+  `).join('');
+
+  // 섹터 테이블
+  const sectorTbody = document.getElementById('btSectorTable');
+  sectorTbody.innerHTML = (d.bySector || []).map(s => `
+    <tr>
+      <td>${escHtml(s.sector)}</td>
+      <td>${s.total}</td>
+      <td style="color:${accColor(s.accuracy7d)}">${s.accuracy7d != null ? s.accuracy7d + '%' : '—'}</td>
+      <td style="color:${retColor(s.avgActualReturn7d)}">${fmtPctVal(s.avgActualReturn7d)}</td>
+      <td style="color:var(--text2)">${fmtPctVal(s.avgUpside)}</td>
+    </tr>
+  `).join('');
+
+  // 위너/루저 테이블 (평균 7일 수익률 기준, 승률 표시)
+  const renderTickerRow = t => `
+    <tr>
+      <td><code style="color:${t.market === 'KR' ? '#0066cc' : '#7c3aed'};font-size:11px">${escHtml(t.ticker)}</code></td>
+      <td style="font-size:12px">${escHtml(t.name)}</td>
+      <td>${t.n}</td>
+      <td style="color:${retColor(t.avg)};font-weight:700">${fmtPctVal(t.avg)}</td>
+      <td style="color:${accColor(t.winRate)}">${t.winRate != null ? t.winRate + '%' : '—'}</td>
+    </tr>`;
+  const emptyRow = `<tr><td colspan="5" style="color:var(--text3);text-align:center;padding:14px">3회 이상 추천된 종목이 부족합니다 (분석 누적 필요)</td></tr>`;
+  document.getElementById('btWinnersTable').innerHTML = (bt.topWinners || []).length ? bt.topWinners.map(renderTickerRow).join('') : emptyRow;
+  document.getElementById('btLosersTable').innerHTML  = (bt.topLosers  || []).length ? bt.topLosers.map(renderTickerRow).join('')  : emptyRow;
+
+  // 기간별 비교
+  const bp = bt.byPeriod || {};
+  const periodLabel = { '1d': '1일', '7d': '7일', '30d': '30일' };
+  const periodTbody = document.getElementById('btPeriodTable');
+  periodTbody.innerHTML = ['1d', '7d', '30d'].map(p => {
+    const s = bp[p] || {};
+    return `
+      <tr>
+        <td><b>${periodLabel[p]}</b></td>
+        <td>${(s.verified || 0).toLocaleString()}</td>
+        <td style="color:${accColor(s.accuracy)}">${s.accuracy != null ? s.accuracy + '%' : '—'}</td>
+        <td style="color:${accColor(s.winRate)}">${s.winRate != null ? s.winRate + '%' : '—'}</td>
+        <td style="color:${retColor(s.avgReturn)}">${fmtPctVal(s.avgReturn)}</td>
+      </tr>`;
+  }).join('');
+}
+
+function accColor(v) {
+  if (v == null) return 'var(--text3)';
+  if (v >= 70) return 'var(--green)';
+  if (v >= 50) return 'var(--yellow)';
+  return 'var(--red)';
+}
+function retColor(v) {
+  if (v == null) return 'var(--text3)';
+  if (v > 0) return 'var(--green)';
+  if (v < 0) return 'var(--red)';
+  return 'var(--text2)';
+}
+function fmtPctVal(v) {
+  if (v == null || isNaN(v)) return '—';
+  const rounded = Math.round(v * 100) / 100;  // floating point 정리
+  return (rounded > 0 ? '+' : '') + rounded.toFixed(2) + '%';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 🌟 전략투자 관리 패널
+// ═══════════════════════════════════════════════════════════════
+let _invPage = 1;
+const _invPageSize = 30;
+let _invChart = null;
+
+async function invLoad(page = 1) {
+  _invPage = page;
+  const status = document.getElementById('invStatusFilter').value;
+  const q = document.getElementById('invSearch').value.trim();
+  const params = new URLSearchParams({ action: 'list-investments', status, page, page_size: _invPageSize });
+  if (q) params.set('q', q);
+
+  const box = document.getElementById('invList');
+  box.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">불러오는 중...</div>';
+
+  try {
+    const r = await fetch('/api/admin?' + params.toString(), {
+      headers: { Authorization: 'Bearer ' + (await getAuthToken()) },
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'list failed');
+
+    // 티커 셀렉트 옵션 업데이트
+    const sel = document.getElementById('invChartTicker');
+    const curVal = sel.value;
+    sel.innerHTML = '<option value="">티커 선택...</option>' +
+      (j.topTickers || []).map(t => `<option value="${t.ticker}" ${t.ticker===curVal?'selected':''}>${t.ticker} · ${t.name||''} (${t.count})</option>`).join('');
+
+    // 목록 렌더
+    if (!j.items.length) {
+      box.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:30px;text-align:center;background:var(--bg2);border-radius:10px">아직 추출된 항목이 없습니다. "즉시 추출" 또는 "DART 폴링" 버튼을 눌러 시작하세요.</div>';
+    } else {
+      box.innerHTML = j.items.map(invRowHtml).join('');
+    }
+
+    // 페이지네이션
+    const totalPages = Math.ceil(j.total / _invPageSize);
+    const pg = document.getElementById('invPagination');
+    if (totalPages <= 1) { pg.innerHTML = ''; }
+    else {
+      let html = `<button class="btn btn-ghost" ${_invPage===1?'disabled':''} onclick="invLoad(${_invPage-1})">← 이전</button>`;
+      html += `<span style="padding:6px 12px;color:var(--text2);font-size:13px">${_invPage} / ${totalPages} · 총 ${j.total}건</span>`;
+      html += `<button class="btn btn-ghost" ${_invPage===totalPages?'disabled':''} onclick="invLoad(${_invPage+1})">다음 →</button>`;
+      pg.innerHTML = html;
+    }
+  } catch (e) {
+    box.innerHTML = `<div style="color:var(--red);padding:20px">로드 실패: ${e.message}</div>`;
+  }
+}
+
+function invRowHtml(it) {
+  const date = it.last_seen_at ? new Date(it.last_seen_at).toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+  const confColor = it.confidence >= 85 ? 'var(--green)' : it.confidence >= 70 ? 'var(--blue)' : 'var(--yellow)';
+  const statusBadge = it.status === 'active'
+    ? '<span class="t-pill t-pill-green" style="font-size:10px">활성</span>'
+    : `<span style="font-size:10px;padding:2px 8px;border-radius:999px;background:var(--bg3);color:var(--text3)">${it.status}</span>`;
+  const themeBadge = `<span style="font-size:10px;padding:2px 8px;border-radius:999px;background:var(--blue-dim);color:var(--blue)">${escAttr(it.theme)}</span>`;
+
+  return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px" id="inv-${it.id}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+          ${it.highlight ? '<span style="color:#b8860b">⭐</span>' : ''}
+          <span style="font-weight:700;font-family:'JetBrains Mono',monospace;font-size:13px">${escAttr(it.investor_ticker)}</span>
+          <span style="font-weight:600;font-size:13px">${escAttr(it.investor_name||'')}</span>
+          <span style="color:var(--text3)">→</span>
+          <span style="font-weight:600;font-size:13px">${escAttr(it.target_name)}</span>
+          ${themeBadge}
+          ${statusBadge}
+        </div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5">${escAttr(it.detail)}</div>
+        <div style="display:flex;gap:14px;font-size:11px;color:var(--text3);margin-top:4px;flex-wrap:wrap">
+          ${it.stake_info ? `<span>💰 ${escAttr(it.stake_info)}</span>` : ''}
+          <span>👁 누적 ${it.seen_count}회</span>
+          <span style="color:${confColor}">신뢰도 ${it.confidence}%</span>
+          <span>📅 ${date}</span>
+          ${it.source_url ? `<a href="${escAttr(it.source_url)}" target="_blank" style="color:var(--blue);text-decoration:none">📰 출처 →</a>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="invToggleHighlight(${it.id}, ${!it.highlight})">${it.highlight ? '⭐ 해제' : '☆ 하이라이트'}</button>
+        ${it.status === 'active'
+          ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="invReject(${it.id})">✕ 거부</button>`
+          : `<button class="btn btn-success" style="padding:4px 10px;font-size:11px" onclick="invApprove(${it.id})">✓ 복구</button>`}
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:var(--red)" onclick="invHardDelete(${it.id})" title="완전 삭제">🗑</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function invToggleHighlight(id, val) {
+  await invUpdate({ id, highlight: val });
+  invLoad(_invPage);
+}
+async function invReject(id) {
+  if (!confirm('이 항목을 거부 처리하시겠습니까? (소프트 삭제 — 복구 가능)')) return;
+  await invUpdate({ id, status: 'rejected' });
+  invLoad(_invPage);
+}
+async function invApprove(id) {
+  await invUpdate({ id, status: 'active', _from_pending: true });
+  invLoad(_invPage);
+}
+async function invHardDelete(id) {
+  if (!confirm('완전 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+  const r = await fetch('/api/admin?action=delete-investment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+    body: JSON.stringify({ id, hard: true }),
+  });
+  if (r.ok) { showToast('삭제 완료', 'success'); invLoad(_invPage); }
+  else showToast('삭제 실패', 'error');
+}
+async function invUpdate(body) {
+  const r = await fetch('/api/admin?action=update-investment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) showToast('업데이트 실패', 'error');
+}
+
+async function invExtractNow() {
+  document.getElementById('invStatusBox').textContent = '🔄 추출 중... (수십초 소요)';
+  try {
+    const r = await fetch('/api/admin?action=extract-investments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({ since_hours: 168, max: 50 }),
+    });
+    const j = await r.json();
+    document.getElementById('invStatusBox').textContent =
+      `✅ 완료 — 스캔 ${j.scanned}건 / 신규 ${j.new} / 업데이트 ${j.updated} / 스킵 ${j.skipped}${j.errors?.length ? ' / 오류 ' + j.errors.length : ''}`;
+    invLoad(1);
+  } catch (e) {
+    document.getElementById('invStatusBox').textContent = '❌ 실패: ' + e.message;
+  }
+}
+async function invDartPoll() {
+  document.getElementById('invStatusBox').textContent = '🔄 DART 폴링 중...';
+  try {
+    const r = await fetch('/api/admin?action=dart-poll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({ days: 7 }),
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      document.getElementById('invStatusBox').textContent = '❌ ' + (j.error || 'DART 실패');
+    } else {
+      const total = j.scanned;
+      const ss = j.skippedSelf || 0, si = j.skippedIndividual || 0, su = j.skippedUnmatched || 0, sm = j.skippedMissing || 0;
+      let msg = `✅ DART — 스캔 ${total} / 신규 ${j.new} / 업데이트 ${j.updated} <span style="color:var(--text3)">(${j.period})</span>`;
+      msg += `<br><span style="font-size:11px;color:var(--text3)">스킵 분류: 자기지분 ${ss} · 개인주주 ${si} · 미매칭 법인 ${su}${sm ? ' · 필드누락 ' + sm : ''}</span>`;
+      if (j.unmatchedReporters?.length) {
+        msg += `<br><span style="font-size:11px;color:var(--text3)">⚠️ 미매칭 법인 (companies 테이블에 없음): ${j.unmatchedReporters.slice(0,8).map(escAttr).join(' · ')}${j.unmatchedReporters.length > 8 ? ' ...' : ''}</span>`;
+      }
+      document.getElementById('invStatusBox').innerHTML = msg;
+      invLoad(1);
+    }
+  } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
+}
+async function invDartSyncCorpCodes() {
+  if (!confirm('DART corp_code 동기화는 보통 처음 한 번만 실행합니다. 진행할까요?')) return;
+  document.getElementById('invStatusBox').textContent = '🔄 DART corp_code ZIP 다운로드 + 매핑 중... (10-30초)';
+  try {
+    const r = await fetch('/api/admin?action=dart-sync-corp-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      document.getElementById('invStatusBox').textContent = '❌ ' + (j.error || '동기화 실패');
+    } else {
+      document.getElementById('invStatusBox').textContent =
+        `✅ DART corp_code 매핑 완료 — KR 종목 ${j.total_kr_companies}개 / 매핑 사전 ${j.mapping_size} / 업데이트 ${j.updated} / 기존 일치 ${j.alreadySet} / 매핑 실패 ${j.notFound}`;
+    }
+  } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
+}
+
+async function invDartUploadCorpCodes() {
+  const instructions = [
+    'Vercel 서버에서 DART zip 직접 다운로드가 느릴 때 사용:',
+    '',
+    '1. 한국에서 직접 받기: https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=YOUR_KEY',
+    '   (브라우저 또는 wget — 한국 IP에서 2-3초)',
+    '2. zip 안의 XML 열어서 <stock_code>가 있는 행만 추려서',
+    '   "005930,00126380" 형식 CSV로 만들어 아래에 붙여넣기',
+    '',
+    '예시:',
+    '005930,00126380',
+    '000660,00164779',
+    '035420,00266961',
+  ].join('\n');
+  const csv = prompt(instructions, '');
+  if (!csv?.trim()) return;
+
+  document.getElementById('invStatusBox').textContent = '🔄 CSV 파싱 + 적용 중...';
+  try {
+    const r = await fetch('/api/admin?action=dart-upload-corp-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({ csv }),
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      document.getElementById('invStatusBox').textContent = '❌ ' + (j.error || '업로드 실패');
+    } else {
+      document.getElementById('invStatusBox').textContent =
+        `✅ CSV 적용 완료 — 매핑 ${j.mapping_size}개 / KR 종목 ${j.total_kr_companies} / 업데이트 ${j.updated} / 기존 일치 ${j.alreadySet} / 매핑 없음 ${j.notFound}`;
+    }
+  } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
+}
+
+async function invVerifyKrNames() {
+  const mode = confirm('Dry-run으로 먼저 확인할까요?\n\n[확인] dry-run (DB 변경 없이 불일치만 표시)\n[취소] 실제 적용 (DART 공식명으로 자동 보정)');
+  document.getElementById('invStatusBox').textContent = '🔄 DART 공식명과 대조 중... (KR 종목 수에 비례 — 30초~)';
+  try {
+    const r = await fetch('/api/admin?action=verify-kr-names', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({ dry_run: mode }),
+    });
+    const j = await r.json();
+    if (!r.ok) { document.getElementById('invStatusBox').textContent = '❌ ' + (j.error || '검증 실패'); return; }
+    let msg = `✅ ${j.dry_run ? '[DRY-RUN]' : '[실제 적용]'} 스캔 ${j.scanned} / 일치 ${j.matches} / 불일치 ${j.mismatches} / 수정 ${j.fixed} / 오류 ${j.errors}`;
+    if (j.samples?.length) {
+      msg += '<br><br><b>불일치 예시:</b><br><div style="font-size:11px;font-family:monospace;background:var(--bg3);padding:8px;border-radius:6px;max-height:200px;overflow-y:auto">' +
+        j.samples.map(s => `${s.ticker}: <span style="color:var(--red)">"${escAttr(s.db_name_ko)}"</span> → <span style="color:var(--green)">"${escAttr(s.dart_name_ko)}"</span>`).join('<br>') +
+        '</div>';
+    }
+    document.getElementById('invStatusBox').innerHTML = msg;
+  } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
+}
+
+async function invSec13fPoll() {
+  document.getElementById('invStatusBox').textContent = '🔄 SEC 13F 폴링 중... (느릴 수 있음)';
+  try {
+    const r = await fetch('/api/admin?action=sec-13f-poll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({}),
+    });
+    const j = await r.json();
+    document.getElementById('invStatusBox').textContent =
+      `✅ 13F — fetched ${j.fetched} / 신규 ${j.new} / 업데이트 ${j.updated}${j.errors?.length ? ' / 오류 ' + j.errors.length : ''}`;
+    invLoad(1);
+  } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
+}
+
+async function invLoadChart() {
+  const ticker = document.getElementById('invChartTicker').value;
+  const hint = document.getElementById('invChartHint');
+  if (!ticker) { hint.textContent = '상단의 티커를 선택하면 추출 이벤트 누적 추이가 표시됩니다.'; return; }
+  hint.textContent = '로딩 중...';
+
+  try {
+    const r = await fetch('/api/admin?action=investment-events&ticker=' + encodeURIComponent(ticker));
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'fetch failed');
+
+    const series = j.series || [];
+    if (!series.length) {
+      hint.textContent = '이 티커의 이벤트가 아직 없습니다.';
+      if (_invChart) { _invChart.destroy(); _invChart = null; }
+      return;
+    }
+
+    const palette = ['#0066cc','#e31937','#00873a','#7c3aed','#b8860b','#06b6d4','#ec4899','#f97316','#84cc16','#a855f7'];
+    const datasets = series.slice(0, 10).map((s, i) => ({
+      label: s.target,
+      data: s.points.map(p => ({ x: p.t, y: p.cumulative })),
+      borderColor: palette[i % palette.length],
+      backgroundColor: palette[i % palette.length] + '22',
+      borderWidth: 2, pointRadius: 3, tension: 0.2, stepped: 'before',
+    }));
+
+    const ctx = document.getElementById('invChart');
+    if (_invChart) _invChart.destroy();
+    _invChart = new Chart(ctx, {
+      type: 'line',
+      data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#4b4b52', boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            backgroundColor: '#fff', borderColor: '#e5e5ea', borderWidth: 1,
+            titleColor: '#0a0a0a', bodyColor: '#4b4b52',
+            callbacks: {
+              title: (items) => new Date(items[0].parsed.x).toLocaleString('ko-KR'),
+              label: (item) => `${item.dataset.label}: ${item.parsed.y}회`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { unit: 'day', displayFormats: { day: 'MM/dd' } },
+            ticks: { color: '#86868b', font: { size: 10 } },
+            grid: { color: '#e5e5ea' },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#86868b', font: { size: 10 }, stepSize: 1 },
+            grid: { color: '#e5e5ea' },
+            title: { display: true, text: '누적 추출 횟수', color: '#4b4b52', font: { size: 11 } },
+          },
+        },
+      },
+    });
+    hint.textContent = `${ticker}: ${series.length}개 대상, 총 ${j.events.length}개 이벤트`;
+  } catch (e) {
+    hint.textContent = '❌ ' + e.message;
+  }
+}
+
+if (typeof escAttr !== 'function') {
+  window.escAttr = function(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+}
