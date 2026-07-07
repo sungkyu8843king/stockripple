@@ -82,7 +82,7 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { height: 100%; }
+html, body { height: 100%; overflow-x: hidden; }
 body {
   font-family: var(--font-sans);
   font-feature-settings: 'cv11', 'ss01', 'ss03';
@@ -887,9 +887,17 @@ button { font-family: inherit; }
 @media (max-width: 900px) {
   .stats-bar { grid-template-columns: repeat(3, 1fr); }
 }
+@media (max-width: 760px) {
+  /* 헤더 네비가 좁은 화면에서 잘리지 않고 줄바꿈되도록. 관리 링크는 공간이
+     부족하면 숨김(어드민은 URL로 직접 접근 가능) — 페이지 전체 가로 스크롤이
+     생겨 모바일 브라우저가 레이아웃을 축소 렌더링하는 문제 방지 */
+  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; }
+  .header-nav { flex-wrap: wrap; row-gap: 4px; }
+  .nav-btn.admin-only { display: none; }
+}
 @media (max-width: 600px) {
   :root { --page-pad: 16px; }
-  .header-inner { padding: 0; gap: 10px; }
+  .header-inner { padding: 8px 0; gap: 10px; }
   .logo-sub { display: none; }
   .hero-title { font-size: 19px; }
   .issues-grid { grid-template-columns: 1fr; }
@@ -914,12 +922,10 @@ button { font-family: inherit; }
       </div>
     </a>
     <nav class="header-nav" id="headerNav">
-      <button class="nav-btn active" id="tabFeed" onclick="switchTab('feed')">피드</button>
-      <button class="nav-btn" id="tabWatchlist" onclick="switchTab('watchlist')">관심종목<span id="wlCount"></span></button>
+      <button class="nav-btn" id="tabWatchlist" onclick="toggleWatchlistTab()">관심종목<span id="wlCount"></span></button>
       <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
-      <a href="/terminal.html" class="nav-btn" style="background:linear-gradient(180deg,#1a1a1f,#0e0e12);color:#ff8c2a;font-weight:700;letter-spacing:.6px">▸ TERMINAL</a>
       <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
-      <a href="/admin/" class="nav-btn">관리</a>
+      <a href="/admin/" class="nav-btn admin-only">관리</a>
       <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
       <div class="user-menu" id="userMenu" style="display:none">
         <button class="user-avatar-btn" id="userAvatar" onclick="toggleUserDropdown()"></button>
@@ -1040,6 +1046,32 @@ button { font-family: inherit; }
       <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--text3)">
         <span>📡 데이터: Yahoo Finance (실시간 ~15분 지연 가능) · 환율·금리·원자재는 지수 기준</span>
         <span id="heatmapItemCount"></span>
+      </div>
+    </div>
+
+    <!-- 🇰🇷 국장 현황 (거래량 TOP / 상한가 / 하한가 / 수급 TOP) -->
+    <div id="krMarketSection" class="section-block">
+      <div class="section-head">
+        <div class="section-head-l">
+          <span class="sh-mark" style="background:var(--yellow)"></span>
+          <span class="sh-title">국장 현황</span>
+          <span id="krMarketUpdatedAt" class="sh-desc">—</span>
+        </div>
+        <div class="section-head-r">
+          <button onclick="loadKrMarket()" title="수동 새로고침" class="icon-btn">🔄</button>
+          <div class="seg">
+            <button class="hm-tab km-tab active" data-km="volume" onclick="switchKrMarket('volume')">📊 거래량 TOP</button>
+            <button class="hm-tab km-tab"        data-km="up"     onclick="switchKrMarket('up')">🔴 상한가</button>
+            <button class="hm-tab km-tab"        data-km="down"  onclick="switchKrMarket('down')">🔵 하한가</button>
+            <button class="hm-tab km-tab"        data-km="flow"  onclick="switchKrMarket('flow')">💰 수급 TOP (5일)</button>
+          </div>
+        </div>
+      </div>
+      <div id="krMarketPanel" style="min-height:80px">
+        <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
+      </div>
+      <div style="margin-top:10px;font-size:10px;color:var(--text3)">
+        📡 데이터: 네이버 증권 · 거래량/상한가/하한가는 코스피+코스닥 전체, 수급 TOP은 시가총액 상위 약 150종목(ETF 제외) 기준 5일 누적 순매수
       </div>
     </div>
 
@@ -1850,13 +1882,19 @@ async function removeWL(ticker) {
 
 function switchTab(tab) {
   const isFeed = tab === 'feed';
-  document.getElementById('tabFeed').classList.toggle('active', isFeed);
-  document.getElementById('tabWatchlist').classList.toggle('active', !isFeed);
+  const wlBtn = document.getElementById('tabWatchlist');
+  wlBtn.classList.toggle('active', !isFeed);
+  wlBtn.innerHTML = (isFeed ? '관심종목' : '← 피드로') + '<span id="wlCount"></span>';
   document.getElementById('issuesSection').style.display = isFeed ? '' : 'none';
   document.getElementById('sidebar').style.display = isFeed ? '' : 'none';
   const wv = document.getElementById('watchlistView');
   wv.style.display = isFeed ? 'none' : 'block';
   if (!isFeed) renderWatchlistView();
+  updateWlCount();
+}
+function toggleWatchlistTab() {
+  const isActive = document.getElementById('tabWatchlist').classList.contains('active');
+  switchTab(isActive ? 'feed' : 'watchlist');
 }
 
 /* ── Auth Modal ── */
@@ -3931,6 +3969,92 @@ function switchHeatmap(mkt, range) {
   loadHeatmap();
 }
 
+// ─── 🇰🇷 국장 현황 (거래량 TOP / 상한가 / 하한가 / 5일 수급 TOP) ──────────
+let _kmTab = 'volume';
+const _kmCache = {};
+
+function switchKrMarket(tab) {
+  _kmTab = tab;
+  document.querySelectorAll('.km-tab').forEach(b => b.classList.toggle('active', b.dataset.km === tab));
+  loadKrMarket();
+}
+
+async function loadKrMarket() {
+  const panel = document.getElementById('krMarketPanel');
+  if (!panel) return;
+  const tab = _kmTab;
+  if (!_kmCache[tab]) {
+    panel.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>';
+  }
+  try {
+    const typeMap = { volume: 'volume-top', up: 'limit-up', down: 'limit-down', flow: 'flow-top' };
+    const r = await fetch(`/api/kr-market?type=${typeMap[tab]}`);
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'load failed');
+    _kmCache[tab] = d;
+    if (_kmTab !== tab) return;  // 응답 오는 사이 탭이 바뀌었으면 무시
+    renderKrMarket(tab, d);
+    const el = document.getElementById('krMarketUpdatedAt');
+    if (el) el.textContent = new Date(d.ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) + ' 기준';
+  } catch (e) {
+    panel.innerHTML = `<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">불러오기 실패: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function krRowsTable(rows, cols) {
+  if (!rows?.length) return '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">데이터가 없습니다</div>';
+  return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <thead><tr style="border-bottom:1px solid var(--border)">${cols.map(c => `<th style="text-align:${c.right ? 'right' : 'left'};padding:6px 8px;color:var(--text3);font-weight:600;font-size:11px;white-space:nowrap">${c.label}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map((row, i) => `<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">${cols.map(c => `<td style="padding:7px 8px;text-align:${c.right ? 'right' : 'left'};white-space:nowrap">${c.render(row, i)}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function krNameCell(item) {
+  const isWL = typeof isWatched === 'function' && isWatched(item.ticker);
+  return `<a href="/company.html?ticker=${encodeURIComponent(item.ticker)}" style="color:var(--text);font-weight:600;text-decoration:none">${escHtml(item.name)}</a>
+    <span style="color:var(--text3);font-size:10.5px;font-family:monospace;margin-left:4px">${escHtml(item.ticker)}</span>`;
+}
+const krChgColor = v => v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text2)';
+const krFmtPct = v => v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
+const krFmtNum = v => v == null ? '—' : Math.round(v).toLocaleString('ko-KR');
+const krFmtEok = v => v == null ? '—' : `${v >= 0 ? '+' : ''}${(v / 1e8).toFixed(1)}억`;
+
+function renderKrMarket(tab, d) {
+  const panel = document.getElementById('krMarketPanel');
+  if (tab === 'volume') {
+    panel.innerHTML = krRowsTable(d.items, [
+      { label: '#', render: (_, i) => i + 1 },
+      { label: '종목', render: krNameCell },
+      { label: '시장', render: r => r.market === 'KOSPI' ? '코스피' : '코스닥' },
+      { label: '현재가', right: true, render: r => krFmtNum(r.price) },
+      { label: '등락률', right: true, render: r => `<span style="color:${krChgColor(r.changePercent)};font-weight:700">${krFmtPct(r.changePercent)}</span>` },
+      { label: '거래량', right: true, render: r => krFmtNum(r.volume) },
+    ]);
+  } else if (tab === 'up' || tab === 'down') {
+    panel.innerHTML = krRowsTable(d.items, [
+      { label: '#', render: (_, i) => i + 1 },
+      { label: '종목', render: krNameCell },
+      { label: '시장', render: r => r.market === 'KOSPI' ? '코스피' : '코스닥' },
+      { label: '현재가', right: true, render: r => krFmtNum(r.price) },
+      { label: '등락률', right: true, render: r => `<span style="color:${krChgColor(r.changePercent)};font-weight:700">${krFmtPct(r.changePercent)}</span>` },
+      { label: '거래량', right: true, render: r => krFmtNum(r.volume) },
+      { label: '연속', right: true, render: r => r.streakDays ? `${r.streakDays}일째` : '—' },
+    ]);
+  } else if (tab === 'flow') {
+    const half = c => `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--green);margin-bottom:4px">🔼 순매수 유입 TOP</div>${krRowsTable(d.inflow, c)}</div>
+      <div><div style="font-size:11.5px;font-weight:700;color:var(--red);margin-bottom:4px">🔽 순매도 유출 TOP</div>${krRowsTable(d.outflow, c)}</div>
+    </div>`;
+    panel.innerHTML = half([
+      { label: '#', render: (_, i) => i + 1 },
+      { label: '종목', render: krNameCell },
+      { label: '외국인', right: true, render: r => `<span style="color:${krChgColor(r.foreignVal5d)}">${krFmtEok(r.foreignVal5d)}</span>` },
+      { label: '기관', right: true, render: r => `<span style="color:${krChgColor(r.instVal5d)}">${krFmtEok(r.instVal5d)}</span>` },
+      { label: '합계', right: true, render: r => `<b style="color:${krChgColor(r.smartVal5d)}">${krFmtEok(r.smartVal5d)}</b>` },
+    ]);
+  }
+}
+
 // Heatmap 색상 계산 (재사용)
 function heatmapColorFor(pct) {
   const v = Math.max(-5, Math.min(5, pct)) / 5;
@@ -4716,6 +4840,7 @@ function computeMarketStatus(market) {
     try { updateFeedLiveTag();    } catch (e) { console.error('feedLiveTag', e); }
     try { loadSectorMomentum();   } catch (e) { console.error('sectorMo', e); }
     try { loadCorrelation();      } catch (e) { console.error('corr', e); }
+    try { loadKrMarket();         } catch (e) { console.error('krMarket', e); }
   };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', kick, { once: true });
@@ -4740,6 +4865,8 @@ function computeMarketStatus(market) {
   // 장중 브라우저 구동 수집: 즉시 1회 + 120초마다 (서버가 게이트·레이트리밋)
   try { triggerLiveCollect(); } catch {}
   setInterval(() => { try { triggerLiveCollect(); } catch {} }, 120000);
+  // 5분마다 국장 현황 새로고침
+  setInterval(() => { try { delete _kmCache[_kmTab]; loadKrMarket(); } catch {} }, 300000);
 })();
 
 // ─── 종목 검색 결과 카드 모달 ─────────────────────────────
