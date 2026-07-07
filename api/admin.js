@@ -415,8 +415,9 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
     const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
 
     let cacheWriteError = null;
+    let cacheWriteResult = null;
     try {
-      const { error: upsertError } = await supabase.from('company_ai_summary').upsert({
+      const { data: upsertData, error: upsertError } = await supabase.from('company_ai_summary').upsert({
         ticker,
         overview: parsed.overview,
         thesis: parsed.thesis,
@@ -426,8 +427,9 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
         watch_points: parsed.watch_points,
         analyses_count: analyses.length,
         created_at: new Date().toISOString(),
-      }, { onConflict: 'ticker' });
+      }, { onConflict: 'ticker' }).select();
       if (upsertError) cacheWriteError = upsertError.message;
+      cacheWriteResult = upsertData;
     } catch (e) { cacheWriteError = e.message; }
 
     return res.status(200).json({
@@ -439,6 +441,7 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
       analyses_count: analyses.length,
       cached: false,
       cache_write_error: cacheWriteError,
+      cache_write_result: cacheWriteResult,
       cache_read_debug: { hadCachedRow: !!cached, cacheReadError: cacheReadError?.message || null, cachedCreatedAt: cached?.created_at || null },
     });
   } catch (e) {
