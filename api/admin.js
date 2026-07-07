@@ -320,6 +320,7 @@ async function handleSummary(req, res) {
         analyses_count: cached.analyses_count,
         cached: true,
         generated_at: cached.created_at,
+        _debug_row_count: cacheRowCount,
       });
     }
 
