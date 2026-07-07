@@ -297,11 +297,13 @@ async function handleSummary(req, res) {
 
     // 티커당 하루 1회만 Claude 재생성 — 2회차부터는 DB 캐시로 서빙 (방문자 트래픽에
     // 비례해 API 비용이 느는 걸 방지). live(실시간 시세)는 캐시와 무관하게 항상 새로 받는다.
-    const { data: cached, error: cacheReadError } = await supabase
+    const { data: cachedRows, error: cacheReadError } = await supabase
       .from('company_ai_summary')
       .select('*')
       .eq('ticker', ticker)
-      .single();
+      .order('created_at', { ascending: false });
+    const cached = cachedRows?.[0] || null;
+    const cacheRowCount = cachedRows?.length ?? null;
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
     if (cached && Date.now() - new Date(cached.created_at).getTime() < ONE_DAY_MS) {
       return res.status(200).json({
@@ -442,7 +444,7 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
       cached: false,
       cache_write_error: cacheWriteError,
       cache_write_result: cacheWriteResult,
-      cache_read_debug: { hadCachedRow: !!cached, cacheReadError: cacheReadError?.message || null, cachedCreatedAt: cached?.created_at || null },
+      cache_read_debug: { hadCachedRow: !!cached, cacheReadError: cacheReadError?.message || null, cachedCreatedAt: cached?.created_at || null, cacheRowCount },
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });
