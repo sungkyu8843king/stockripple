@@ -91,6 +91,7 @@ export default async function handler(req, res) {
   if (action === 'weekly-schedule') return handleWeeklySchedulePost(req, res);
   if (action === 'catalysts') return handleCatalystsPost(req, res);
   if (action === 'check-accuracy') return handleCheckAccuracy(req, res);
+  if (action === 'view-stats') return handleViewStats(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -196,6 +197,52 @@ async function fetchAccuracyCheckPrice(ticker) {
 const accuracySleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ════════════════════════════════════════════════════════════
+// 종목 조회수 통계 (어드민 대시보드 — 어떤 종목이 많이 보이는지)
+// ════════════════════════════════════════════════════════════
+async function handleViewStats(req, res) {
+  const period = (req.query.period || '7d').toString();
+  const today = new Date();
+  let sinceDate = null;
+  if (period === 'today')     sinceDate = today.toISOString().slice(0, 10);
+  else if (period === '7d')   sinceDate = new Date(today - 7  * 86400000).toISOString().slice(0, 10);
+  else if (period === '30d')  sinceDate = new Date(today - 30 * 86400000).toISOString().slice(0, 10);
+  // period === 'all' → 필터 없음
+
+  let q = supabase.from('company_views').select('ticker, views');
+  if (sinceDate) q = q.gte('view_date', sinceDate);
+  const { data, error } = await q;
+  if (error) return res.status(500).json({ error: error.message });
+
+  const totals = {};
+  for (const row of data || []) totals[row.ticker] = (totals[row.ticker] || 0) + row.views;
+
+  const tickers = Object.keys(totals);
+  const { data: companies } = tickers.length
+    ? await supabase.from('companies').select('ticker, name_ko, name_en, market').in('ticker', tickers)
+    : { data: [] };
+  const nameMap = Object.fromEntries((companies || []).map(c => [c.ticker, c]));
+
+  const items = tickers
+    .map(t => ({
+      ticker: t,
+      views: totals[t],
+      name_ko: nameMap[t]?.name_ko || null,
+      name_en: nameMap[t]?.name_en || null,
+      market: nameMap[t]?.market || null,
+    }))
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 50);
+
+  return res.status(200).json({
+    ok: true,
+    period,
+    items,
+    total_views: Object.values(totals).reduce((s, v) => s + v, 0),
+    total_tickers: tickers.length,
+  });
+}
+
+// ════════════════════════════════════════════════════════════
 // 1) 회사 AI 종합 분석 (공개)
 // ════════════════════════════════════════════════════════════
 // 실시간 시세 스냅샷 — AI가 학습시점 기억(분사/재상장/인수 이전 상태)으로
@@ -233,6 +280,10 @@ async function handleSummary(req, res) {
   const ticker = (req.query?.ticker || '').toString().trim().toUpperCase();
   if (!ticker) return res.status(400).json({ error: 'ticker required' });
   if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
+
+  // 조회수 집계 (어드민 통계용) — 캐시 히트/미스와 무관하게 순수 방문 트래픽을 센다.
+  // 실패해도 본 응답에 영향 없도록 fire-and-forget.
+  supabase.rpc('increment_company_view', { p_ticker: ticker }).then(() => {}, () => {});
 
   try {
     const { data: company } = await supabase

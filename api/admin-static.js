@@ -53,6 +53,10 @@ const SHELL_HTML = `
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
       📈 통계 + 백테스트
     </button>
+    <button class="nav-item" data-panel="views">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      👁 조회수 통계
+    </button>
     <button class="nav-item" data-panel="reanalyze">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
       재분석 (구→신 변환)
@@ -498,6 +502,30 @@ const SHELL_HTML = `
         .spinner-mini { width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:fnSpin 0.8s linear infinite }
         @keyframes fnSpin { to { transform:rotate(360deg) } }
       </style>
+    </div>
+
+    <!-- 종목 조회수 통계 -->
+    <div class="panel-section" id="panel-views">
+      <div class="section-header">
+        <h2>👁 조회수 통계</h2>
+        <p>기업 상세 페이지가 가장 많이 열린 종목 순위입니다 (/api/company-summary 호출 기준).</p>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-ghost" onclick="loadViewStats()">🔄 새로고침</button>
+        <select id="viewsPeriod" onchange="loadViewStats()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          <option value="today">오늘</option>
+          <option value="7d" selected>최근 7일</option>
+          <option value="30d">최근 30일</option>
+          <option value="all">전체</option>
+        </select>
+        <span id="viewsSummary" style="font-size:12px;color:var(--text3);align-self:center"></span>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <table>
+          <thead><tr><th style="width:40px">#</th><th>티커</th><th>회사명</th><th>시장</th><th style="text-align:right">조회수</th></tr></thead>
+          <tbody id="viewsTableBody"><tr><td colspan="5" style="text-align:center;color:var(--text3)">로딩 중...</td></tr></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- User Feedback -->

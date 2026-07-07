@@ -1,4 +1,4 @@
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', feedback: '💬 사용자 피드백', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', feedback: '💬 사용자 피드백', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -13,6 +13,7 @@ function showPanel(name) {
   if (name === 'accuracy') loadAccuracy();
   if (name === 'backtest' && !window._btLoaded) { window._btLoaded = true; loadBacktest(); }
   if (name === 'investments') invLoad();
+  if (name === 'views') loadViewStats();
   if (name === 'feedback') loadFeedback();
 }
 
@@ -1020,6 +1021,38 @@ async function loadFeedbackBadge() {
   const n = data?.items?.length || 0;
   badge.textContent = n;
   badge.style.display = n > 0 ? 'inline-block' : 'none';
+}
+
+// ── 종목 조회수 통계 ────────────────────────────────────────────────────
+async function loadViewStats() {
+  const period = document.getElementById('viewsPeriod')?.value || '7d';
+  const tbody = document.getElementById('viewsTableBody');
+  const summary = document.getElementById('viewsSummary');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3)">로딩 중...</td></tr>';
+
+  const data = await callApi(`/api/admin?action=view-stats&period=${period}`, {}, null);
+  if (!data?.ok) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--red)">불러오기 실패</td></tr>';
+    return;
+  }
+
+  if (summary) summary.textContent = `종목 ${data.total_tickers}개 · 총 조회 ${data.total_views}회`;
+  if (!tbody) return;
+
+  if (!data.items.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3)">데이터 없음</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.items.map((it, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><code style="color:var(--blue);font-size:12px">${escHtml(it.ticker)}</code></td>
+      <td>${escHtml(it.name_ko || it.name_en || '-')}</td>
+      <td>${it.market === 'KR' ? '🇰🇷 국장' : it.market === 'US' ? '🇺🇸 미장' : '-'}</td>
+      <td style="text-align:right;font-weight:600">${it.views.toLocaleString()}</td>
+    </tr>
+  `).join('');
 }
 
 // ── 실시간 접속자 현황 (Supabase Realtime Presence) ───────────────
