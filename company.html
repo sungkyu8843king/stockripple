@@ -489,13 +489,8 @@ function buildQuoteCard(priceData) {
     </div>`;
 }
 
-function renderPage(company, records, priceData) {
-  const isKr = company.market === 'KR';
-  const ticker = company.ticker;
-  const name = company.name_ko || company.name_en || ticker;
-  const sector = company.sector || '';
-
-  // Price block — regular + pre/after-market
+// Price block — regular + pre/after-market. renderPage(최초)와 refreshLivePrice(폴링) 공용.
+function buildPriceBlock(priceData) {
   let priceHtml = '<span class="price-loading">주가 로딩 중...</span>';
   if (priceData && priceData.price) {
     const fmt = new Intl.NumberFormat('en-US', {
@@ -535,6 +530,34 @@ function renderPage(company, records, priceData) {
     }
     _currentLivePrice = priceData.price;
   }
+  return priceHtml;
+}
+
+// 페이지 머문 동안 주가를 계속 폴링해서 가격·등락률·레인지 바(오늘의 시세) 위치를 실시간 갱신
+let _liveRefreshTimer = null;
+function startLivePriceRefresh() {
+  if (_liveRefreshTimer) return;
+  _liveRefreshTimer = setInterval(async () => {
+    if (document.hidden || !_currentTicker) return;  // 백그라운드 탭이면 쿼터 낭비 방지
+    const priceData = await loadPrice(_currentTicker);
+    if (!priceData || priceData.price == null) return;
+    const priceBlock = document.getElementById('priceBlock');
+    if (priceBlock) priceBlock.innerHTML = buildPriceBlock(priceData);
+    const quoteWrap = document.getElementById('quoteCardWrap');
+    if (quoteWrap) {
+      const html = buildQuoteCard(priceData);
+      if (html) quoteWrap.innerHTML = html;
+    }
+  }, 15000);
+}
+
+function renderPage(company, records, priceData) {
+  const isKr = company.market === 'KR';
+  const ticker = company.ticker;
+  const name = company.name_ko || company.name_en || ticker;
+  const sector = company.sector || '';
+
+  const priceHtml = buildPriceBlock(priceData);
 
   // 오늘의 시세 (당일 레인지 · 거래량 · 52주 범위 · 상장일) — priceData(=/api/quotes)에 이미 다 있음
   const quoteCardHtml = buildQuoteCard(priceData);
@@ -582,7 +605,7 @@ function renderPage(company, records, priceData) {
       </div>
     </div>
 
-    ${quoteCardHtml}
+    <div id="quoteCardWrap">${quoteCardHtml}</div>
 
     <div class="stats-bar">
       <div class="stat-card">
@@ -1242,6 +1265,7 @@ async function init() {
   ]);
 
   renderPage(company, records || [], priceData);
+  startLivePriceRefresh();
 }
 
 init();

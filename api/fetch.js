@@ -180,7 +180,7 @@ async function handleRss(res) {
         summary: cleanText(item.description)?.slice(0, 800) || null,
         source_url: item.link,
         source_name: feed.name,
-        published_at: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+        published_at: parsePubDate(item.pubDate, feed.isKorean),
         sectors: feed.sectors || [feed.sector || '글로벌'],
         tags: feed.isTrump ? ['Trump', '트럼프', 'TruthSocial'] : [],
         is_analyzed: false,
@@ -189,6 +189,24 @@ async function handleRss(res) {
     }
   }
   return res.status(200).json(results);
+}
+
+// RSS pubDate 파싱 — 일부 한국 매체(HiT뉴스 등)는 RFC-822 형식 대신 타임존 표기
+// 없는 "2026-07-07 18:12:36"(=KST 현지시각)을 그대로 내려줌. new Date()로 바로
+// 파싱하면 이걸 UTC로 오인해 9시간이 밀려 미래 시각으로 저장되는 버그가 있었음
+// (예: KST 18:12 기사가 UTC 18:12로 저장 → 화면엔 KST 03:12 다음날로 표시).
+function parsePubDate(pubDate, isKorean) {
+  if (!pubDate) return new Date().toISOString();
+  const hasTz = /Z$|[+-]\d{2}:?\d{2}$|\b(GMT|UTC)\b/i.test(pubDate);
+  const bareFormat = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(pubDate.trim());
+  const toparse = (isKorean && bareFormat && !hasTz)
+    ? pubDate.trim().replace(' ', 'T') + '+09:00'
+    : pubDate;
+  const d = new Date(toparse);
+  if (isNaN(d.getTime())) return new Date().toISOString();
+  // 시계 오차 등을 감안해 5분 이상 미래면 신뢰하지 않고 현재 시각으로 대체
+  if (d.getTime() - Date.now() > 5 * 60 * 1000) return new Date().toISOString();
+  return d.toISOString();
 }
 
 async function fetchRSS(url) {

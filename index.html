@@ -82,8 +82,11 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { height: 100%; overflow-x: hidden; }
+html { height: 100%; }
+/* overflow-x:hidden은 body에만 — html(루트)에 걸면 iOS Safari에서 position:sticky가
+   깨지고 세로 스크롤 자체가 막히는 경우가 있어 body 단독으로 한정한다 */
 body {
+  overflow-x: hidden;
   font-family: var(--font-sans);
   font-feature-settings: 'cv11', 'ss01', 'ss03';
   -webkit-font-smoothing: antialiased;
