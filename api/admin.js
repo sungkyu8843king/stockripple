@@ -297,13 +297,15 @@ async function handleSummary(req, res) {
 
     // 티커당 하루 1회만 Claude 재생성 — 2회차부터는 DB 캐시로 서빙 (방문자 트래픽에
     // 비례해 API 비용이 느는 걸 방지). live(실시간 시세)는 캐시와 무관하게 항상 새로 받는다.
-    const { data: cachedRows, error: cacheReadError } = await supabase
+    // .single() 대신 배열+최신순 정렬 후 첫 건 사용 — 간헐적으로 .single()이 정상
+    // 상황에서도 coerce 에러를 내는 걸 우회 (PostgREST/supabase-js 쪽 이슈로 추정).
+    const { data: cachedRows } = await supabase
       .from('company_ai_summary')
       .select('*')
       .eq('ticker', ticker)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(1);
     const cached = cachedRows?.[0] || null;
-    const cacheRowCount = cachedRows?.length ?? null;
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
     if (cached && Date.now() - new Date(cached.created_at).getTime() < ONE_DAY_MS) {
       return res.status(200).json({
@@ -320,7 +322,6 @@ async function handleSummary(req, res) {
         analyses_count: cached.analyses_count,
         cached: true,
         generated_at: cached.created_at,
-        _debug_row_count: cacheRowCount,
       });
     }
 
@@ -417,10 +418,8 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
     if (!m) throw new Error('No JSON in AI response');
     const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
 
-    let cacheWriteError = null;
-    let cacheWriteResult = null;
     try {
-      const { data: upsertData, error: upsertError } = await supabase.from('company_ai_summary').upsert({
+      await supabase.from('company_ai_summary').upsert({
         ticker,
         overview: parsed.overview,
         thesis: parsed.thesis,
@@ -430,10 +429,8 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
         watch_points: parsed.watch_points,
         analyses_count: analyses.length,
         created_at: new Date().toISOString(),
-      }, { onConflict: 'ticker' }).select();
-      if (upsertError) cacheWriteError = upsertError.message;
-      cacheWriteResult = upsertData;
-    } catch (e) { cacheWriteError = e.message; }
+      }, { onConflict: 'ticker' });
+    } catch {}
 
     return res.status(200).json({
       ok: true,
@@ -443,9 +440,6 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
       ...parsed,
       analyses_count: analyses.length,
       cached: false,
-      cache_write_error: cacheWriteError,
-      cache_write_result: cacheWriteResult,
-      cache_read_debug: { hadCachedRow: !!cached, cacheReadError: cacheReadError?.message || null, cachedCreatedAt: cached?.created_at || null, cacheRowCount },
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });
