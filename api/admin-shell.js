@@ -50,6 +50,10 @@ const SHELL_HTML = `
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
       재분석 (구→신 변환)
     </button>
+    <button class="nav-item" data-panel="feedback">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      💬 사용자 피드백 <span id="fbNavBadge" class="fb-nav-badge" style="display:none"></span>
+    </button>
     <button class="nav-item" data-panel="settings">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
       API 키 설정
@@ -487,6 +491,27 @@ const SHELL_HTML = `
         .spinner-mini { width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:fnSpin 0.8s linear infinite }
         @keyframes fnSpin { to { transform:rotate(360deg) } }
       </style>
+    </div>
+
+    <!-- User Feedback -->
+    <div class="panel-section" id="panel-feedback">
+      <div class="section-header">
+        <h2>💬 사용자 피드백</h2>
+        <p>랜딩 페이지 챗봇 위젯으로 접수된 의견입니다. 상태를 바꿔가며 검토·반영 여부를 관리하세요.</p>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-ghost" onclick="loadFeedback()">🔄 새로고침</button>
+        <select id="fbStatusFilter" onchange="loadFeedback()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          <option value="new">🆕 신규</option>
+          <option value="reviewed">👀 검토됨</option>
+          <option value="planned">📌 반영 예정</option>
+          <option value="done">✅ 반영 완료</option>
+          <option value="rejected">🗑️ 반려</option>
+          <option value="all">전체</option>
+        </select>
+        <span id="fbCount" style="font-size:12px;color:var(--text3);align-self:center"></span>
+      </div>
+      <div id="fbList" style="display:flex;flex-direction:column;gap:10px;margin-top:14px"></div>
     </div>
 
     <!-- Settings -->

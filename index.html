@@ -521,6 +521,65 @@ button { font-family: inherit; }
 .star-btn:hover { transform: scale(1.2); }
 
 /* ═══════════════════════════════════════════
+ * 피드백 챗봇
+ * ═══════════════════════════════════════════ */
+.fb-fab {
+  position: fixed; bottom: 24px; left: 24px; z-index: 2100;
+  width: 54px; height: 54px; border-radius: 50%; border: none;
+  background: var(--purple); color: #fff; font-size: 22px; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(124,58,237,.4);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform var(--t-fast);
+}
+.fb-fab:hover { transform: scale(1.07); }
+.fb-fab:active { transform: scale(.94); }
+.fb-overlay {
+  position: fixed; inset: 0; background: rgba(19,23,34,0.45); z-index: 2100;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  backdrop-filter: blur(6px); animation: fadeIn 0.15s ease;
+}
+.fb-modal {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-xl);
+  width: 100%; max-width: 400px; height: min(600px, 82vh);
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: slideUp 0.2s ease; box-shadow: var(--shadow-pop);
+}
+.fb-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.fb-header-title { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.fb-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; padding: 4px; }
+.fb-close:hover { color: var(--text); }
+.fb-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.fb-msg { max-width: 84%; padding: 10px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.fb-msg.bot { align-self: flex-start; background: var(--bg3); color: var(--text); border-bottom-left-radius: 4px; }
+.fb-msg.user { align-self: flex-end; background: var(--purple); color: #fff; border-bottom-right-radius: 4px; }
+.fb-quick-replies { display: flex; flex-wrap: wrap; gap: 7px; align-self: flex-start; max-width: 100%; }
+.fb-qr-btn {
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--purple);
+  background: var(--purple-dim); color: var(--purple); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all var(--t-fast);
+}
+.fb-qr-btn:hover { background: var(--purple); color: #fff; }
+.fb-qr-btn:disabled { opacity: .5; cursor: default; }
+.fb-input-area { border-top: 1px solid var(--border); padding: 12px 14px; flex-shrink: 0; }
+.fb-input-row { display: flex; gap: 8px; align-items: flex-end; }
+.fb-input-row textarea, .fb-input-row input {
+  flex: 1; resize: none; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--bg); color: var(--text); padding: 9px 12px; font-size: 13.5px;
+  font-family: inherit; max-height: 100px;
+}
+.fb-input-row textarea:focus, .fb-input-row input:focus { outline: none; border-color: var(--purple); }
+.fb-send-btn {
+  background: var(--purple); color: #fff; border: none; border-radius: var(--r-md);
+  padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+}
+.fb-send-btn:hover { background: #6a2ee0; }
+.fb-send-btn:disabled { opacity: .5; cursor: default; }
+.fb-skip-btn { background: none; border: none; color: var(--text3); font-size: 12px; cursor: pointer; margin-top: 6px; text-decoration: underline; }
+
+/* ═══════════════════════════════════════════
  * Auth Modal
  * ═══════════════════════════════════════════ */
 .auth-overlay {
@@ -1327,6 +1386,19 @@ button { font-family: inherit; }
 
 <div class="toast" id="toast"></div>
 
+<!-- 피드백 챗봇 -->
+<button class="fb-fab" id="fbFab" onclick="openFeedbackChat()" aria-label="의견 주기" title="의견 주기">💬</button>
+<div id="fbOverlay" class="fb-overlay" style="display:none" onclick="if(event.target===this)closeFeedbackChat()">
+  <div class="fb-modal">
+    <div class="fb-header">
+      <div class="fb-header-title">💬 의견 주기</div>
+      <button class="fb-close" onclick="closeFeedbackChat()" aria-label="닫기">✕</button>
+    </div>
+    <div class="fb-messages" id="fbMessages"></div>
+    <div class="fb-input-area" id="fbInputArea"></div>
+  </div>
+</div>
+
 <!-- Auth Modal -->
 <div id="authOverlay" class="auth-overlay" style="display:none" onclick="if(event.target===this)closeAuthModal()">
   <div class="auth-modal">
@@ -1908,6 +1980,120 @@ function switchTab(tab) {
 function toggleWatchlistTab() {
   const isActive = document.getElementById('tabWatchlist').classList.contains('active');
   switchTab(isActive ? 'feed' : 'watchlist');
+}
+
+/* ── 피드백 챗봇 ── */
+let _fbState = {};
+function openFeedbackChat() {
+  document.getElementById('fbOverlay').style.display = 'flex';
+  document.getElementById('fbMessages').innerHTML = '';
+  _fbState = {};
+  fbBotSay('안녕하세요! StockRipple에 대한 의견을 들려주세요 😊\n어떤 종류의 의견인가요?');
+  fbShowQuickReplies([
+    { label: '🐛 버그 신고', value: 'bug' },
+    { label: '💡 기능 제안', value: 'feature' },
+    { label: '🎨 디자인/UX', value: 'design' },
+    { label: '💬 기타', value: 'other' },
+  ], (val, label) => {
+    _fbState.category = val;
+    fbUserSay(label);
+    fbAskMessage();
+  });
+}
+function closeFeedbackChat() {
+  document.getElementById('fbOverlay').style.display = 'none';
+}
+function fbBotSay(text) {
+  const el = document.getElementById('fbMessages');
+  el.insertAdjacentHTML('beforeend', `<div class="fb-msg bot">${escHtml(text)}</div>`);
+  el.scrollTop = el.scrollHeight;
+}
+function fbUserSay(text) {
+  const el = document.getElementById('fbMessages');
+  el.insertAdjacentHTML('beforeend', `<div class="fb-msg user">${escHtml(text)}</div>`);
+  el.scrollTop = el.scrollHeight;
+}
+function fbShowQuickReplies(options, onPick) {
+  const area = document.getElementById('fbInputArea');
+  area.innerHTML = `<div class="fb-quick-replies">${options.map((o, i) => `<button class="fb-qr-btn" data-i="${i}">${escHtml(o.label)}</button>`).join('')}</div>`;
+  area.querySelectorAll('.fb-qr-btn').forEach((btn, i) => {
+    btn.onclick = () => {
+      area.querySelectorAll('.fb-qr-btn').forEach(b => b.disabled = true);
+      onPick(options[i].value, options[i].label);
+    };
+  });
+}
+function fbAskMessage() {
+  fbBotSay('자세히 알려주시면 큰 도움이 됩니다 :)');
+  const area = document.getElementById('fbInputArea');
+  area.innerHTML = `
+    <div class="fb-input-row">
+      <textarea id="fbMsgInput" rows="2" placeholder="의견을 입력해주세요..." maxlength="3000"></textarea>
+      <button class="fb-send-btn" id="fbMsgSend">전송</button>
+    </div>`;
+  const ta = document.getElementById('fbMsgInput');
+  const send = () => {
+    const val = ta.value.trim();
+    if (!val) return;
+    _fbState.message = val;
+    fbUserSay(val);
+    fbAskContact();
+  };
+  document.getElementById('fbMsgSend').onclick = send;
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+  ta.focus();
+}
+function fbAskContact() {
+  fbBotSay('혹시 답변 받으실 이메일을 남겨주시겠어요? (선택사항)');
+  const area = document.getElementById('fbInputArea');
+  area.innerHTML = `
+    <div class="fb-input-row">
+      <input type="email" id="fbContactInput" placeholder="example@email.com (선택)">
+      <button class="fb-send-btn" id="fbContactSend">제출</button>
+    </div>
+    <button class="fb-skip-btn" id="fbContactSkip">건너뛰기</button>`;
+  const input = document.getElementById('fbContactInput');
+  const submit = (skip) => {
+    const val = skip ? '' : input.value.trim();
+    _fbState.contact = val || null;
+    fbUserSay(val || '(건너뜀)');
+    fbSubmitFeedback();
+  };
+  document.getElementById('fbContactSend').onclick = () => submit(false);
+  document.getElementById('fbContactSkip').onclick = () => submit(true);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(false); });
+  input.focus();
+}
+async function fbSubmitFeedback() {
+  const area = document.getElementById('fbInputArea');
+  area.innerHTML = '';
+  fbBotSay('전송 중...');
+  const msgs = document.getElementById('fbMessages');
+  try {
+    const r = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        category: _fbState.category,
+        message: _fbState.message,
+        contact: _fbState.contact,
+        page: location.pathname,
+      }),
+    });
+    const j = await r.json();
+    msgs.lastElementChild?.remove();
+    if (j.ok) {
+      fbBotSay('소중한 의견 감사합니다! 더 나은 StockRipple을 만드는 데 반영하겠습니다 🙏');
+      area.innerHTML = `<button class="fb-send-btn" style="width:100%" onclick="closeFeedbackChat()">닫기</button>`;
+    } else {
+      fbBotSay('전송에 실패했어요 :( 잠시 후 다시 시도해주세요.');
+      area.innerHTML = `<button class="fb-send-btn" style="width:100%" onclick="fbSubmitFeedback()">다시 시도</button>`;
+    }
+  } catch (e) {
+    msgs.lastElementChild?.remove();
+    fbBotSay('전송에 실패했어요 :( 네트워크를 확인해주세요.');
+    area.innerHTML = `<button class="fb-send-btn" style="width:100%" onclick="fbSubmitFeedback()">다시 시도</button>`;
+  }
 }
 
 /* ── Auth Modal ── */

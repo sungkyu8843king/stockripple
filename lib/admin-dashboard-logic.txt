@@ -1,4 +1,4 @@
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', feedback: '💬 사용자 피드백', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -13,6 +13,7 @@ function showPanel(name) {
   if (name === 'accuracy') loadAccuracy();
   if (name === 'backtest' && !window._btLoaded) { window._btLoaded = true; loadBacktest(); }
   if (name === 'investments') invLoad();
+  if (name === 'feedback') loadFeedback();
 }
 
 // panels 라벨도 추가
@@ -137,6 +138,7 @@ async function loadDashStats() {
   document.getElementById('ds-analyzed').textContent = a.count ?? '—';
   document.getElementById('ds-pending').textContent = ((i.count ?? 0) - (a.count ?? 0));
   document.getElementById('ds-companies').textContent = c.count ?? '—';
+  loadFeedbackBadge();
 }
 
 async function loadIssuesTable() {
@@ -957,4 +959,65 @@ async function invLoadChart() {
 
 if (typeof escAttr !== 'function') {
   window.escAttr = function(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+}
+
+// ── 사용자 피드백 (랜딩 페이지 챗봇 위젯 → 여기서 검토/상태 관리) ──
+const FB_CAT_LABEL = { bug: '🐛 버그', feature: '💡 기능제안', design: '🎨 디자인', other: '💬 기타' };
+const FB_CAT_COLOR = { bug: 'var(--red-dim)', feature: 'var(--blue-dim)', design: 'var(--green-dim)', other: 'var(--bg3)' };
+const FB_STATUS_LABEL = { new: '🆕 신규', reviewed: '👀 검토됨', planned: '📌 반영예정', done: '✅ 반영완료', rejected: '🗑️ 반려' };
+
+async function loadFeedback() {
+  const status = document.getElementById('fbStatusFilter')?.value || 'new';
+  const list = document.getElementById('fbList');
+  if (!list) return;
+  list.innerHTML = '<div class="loading-row">불러오는 중...</div>';
+  const data = await callApi(`/api/feedback?action=list&status=${status}`, {}, 'fbLog');
+  if (!data) { list.innerHTML = '<div class="loading-row">불러오기 실패</div>'; return; }
+  const items = data.items || [];
+  const countEl = document.getElementById('fbCount');
+  if (countEl) countEl.textContent = `${items.length}건`;
+  if (!items.length) { list.innerHTML = '<div class="loading-row">해당 상태의 피드백이 없습니다</div>'; return; }
+  list.innerHTML = items.map(renderFeedbackCard).join('');
+}
+
+function renderFeedbackCard(f) {
+  const date = new Date(f.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return `<div class="fb-card" id="fb-card-${f.id}">
+    <div class="fb-card-top">
+      <span class="fb-cat-badge" style="background:${FB_CAT_COLOR[f.category] || 'var(--bg3)'}">${FB_CAT_LABEL[f.category] || escHtml(f.category)}</span>
+      ${f.page ? `<span style="font-size:11px;color:var(--text3)">${escHtml(f.page)}</span>` : ''}
+      <span style="flex:1"></span>
+      <span style="font-size:11px;color:var(--text3)">${date}</span>
+    </div>
+    <div class="fb-card-msg">${escHtml(f.message)}</div>
+    ${f.contact ? `<div class="fb-card-meta">📧 ${escHtml(f.contact)}</div>` : ''}
+    <div class="fb-card-actions">
+      <select class="fb-status-select" onchange="fbUpdateStatus(${f.id}, this.value)">
+        ${Object.entries(FB_STATUS_LABEL).map(([k, v]) => `<option value="${k}" ${f.status === k ? 'selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="fbEditNote(${f.id})">${f.admin_note ? '📝 메모 수정' : '📝 메모 추가'}</button>
+    </div>
+    ${f.admin_note ? `<div class="fb-card-meta" style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)">💭 ${escHtml(f.admin_note)}</div>` : ''}
+  </div>`;
+}
+
+async function fbUpdateStatus(id, status) {
+  const data = await callApi('/api/feedback?action=update', { id, status }, 'fbLog');
+  if (data?.ok) { showToast('상태가 변경되었습니다', 'success'); loadFeedbackBadge(); }
+}
+
+async function fbEditNote(id) {
+  const note = prompt('관리자 메모를 입력하세요:');
+  if (note === null) return;
+  const data = await callApi('/api/feedback?action=update', { id, admin_note: note }, 'fbLog');
+  if (data?.ok) { showToast('메모가 저장되었습니다', 'success'); loadFeedback(); }
+}
+
+async function loadFeedbackBadge() {
+  const badge = document.getElementById('fbNavBadge');
+  if (!badge) return;
+  const data = await callApi('/api/feedback?action=list&status=new', {}, 'fbLog');
+  const n = data?.items?.length || 0;
+  badge.textContent = n;
+  badge.style.display = n > 0 ? 'inline-block' : 'none';
 }
