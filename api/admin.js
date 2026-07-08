@@ -2411,9 +2411,14 @@ async function handleLiveRefresh(req, res) {
   const faf = (path, body) => {
     fetch(`${base}${path}`, { method: 'POST', headers: authHeaders, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(55000) }).catch(() => {});
   };
-  // RSS 수집(무료) + 소량 AI 분석 — 분석은 미분석 이슈가 있을 때만 Claude 호출(비용은 뉴스량에 비례)
+  // RSS 수집(무료) + 소량 AI 분석 — max_chain:1로 강제 고정해 체이닝 방지.
+  // (기존엔 max_chain 미지정 → analyze.js 기본값(4)까지 체이닝돼 트리거 1회당 최대 16건까지
+  //  Claude 호출이 번짐. 백로그 처리는 시간당 크론(analyze-backlog, 체이닝 최대 8회)이 이미
+  //  전담 — live-refresh는 "장중에 사이트 보는 동안 살짝 최신화"가 목적이라 가볍게 가야 함.
+  //  75s 크로스인스턴스 게이트와 합쳐도 동시접속자가 많으면 배수로 불어날 수 있어
+  //  트리거당 상한을 명시적으로 좁혀 방어. 비용 급증 대응 2026-07)
   faf('/api/fetch?type=rss');
-  faf('/api/analyze', { limit: 4 });
+  faf('/api/analyze', { limit: 2, max_chain: 1 });
   // AI 시장 종합도 함께 갱신(서버 3h 신선도 가드로 Claude는 최대 3시간에 1회만) — 장중 브라우저가 열려 있으면 자동 최신화
   faf('/api/admin?action=ai-market-summary');
   return res.status(200).json({ ok: true, triggered: true, market: mk.krOpen ? 'KR' : 'US' });

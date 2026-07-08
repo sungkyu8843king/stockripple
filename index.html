@@ -4159,12 +4159,22 @@ const HEATMAP_TICKERS = {
   ],
 };
 let _hmMkt = 'us', _hmRange = '1d';
+let _hmMobileExpanded = false;   // 모바일에서 "더보기" 눌러 전체 표시했는지 (탭 전환 시 초기화)
+const HM_MOBILE_LIMIT = 30;       // 모바일 초기 표시 개수 — us(525)/kr(236)를 그대로 세로 스크롤하면 끝이 없어 상단만 먼저 보여줌
+const isNarrowViewport = () => window.matchMedia('(max-width: 700px)').matches;
 
 function switchHeatmap(mkt, range) {
   if (mkt)   _hmMkt = mkt;
   if (range) _hmRange = range;
+  _hmMobileExpanded = false;
   document.querySelectorAll('.hm-mkt').forEach(b => b.classList.toggle('active', b.dataset.mkt === _hmMkt));
   document.querySelectorAll('.hm-range').forEach(b => b.classList.toggle('active', b.dataset.range === _hmRange));
+  loadHeatmap();
+}
+
+function expandHeatmapMobile() {
+  _hmMobileExpanded = true;
+  _hmStructureKey = '';   // 강제 리렌더 트리거
   loadHeatmap();
 }
 
@@ -4802,7 +4812,11 @@ async function loadHeatmap() {
 
     if (needsRebuild) {
       // 통째 리렌더 — 시장/기간 토글 시
-      grid.innerHTML = items.map(it => {
+      // 모바일은 목록이 최대 525개(미장)까지 가서 무한 스크롤이 되므로 초기엔 상위 N개만 보여주고
+      // "더보기"로 확장 (데스크톱은 기존대로 전체 표시 — 그리드 레이아웃이라 스크롤 부담 적음)
+      const showAll = !isNarrowViewport() || _hmMobileExpanded;
+      const displayItems = showAll ? items : items.slice(0, HM_MOBILE_LIMIT);
+      const cellsHtml = displayItems.map(it => {
         const sign = it.pct >= 0 ? '+' : '';
         const display = it.ticker.replace(/\.(KS|KQ)$/, '');
         const c = heatmapColorFor(it.pct);
@@ -4812,6 +4826,10 @@ async function loadHeatmap() {
           <div class="hm-pct t-num" style="font-size:13px;font-weight:800;margin-top:3px">${sign}${it.pct.toFixed(2)}%</div>
         </a>`;
       }).join('') || '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">데이터 없음</div>';
+      const moreBtn = (!showAll && items.length > HM_MOBILE_LIMIT)
+        ? `<button onclick="expandHeatmapMobile()" style="grid-column:1/-1;padding:12px;margin-top:4px;border:1px dashed var(--border);border-radius:10px;background:var(--bg2);color:var(--blue);font-size:13px;font-weight:700;cursor:pointer">▾ ${items.length - HM_MOBILE_LIMIT}개 더보기 (전체 ${items.length}개)</button>`
+        : '';
+      grid.innerHTML = cellsHtml + moreBtn;
       _hmStructureKey = structureKey;
       _hmCellState[structureKey] = {};
       items.forEach(it => { _hmCellState[structureKey][it.ticker] = it.pct; });
@@ -4862,7 +4880,8 @@ async function loadHeatmap() {
     const countEl = document.getElementById('heatmapItemCount');
     if (countEl) {
       const missing = tickers.length - items.length;
-      countEl.textContent = `${items.length}개 표시${missing > 0 ? ` · ${missing}개 데이터 없음` : ''} / ${tickers.length}개 요청`;
+      const shownCount = (!isNarrowViewport() || _hmMobileExpanded) ? items.length : Math.min(items.length, HM_MOBILE_LIMIT);
+      countEl.textContent = `${shownCount}개 표시${shownCount < items.length ? ` (전체 ${items.length}개)` : ''}${missing > 0 ? ` · ${missing}개 데이터 없음` : ''} / ${tickers.length}개 요청`;
     }
   } catch (e) {
     if (needsRebuild) grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--red);font-size:12px;padding:20px">로드 실패: ${e.message}</div>`;
@@ -5061,9 +5080,10 @@ function computeMarketStatus(market) {
   // 이슈 피드 실시간: 장중 45초마다 새 이슈 감지(배너), 30초마다 LIVE 태그 갱신
   setInterval(() => { try { pollNewIssues(); } catch {} }, 45000);
   setInterval(() => { try { updateFeedLiveTag(); } catch {} }, 30000);
-  // 장중 브라우저 구동 수집: 즉시 1회 + 120초마다 (서버가 게이트·레이트리밋)
+  // 장중 브라우저 구동 수집: 즉시 1회 + 5분마다 (서버가 게이트·레이트리밋 — 간격을 늘려
+  // 동시접속자 많을 때 Claude 호출이 겹쳐 불어나는 걸 추가로 방지, 비용 급증 대응 2026-07)
   try { triggerLiveCollect(); } catch {}
-  setInterval(() => { try { triggerLiveCollect(); } catch {} }, 120000);
+  setInterval(() => { try { triggerLiveCollect(); } catch {} }, 300000);
   // 5분마다 국장 현황 새로고침
   setInterval(() => { try { delete _kmCache[_kmTab]; loadKrMarket(); } catch {} }, 300000);
 })();
