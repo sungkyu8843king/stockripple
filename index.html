@@ -956,6 +956,12 @@ button { font-family: inherit; }
   .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; }
   .header-nav { flex-wrap: wrap; row-gap: 4px; }
   .nav-btn.admin-only { display: none; }
+
+  /* "지금 매수 후보" 카드 그리드가 minmax(420px,...)라서 375px 화면에서 넘쳐
+     모바일 브라우저가 페이지 전체를 축소 렌더링하던 문제 — 위와 같은 원인.
+     인라인 스타일(el.innerHTML의 grid-template-columns)보다 우선하려면 !important 필요.
+     카드 내부 요소들이 %/em 기반이라 1열로 늘어나도 그대로 잘 맞음. */
+  #insightsPanel > div { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 600px) {
   :root { --page-pad: 16px; }
