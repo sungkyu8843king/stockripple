@@ -333,8 +333,14 @@ button { font-family: inherit; }
 .section-block { margin-bottom: 28px; }
 /* 홈 미리보기: 히트맵/국장현황은 일부만 보여주고 전체는 /market.html로 유도
    (정보 밀도 완화 — 전체 랭킹/탭은 전용 페이지에서) */
-#heatmapSection #heatmapGrid { max-height: 260px; overflow: hidden; }
-#krMarketSection #krMarketPanel { max-height: 280px; overflow: hidden; }
+#heatmapSection #heatmapGrid { max-height: 260px; overflow: hidden; position: relative; }
+#krMarketSection #krMarketPanel { max-height: 280px; overflow: hidden; position: relative; }
+#heatmapSection #heatmapGrid::after,
+#krMarketSection #krMarketPanel::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 56px;
+  background: linear-gradient(to bottom, transparent, var(--bg) 80%);
+  pointer-events: none;
+}
 
 /* ═══════════════════════════════════════════
  * Feed toolbar (카테고리 + 섹터 + 검색)
