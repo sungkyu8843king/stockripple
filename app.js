@@ -3478,29 +3478,56 @@ const _hmCellState = {};   // key: ticker → { pct, mkt, range }
 let _hmInFlight = false;
 let _hmStructureKey = '';  // 현재 그려진 grid 시그니처 (mkt+range+티커리스트)
 
+// ─── 📊 리포트 공통 디자인 토큰 ────────────────────────────
+// AI 시장 종합 / 데일리 미장 / 데일리 국장 세 리포트가 폰트·크기·배지를 동일하게
+// 쓰도록 헬퍼로 통일. 시장 심리 배지는 영문(RISK-ON)과 국문(상승)이 섞여 있던 걸
+// 하나의 배지 컴포넌트로 합쳐 라벨·색·아이콘을 일관되게 렌더한다.
+const REPORT_LABEL = 'font-size:11px;font-weight:700;margin-bottom:4px';   // 섹션 소제목
+const REPORT_HEADLINE = 'font-size:14px;font-weight:700;line-height:1.45;margin-bottom:10px';
+const REPORT_LIST = 'margin:0;padding-left:16px;font-size:12px;color:var(--text2);line-height:1.6';
+const REPORT_META = 'font-size:11px;color:var(--text3)';
+
+const SENTIMENT_MAP = {
+  'RISK-ON':  { dir: 'pos', label: '위험선호' },
+  'RISK-OFF': { dir: 'neg', label: '위험회피' },
+  'MIXED':    { dir: 'neu', label: '혼조' },
+  '상승':     { dir: 'pos', label: '상승' },
+  '하락':     { dir: 'neg', label: '하락' },
+  '혼조':     { dir: 'neu', label: '혼조' },
+};
+function sentimentBadge(value) {
+  const s = SENTIMENT_MAP[value] || { dir: 'neu', label: value || '혼조' };
+  const color = s.dir === 'pos' ? 'var(--green)' : s.dir === 'neg' ? 'var(--red)' : 'var(--yellow)';
+  const icon  = s.dir === 'pos' ? '▲' : s.dir === 'neg' ? '▼' : '◆';
+  return `<span style="display:inline-flex;align-items:center;gap:4px;background:${color};color:#fff;font-size:11px;font-weight:800;padding:4px 11px;border-radius:999px;white-space:nowrap">${icon} ${escHtml(s.label)}</span>`;
+}
+function reportList(items) {
+  return Array.isArray(items) && items.length
+    ? `<ul style="${REPORT_LIST}">${items.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>`
+    : '<div style="font-size:11px;color:var(--text3)">—</div>';
+}
+
 // ─── 🤖 AI 시장 종합 ─────────────────────────────────────
 function aiSummaryHTML(d) {
-  const regimeColor = d.regime === 'RISK-ON' ? 'var(--green)' : d.regime === 'RISK-OFF' ? 'var(--red)' : 'var(--yellow)';
-  const list = (items, color = 'var(--text2)') => Array.isArray(items) && items.length
-    ? `<ul style="margin:0;padding-left:14px;font-size:11.5px;color:${color};line-height:1.55">${items.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>`
-    : '<div style="font-size:11px;color:var(--text3)">—</div>';
-
+  const when = d.created_at
+    ? new Date(d.created_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : '';
   return `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <span style="background:${regimeColor};color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px">${escHtml(d.regime || '—')}</span>
-      <span style="font-size:11px;color:var(--text3)">${d.based_on_issues || 0}건 분석</span>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      ${sentimentBadge(d.regime)}
+      <span style="${REPORT_META}">${when ? when + ' · ' : ''}${d.based_on_issues || 0}건 분석</span>
     </div>
-    <div style="font-size:13px;font-weight:600;line-height:1.4;margin-bottom:10px">${escHtml(d.headline || '')}</div>
-    <div style="font-size:10px;color:var(--green);font-weight:700;margin-bottom:3px">▲ 강세 요인</div>
-    ${list(d.bullish_drivers)}
-    <div style="font-size:10px;color:var(--red);font-weight:700;margin:8px 0 3px">▼ 약세 요인</div>
-    ${list(d.bearish_drivers)}
-    <div style="font-size:10px;color:var(--blue);font-weight:700;margin:8px 0 3px">🏆 수혜 섹터</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.sectors_winning||[]).map(s => `<span style="font-size:10px;padding:2px 7px;border-radius:999px;background:var(--green-dim);color:var(--green)">${escHtml(s)}</span>`).join('')}</div>
-    <div style="font-size:10px;color:var(--text3);font-weight:700;margin:8px 0 3px">📉 피해 섹터</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.sectors_losing||[]).map(s => `<span style="font-size:10px;padding:2px 7px;border-radius:999px;background:var(--red-dim);color:var(--red)">${escHtml(s)}</span>`).join('')}</div>
-    <div style="font-size:10px;color:var(--blue);font-weight:700;margin:8px 0 3px">👁 내일 주시</div>
-    ${list(d.watch_tomorrow)}
+    <div style="${REPORT_HEADLINE}">${escHtml(d.headline || '')}</div>
+    <div style="color:var(--green);${REPORT_LABEL}">▲ 강세 요인</div>
+    ${reportList(d.bullish_drivers)}
+    <div style="color:var(--red);${REPORT_LABEL};margin-top:8px">▼ 약세 요인</div>
+    ${reportList(d.bearish_drivers)}
+    <div style="color:var(--blue);${REPORT_LABEL};margin-top:8px">🏆 수혜 섹터</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.sectors_winning||[]).map(s => `<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:var(--green-dim);color:var(--green)">${escHtml(s)}</span>`).join('')}</div>
+    <div style="color:var(--text3);${REPORT_LABEL};margin-top:8px">📉 피해 섹터</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.sectors_losing||[]).map(s => `<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:var(--red-dim);color:var(--red)">${escHtml(s)}</span>`).join('')}</div>
+    <div style="color:var(--blue);${REPORT_LABEL};margin-top:8px">👁 내일 주시</div>
+    ${reportList(d.watch_tomorrow)}
   `;
 }
 
@@ -3598,17 +3625,11 @@ let _drTab = 'US';
 const _drCache = {};   // { US: data|null, KR: data|null }
 
 function dailyReportHTML(d, compact) {
-  const moodColor = d.mood === '상승' ? 'var(--green)' : d.mood === '하락' ? 'var(--red)' : 'var(--yellow)';
-  const moodIcon  = d.mood === '상승' ? '▲' : d.mood === '하락' ? '▼' : '◆';
-  const list = (items) => Array.isArray(items) && items.length
-    ? `<ul class="dr-list" style="margin:0;padding-left:14px;font-size:11.5px;color:var(--text2);line-height:1.55">${items.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>`
-    : '<div style="font-size:11px;color:var(--text3)">—</div>';
-
   const idxChips = Array.isArray(d.indices) && d.indices.length
     ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">${d.indices.map(x => {
         const c = x.changePercent == null ? 'var(--text3)' : x.changePercent >= 0 ? 'var(--green)' : 'var(--red)';
         const sign = x.changePercent != null && x.changePercent >= 0 ? '+' : '';
-        return `<span style="font-size:10.5px;padding:3px 8px;border-radius:6px;background:var(--bg3);border:1px solid var(--border)">
+        return `<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:var(--bg3);border:1px solid var(--border)">
           <b>${escHtml(x.name)}</b> <span style="font-family:'SF Mono',monospace">${Number(x.price).toLocaleString()}</span>
           ${x.changePercent != null ? `<span style="color:${c};font-weight:700"> ${sign}${x.changePercent}%</span>` : ''}
         </span>`;
@@ -3617,24 +3638,24 @@ function dailyReportHTML(d, compact) {
 
   const drTime = d.created_at ? new Date(d.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
   return `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <span class="dr-mood" style="background:${moodColor}">${moodIcon} ${escHtml(d.mood || '혼조')}</span>
-      <span style="font-size:11px;color:var(--text3)">${escHtml(d.report_date || '')}${drTime ? ' ' + drTime : ''} · ${d.based_on_issues || 0}건 분석</span>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      ${sentimentBadge(d.mood)}
+      <span style="${REPORT_META}">${escHtml(d.report_date || '')}${drTime ? ' ' + drTime : ''} · ${d.based_on_issues || 0}건 분석</span>
     </div>
-    <div class="dr-headline" style="font-size:13px;font-weight:600;line-height:1.4;margin-bottom:10px">${escHtml(d.headline || '')}</div>
+    <div style="${REPORT_HEADLINE}">${escHtml(d.headline || '')}</div>
     ${idxChips}
     ${Array.isArray(d.catalysts) && d.catalysts.length ? `
-    <div class="dr-sec" style="font-size:10px;color:var(--purple);font-weight:700;margin:2px 0 4px">📌 다가오는 핵심 이벤트</div>
+    <div style="color:var(--purple);${REPORT_LABEL}">📌 다가오는 핵심 이벤트</div>
     <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:9px">${d.catalysts.map(c => `<div class="dr-cat">${escHtml(c)}</div>`).join('')}</div>` : ''}
-    <div class="dr-sec" style="font-size:10px;color:var(--blue);font-weight:700;margin-bottom:3px">📋 오늘 시장 흐름</div>
-    ${list(d.recap)}
-    <div class="dr-sec" style="font-size:10px;color:var(--yellow);font-weight:700;margin:8px 0 3px">⚡ 주요 이벤트</div>
-    ${list(d.top_events)}
+    <div style="color:var(--blue);${REPORT_LABEL}">📋 오늘 시장 흐름</div>
+    ${reportList(d.recap)}
+    <div style="color:var(--yellow);${REPORT_LABEL};margin-top:8px">⚡ 주요 이벤트</div>
+    ${reportList(d.top_events)}
     ${!compact ? `
-    <div class="dr-sec" style="font-size:10px;color:var(--green);font-weight:700;margin:8px 0 3px">🔍 섹터·종목 특징</div>
-    ${list(d.sector_notes)}` : ''}
-    <div class="dr-sec" style="font-size:10px;color:var(--blue);font-weight:700;margin:8px 0 3px">👁 다음 거래일 관전 포인트</div>
-    ${list(d.tomorrow)}
+    <div style="color:var(--green);${REPORT_LABEL};margin-top:8px">🔍 섹터·종목 특징</div>
+    ${reportList(d.sector_notes)}` : ''}
+    <div style="color:var(--blue);${REPORT_LABEL};margin-top:8px">👁 다음 거래일 관전 포인트</div>
+    ${reportList(d.tomorrow)}
   `;
 }
 
@@ -3878,9 +3899,7 @@ async function renderArchList() {
     const dateStr = isAi
       ? new Date(d.created_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
       : (d.report_date || '') + (d.created_at ? ' ' + new Date(d.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '');
-    const badge = isAi
-      ? `<span style="font-size:10px;font-weight:700;color:${d.regime === 'RISK-ON' ? 'var(--green)' : d.regime === 'RISK-OFF' ? 'var(--red)' : 'var(--yellow)'}">${escHtml(d.regime || '')}</span>`
-      : `<span style="font-size:10px;font-weight:700;color:${d.mood === '상승' ? 'var(--green)' : d.mood === '하락' ? 'var(--red)' : 'var(--yellow)'}">${escHtml(d.mood || '')}</span>`;
+    const badge = sentimentBadge(isAi ? d.regime : d.mood);
     return `
     <div class="arch-item" onclick="renderArchDetail(${i})">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">

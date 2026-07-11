@@ -1068,6 +1068,37 @@ async function loadAnnouncement() {
     if (status) status.textContent = '불러오기 실패';
   }
   loadAnnouncementBadge();
+  loadAnnouncementLog();
+}
+
+function fmtDur(ms) {
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${m}분`;
+  const h = Math.floor(m / 60);
+  return `${h}시간 ${m % 60}분`;
+}
+async function loadAnnouncementLog() {
+  const tbody = document.getElementById('annLogBody');
+  if (!tbody) return;
+  const data = await callApi('/api/admin?action=announcement-log&limit=30', {}, null);
+  if (!data?.ok) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--red)">불러오기 실패</td></tr>'; return; }
+  if (!data.items.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3)">이력 없음</td></tr>'; return; }
+  const fmt = t => t ? new Date(t).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+  tbody.innerHTML = data.items.map(it => {
+    const badge = it.source === 'auto'
+      ? '<span class="badge badge-blue">🤖 자동</span>'
+      : '<span class="badge badge-gray">✍ 수동</span>';
+    const dur = it.ended_at
+      ? fmtDur(new Date(it.ended_at) - new Date(it.started_at))
+      : '<span style="color:var(--green);font-weight:700">노출 중</span>';
+    return `<tr>
+      <td>${badge}</td>
+      <td><div class="truncate" title="${escHtml(it.message || '')}">${escHtml(it.message || '—')}</div></td>
+      <td style="font-size:11px;color:var(--text3);white-space:nowrap">${fmt(it.started_at)}</td>
+      <td style="font-size:11px;color:var(--text3);white-space:nowrap">${it.ended_at ? fmt(it.ended_at) : '—'}</td>
+      <td style="text-align:right;font-size:11px">${dur}</td>
+    </tr>`;
+  }).join('');
 }
 
 async function saveAnnouncement() {
@@ -1080,6 +1111,7 @@ async function saveAnnouncement() {
   const note = document.getElementById('annAutoNote');
   if (note) note.style.display = 'none';
   loadAnnouncementBadge();
+  loadAnnouncementLog();
 }
 
 // ── 종목 조회수 통계 ────────────────────────────────────────────────────

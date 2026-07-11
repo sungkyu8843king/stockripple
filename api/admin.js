@@ -104,6 +104,7 @@ export default async function handler(req, res) {
   if (action === 'view-stats') return handleViewStats(req, res);
   if (action === 'analytics') return handleAnalytics(req, res);
   if (action === 'set-announcement') return handleSetAnnouncement(req, res);
+  if (action === 'announcement-log') return handleAnnouncementLog(req, res);
   if (action === 'list-users') return handleListUsers(req, res);
   if (action === 'ban-user') return handleBanUser(req, res);
 
@@ -475,10 +476,19 @@ async function handleGetAnnouncement(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const { data, error } = await supabase
     .from('site_announcement')
-    .select('active, message, updated_at, source')
+    .select('active, message, updated_at, source, auto_expires_at')
     .eq('id', 1)
     .maybeSingle();
   if (error || !data) return res.status(200).json({ active: false, message: '' });
+
+  // 자동 배너 lazy 만료 — 매 페이지 로드가 이 조회를 하므로 별도 cron 없이 self-heal.
+  // 서킷/사이드카가 끝나면(=TTL 경과) 자동으로 배너가 꺼지고 이력에 종료 시각이 기록된다.
+  if (data.active && data.source === 'auto' && data.auto_expires_at && new Date(data.auto_expires_at) < new Date()) {
+    const now = new Date().toISOString();
+    await supabase.from('site_announcement').update({ active: false, updated_at: now }).eq('id', 1);
+    await supabase.from('announcement_log').update({ ended_at: now }).is('ended_at', null);
+    return res.status(200).json({ active: false, message: '', source: 'auto' });
+  }
   return res.status(200).json({ active: !!data.active, message: data.message || '', updated_at: data.updated_at, source: data.source || 'manual' });
 }
 
@@ -486,14 +496,38 @@ async function handleSetAnnouncement(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const active = !!req.body?.active;
   const message = (req.body?.message || '').toString().slice(0, 500);
+  const now = new Date().toISOString();
+
+  const { data: prev } = await supabase.from('site_announcement').select('active').eq('id', 1).maybeSingle();
+  const wasActive = !!prev?.active;
 
   // 관리자가 대시보드에서 직접 저장하면 항상 'manual'로 표시 — 이후 자동 트리거
   // 로직(analyze.js)이 이 배너를 절대 덮어쓰지 않도록 하는 표식.
   const { error } = await supabase.from('site_announcement').upsert({
-    id: 1, active, message, source: 'manual', source_issue_id: null, updated_at: new Date().toISOString(),
+    id: 1, active, message, source: 'manual', source_issue_id: null, auto_expires_at: null, updated_at: now,
   });
   if (error) return res.status(500).json({ error: error.message });
+
+  // 이력 기록: 새로 켜지면 새 이력 시작, 꺼지면 열려있던 이력 종료
+  if (active && !wasActive) {
+    await supabase.from('announcement_log').update({ ended_at: now }).is('ended_at', null);
+    await supabase.from('announcement_log').insert({ source: 'manual', message, started_at: now });
+  } else if (!active && wasActive) {
+    await supabase.from('announcement_log').update({ ended_at: now }).is('ended_at', null);
+  }
+
   return res.status(200).json({ ok: true, active, message });
+}
+
+async function handleAnnouncementLog(req, res) {
+  const limit = Math.min(parseInt(req.query.limit) || 30, 100);
+  const { data, error } = await supabase
+    .from('announcement_log')
+    .select('source, message, started_at, ended_at')
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, items: data || [] });
 }
 
 // ════════════════════════════════════════════════════════════

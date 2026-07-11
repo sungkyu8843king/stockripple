@@ -22,16 +22,29 @@ function detectBreakingNews(title) {
   if (!title) return null;
   return BREAKING_KEYWORDS.find(k => title.includes(k)) || null;
 }
+// 자동 배너 노출 유지 시간 — 서킷브레이커·사이드카 등 이벤트 창을 덮되 하루종일
+// 남지 않도록 2시간 뒤 자동 만료. 만료 처리는 handleGetAnnouncement가 조회 시점에
+// lazily 수행한다(별도 cron 불필요 — 배너는 매 페이지 로드마다 폴링됨).
+const AUTO_ANNOUNCE_TTL_MS = 2 * 3600 * 1000;
+
 async function maybeAutoAnnounce(issue, matchedKeyword) {
   try {
-    const { data: cur } = await supabase.from('site_announcement').select('source, source_issue_id').eq('id', 1).maybeSingle();
+    const { data: cur } = await supabase.from('site_announcement').select('active, source, source_issue_id').eq('id', 1).maybeSingle();
     if (cur?.source === 'manual' && cur?.active) return; // 관리자가 수동으로 켠 배너는 보존
-    if (cur?.source === 'auto' && cur?.source_issue_id === issue.id) return; // 같은 이슈로 이미 트리거됨
+    if (cur?.source === 'auto' && cur?.active && cur?.source_issue_id === issue.id) return; // 같은 이슈로 이미 노출 중
 
+    // 다른 배너가 켜져 있었다면 그 이력 종료 처리 후 새 이력 시작
+    await supabase.from('announcement_log').update({ ended_at: new Date().toISOString() }).is('ended_at', null);
+
+    const now = new Date();
     const message = `🚨 [속보] ${issue.title}`.slice(0, 500);
     await supabase.from('site_announcement').upsert({
       id: 1, active: true, message, source: 'auto', source_issue_id: issue.id,
-      updated_at: new Date().toISOString(),
+      auto_expires_at: new Date(now.getTime() + AUTO_ANNOUNCE_TTL_MS).toISOString(),
+      updated_at: now.toISOString(),
+    });
+    await supabase.from('announcement_log').insert({
+      source: 'auto', message, source_issue_id: issue.id, started_at: now.toISOString(),
     });
   } catch (e) {
     console.error('auto-announce failed:', e.message);

@@ -650,6 +650,13 @@ const SHELL_HTML = `
           <span id="annStatus" style="font-size:12px;color:var(--text3);align-self:center"></span>
         </div>
       </div>
+      <div class="card" style="margin-top:14px">
+        <div class="card-title">📜 발동 이력 <span class="meta" style="font-weight:400;color:var(--text3)">자동/수동 · 시작·종료 시각</span></div>
+        <table style="margin-top:8px">
+          <thead><tr><th style="width:70px">구분</th><th>문구</th><th style="width:150px">시작</th><th style="width:150px">종료</th><th style="width:70px;text-align:right">노출시간</th></tr></thead>
+          <tbody id="annLogBody"><tr><td colspan="5" style="text-align:center;color:var(--text3)">로딩 중...</td></tr></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Settings -->
