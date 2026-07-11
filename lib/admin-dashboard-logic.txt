@@ -1,4 +1,4 @@
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', feedback: '💬 사용자 피드백', users: '👤 회원 관리', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', feedback: '💬 사용자 피드백', users: '👤 회원 관리', announcement: '🚨 긴급 안내', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -16,6 +16,7 @@ function showPanel(name) {
   if (name === 'views') loadViewStats();
   if (name === 'feedback') loadFeedback();
   if (name === 'users') loadUsers();
+  if (name === 'announcement') loadAnnouncement();
 }
 
 // panels 라벨도 추가
@@ -141,6 +142,7 @@ async function loadDashStats() {
   document.getElementById('ds-pending').textContent = ((i.count ?? 0) - (a.count ?? 0));
   document.getElementById('ds-companies').textContent = c.count ?? '—';
   loadFeedbackBadge();
+  loadAnnouncementBadge();
 }
 
 async function loadIssuesTable() {
@@ -1022,6 +1024,42 @@ async function loadFeedbackBadge() {
   const n = data?.items?.length || 0;
   badge.textContent = n;
   badge.style.display = n > 0 ? 'inline-block' : 'none';
+}
+
+// ── 긴급 안내 배너 ──────────────────────────────────────────────────────
+async function loadAnnouncementBadge() {
+  const badge = document.getElementById('annNavBadge');
+  if (!badge) return;
+  try {
+    const r = await fetch('/api/admin?action=announcement');
+    const d = await r.json();
+    badge.style.display = d?.active ? 'inline-block' : 'none';
+  } catch { badge.style.display = 'none'; }
+}
+
+async function loadAnnouncement() {
+  const status = document.getElementById('annStatus');
+  if (status) status.textContent = '불러오는 중...';
+  try {
+    const r = await fetch('/api/admin?action=announcement');
+    const d = await r.json();
+    document.getElementById('annActive').checked = !!d.active;
+    document.getElementById('annMessage').value = d.message || '';
+    if (status) status.textContent = d.updated_at ? `마지막 수정: ${new Date(d.updated_at).toLocaleString('ko-KR')}` : '';
+  } catch {
+    if (status) status.textContent = '불러오기 실패';
+  }
+  loadAnnouncementBadge();
+}
+
+async function saveAnnouncement() {
+  const active = document.getElementById('annActive').checked;
+  const message = document.getElementById('annMessage').value.trim();
+  if (active && !message) { showToast('배너를 활성화하려면 문구를 입력하세요', 'error'); return; }
+  const data = await callApi('/api/admin?action=set-announcement', { active, message }, 'annLog');
+  if (!data?.ok) { showToast('저장 실패', 'error'); return; }
+  showToast(active ? '배너를 활성화했습니다' : '배너를 비활성화했습니다', 'success');
+  loadAnnouncementBadge();
 }
 
 // ── 종목 조회수 통계 ────────────────────────────────────────────────────

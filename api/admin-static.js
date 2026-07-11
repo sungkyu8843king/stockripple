@@ -69,6 +69,10 @@ const SHELL_HTML = `
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       👤 회원 관리
     </button>
+    <button class="nav-item" data-panel="announcement">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      🚨 긴급 안내 <span id="annNavBadge" class="fb-nav-badge" style="display:none">ON</span>
+    </button>
     <button class="nav-item" data-panel="settings">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
       API 키 설정
@@ -569,6 +573,27 @@ const SHELL_HTML = `
           <thead><tr><th>이메일</th><th>가입 방법</th><th>가입일</th><th>최근 로그인</th><th>상태</th><th style="text-align:right">관리</th></tr></thead>
           <tbody id="usersTableBody"><tr><td colspan="6" style="text-align:center;color:var(--text3)">로딩 중...</td></tr></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- 긴급 안내 배너 -->
+    <div class="panel-section" id="panel-announcement">
+      <div class="section-header">
+        <h2>🚨 긴급 안내</h2>
+        <p>활성화하면 사이트 모든 페이지 상단에 배너로 노출됩니다 (사용자가 닫기 전까지 유지). 장애·점검 등 긴급 공지에 사용하세요.</p>
+      </div>
+      <div class="card">
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:14px">
+          <input type="checkbox" id="annActive" style="width:16px;height:16px;cursor:pointer">
+          배너 활성화
+        </label>
+        <textarea id="annMessage" placeholder="예: 일부 종목 정보가 일시적으로 지연되고 있습니다. 확인 중입니다." rows="3"
+          style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+        <div class="action-row" style="margin-top:12px">
+          <button class="btn btn-primary" onclick="saveAnnouncement()">저장</button>
+          <button class="btn btn-ghost" onclick="loadAnnouncement()">🔄 새로고침</button>
+          <span id="annStatus" style="font-size:12px;color:var(--text3);align-self:center"></span>
+        </div>
       </div>
     </div>
 

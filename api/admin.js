@@ -71,6 +71,8 @@ export default async function handler(req, res) {
   if (action === 'live-refresh') return handleLiveRefresh(req, res);
   // delete-own-account: 관리자 권한이 아니라 "본인 로그인 여부"만 확인하는 셀프서비스 액션
   if (action === 'delete-own-account') return handleDeleteOwnAccount(req, res);
+  // announcement 조회는 공개 (사이트 전체 상단 배너가 매 페이지에서 호출)
+  if (action === 'announcement' && req.method === 'GET') return handleGetAnnouncement(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -95,6 +97,7 @@ export default async function handler(req, res) {
   if (action === 'catalysts') return handleCatalystsPost(req, res);
   if (action === 'check-accuracy') return handleCheckAccuracy(req, res);
   if (action === 'view-stats') return handleViewStats(req, res);
+  if (action === 'set-announcement') return handleSetAnnouncement(req, res);
   if (action === 'list-users') return handleListUsers(req, res);
   if (action === 'ban-user') return handleBanUser(req, res);
 
@@ -304,6 +307,33 @@ async function handleBanUser(req, res) {
   });
   if (error) return res.status(500).json({ error: error.message });
   return res.status(200).json({ ok: true, user_id: userId, banned: ban });
+}
+
+// ════════════════════════════════════════════════════════════
+// 긴급 안내 배너 — 사이트 전체 페이지 상단에 노출 (관리자 on/off + 문구 편집)
+// ════════════════════════════════════════════════════════════
+async function handleGetAnnouncement(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+  const { data, error } = await supabase
+    .from('site_announcement')
+    .select('active, message, updated_at')
+    .eq('id', 1)
+    .maybeSingle();
+  if (error || !data) return res.status(200).json({ active: false, message: '' });
+  return res.status(200).json({ active: !!data.active, message: data.message || '', updated_at: data.updated_at });
+}
+
+async function handleSetAnnouncement(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const active = !!req.body?.active;
+  const message = (req.body?.message || '').toString().slice(0, 500);
+
+  const { error } = await supabase.from('site_announcement').upsert({
+    id: 1, active, message, updated_at: new Date().toISOString(),
+  });
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, active, message });
 }
 
 // ════════════════════════════════════════════════════════════
