@@ -975,16 +975,17 @@ async function loadIndices() {
 }
 
 // ── 🎯 투자 인사이트: 누적 예측 데이터 기반 종목 추천 ──────────────
-// 홈(index.html)은 #issuesContainer가 있는 페이지 — 미리보기 3개 + "전체보기"
-// 링크만 보여주고, 전용 페이지(/picks.html)는 issuesContainer가 없으므로
-// 더 많은 개수를 그대로 다 보여준다. 마크업 유무로 페이지를 구분해 별도
-// 페이지 모드 플래그 없이 index.html/picks.html이 같은 app.js를 공유한다.
+// 홈(index.html)은 #issuesContainer가 있는 페이지 — 미리보기 4개(2x2, 홀수면
+// 그리드가 비어 보임) + "전체보기" 링크만 보여주고, 전용 페이지(/picks.html)는
+// issuesContainer가 없으므로 더 많은 개수를 그대로 다 보여준다. 마크업 유무로
+// 페이지를 구분해 별도 페이지 모드 플래그 없이 index.html/picks.html이 같은
+// app.js를 공유한다.
 function reloadInsightsForPage() {
   const isHome = !!document.getElementById('issuesContainer');
-  loadInsights(isHome ? 3 : 30, isHome);
+  loadInsights(isHome ? 4 : 30, isHome);
 }
 
-// maxCards: 카드 몇 개까지 보여줄지 (기본 12, 홈 미리보기는 3 + "전체보기" 링크).
+// maxCards: 카드 몇 개까지 보여줄지 (기본 12, 홈 미리보기는 4 + "전체보기" 링크).
 // showMoreLink: true면 잘린 목록 아래 /picks.html "전체 매수 후보 보기" 링크를 붙인다.
 async function loadInsights(maxCards = 12, showMoreLink = false) {
   const sec = document.getElementById('insightsSection');
