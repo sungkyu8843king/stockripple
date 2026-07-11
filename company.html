@@ -754,23 +754,29 @@ function renderPage(company, records, priceData) {
   });
 }
 
-// 쿠팡 파트너스 광고 — 스크립트 태그를 HTML 템플릿 리터럴 안에 문자열로 직접 넣으면
-// 브라우저의 HTML 파서가 (JS 문법을 모른 채) 그 안의 스크립트 종료 태그 문자열을 페이지
-// 전체를 감싸는 진짜 메인 스크립트의 종료 태그로 오인해, 그 뒤 코드 전부가 실행되지
-// 않는 순수 텍스트로 노출되는 사고가 있었다 — document.createElement로 런타임에
-// 동적 주입해 이 문제를 피한다. (주의: 이 주석에도 그 태그 문자열을 그대로 적으면 안 됨)
+// 쿠팡 파트너스 광고 — 두 가지 문제를 피해야 한다:
+// 1) 스크립트 태그를 HTML 템플릿 리터럴 안에 문자열로 직접 넣으면 브라우저의 HTML
+//    파서가(JS 문법을 모른 채) 그 안의 스크립트 종료 태그 문자열을 페이지 전체를
+//    감싸는 진짜 메인 스크립트의 종료로 오인해 그 뒤 코드 전부가 텍스트로 노출되던 사고.
+// 2) 쿠팡 위젯(g.js)은 레거시 document.write() 방식이라, 페이지 로드가 끝난 뒤
+//    document.createElement로 동적 주입하면 브라우저가 document.write를 조용히
+//    무시해버려(에러 없이) 광고가 아예 안 뜬다.
+// → iframe(srcdoc)으로 완전히 독립된 문서를 만들어 그 안에서 document.write가
+//   정상 동작하게 한다. srcdoc 문자열 안의 스크립트 종료 태그는 "<\/script>"처럼
+//   슬래시를 이스케이프해 바깥 HTML 파서가 오인하지 않도록 한다.
 function loadCoupangAd() {
   const slot = document.getElementById('coupangAdSlot');
   if (!slot || slot.dataset.loaded) return;
   slot.dataset.loaded = '1';
-  const s1 = document.createElement('script');
-  s1.src = 'https://ads-partners.coupang.com/g.js';
-  s1.onload = () => {
-    const s2 = document.createElement('script');
-    s2.textContent = 'new PartnersCoupang.G({"id":1004777,"template":"carousel","trackingCode":"AF2174378","width":"1052","height":"84","tsource":""});';
-    slot.appendChild(s2);
-  };
-  slot.appendChild(s1);
+  const iframe = document.createElement('iframe');
+  iframe.title = '광고';
+  iframe.scrolling = 'no';
+  iframe.style.cssText = 'border:0;width:100%;max-width:1052px;height:84px;display:block;margin:0 auto';
+  iframe.srcdoc = '<!DOCTYPE html><html><body style="margin:0;overflow:hidden">'
+    + '<script src="https://ads-partners.coupang.com/g.js"><\/script>'
+    + '<script>new PartnersCoupang.G({"id":1004777,"template":"carousel","trackingCode":"AF2174378","width":"1052","height":"84","tsource":""});<\/script>'
+    + '</body></html>';
+  slot.appendChild(iframe);
 }
 
 // ── TradingView 차트 ──────────────────────────────────────
