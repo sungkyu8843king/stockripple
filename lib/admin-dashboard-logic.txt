@@ -1,4 +1,4 @@
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', feedback: '💬 사용자 피드백', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', feedback: '💬 사용자 피드백', users: '👤 회원 관리', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -15,6 +15,7 @@ function showPanel(name) {
   if (name === 'investments') invLoad();
   if (name === 'views') loadViewStats();
   if (name === 'feedback') loadFeedback();
+  if (name === 'users') loadUsers();
 }
 
 // panels 라벨도 추가
@@ -1053,6 +1054,57 @@ async function loadViewStats() {
       <td style="text-align:right;font-weight:600">${it.views.toLocaleString()}</td>
     </tr>
   `).join('');
+}
+
+// ── 회원 관리 ───────────────────────────────────────────────────────────
+let _usersCache = [];
+async function loadUsers() {
+  const tbody = document.getElementById('usersTableBody');
+  const summary = document.getElementById('usersSummary');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">로딩 중...</td></tr>';
+
+  const data = await callApi('/api/admin?action=list-users', {}, null);
+  if (!data?.ok) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red)">불러오기 실패</td></tr>';
+    return;
+  }
+
+  _usersCache = data.items || [];
+  if (summary) summary.textContent = `총 ${data.total}명`;
+  renderUsersFiltered();
+}
+
+function renderUsersFiltered() {
+  const q = (document.getElementById('usersSearch')?.value || '').trim().toLowerCase();
+  const tbody = document.getElementById('usersTableBody');
+  if (!tbody) return;
+  const filtered = q ? _usersCache.filter(u => (u.email || '').toLowerCase().includes(q)) : _usersCache;
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">데이터 없음</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(u => `
+    <tr>
+      <td>${escHtml(u.email || '-')}</td>
+      <td>${u.provider === 'google' ? 'Google' : '이메일'}</td>
+      <td style="font-size:12px;color:var(--text3)">${u.created_at ? new Date(u.created_at).toLocaleDateString('ko-KR') : '-'}</td>
+      <td style="font-size:12px;color:var(--text3)">${u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString('ko-KR') : '-'}</td>
+      <td>${u.banned ? '<span class="badge badge-red">차단됨</span>' : '<span class="badge badge-green">정상</span>'}</td>
+      <td style="text-align:right">
+        <button class="btn-sm ${u.banned ? 'btn-ghost' : 'btn-danger'}" onclick="toggleBanUser('${u.id}', ${!u.banned})">${u.banned ? '차단 해제' : '차단'}</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function toggleBanUser(userId, ban) {
+  if (ban && !confirm('이 회원을 차단하시겠습니까? 로그인이 즉시 막힙니다.')) return;
+  const data = await callApi('/api/admin?action=ban-user', { user_id: userId, ban }, null);
+  if (!data?.ok) { showToast('처리 실패', 'error'); return; }
+  showToast(ban ? '차단했습니다' : '차단을 해제했습니다', 'success');
+  loadUsers();
 }
 
 // ── 실시간 접속자 현황 (Supabase Realtime Presence) ───────────────

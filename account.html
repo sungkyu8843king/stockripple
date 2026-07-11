@@ -204,13 +204,19 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Signout */
-.signout-area { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); }
+.signout-area { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
 .signout-btn {
   background: none; border: 1px solid var(--border); border-radius: 8px;
   color: var(--text2); padding: 9px 18px; font-size: 13px; font-weight: 500;
   cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
 }
 .signout-btn:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+.delete-account-btn {
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text3); padding: 9px 18px; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
+}
+.delete-account-btn:hover { border-color: var(--red); color: #fff; background: var(--red); }
 
 /* Empty state */
 .empty-state {
@@ -352,6 +358,7 @@ function renderShell() {
 
     <div class="signout-area">
       <button class="signout-btn" onclick="doSignOut()">로그아웃</button>
+      <button class="delete-account-btn" onclick="doDeleteAccount()">회원탈퇴</button>
     </div>
   `;
 }
@@ -624,6 +631,29 @@ async function saveSettings(e) {
 async function doSignOut() {
   await sb.auth.signOut();
   location.href = '/';
+}
+
+/* ── Delete account ── */
+async function doDeleteAccount() {
+  const ok = confirm('정말 회원 탈퇴하시겠습니까?\n관심종목·북마크·알림 설정·페이퍼 트레이딩 데이터가 모두 삭제되며 복구할 수 없습니다.');
+  if (!ok) return;
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { location.href = '/'; return; }
+
+  try {
+    const r = await fetch('/api/admin?action=delete-own-account', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || '탈퇴 처리 중 오류가 발생했습니다.');
+    await sb.auth.signOut();
+    alert('회원 탈퇴가 완료되었습니다.');
+    location.href = '/';
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
 }
 
 init();

@@ -22,7 +22,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAdmin } from '../lib/auth.js';
+import { verifyAdmin, verifyUser } from '../lib/auth.js';
 
 // 일부 액션(dart-sync, sec-13f, extract-investments)은 무거우므로 최대 60초 허용
 export const config = { maxDuration: 60 };
@@ -69,6 +69,8 @@ export default async function handler(req, res) {
   if (action === 'catalysts' && req.method === 'GET') return handleCatalystsGet(req, res);
   // live-refresh: 장중 브라우저 구동 수집 트리거 (공개·장중게이트·레이트리밋, 내부는 ADMIN_SECRET로 수집 호출)
   if (action === 'live-refresh') return handleLiveRefresh(req, res);
+  // delete-own-account: 관리자 권한이 아니라 "본인 로그인 여부"만 확인하는 셀프서비스 액션
+  if (action === 'delete-own-account') return handleDeleteOwnAccount(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -92,6 +94,8 @@ export default async function handler(req, res) {
   if (action === 'catalysts') return handleCatalystsPost(req, res);
   if (action === 'check-accuracy') return handleCheckAccuracy(req, res);
   if (action === 'view-stats') return handleViewStats(req, res);
+  if (action === 'list-users') return handleListUsers(req, res);
+  if (action === 'ban-user') return handleBanUser(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -240,6 +244,65 @@ async function handleViewStats(req, res) {
     total_views: Object.values(totals).reduce((s, v) => s + v, 0),
     total_tickers: tickers.length,
   });
+}
+
+// ════════════════════════════════════════════════════════════
+// 회원 관리 — 목록 조회 / 차단(밴) / 본인 탈퇴
+// ════════════════════════════════════════════════════════════
+
+// 본인 계정 탈퇴 — admin 권한이 아니라 "유효한 로그인" 여부만 확인.
+// user_watchlist/user_bookmarks/user_settings/paper_portfolios 등은 전부
+// auth.users(id)에 ON DELETE CASCADE로 걸려있어 별도 정리 없이 자동 삭제된다.
+async function handleDeleteOwnAccount(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const auth = await verifyUser(req.headers.authorization);
+  if (!auth.ok) return res.status(401).json({ error: auth.error });
+
+  const { error } = await supabase.auth.admin.deleteUser(auth.user.id);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true });
+}
+
+// 회원 목록 (최근 가입순) — Supabase Auth 사용자를 페이지 단위로 모아 최대 1000명까지 반환
+async function handleListUsers(req, res) {
+  const users = [];
+  let page = 1;
+  const perPage = 200;
+  while (users.length < 1000) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) return res.status(500).json({ error: error.message });
+    users.push(...(data?.users || []));
+    if (!data?.users?.length || data.users.length < perPage) break;
+    page++;
+  }
+
+  const items = users
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .map(u => ({
+      id: u.id,
+      email: u.email,
+      created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at,
+      provider: u.app_metadata?.provider || 'email',
+      banned: !!u.banned_until && new Date(u.banned_until) > new Date(),
+    }));
+
+  return res.status(200).json({ ok: true, items, total: items.length });
+}
+
+// 회원 차단/해제 — Supabase Auth 내장 ban_duration으로 로그인 자체를 막는다
+// (별도 블랙리스트 테이블 없이 Auth 레벨에서 강제).
+async function handleBanUser(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const userId = (req.body?.user_id || '').toString();
+  const ban = !!req.body?.ban;
+  if (!userId) return res.status(400).json({ error: 'user_id required' });
+
+  const { error } = await supabase.auth.admin.updateUserById(userId, {
+    ban_duration: ban ? '87600h' : 'none',
+  });
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, user_id: userId, banned: ban });
 }
 
 // ════════════════════════════════════════════════════════════
