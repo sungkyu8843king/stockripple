@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="/announcement-bar.js" defer></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
-<title>마켓 히트맵 · 국장 현황 — StockRipple</title>
+<title>국장 현황 — StockRipple</title>
 <meta name="description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1004,7 +1004,8 @@ button { font-family: inherit; }
     </a>
     <nav class="header-nav" id="headerNav">
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
-      <a href="/market.html" class="nav-btn">🔥 히트맵</a>
+      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
+      <a href="/kr-market.html" class="nav-btn active">🇰🇷 국장현황</a>
       <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
       <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
       <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
@@ -1041,46 +1042,13 @@ button { font-family: inherit; }
 </div>
 
 <div class="hero" id="heroSection">
-  <h1 class="hero-title">
-    <span>마켓 히트맵</span> · 국장 현황
-  </h1>
-  <p class="hero-sub">미장/국장/섹터/ETF/자산 실시간 등락 + 거래량·수급·급등락 랭킹을 한 곳에서</p>
+  <h1 class="hero-title">국장 현황</h1>
+  <p class="hero-sub">코스피·코스닥 거래량 TOP · 상한가 · 하한가 · 수급 TOP · 거래량 급증 랭킹</p>
 </div>
 
 
 <main class="main-content">
   <div style="max-width:var(--page-max);margin:0 auto;padding:22px var(--page-pad) 48px;display:flex;flex-direction:column;gap:24px">
-    <div id="heatmapSection" class="section-block">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--red)"></span>
-          <span class="sh-title">마켓 히트맵</span>
-          <span id="heatmapUpdatedAt" class="sh-desc">—</span>
-          <span id="heatmapMarketStatus" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px"></span>
-        </div>
-        <div class="section-head-r">
-          <button onclick="loadHeatmap()" title="수동 새로고침" class="icon-btn">🔄</button>
-          <div class="seg">
-            <button class="hm-tab hm-mkt active" data-mkt="us"     onclick="switchHeatmap('us', null)">🇺🇸 미장</button>
-            <button class="hm-tab hm-mkt"        data-mkt="sector" onclick="switchHeatmap('sector', null)">📊 섹터</button>
-            <button class="hm-tab hm-mkt"        data-mkt="etf"    onclick="switchHeatmap('etf', null)">⚡ ETF</button>
-            <button class="hm-tab hm-mkt"        data-mkt="assets" onclick="switchHeatmap('assets', null)">🌍 자산</button>
-            <button class="hm-tab hm-mkt"        data-mkt="kr"     onclick="switchHeatmap('kr', null)">🇰🇷 국장</button>
-          </div>
-          <div class="seg">
-            <button class="hm-tab hm-range active" data-range="1d"  onclick="switchHeatmap(null, '1d')">일간</button>
-            <button class="hm-tab hm-range"        data-range="1mo" onclick="switchHeatmap(null, '1mo')">월간</button>
-          </div>
-        </div>
-      </div>
-      <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;min-height:80px">
-        <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
-      </div>
-      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--text3)">
-        <span>📡 데이터: Yahoo Finance (실시간 ~15분 지연 가능) · 환율·금리·원자재는 지수 기준</span>
-        <span id="heatmapItemCount"></span>
-      </div>
-    </div>
     <div id="krMarketSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">

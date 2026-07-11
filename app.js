@@ -2784,7 +2784,134 @@ const HEATMAP_TICKERS = {
     { t:'056190.KQ', n:'SFA' }, { t:'137400.KQ', n:'피엔티' },
   ],
 };
+
+// ─── 히트맵 섹터 뷰 (GICS 11개 섹터 + 기타) — HEATMAP_TICKERS.us/kr 전 종목을
+// 섹터별로 분류. 1단계(섹터 박스) 클릭 시 2단계(해당 섹터 종목만 필터링)로 드릴다운.
+// 완벽한 GICS 세부 분류가 아닌 최선근사치 — 크로스오버 케이스(예: PYPL 금융 vs 기술)는
+// 통상적 분류 기준을 따름.
+const SECTOR_META = {
+  tech:          { label: '기술' },
+  comm:          { label: '통신서비스' },
+  discretionary: { label: '임의소비재' },
+  staples:       { label: '필수소비재' },
+  financial:     { label: '금융' },
+  health:        { label: '헬스케어' },
+  industrial:    { label: '산업재' },
+  energy:        { label: '에너지' },
+  materials:     { label: '소재' },
+  utilities:     { label: '유틸리티' },
+  realestate:    { label: '리츠' },
+  other:         { label: '기타' },
+};
+const SECTOR_ORDER = ['tech','comm','discretionary','staples','financial','health','industrial','energy','materials','utilities','realestate','other'];
+const SECTOR_GROUPS = {
+  tech: [
+    'AAPL','MSFT','NVDA','AVGO','ORCL','AMD','CSCO','INTC','QCOM','TXN','MU','PLTR','SNOW','NOW',
+    'ASML','TSM','ARM','LRCX','AMAT','KLAC','SHOP','PANW','CRWD','NET','IBM','ACN','ADBE','CRM',
+    'MRVL','ON','MCHP','ADI','SWKS','NXPI','ANET','DDOG','MDB','TEAM','WDAY','OKTA','ZS','FTNT',
+    'CDNS','SNPS','INTU','ADSK','KEYS','TER','GEN','FICO','GDDY','AKAM','FFIV','JBL','FLEX','HPQ',
+    'HPE','DELL','STX','WDC','SMCI','APH','GLW','TRMB','ZBRA','NTAP','CIEN','LITE','COHR','MPWR',
+    'VRSN','CTSH','IT','MSI','CDW','TYL','PTC','FSLR','JKHY','VEEV','TEL','Q',
+    'SNDK','NVDL','NOWL','ARMG','QUBT','BTBT','SKHYV',
+    '005930.KS','000660.KS','005935.KS','009150.KS','018260.KS','011070.KS','034220.KS','402340.KS',
+    '042700.KS','240810.KQ','000990.KS','348210.KQ','007660.KS','064400.KS','353200.KS',
+    '036930.KQ','058470.KQ','039030.KQ','319660.KQ','222800.KQ','440110.KQ','403870.KQ','084370.KQ',
+    '095340.KQ','178320.KQ','080220.KQ','095610.KQ','031980.KQ','064760.KQ','131290.KQ','067310.KQ',
+    '131970.KQ','098460.KQ','140860.KQ','420770.KQ','010170.KQ','089030.KQ','183300.KQ','218410.KQ',
+    '043260.KQ','030530.KQ','232140.KQ','204270.KQ','036540.KQ','083450.KQ','074600.KQ',
+    '347700.KQ','031330.KQ',
+  ],
+  comm: [
+    'GOOG','GOOGL','META','NFLX','DIS','CMCSA','CHTR','T','VZ','TMUS','FOXA','FOX','NWSA','NWS',
+    'LYV','TTWO','EA','OMC','TKO','ECHO','APP','TTD','PSKY','WBD',
+    '035420.KS','035720.KS','017670.KS','259960.KS','036570.KS','251270.KS','352820.KS','041510.KQ',
+    '122870.KQ','030200.KS','032640.KS','293490.KQ','263750.KQ','035900.KQ',
+  ],
+  discretionary: [
+    'AMZN','TSLA','HD','MCD','NKE','SBUX','LOW','TJX','CMG','YUM','DASH','ETSY','BKNG','MAR','HLT',
+    'RCL','CCL','NCLH','WYNN','MGM','LVS','ORLY','AZO','ROST','ULTA','LULU','DECK','RL','TPR','WSM',
+    'DHI','LEN','NVR','GRMN','F','GM','RIVN','APTV','BBY','EBAY','EXPE','DPZ','TSCO','HAS','GPC',
+    'ABNB','UBER','CVNA','TSLL','TGT','DRI','PHM',
+    '005380.KS','012330.KS','066570.KS','000270.KS','023530.KS','018880.KS','011210.KS','004170.KS',
+    '069960.KS','278470.KS','161390.KS','021240.KS',
+  ],
+  staples: [
+    'WMT','PG','COST','KO','PEP','MDLZ','KHC','CL','KMB','EL','MNST','STZ','GIS','HSY','SYY','TSN',
+    'TAP','ADM','HRL','CHD','CLX','KR','DG','DLTR','BG','CASY','KVUE','MKC','PM','MO','SJM','BF-B','KDP',
+    '090430.KS','161890.KS','139480.KS','097950.KS','033780.KS','271560.KS','003230.KS','007310.KS',
+    '007070.KS','282330.KQ','003380.KQ','257720.KQ','241710.KQ',
+  ],
+  financial: [
+    'JPM','BAC','WFC','GS','MS','C','USB','PNC','TFC','KEY','FITB','HBAN','CFG','MTB','STT','BNY',
+    'BLK','BX','KKR','APO','ARES','TROW','IVZ','BEN','RJF','SCHW','IBKR','HOOD','AON','MRSH','AJG',
+    'PGR','TRV','MET','AIG','ALL','HIG','CINF','CB','ACGL','WRB','L','GL','ERIE','AIZ','EG','PFG',
+    'PRU','COF','NTRS','SYF','AMP','V','MA','AXP','PYPL','GPN','FIS','FISV','MSCI','MCO','ICE',
+    'CME','CBOE','NDAQ','SPGI','BR','BRO','CPAY','FDS','USBC',
+    'BRK-B','AFL','COIN','XYZ','RF','WTW',
+    '105560.KS','055550.KS','032830.KS','086790.KS','138040.KS','323410.KS','316140.KS','024110.KS',
+    '000810.KS','006800.KS','016360.KS','071050.KS','138930.KS','175330.KS','088350.KS','001450.KS',
+    '005940.KS','005830.KS','039490.KS','029780.KS','377300.KS','100790.KQ',
+  ],
+  health: [
+    'UNH','LLY','ABBV','MRK','TMO','PFE','JNJ','ABT','DHR','ISRG','GILD','VRTX','CVS','CI','ELV',
+    'BMY','AMGN','REGN','ZTS','BSX','MDT','SYK','HCA','DXCM','IDXX','IQV','MRNA','INCY','PODD','RMD',
+    'DVA','RVTY','CRL','CAH','COR','MCK','HSIC','BAX','BDX','TECH','BIIB','ALGN','EW','GEHC',
+    'LH','DGX','MTD','WAT','WST','STE','SOLV','HUM','CNC','UHS','VTRS','A','NVO','COO','ZBH',
+    '207940.KS','068270.KS','326030.KS','196170.KQ','128940.KS','000100.KS','145020.KQ','214150.KQ',
+    '028300.KQ','047920.KQ','067630.KQ','115450.KQ','046210.KQ','003580.KS','024850.KQ','278650.KQ',
+    '950160.KQ','298380.KQ','141080.KQ','000250.KQ','087010.KQ','347850.KQ','214450.KQ','214370.KQ',
+    '310210.KQ','096530.KQ','068760.KQ','458870.KQ','039200.KQ','195940.KQ','475830.KQ','085660.KQ',
+    '491000.KQ','086450.KQ','328130.KQ','089970.KQ','290650.KQ','237690.KQ','226950.KQ',
+    '140410.KQ','007390.KQ',
+  ],
+  industrial: [
+    'BA','CAT','GE','LMT','MMM','UNP','CSX','NSC','DAL','UAL','LUV','EMR','ETN','ITW','RTX','HON',
+    'DE','ADP','PAYX','UPS','FDX','WM','RSG','CTAS','ROL','CPRT','ODFL','JBHT','CHRW','EXPD','URI',
+    'PWR','AME','DOV','XYL','IEX','ROK','PH','CMI','GD','NOC','LHX','HII','TDG','TXT','HWM','GEV',
+    'CARR','JCI','OTIS','IR','GNRC','FTV','GWW','MAS','ALLE','AOS','BLDR','PNR','SNA','SWK','WAB',
+    'AXON','VRSK','LDOS','J','NDSN','FIX','EME','HUBB','TT','EFX','FAST','FDXF',
+    'HONA','LII','PCAR','ROP','TDY','VLTO','VRT',
+    '373220.KS','329180.KS','003550.KS','028260.KS','010140.KS','012450.KS','047810.KS','079550.KS',
+    '064350.KS','009540.KS','042660.KS','011200.KS','086280.KS','034730.KS','078930.KS','004990.KS',
+    '001040.KS','010120.KS','267260.KS','034020.KS','112610.KS','000720.KS','003490.KS','000120.KS',
+    '000880.KS','006260.KS','267250.KS','097230.KS','272210.KS','307950.KS','028050.KS','443060.KS',
+    '180640.KS','047050.KS','047040.KS','241560.KS','267270.KS','001440.KS','062040.KS','277810.KQ',
+    '000150.KS',
+    '108490.KQ','319400.KQ','032820.KQ','058610.KQ','082920.KQ','083650.KQ','060370.KQ','127120.KQ',
+    '323280.KQ','437730.KQ','099320.KQ','090710.KQ','019210.KQ','388720.KQ','065350.KQ','056190.KQ',
+    '137400.KQ',
+  ],
+  energy: [
+    'XOM','CVX','COP','SLB','EOG','VLO','HAL','OXY','PSX','MPC','KMI','WMB','OKE','TRGP','EQT','DVN',
+    'FANG','EXE','APA','BKR','TPL','BATL',
+    '096770.KS','010950.KS',
+  ],
+  materials: [
+    'LIN','APD','ECL','SHW','FCX','NEM','NUE','STLD','DOW','DD','LYB','PPG','ALB','MLM','VMC','CF',
+    'MOS','IFF','CTVA','BALL','AVY','PKG','IP','CRH','AMCR','SW',
+    '005490.KS','010130.KS','006400.KS','051910.KS','003670.KS','011170.KS','247540.KQ','086520.KQ',
+    '020150.KS','010060.KS','011780.KS','004000.KS','298040.KS','005070.KS','357780.KQ','011790.KS',
+    '004020.KS','009830.KS','005290.KQ','166090.KQ','101490.KQ','417200.KQ','281740.KQ','038500.KQ',
+    '078600.KQ',
+  ],
+  utilities: [
+    'NEE','DUK','SO','D','AEP','EXC','XEL','SRE','ED','PEG','WEC','ES','DTE','PPL','FE','EIX','ETR',
+    'CMS','CNP','AEE','EVRG','ATO','NI','PNW','PCG','NRG','VST','CEG','LNT','AWK','AES',
+    '015760.KS',
+  ],
+  realestate: [
+    'PLD','AMT','EQIX','DLR','O','SPG','PSA','WELL','VTR','ARE','AVB','EQR','ESS','MAA','CPT','UDR',
+    'INVH','EXR','IRM','BXP','KIM','REG','FRT','HST','VICI','DOC','CBRE','CSGP','CCI','SBAC','WY',
+  ],
+  other: ['NASA'],
+};
+const TICKER_SECTOR = {};
+for (const sec of SECTOR_ORDER) for (const t of (SECTOR_GROUPS[sec] || [])) TICKER_SECTOR[t] = sec;
+const sectorOf = (t) => TICKER_SECTOR[t] || 'other';
+
 let _hmMkt = 'us', _hmRange = '1d';
+let _hmView = 'sector';   // 'sector'(1단계 섹터 박스) | 'all'(전체 플랫 리스트) — 히트맵 진입 시 기본은 섹터 뷰
+let _hmSectorDrill = null; // 2단계 드릴다운 중인 섹터 키 (null이면 1단계)
 let _hmMobileExpanded = false;   // 모바일에서 "더보기" 눌러 전체 표시했는지 (탭 전환 시 초기화)
 const HM_MOBILE_LIMIT = 30;       // 모바일 초기 표시 개수 — us(525)/kr(236)를 그대로 세로 스크롤하면 끝이 없어 상단만 먼저 보여줌
 const isNarrowViewport = () => window.matchMedia('(max-width: 700px)').matches;
@@ -2793,15 +2920,152 @@ function switchHeatmap(mkt, range) {
   if (mkt)   _hmMkt = mkt;
   if (range) _hmRange = range;
   _hmMobileExpanded = false;
+  _hmSectorDrill = null;
   document.querySelectorAll('.hm-mkt').forEach(b => b.classList.toggle('active', b.dataset.mkt === _hmMkt));
   document.querySelectorAll('.hm-range').forEach(b => b.classList.toggle('active', b.dataset.range === _hmRange));
+  updateHeatmapViewToggleUI();
   loadHeatmap();
+}
+
+// us/kr 탭에서만 섹터 드릴다운 뷰가 의미 있음 (sector=SPDR ETF, etf, assets 탭은 이미 단일 리스트)
+const heatmapSectorApplicable = () => (_hmMkt === 'us' || _hmMkt === 'kr');
+
+function switchHeatmapView(view) {
+  _hmView = view;
+  _hmSectorDrill = null;
+  updateHeatmapViewToggleUI();
+  loadHeatmap();
+}
+
+function heatmapDrillSector(sec) {
+  _hmSectorDrill = sec;
+  loadHeatmap();
+}
+
+function heatmapSectorBack() {
+  _hmSectorDrill = null;
+  loadHeatmap();
+}
+
+function updateHeatmapViewToggleUI() {
+  const wrap = document.getElementById('heatmapViewToggle');
+  if (!wrap) return;
+  wrap.style.display = heatmapSectorApplicable() ? '' : 'none';
+  wrap.querySelectorAll('.hm-view').forEach(b => b.classList.toggle('active', b.dataset.view === _hmView));
 }
 
 function expandHeatmapMobile() {
   _hmMobileExpanded = true;
   _hmStructureKey = '';   // 강제 리렌더 트리거
   loadHeatmap();
+}
+
+// 개별 종목 셀 클릭 동작 — 주식이면 company.html, 지수·자산·FX·크립토는 새창 TradingView
+const hmCellHref = (t) => {
+  if (/^\^/.test(t) || /=F$/.test(t) || /=X$/.test(t) || /-USD$/.test(t) || /^DX-Y/.test(t) || /\.SS$/.test(t)) {
+    return '#';  // 자산은 별도 처리
+  }
+  return `/company.html?ticker=${encodeURIComponent(t)}`;
+};
+const hmCellOnClick = (t) => {
+  if (hmCellHref(t) === '#') {
+    return `onclick="event.preventDefault();openTickerInTradingView('${escAttr(t)}')"`;
+  }
+  return '';
+};
+
+function hmCellHtml(it) {
+  const sign = it.pct >= 0 ? '+' : '';
+  const priceLabel = it.price == null ? '' : (it.currency === 'KRW'
+    ? '₩' + Math.round(it.price).toLocaleString('ko-KR')
+    : '$' + Number(it.price).toFixed(2));
+  const c = heatmapColorFor(it.pct);
+  return `<a class="hm-cell" data-ticker="${escAttr(it.ticker)}" href="${hmCellHref(it.ticker)}" ${hmCellOnClick(it.ticker)} style="display:flex;flex-direction:column;justify-content:center;text-decoration:none;color:${c.fg};background:${c.bg};border-radius:12px;padding:10px 8px;text-align:center;transition:transform .12s var(--ease),background .3s,color .3s;min-height:74px;line-height:1.2;box-shadow:0 1px 2px rgba(0,0,0,0.05);cursor:pointer" onmouseover="this.style.transform='translateY(-2px) scale(1.03)'" onmouseout="this.style.transform='translateY(0) scale(1)'" title="${escAttr(it.name)}">
+    <div style="font-size:11px;font-weight:700;letter-spacing:.2px;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAttr(it.name)}</div>
+    <div class="hm-price t-num" style="font-size:10px;font-weight:500;opacity:.85;margin-top:1px">${priceLabel}</div>
+    <div class="hm-pct t-num" style="font-size:13px;font-weight:800;margin-top:3px">${sign}${it.pct.toFixed(2)}%</div>
+  </a>`;
+}
+
+// 종목 타일 그리드 렌더 — "전체보기"(opts.mobileLimit)와 섹터 드릴다운 2단계(opts.backLabel) 둘 다 여기서 처리.
+// needsRebuild가 false면 색/숫자만 갱신 + flash (실시간 폴링에서 깜빡임 없이 갱신하기 위함).
+function renderTileGrid(grid, items, needsRebuild, structureKey, opts = {}) {
+  if (needsRebuild) {
+    const showAll = !opts.mobileLimit || !isNarrowViewport() || _hmMobileExpanded;
+    const displayItems = showAll ? items : items.slice(0, HM_MOBILE_LIMIT);
+    const backBtn = opts.backLabel
+      ? `<button onclick="${opts.backAction}" style="grid-column:1/-1;padding:10px;margin-bottom:2px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--text2);font-size:13px;font-weight:700;cursor:pointer;text-align:left">← ${opts.backLabel}</button>`
+      : '';
+    const cellsHtml = displayItems.map(hmCellHtml).join('') || '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">데이터 없음</div>';
+    const moreBtn = (opts.mobileLimit && !showAll && items.length > HM_MOBILE_LIMIT)
+      ? `<button onclick="expandHeatmapMobile()" style="grid-column:1/-1;padding:12px;margin-top:4px;border:1px dashed var(--border);border-radius:10px;background:var(--bg2);color:var(--blue);font-size:13px;font-weight:700;cursor:pointer">▾ ${items.length - HM_MOBILE_LIMIT}개 더보기 (전체 ${items.length}개)</button>`
+      : '';
+    grid.innerHTML = backBtn + cellsHtml + moreBtn;
+    _hmStructureKey = structureKey;
+    _hmCellState[structureKey] = {};
+    items.forEach(it => { _hmCellState[structureKey][it.ticker] = it.pct; });
+  } else {
+    // 부분 업데이트 — 변동된 셀만 색/숫자 바꾸고 flash
+    const prev = _hmCellState[structureKey] || {};
+    items.forEach(it => {
+      const oldPct = prev[it.ticker];
+      if (oldPct === it.pct) return;  // 변화 없으면 skip
+      const cell = grid.querySelector(`.hm-cell[data-ticker="${CSS.escape(it.ticker)}"]`);
+      if (!cell) return;
+      const sign = it.pct >= 0 ? '+' : '';
+      const c = heatmapColorFor(it.pct);
+      cell.style.background = c.bg;
+      cell.style.color = c.fg;
+      const pctEl = cell.querySelector('.hm-pct');
+      if (pctEl) pctEl.textContent = `${sign}${it.pct.toFixed(2)}%`;
+      const priceEl = cell.querySelector('.hm-price');
+      if (priceEl && it.price != null) {
+        priceEl.textContent = it.currency === 'KRW'
+          ? '₩' + Math.round(it.price).toLocaleString('ko-KR')
+          : '$' + Number(it.price).toFixed(2);
+      }
+      // flash 효과 — 상승/하락 방향에 따라
+      if (oldPct != null && oldPct !== it.pct) {
+        const direction = it.pct > oldPct ? 'up' : 'down';
+        const flashColor = direction === 'up' ? 'rgba(255,255,0,0.4)' : 'rgba(255,255,255,0.4)';
+        cell.style.boxShadow = `0 0 12px ${flashColor}, 0 1px 2px rgba(0,0,0,0.05)`;
+        setTimeout(() => {
+          if (cell) cell.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+        }, 800);
+      }
+      prev[it.ticker] = it.pct;
+    });
+    // 순위 변동도 반영 (DOM 재정렬)
+    items.forEach(it => {
+      const cell = grid.querySelector(`.hm-cell[data-ticker="${CSS.escape(it.ticker)}"]`);
+      if (cell) grid.appendChild(cell);
+    });
+  }
+}
+
+// 섹터 1단계 박스 렌더 — 종목별 등락률을 GICS 섹터로 묶어 평균 등락률로 박스 하나씩 표시.
+// 박스 클릭 시 heatmapDrillSector()로 2단계(해당 섹터 종목만)로 드릴다운.
+function renderSectorBoxes(grid, items, structureKey) {
+  const bySector = {};
+  for (const it of items) {
+    const s = sectorOf(it.ticker);
+    if (!bySector[s]) bySector[s] = [];
+    bySector[s].push(it);
+  }
+  const boxes = SECTOR_ORDER.filter(s => s !== 'other' && bySector[s]?.length).map(s => {
+    const arr = bySector[s];
+    const avgPct = arr.reduce((a, b) => a + b.pct, 0) / arr.length;
+    const up = arr.filter(x => x.pct >= 0).length;
+    const c = heatmapColorFor(avgPct);
+    const sign = avgPct >= 0 ? '+' : '';
+    return `<button type="button" class="hm-cell" onclick="heatmapDrillSector('${s}')" style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;border:none;font:inherit;cursor:pointer;color:${c.fg};background:${c.bg};border-radius:14px;padding:18px 10px;min-height:96px;transition:transform .12s var(--ease)" onmouseover="this.style.transform='translateY(-2px) scale(1.02)'" onmouseout="this.style.transform='translateY(0) scale(1)'">
+      <div style="font-size:13px;font-weight:800;letter-spacing:.2px">${SECTOR_META[s].label}</div>
+      <div class="t-num" style="font-size:19px;font-weight:800;margin-top:6px">${sign}${avgPct.toFixed(2)}%</div>
+      <div style="font-size:10px;opacity:.8;margin-top:4px">${arr.length}개 종목 · 상승 ${up}</div>
+    </button>`;
+  }).join('');
+  grid.innerHTML = boxes || '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">데이터 없음</div>';
+  _hmStructureKey = structureKey;
 }
 
 // ─── 🇰🇷 국장 현황 (거래량 TOP / 상한가 / 하한가 / 5일 수급 TOP) ──────────
@@ -3448,11 +3712,14 @@ async function loadHeatmap() {
   _hmInFlight = true;
   const grid = document.getElementById('heatmapGrid');
   if (!grid) { _hmInFlight = false; return; }
+  updateHeatmapViewToggleUI();
 
   const list = HEATMAP_TICKERS[_hmMkt] || [];
   const tickers = list.map(x => x.t);
   const nameMap = Object.fromEntries(list.map(x => [x.t, x.n]));
-  const structureKey = `${_hmMkt}|${_hmRange}|${tickers.join(',')}`;
+  const effectiveView = heatmapSectorApplicable() ? _hmView : 'all';
+  const drillSector = effectiveView === 'sector' ? _hmSectorDrill : null;
+  const structureKey = `${_hmMkt}|${_hmRange}|${effectiveView}|${drillSector || ''}|${tickers.join(',')}`;
   const needsRebuild = structureKey !== _hmStructureKey;
 
   if (needsRebuild) {
@@ -3509,82 +3776,20 @@ async function loadHeatmap() {
       }
     }
     items.sort((a, b) => (b.pct || 0) - (a.pct || 0));
-    // 셀 클릭 동작 — 주식이면 company.html, 지수·자산·FX·크립토는 새창 TradingView
-    const cellHref = (t) => {
-      if (/^\^/.test(t) || /=F$/.test(t) || /=X$/.test(t) || /-USD$/.test(t) || /^DX-Y/.test(t) || /\.SS$/.test(t)) {
-        return '#';  // 자산은 별도 처리
-      }
-      return `/company.html?ticker=${encodeURIComponent(t)}`;
-    };
-    const cellOnClick = (t) => {
-      if (cellHref(t) === '#') {
-        return `onclick="event.preventDefault();openTickerInTradingView('${escAttr(t)}')"`;
-      }
-      return '';
-    };
 
-    if (needsRebuild) {
-      // 통째 리렌더 — 시장/기간 토글 시
-      // 모바일은 목록이 최대 525개(미장)까지 가서 무한 스크롤이 되므로 초기엔 상위 N개만 보여주고
-      // "더보기"로 확장 (데스크톱은 기존대로 전체 표시 — 그리드 레이아웃이라 스크롤 부담 적음)
-      const showAll = !isNarrowViewport() || _hmMobileExpanded;
-      const displayItems = showAll ? items : items.slice(0, HM_MOBILE_LIMIT);
-      const cellsHtml = displayItems.map(it => {
-        const sign = it.pct >= 0 ? '+' : '';
-        const priceLabel = it.price == null ? '' : (it.currency === 'KRW'
-          ? '₩' + Math.round(it.price).toLocaleString('ko-KR')
-          : '$' + Number(it.price).toFixed(2));
-        const c = heatmapColorFor(it.pct);
-        return `<a class="hm-cell" data-ticker="${escAttr(it.ticker)}" href="${cellHref(it.ticker)}" ${cellOnClick(it.ticker)} style="display:flex;flex-direction:column;justify-content:center;text-decoration:none;color:${c.fg};background:${c.bg};border-radius:12px;padding:10px 8px;text-align:center;transition:transform .12s var(--ease),background .3s,color .3s;min-height:74px;line-height:1.2;box-shadow:0 1px 2px rgba(0,0,0,0.05);cursor:pointer" onmouseover="this.style.transform='translateY(-2px) scale(1.03)'" onmouseout="this.style.transform='translateY(0) scale(1)'" title="${escAttr(it.name)}">
-          <div style="font-size:11px;font-weight:700;letter-spacing:.2px;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAttr(it.name)}</div>
-          <div class="hm-price t-num" style="font-size:10px;font-weight:500;opacity:.85;margin-top:1px">${priceLabel}</div>
-          <div class="hm-pct t-num" style="font-size:13px;font-weight:800;margin-top:3px">${sign}${it.pct.toFixed(2)}%</div>
-        </a>`;
-      }).join('') || '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">데이터 없음</div>';
-      const moreBtn = (!showAll && items.length > HM_MOBILE_LIMIT)
-        ? `<button onclick="expandHeatmapMobile()" style="grid-column:1/-1;padding:12px;margin-top:4px;border:1px dashed var(--border);border-radius:10px;background:var(--bg2);color:var(--blue);font-size:13px;font-weight:700;cursor:pointer">▾ ${items.length - HM_MOBILE_LIMIT}개 더보기 (전체 ${items.length}개)</button>`
-        : '';
-      grid.innerHTML = cellsHtml + moreBtn;
-      _hmStructureKey = structureKey;
-      _hmCellState[structureKey] = {};
-      items.forEach(it => { _hmCellState[structureKey][it.ticker] = it.pct; });
+    if (effectiveView === 'sector' && !drillSector) {
+      // 1단계: 섹터 박스 (평균 등락률 기준, 항상 통째 리렌더 — 박스 11개라 비용 적음)
+      if (needsRebuild) renderSectorBoxes(grid, items, structureKey);
+    } else if (effectiveView === 'sector' && drillSector) {
+      // 2단계: 드릴다운된 섹터 종목만 필터링해 기존 타일 그리드로 표시
+      const filtered = items.filter(it => sectorOf(it.ticker) === drillSector);
+      renderTileGrid(grid, filtered, needsRebuild, structureKey, {
+        backLabel: `전체 섹터 (${SECTOR_META[drillSector]?.label || drillSector})`,
+        backAction: 'heatmapSectorBack()',
+      });
     } else {
-      // 부분 업데이트 — 변동된 셀만 색/숫자 바꾸고 flash
-      const prev = _hmCellState[structureKey] || {};
-      items.forEach(it => {
-        const oldPct = prev[it.ticker];
-        if (oldPct === it.pct) return;  // 변화 없으면 skip
-        const cell = grid.querySelector(`.hm-cell[data-ticker="${CSS.escape(it.ticker)}"]`);
-        if (!cell) return;
-        const sign = it.pct >= 0 ? '+' : '';
-        const c = heatmapColorFor(it.pct);
-        cell.style.background = c.bg;
-        cell.style.color = c.fg;
-        const pctEl = cell.querySelector('.hm-pct');
-        if (pctEl) pctEl.textContent = `${sign}${it.pct.toFixed(2)}%`;
-        const priceEl = cell.querySelector('.hm-price');
-        if (priceEl && it.price != null) {
-          priceEl.textContent = it.currency === 'KRW'
-            ? '₩' + Math.round(it.price).toLocaleString('ko-KR')
-            : '$' + Number(it.price).toFixed(2);
-        }
-        // flash 효과 — 상승/하락 방향에 따라
-        if (oldPct != null && oldPct !== it.pct) {
-          const direction = it.pct > oldPct ? 'up' : 'down';
-          const flashColor = direction === 'up' ? 'rgba(255,255,0,0.4)' : 'rgba(255,255,255,0.4)';
-          cell.style.boxShadow = `0 0 12px ${flashColor}, 0 1px 2px rgba(0,0,0,0.05)`;
-          setTimeout(() => {
-            if (cell) cell.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
-          }, 800);
-        }
-        prev[it.ticker] = it.pct;
-      });
-      // 순위 변동도 반영 (DOM 재정렬)
-      // 간단히: 매번 sort 결과대로 appendChild — 깜빡임 거의 없음 (이미 같은 DOM 노드)
-      items.forEach(it => {
-        const cell = grid.querySelector(`.hm-cell[data-ticker="${CSS.escape(it.ticker)}"]`);
-        if (cell) grid.appendChild(cell);
-      });
+      // 전체보기 — 기존 그대로 (모바일은 상위 N개 + 더보기)
+      renderTileGrid(grid, items, needsRebuild, structureKey, { mobileLimit: true });
     }
 
     // 마지막 갱신 시각 + 마켓 상태 + 아이템 카운트

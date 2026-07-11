@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="/announcement-bar.js" defer></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
-<title>StockRipple — 파급효과 주식 전망</title>
+<title>마켓 히트맵 — StockRipple</title>
 <meta name="description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -331,19 +331,6 @@ button { font-family: inherit; }
 .sh-desc  { font-size: 11.5px; color: var(--text3); font-weight: 500; }
 .section-head-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .section-block { margin-bottom: 28px; }
-/* 홈 미리보기: 히트맵/국장현황은 일부만 보여주고 전체는 /heatmap.html, /kr-market.html로 유도
-   (정보 밀도 완화 — 전체 랭킹/탭은 전용 페이지에서) */
-#heatmapSection #heatmapGrid { max-height: 260px; overflow: hidden; position: relative; }
-#krMarketSection #krMarketPanel { max-height: 280px; overflow: hidden; position: relative; }
-/* max-height는 loadInsights()가 실제 카드 높이를 측정해 인라인으로 덮어씀 (아래는 JS 실행 전 폴백) */
-#insightsCropWrap { max-height: 640px; overflow: hidden; position: relative; }
-#heatmapSection #heatmapGrid::after,
-#krMarketSection #krMarketPanel::after,
-#insightsCropWrap::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 100px;
-  background: linear-gradient(to bottom, transparent, var(--bg) 80%);
-  pointer-events: none;
-}
 
 /* ═══════════════════════════════════════════
  * Feed toolbar (카테고리 + 섹터 + 검색)
@@ -1017,7 +1004,7 @@ button { font-family: inherit; }
     </a>
     <nav class="header-nav" id="headerNav">
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
-      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
+      <a href="/heatmap.html" class="nav-btn active">🔥 히트맵</a>
       <a href="/kr-market.html" class="nav-btn">🇰🇷 국장현황</a>
       <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
       <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
@@ -1055,63 +1042,13 @@ button { font-family: inherit; }
 </div>
 
 <div class="hero" id="heroSection">
-  <h1 class="hero-title">
-    오늘의 이슈가 <span>어떤 주식</span>을 움직이나요?
-  </h1>
-  <p class="hero-sub">뉴스 이슈 → 파급 섹터 분석 → 수혜 기업 발굴 → 상승 가능성 시각화</p>
-  <div class="stats-bar" id="statsBar">
-    <div class="stat-item">
-      <span class="stat-label">분석된 이슈</span>
-      <span class="stat-value blue" id="statIssues">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">발굴 기업</span>
-      <span class="stat-value blue" id="statCompanies">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">평균 예상 상승률</span>
-      <span class="stat-value green" id="statUpside">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">AI 1일 정확도</span>
-      <span class="stat-value green" id="statAccuracy">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">최근 업데이트</span>
-      <span class="stat-value" id="statUpdated" style="font-size:15px;color:var(--text2);margin-top:3px">—</span>
-    </div>
-  </div>
+  <h1 class="hero-title"><span>마켓 히트맵</span></h1>
+  <p class="hero-sub">미장/국장/섹터/ETF/자산 실시간 등락률 — 섹터별로 보거나 전체 종목을 한눈에</p>
 </div>
 
+
 <main class="main-content">
-<div class="layout-with-sidebar">
-  <!-- 메인 피드 -->
-  <div id="mainCol">
-
-    <!-- 🎯 지금 매수 후보 -->
-    <div id="insightsSection" class="section-block" style="display:none">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark"></span>
-          <span class="sh-title">지금 매수 후보</span>
-          <span class="sh-desc">AI 예측 · 기술 시그널 · 수급 · 펀더멘털 통합 랭킹</span>
-        </div>
-        <div class="section-head-r">
-          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none">
-            <input type="checkbox" id="strictModeToggle" onchange="reloadInsightsForPage()" style="cursor:pointer">
-            <span>🔒 엄격 모드 (신뢰도 ≥80%)</span>
-          </label>
-          <span style="font-size:11px;color:var(--text3)" id="insightsUpdated">—</span>
-        </div>
-      </div>
-      <div id="insightsPanel"></div>
-    </div>
-
-    <!-- 🔥 마켓 히트맵 -->
+  <div style="max-width:var(--page-max);margin:0 auto;padding:22px var(--page-pad) 48px;display:flex;flex-direction:column;gap:24px">
     <div id="heatmapSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
@@ -1147,277 +1084,7 @@ button { font-family: inherit; }
         <span id="heatmapItemCount"></span>
       </div>
     </div>
-
-    <!-- 🇰🇷 국장 현황 (거래량 TOP / 상한가 / 하한가 / 수급 TOP) -->
-    <div id="krMarketSection" class="section-block">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--yellow)"></span>
-          <span class="sh-title">국장 현황</span>
-          <span id="krMarketUpdatedAt" class="sh-desc">—</span>
-        </div>
-        <div class="section-head-r">
-          <button onclick="loadKrMarket()" title="수동 새로고침" class="icon-btn">🔄</button>
-          <div class="seg">
-            <button class="hm-tab km-tab active" data-km="volume" onclick="switchKrMarket('volume')">📊 거래량 TOP</button>
-            <button class="hm-tab km-tab"        data-km="up"     onclick="switchKrMarket('up')">🔴 상한가</button>
-            <button class="hm-tab km-tab"        data-km="down"  onclick="switchKrMarket('down')">🔵 하한가</button>
-            <button class="hm-tab km-tab"        data-km="flow"  onclick="switchKrMarket('flow')">💰 수급 TOP (5일)</button>
-            <button class="hm-tab km-tab"        data-km="surge" onclick="switchKrMarket('surge')">🚀 거래량 급증</button>
-          </div>
-        </div>
-      </div>
-      <div id="krMarketPanel" style="min-height:80px">
-        <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
-      </div>
-      <div style="margin-top:10px;font-size:10px;color:var(--text3)">
-        📡 데이터: 네이버 증권 · 거래량/상한가/하한가는 코스피+코스닥 전체, 수급 TOP은 시가총액 상위 약 150종목(ETF 제외) 기준 5일 누적 순매수
-      </div>
-    </div>
-
-    <div style="text-align:center;margin:-8px 0 24px;display:flex;justify-content:center;gap:10px;flex-wrap:wrap">
-      <a href="/heatmap.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">🔥 히트맵 전체보기 →</a>
-      <a href="/kr-market.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">🇰🇷 국장 현황 전체보기 →</a>
-    </div>
-
-    <!-- 📰 최신 분석 이슈 -->
-    <div id="issuesSection" class="section-block">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--purple)"></span>
-          <span class="sh-title">최신 분석 이슈</span>
-          <span class="sh-desc">뉴스 → 파급 섹터 → 수혜 기업 분석</span>
-          <span id="feedLiveTag" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
-        </div>
-        <span style="font-size:11px;color:var(--text3)" id="issuesCount"></span>
-      </div>
-
-      <!-- 카테고리 + 섹터 필터 + 검색 (이슈 피드 전용 툴바) -->
-      <div class="feed-toolbar">
-        <div class="category-tabs" id="categoryTabs">
-          <button class="cat-tab active" data-cat="all">🔥 전체</button>
-          <button class="cat-tab" data-cat="earnings">📊 실적발표</button>
-          <button class="cat-tab" data-cat="politics">🌐 정세·외교</button>
-          <button class="cat-tab" data-cat="economy">📈 경제지표</button>
-          <button class="cat-tab" data-cat="tech">💻 AI·반도체</button>
-          <button class="cat-tab" data-cat="bio">🧬 바이오</button>
-          <button class="cat-tab" data-cat="ev">🔋 전기차·배터리</button>
-          <button class="cat-tab" data-cat="energy">⚡ 에너지</button>
-          <button class="cat-tab" data-cat="defense">🚀 방산·우주</button>
-          <button class="cat-tab" data-cat="game">🎮 게임·엔터</button>
-          <button class="cat-tab" data-cat="crypto">🪙 크립토</button>
-        </div>
-        <div class="filters">
-          <span class="filter-label">섹터</span>
-          <button class="filter-chip active" data-sector="all">전체</button>
-          <button class="filter-chip" data-sector="AI">AI</button>
-          <button class="filter-chip" data-sector="반도체">반도체</button>
-          <button class="filter-chip" data-sector="전기차">전기차</button>
-          <button class="filter-chip" data-sector="배터리">배터리</button>
-          <button class="filter-chip" data-sector="바이오">바이오</button>
-          <button class="filter-chip" data-sector="에너지">에너지</button>
-          <button class="filter-chip" data-sector="핀테크">핀테크</button>
-          <button class="filter-chip" data-sector="금융">금융</button>
-          <button class="filter-chip" data-sector="클라우드">클라우드</button>
-          <button class="filter-chip" data-sector="로봇">로봇</button>
-          <button class="filter-chip" data-sector="방산·우주">방산·우주</button>
-          <button class="filter-chip" data-sector="게임">게임</button>
-          <button class="filter-chip" data-sector="크립토">크립토</button>
-          <button class="filter-chip" data-sector="자동차">자동차</button>
-          <button class="filter-chip" data-sector="물류·운송">물류·운송</button>
-        </div>
-      </div>
-
-      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:12.5px;font-weight:700;text-align:center">
-        🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
-      </div>
-
-      <div id="issuesContainer">
-        <div class="loading-state">
-          <div class="spinner"></div>
-          <p>이슈 불러오는 중...</p>
-        </div>
-      </div><!-- issuesContainer end -->
-
-      <!-- Pagination -->
-      <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:24px;padding-bottom:8px"></div>
-    </div>
-
-    <div class="watchlist-view" id="watchlistView"></div>
   </div>
-
-  <!-- 우측 사이드바 -->
-  <aside class="sidebar" id="sidebar">
-    <!-- 🔍 종목 조회 (피드 검색 + 티커 직접 조회) -->
-    <div class="sidebar-card" id="stockLookupCard">
-      <div style="padding:10px 12px">
-        <div class="search-box" style="position:relative;display:flex;align-items:center;gap:6px">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--text3);flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)" style="flex:1;min-width:0"
-                 onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
-          <button onclick="tryDirectLookup(document.getElementById('searchInput').value)"
-                  title="티커 직접 조회 (Yahoo Finance에서 자동 등록)" class="icon-btn" style="white-space:nowrap;flex-shrink:0">🔍 종목 조회</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 🤖 AI 시장 종합 -->
-    <div class="sidebar-card" id="aiMarketSummaryCard">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">🤖 AI 시장 종합<span class="dr-dot" id="aiMSDot" style="display:none"></span></span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span onclick="openReportArchive('ai')" style="font-size:11px;color:var(--blue);cursor:pointer">지난 리포트</span>
-          <span style="font-size:11px;color:var(--text3)" id="aiMSCreatedAt">—</span>
-        </div>
-      </div>
-      <div style="padding:12px 16px" id="aiMarketSummaryBody">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 📌 주간 일정 (토·일 자동 생성) -->
-    <div class="sidebar-card" id="weeklyScheduleCard" style="display:none">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📌 주간 주요 일정</span>
-        <span style="font-size:11px;color:var(--text3)" id="wsWeekLabel">—</span>
-      </div>
-      <div style="padding:12px 16px" id="weeklyScheduleBody"></div>
-    </div>
-
-    <!-- 📰 데일리 리포트 (국장/미장) -->
-    <div class="sidebar-card" id="dailyReportCard">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📰 데일리 리포트<span id="drNewPill" class="dr-new-pill" style="display:none">NEW</span></span>
-        <span onclick="openReportArchive(_drTab === 'KR' ? 'dr-kr' : 'dr-us')" style="font-size:11px;color:var(--blue);cursor:pointer">지난 리포트</span>
-      </div>
-      <div style="display:flex;gap:6px;padding:10px 16px 0">
-        <button class="dr-tab active" id="drTabUS" onclick="switchDrTab('US')">🇺🇸 미장<span class="dr-dot" id="drDotUS" style="display:none"></span></button>
-        <button class="dr-tab" id="drTabKR" onclick="switchDrTab('KR')">🇰🇷 국장<span class="dr-dot" id="drDotKR" style="display:none"></span></button>
-      </div>
-      <div style="padding:10px 16px 12px" id="dailyReportBody">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 📊 섹터 모멘텀 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📊 섹터 모멘텀</span>
-        <span style="font-size:11px;color:var(--text3)">SPDR 1d</span>
-      </div>
-      <div style="padding:12px 16px" id="sectorMomentum">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 🔗 Cross-Asset Correlation -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">🔗 자산 간 상관관계</span>
-        <span style="font-size:11px;color:var(--text3)">30일</span>
-      </div>
-      <div style="padding:10px" id="corrMatrix">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 주요 지수 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title"><span class="live-dot"></span> 주요 지수</span>
-        <span style="font-size:11px;color:var(--text3)" id="indicesUpdatedAt">—</span>
-      </div>
-      <div class="sidebar-card-body" id="sidebarIndices">
-        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('sp500')">S&amp;P 500</span><span class="index-val" id="si-sp500">—</span><span class="index-chg flat" id="si-sp500-chg">—</span></div>
-        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('nasdaq')">NASDAQ</span><span class="index-val" id="si-nasdaq">—</span><span class="index-chg flat" id="si-nasdaq-chg">—</span></div>
-        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('dow')">DOW</span><span class="index-val" id="si-dow">—</span><span class="index-chg flat" id="si-dow-chg">—</span></div>
-        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('kospi')">KOSPI</span><span class="index-val" id="si-kospi">—</span><span class="index-chg flat" id="si-kospi-chg">—</span></div>
-        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('kosdaq')">KOSDAQ</span><span class="index-val" id="si-kosdaq">—</span><span class="index-chg flat" id="si-kosdaq-chg">—</span></div>
-        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('btc')">비트코인</span><span class="index-val" id="si-btc">—</span><span class="index-chg flat" id="si-btc-chg">—</span></div>
-        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('gold')">금 (GC)</span><span class="index-val" id="si-gold">—</span><span class="index-chg flat" id="si-gold-chg">—</span></div>
-        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('oil')">WTI 원유</span><span class="index-val" id="si-oil">—</span><span class="index-chg flat" id="si-oil-chg">—</span></div>
-        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('usdkrw')">USD/KRW</span><span class="index-val" id="si-usdkrw">—</span><span class="index-chg flat" id="si-usdkrw-chg">—</span></div>
-        <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('vix')">VIX (공포지수)</span><span class="index-val" id="si-vix">—</span><span class="index-chg flat" id="si-vix-chg">—</span></div>
-      </div>
-    </div>
-
-    <!-- 선물/옵션 만기일 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📅 만기일</span>
-        <span style="font-size:11px;color:var(--text3)">선물·옵션</span>
-      </div>
-      <div style="padding:8px 16px 12px" id="expiryPanel">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 경제지표 일정 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📈 경제지표 일정</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span onclick="openCalendarModal('eco')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
-          <span class="live-dot" style="background:var(--yellow);animation:pulse 2s infinite"></span>
-        </div>
-      </div>
-      <div style="padding:12px 16px" id="economicCalendar">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 실적발표 캘린더 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📊 실적발표 캘린더</span>
-        <span onclick="openCalendarModal('earnings')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
-      </div>
-      <div style="padding:12px 16px" id="earningsCalendar">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 투자의견 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">🏦 투자의견</span>
-        <span style="font-size:11px;color:var(--text3)" id="analystUpdatedAt">—</span>
-      </div>
-      <div style="padding:12px 16px" id="analystRatings">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 예측 적중 상위 종목 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">🏆 예측 적중 상위</span>
-        <span style="font-size:11px;color:var(--text3)" id="topStocksPeriod">7일 기준</span>
-      </div>
-      <div style="display:flex;gap:5px;padding:10px 16px 0">
-        <button class="acc-tab active" data-mkt="ALL" onclick="switchTopStocksMkt('ALL')">전체</button>
-        <button class="acc-tab" data-mkt="US" onclick="switchTopStocksMkt('US')">🇺🇸 미장</button>
-        <button class="acc-tab" data-mkt="KR" onclick="switchTopStocksMkt('KR')">🇰🇷 국장</button>
-      </div>
-      <div style="padding:8px 16px 12px" id="topStocksPanel">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 속보 + 트럼프 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title"><span class="live-dot" style="background:var(--red)"></span> 시장 속보</span>
-      </div>
-      <!-- Trump Truth Social 글 -->
-      <div id="trumpPosts" style="padding:0 16px;display:none"></div>
-      <!-- 뉴스 속보 -->
-      <div style="padding:12px 16px" id="breakingNews">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
-    </div>
-  </aside>
-</div><!-- layout-with-sidebar end -->
 </main>
 
 <footer class="site-footer">
@@ -1621,3 +1288,4 @@ document.addEventListener('keydown', e => {
 </script>
 </body>
 </html>
+
