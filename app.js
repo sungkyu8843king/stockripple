@@ -3396,18 +3396,22 @@ function krChgChip(pct) {
   return `<span style="display:inline-block;font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:6px;background:${bg};color:${fg}">${krFmtPct(pct)}</span>`;
 }
 
-// 지수 카드(코스피/코스닥/코스피200, S&P500/나스닥/다우 공용) — 등락 방향에 따라
-// 톤 있는 배경(dim)을 통째로 깔아 STRONG BUY 배지 등 사이트 전반의 "채워진 pill" 톤과 맞춘다.
+// 지수 카드(코스피/코스닥/코스피200, S&P500/나스닥/다우 공용) — dim 배경만으로는
+// 카드 전체 면적에서 너무 흐릿해서(8% 알파) 경계가 안 보였음(직접 스크린샷으로 확인).
+// 톤 배경 + 진한 색 좌측 보더 + 원형 화살표 배지로 카드 윤곽과 방향성을 동시에 확보.
 function krIndexCard(label, d) {
   const up = d.changePercent > 0, dn = d.changePercent < 0;
   const bg = up ? 'var(--green-dim)' : dn ? 'var(--red-dim)' : 'var(--bg3)';
   const fg = up ? 'var(--green)' : dn ? 'var(--red)' : 'var(--text2)';
   const arrow = up ? '▲' : dn ? '▼' : '·';
   const sign = d.change >= 0 ? '+' : '';
-  return `<div style="background:${bg};border-radius:12px;padding:16px 18px">
-    <div style="font-size:12px;color:var(--text2);font-weight:700;margin-bottom:6px">${label}</div>
-    <div class="t-num" style="font-size:22px;font-weight:800;color:var(--text)">${krFmtNum(d.price)}</div>
-    <div class="t-num" style="font-size:12.5px;font-weight:800;color:${fg};margin-top:4px">${arrow} ${sign}${d.change.toFixed(2)} (${krFmtPct(d.changePercent)})</div>
+  return `<div style="background:${bg};border-left:4px solid ${fg};border-radius:10px;padding:16px 18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:12px;color:var(--text2);font-weight:700">${label}</span>
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${fg};color:#fff;font-size:11px">${arrow}</span>
+    </div>
+    <div class="t-num" style="font-size:24px;font-weight:800;color:var(--text)">${krFmtNum(d.price)}</div>
+    <div class="t-num" style="font-size:12.5px;font-weight:800;color:${fg};margin-top:4px">${sign}${d.change.toFixed(2)} (${krFmtPct(d.changePercent)})</div>
   </div>`;
 }
 
