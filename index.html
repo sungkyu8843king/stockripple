@@ -1010,7 +1010,10 @@ button { font-family: inherit; }
      모바일 브라우저가 페이지 전체를 축소 렌더링하던 문제 — 위와 같은 원인.
      인라인 스타일(el.innerHTML의 grid-template-columns)보다 우선하려면 !important 필요.
      카드 내부 요소들이 %/em 기반이라 1열로 늘어나도 그대로 잘 맞음. */
-  #insightsPanel > div { grid-template-columns: 1fr !important; }
+  /* 홈 미리보기는 #insightsPanel > #insightsCropWrap > div[grid]로 한 단계 더 깊어서
+     #insightsPanel > div 만으로는 실제 카드 그리드에 안 닿았음 — 두 경로 모두 지정 */
+  #insightsPanel > div,
+  #insightsPanel #insightsCropWrap > div { grid-template-columns: minmax(0,1fr) !important; }
 }
 @media (max-width: 600px) {
   :root { --page-pad: 16px; }
@@ -1411,34 +1414,6 @@ button { font-family: inherit; }
       </div>
     </div>
 
-    <!-- 예측 적중 상위 종목 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">🏆 예측 적중 상위</span>
-        <span style="font-size:11px;color:var(--text3)" id="topStocksPeriod">7일 기준</span>
-      </div>
-      <div style="display:flex;gap:5px;padding:10px 16px 0">
-        <button class="acc-tab active" data-mkt="ALL" onclick="switchTopStocksMkt('ALL')">전체</button>
-        <button class="acc-tab" data-mkt="US" onclick="switchTopStocksMkt('US')">🇺🇸 미장</button>
-        <button class="acc-tab" data-mkt="KR" onclick="switchTopStocksMkt('KR')">🇰🇷 국장</button>
-      </div>
-      <div style="padding:8px 16px 12px" id="topStocksPanel">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 속보 + 트럼프 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title"><span class="live-dot" style="background:var(--red)"></span> 시장 속보</span>
-      </div>
-      <!-- Trump Truth Social 글 -->
-      <div id="trumpPosts" style="padding:0 16px;display:none"></div>
-      <!-- 뉴스 속보 -->
-      <div style="padding:12px 16px" id="breakingNews">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
-    </div>
   </aside>
 </div><!-- layout-with-sidebar end -->
 </main>

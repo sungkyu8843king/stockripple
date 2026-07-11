@@ -2204,13 +2204,9 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   loadEconomicCalendar();
   loadEarningsCalendar();
   loadAnalystRatings();
-  loadTopStocks();
-  loadTrumpPosts();
-  loadBreakingNews();
   setInterval(loadIndices, 30000);
   setInterval(refreshInsightQuotes, 1000);    // 1초마다 시세 갱신 (마켓 상태는 카드에 표시)
   setInterval(loadEconomicCalendar, 30000);   // 30초마다 (발표 결과 빠른 반영)
-  setInterval(loadTrumpPosts, 120000);        // 2분마다 신글 감지
 }
 
 // ── Calendar Modal ────────────────────────────────────────────────────────
