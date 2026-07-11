@@ -1262,7 +1262,7 @@ async function init() {
     document.getElementById('pageWrap').innerHTML = `
       <div class="loading-state">
         <div class="spinner"></div>
-        <p style="color:var(--text2)"><strong>${escHtml(ticker)}</strong> 정보를 Yahoo Finance에서 가져오는 중...</p>
+        <p style="color:var(--text2)"><strong>${escHtml(ticker)}</strong> 종목 정보를 불러오는 중...</p>
       </div>`;
     company = await autoRegisterCompany(ticker);
     if (!company) {
@@ -1270,7 +1270,7 @@ async function init() {
         <div class="loading-state">
           <p style="color:var(--red)">❌ 종목 <strong>${escHtml(ticker)}</strong>을(를) 찾을 수 없습니다.</p>
           <p style="color:var(--text3);font-size:13px;margin-top:8px">
-            Yahoo Finance에서도 검색 실패.<br>
+            종목 정보를 찾을 수 없습니다.<br>
             한국 종목은 6자리 코드 + .KS 또는 .KQ (예: 028300.KQ, 005930.KS)<br>
             미국 종목은 영문 티커 (예: AAPL, MSFT, NVDA)
           </p>
