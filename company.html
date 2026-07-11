@@ -625,13 +625,7 @@ function renderPage(company, records, priceData) {
         <div class="stat-value ${acc7dPct != null && acc7dPct >= 50 ? 'green' : 'yellow'}">${acc7dPct != null ? acc7dPct + '%' : '—'}</div>
       </div>
     </div>
-    <center>
-<script src="https://ads-partners.coupang.com/g.js"></script>
-<script>
-	new PartnersCoupang.G({"id":1004777,"template":"carousel","trackingCode":"AF2174378","width":"1052","height":"84","tsource":""});
-</script>
-</center>
-</body>
+    <center id="coupangAdSlot"></center>
     <!-- AI 종합 분석 -->
     <div id="aiSummaryWrap"></div>
 
@@ -718,6 +712,7 @@ function renderPage(company, records, priceData) {
   `;
 
   document.getElementById('pageWrap').innerHTML = html;
+  loadCoupangAd();
 
   // TradingView 차트 로드 (미장만 — KRX는 TradingView 무료 임베드에서 미지원)
   if (!isKr) {
@@ -757,6 +752,25 @@ function renderPage(company, records, priceData) {
       if (wrap) wrap.innerHTML = '<div class="chart-loading" style="color:var(--red)">차트 데이터를 불러올 수 없습니다.</div>';
     }
   });
+}
+
+// 쿠팡 파트너스 광고 — 스크립트 태그를 HTML 템플릿 리터럴 안에 문자열로 직접 넣으면
+// 브라우저의 HTML 파서가 (JS 문법을 모른 채) 그 안의 스크립트 종료 태그 문자열을 페이지
+// 전체를 감싸는 진짜 메인 스크립트의 종료 태그로 오인해, 그 뒤 코드 전부가 실행되지
+// 않는 순수 텍스트로 노출되는 사고가 있었다 — document.createElement로 런타임에
+// 동적 주입해 이 문제를 피한다. (주의: 이 주석에도 그 태그 문자열을 그대로 적으면 안 됨)
+function loadCoupangAd() {
+  const slot = document.getElementById('coupangAdSlot');
+  if (!slot || slot.dataset.loaded) return;
+  slot.dataset.loaded = '1';
+  const s1 = document.createElement('script');
+  s1.src = 'https://ads-partners.coupang.com/g.js';
+  s1.onload = () => {
+    const s2 = document.createElement('script');
+    s2.textContent = 'new PartnersCoupang.G({"id":1004777,"template":"carousel","trackingCode":"AF2174378","width":"1052","height":"84","tsource":""});';
+    slot.appendChild(s2);
+  };
+  slot.appendChild(s1);
 }
 
 // ── TradingView 차트 ──────────────────────────────────────
