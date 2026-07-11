@@ -88,6 +88,7 @@ export default async function handler(req, res) {
   if (action === 'dart-sync-corp-codes') return handleDartSyncCorpCodes(req, res);
   if (action === 'dart-upload-corp-codes') return handleDartUploadCorpCodes(req, res);
   if (action === 'verify-kr-names') return handleVerifyKrNames(req, res);
+  if (action === 'fix-kr-broken-names') return handleFixKrBrokenNames(req, res);
   if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
   if (action === 'daily-report') return handleDailyReportPost(req, res);
   if (action === 'weekly-schedule') return handleWeeklySchedulePost(req, res);
@@ -1667,6 +1668,61 @@ async function handleVerifyKrNames(req, res) {
   }
 
   return res.status(200).json({ ok: true, dry_run: dryRun, ...results });
+}
+
+// company.html의 autoRegisterCompany가 브라우저에서 Yahoo Finance를 직접 호출하다
+// CORS로 실패해(수정 완료) name_ko/name_en에 티커 코드가 그대로 저장된 KR 종목들
+// 일괄 정리. dart_corp_code가 없어도 되도록 네이버 펀더멘털(/api/stock?type=fundamentals)
+// 경유로 정확한 한글명을 다시 조회한다.
+async function handleFixKrBrokenNames(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const dryRun = !!req.body?.dry_run;
+
+  const { data: companies, error } = await supabase
+    .from('companies')
+    .select('id, ticker, name_ko, name_en')
+    .eq('market', 'KR');
+  if (error) return res.status(500).json({ error: error.message });
+
+  const broken = (companies || []).filter(c => c.name_ko === c.ticker || c.name_en === c.ticker);
+
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : `https://${req.headers.host}`;
+
+  const results = [];
+  for (const c of broken) {
+    try {
+      const [fundRes, quoteRes] = await Promise.all([
+        fetch(`${base}/api/stock?type=fundamentals&ticker=${encodeURIComponent(c.ticker)}&nocache=1`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${base}/api/quotes?tickers=${encodeURIComponent(c.ticker)}`).then(r => r.ok ? r.json() : null).catch(() => null),
+      ]);
+      const nameKo = fundRes?.company || null;
+      const shortName = quoteRes?.data?.[c.ticker]?.shortName || null;
+      if (!nameKo) { results.push({ ticker: c.ticker, ok: false, error: '네이버에서 회사명 조회 실패' }); continue; }
+
+      const update = {
+        name_ko: nameKo,
+        name_en: (shortName && shortName !== c.ticker) ? shortName : nameKo,
+      };
+      if (!dryRun) {
+        const { error: upErr } = await supabase.from('companies').update(update).eq('id', c.id);
+        if (upErr) { results.push({ ticker: c.ticker, ok: false, error: upErr.message }); continue; }
+      }
+      results.push({ ticker: c.ticker, ok: true, before: c.name_ko, after: update.name_ko });
+    } catch (e) {
+      results.push({ ticker: c.ticker, ok: false, error: e.message });
+    }
+  }
+
+  return res.status(200).json({
+    ok: true,
+    dryRun,
+    totalKr: companies?.length || 0,
+    brokenFound: broken.length,
+    fixed: results.filter(r => r.ok).length,
+    results,
+  });
 }
 
 // ════════════════════════════════════════════════════════════
