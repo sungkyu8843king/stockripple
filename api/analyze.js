@@ -10,6 +10,34 @@ const supabase = createClient(
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ── 속보 감지 → 긴급 안내 배너 자동 트리거 ──────────────────────────────
+// 오탐(스팸성 배너)을 피하려고 일상적인 급등/급락이 아니라 드물고 확실히
+// 시장 구조에 영향을 주는 이벤트만 좁게 매칭한다. 관리자가 수동으로 켠
+// 배너(source='manual')는 절대 건드리지 않는다.
+const BREAKING_KEYWORDS = [
+  '사이드카', '서킷브레이커', '거래정지', '상장폐지',
+  '디폴트', '파산신청', '파산보호',
+];
+function detectBreakingNews(title) {
+  if (!title) return null;
+  return BREAKING_KEYWORDS.find(k => title.includes(k)) || null;
+}
+async function maybeAutoAnnounce(issue, matchedKeyword) {
+  try {
+    const { data: cur } = await supabase.from('site_announcement').select('source, source_issue_id').eq('id', 1).maybeSingle();
+    if (cur?.source === 'manual' && cur?.active) return; // 관리자가 수동으로 켠 배너는 보존
+    if (cur?.source === 'auto' && cur?.source_issue_id === issue.id) return; // 같은 이슈로 이미 트리거됨
+
+    const message = `🚨 [속보] ${issue.title}`.slice(0, 500);
+    await supabase.from('site_announcement').upsert({
+      id: 1, active: true, message, source: 'auto', source_issue_id: issue.id,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error('auto-announce failed:', e.message);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -300,6 +328,9 @@ export default async function handler(req, res) {
         duration_ms: Date.now() - issueStart,
         relevance: analysis.relevance_score,
       });
+
+      const breakingKeyword = detectBreakingNews(issue.title);
+      if (breakingKeyword) await maybeAutoAnnounce(issue, breakingKeyword);
 
       const tickers = pickedTickers.slice(0, 5).join(', ');
       await sendNotify(

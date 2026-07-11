@@ -475,11 +475,11 @@ async function handleGetAnnouncement(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const { data, error } = await supabase
     .from('site_announcement')
-    .select('active, message, updated_at')
+    .select('active, message, updated_at, source')
     .eq('id', 1)
     .maybeSingle();
   if (error || !data) return res.status(200).json({ active: false, message: '' });
-  return res.status(200).json({ active: !!data.active, message: data.message || '', updated_at: data.updated_at });
+  return res.status(200).json({ active: !!data.active, message: data.message || '', updated_at: data.updated_at, source: data.source || 'manual' });
 }
 
 async function handleSetAnnouncement(req, res) {
@@ -487,8 +487,10 @@ async function handleSetAnnouncement(req, res) {
   const active = !!req.body?.active;
   const message = (req.body?.message || '').toString().slice(0, 500);
 
+  // 관리자가 대시보드에서 직접 저장하면 항상 'manual'로 표시 — 이후 자동 트리거
+  // 로직(analyze.js)이 이 배너를 절대 덮어쓰지 않도록 하는 표식.
   const { error } = await supabase.from('site_announcement').upsert({
-    id: 1, active, message, updated_at: new Date().toISOString(),
+    id: 1, active, message, source: 'manual', source_issue_id: null, updated_at: new Date().toISOString(),
   });
   if (error) return res.status(500).json({ error: error.message });
   return res.status(200).json({ ok: true, active, message });

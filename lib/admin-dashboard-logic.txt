@@ -1062,6 +1062,8 @@ async function loadAnnouncement() {
     document.getElementById('annActive').checked = !!d.active;
     document.getElementById('annMessage').value = d.message || '';
     if (status) status.textContent = d.updated_at ? `마지막 수정: ${new Date(d.updated_at).toLocaleString('ko-KR')}` : '';
+    const note = document.getElementById('annAutoNote');
+    if (note) note.style.display = (d.active && d.source === 'auto') ? 'block' : 'none';
   } catch {
     if (status) status.textContent = '불러오기 실패';
   }
@@ -1075,6 +1077,8 @@ async function saveAnnouncement() {
   const data = await callApi('/api/admin?action=set-announcement', { active, message }, 'annLog');
   if (!data?.ok) { showToast('저장 실패', 'error'); return; }
   showToast(active ? '배너를 활성화했습니다' : '배너를 비활성화했습니다', 'success');
+  const note = document.getElementById('annAutoNote');
+  if (note) note.style.display = 'none';
   loadAnnouncementBadge();
 }
 

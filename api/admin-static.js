@@ -634,9 +634,10 @@ const SHELL_HTML = `
     <div class="panel-section" id="panel-announcement">
       <div class="section-header">
         <h2>🚨 긴급 안내</h2>
-        <p>활성화하면 사이트 모든 페이지 상단에 배너로 노출됩니다 (사용자가 닫기 전까지 유지). 장애·점검 등 긴급 공지에 사용하세요.</p>
+        <p>활성화하면 사이트 모든 페이지 상단에 배너로 노출됩니다 (사용자가 닫기 전까지 유지). 장애·점검 등 긴급 공지에 사용하세요. 사이드카·서킷브레이커·거래정지 등 속보성 이슈가 분석되면 자동으로도 켜집니다.</p>
       </div>
       <div class="card">
+        <div id="annAutoNote" style="display:none;font-size:12px;color:var(--blue);background:var(--blue-dim,rgba(59,130,246,.08));padding:8px 12px;border-radius:8px;margin-bottom:12px">🤖 속보 감지로 자동 활성화된 배너입니다. 저장하면 수동 배너로 전환되어 이후 자동 갱신되지 않습니다.</div>
         <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:14px">
           <input type="checkbox" id="annActive" style="width:16px;height:16px;cursor:pointer">
           배너 활성화
