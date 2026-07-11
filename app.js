@@ -3068,6 +3068,90 @@ function renderSectorBoxes(grid, items, structureKey) {
   _hmStructureKey = structureKey;
 }
 
+// ─── 🇰🇷 국장 요약 (지수 카드 + 인기 검색 종목 + 해외지수 + 투자자별 수급 차트) ──
+// 수급 차트는 직접 계산하지 않고 네이버 증권이 서버에서 미리 렌더링해 제공하는
+// PNG를 그대로 embed(핫링크)한다 — sid= 캐시버스터로 매 새로고침마다 최신 이미지를 받음.
+const KR_INDEX_DEFS = [
+  { t: '^KS11',  label: '코스피' },
+  { t: '^KQ11',  label: '코스닥' },
+  { t: '^KS200', label: '코스피200' },
+];
+const OVERSEAS_INDEX_DEFS = [
+  { t: '^DJI',      label: '다우산업' },
+  { t: '^IXIC',     label: '나스닥' },
+  { t: '^HSI',      label: '홍콩 항셍' },
+  { t: '000001.SS', label: '상해종합' },
+  { t: '^N225',     label: '니케이225' },
+];
+const KR_FLOW_CHART_IMG = { KOSPI: 'siseMainKOSPI', KOSDAQ: 'siseMainKOSDAQ', KPI200: 'siseMainKPI200' };
+let _krFlowMkt = 'KOSPI';
+
+function switchKrFlowChart(mkt) {
+  _krFlowMkt = mkt;
+  document.querySelectorAll('.kf-tab').forEach(b => b.classList.toggle('active', b.dataset.kf === mkt));
+  const img = document.getElementById('krFlowChartImg');
+  if (img) img.src = `https://ssl.pstatic.net/imgfinance/chart/sise/${KR_FLOW_CHART_IMG[mkt]}.png?sid=${Date.now()}`;
+}
+
+async function loadKrSummary() {
+  const cardsEl = document.getElementById('krIndexCards');
+  if (!cardsEl) return;
+  try {
+    const allTickers = [...KR_INDEX_DEFS, ...OVERSEAS_INDEX_DEFS].map(x => x.t);
+    const [quoteRes, searchRes] = await Promise.all([
+      fetch(`/api/quotes?tickers=${allTickers.map(encodeURIComponent).join(',')}`).then(r => r.json()),
+      fetch('/api/kr-market?type=popular-search').then(r => r.json()),
+    ]);
+    const q = quoteRes?.data || {};
+
+    cardsEl.innerHTML = KR_INDEX_DEFS.map(def => {
+      const d = q[def.t];
+      if (!d) return '';
+      const sign = d.change >= 0 ? '+' : '';
+      return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+        <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:4px">${def.label}</div>
+        <div class="t-num" style="font-size:20px;font-weight:800">${krFmtNum(d.price)}</div>
+        <div class="t-num" style="font-size:12px;font-weight:700;color:${krChgColor(d.changePercent)};margin-top:2px">${sign}${d.change.toFixed(2)} (${krFmtPct(d.changePercent)})</div>
+      </div>`;
+    }).join('');
+
+    renderKrPopularSearch(searchRes?.items || []);
+
+    const ovEl = document.getElementById('krOverseasIndices');
+    if (ovEl) {
+      ovEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:2px">` + OVERSEAS_INDEX_DEFS.map(def => {
+        const d = q[def.t];
+        if (!d) return '';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 4px">
+          <span style="flex:1;min-width:0;font-size:12.5px;font-weight:600">${def.label}</span>
+          <span class="t-num" style="font-size:12px;font-weight:600;text-align:right;white-space:nowrap">${krFmtNum(d.price)}</span>
+          <span class="t-num" style="font-size:11px;font-weight:700;color:${krChgColor(d.changePercent)};width:56px;text-align:right;flex-shrink:0">${krFmtPct(d.changePercent)}</span>
+        </div>`;
+      }).join('') + `</div>`;
+    }
+
+    switchKrFlowChart(_krFlowMkt);
+
+    const upd = document.getElementById('krSummaryUpdatedAt');
+    if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) + ' 기준';
+  } catch (e) {
+    cardsEl.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--red);font-size:12px;padding:16px">불러오기 실패: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderKrPopularSearch(items) {
+  const el = document.getElementById('krPopularSearch');
+  if (!el) return;
+  if (!items?.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:12px">데이터 없음</div>'; return; }
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:2px">` + items.map(it => `
+    <a href="/company.html?ticker=${encodeURIComponent(it.ticker)}" style="display:flex;align-items:center;gap:8px;padding:6px 4px;text-decoration:none;color:inherit;border-radius:6px" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <span style="width:16px;flex-shrink:0;font-size:11px;color:var(--text3);font-weight:700">${it.rank}</span>
+      <span style="flex:1;min-width:0;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(it.name)}</span>
+      <span class="t-num" style="font-size:12px;font-weight:600;text-align:right;white-space:nowrap">${krFmtNum(it.price)}</span>
+      <span class="t-num" style="font-size:11px;font-weight:700;color:${krChgColor(it.changePercent)};width:56px;text-align:right;flex-shrink:0">${krFmtPct(it.changePercent)}</span>
+    </a>`).join('') + `</div>`;
+}
+
 // ─── 🇰🇷 국장 현황 (거래량 TOP / 상한가 / 하한가 / 5일 수급 TOP) ──────────
 let _kmTab = 'volume';
 const _kmCache = {};
@@ -3985,6 +4069,7 @@ function computeMarketStatus(market) {
     try { loadSectorMomentum();   } catch (e) { console.error('sectorMo', e); }
     try { loadCorrelation();      } catch (e) { console.error('corr', e); }
     try { loadKrMarket();         } catch (e) { console.error('krMarket', e); }
+    try { loadKrSummary();        } catch (e) { console.error('krSummary', e); }
   };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', kick, { once: true });
@@ -4012,6 +4097,8 @@ function computeMarketStatus(market) {
   setInterval(() => { try { triggerLiveCollect(); } catch {} }, 300000);
   // 5분마다 국장 현황 새로고침
   setInterval(() => { try { delete _kmCache[_kmTab]; loadKrMarket(); } catch {} }, 300000);
+  // 1분마다 국장 요약(지수 카드 + 인기검색 + 해외지수 + 수급차트) 새로고침
+  setInterval(() => { try { loadKrSummary(); } catch {} }, 60000);
 })();
 
 // ─── 종목 검색 결과 카드 모달 ─────────────────────────────

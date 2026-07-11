@@ -51,7 +51,8 @@ export default async function handler(req, res) {
     if (type === 'limit-up')     return await handleLimitList(req, res, 'up');
     if (type === 'limit-down')   return await handleLimitList(req, res, 'down');
     if (type === 'flow-top')     return await handleFlowTop(req, res);
-    if (type === 'volume-surge') return await handleVolumeSurge(req, res);
+    if (type === 'volume-surge')   return await handleVolumeSurge(req, res);
+    if (type === 'popular-search') return await handlePopularSearch(req, res);
     return res.status(400).json({ ok: false, error: 'unknown type' });
   } catch (err) {
     return res.status(500).json({ ok: false, error: err.message });
@@ -236,4 +237,42 @@ async function handleFlowTop(req, res) {
     outflow: outflow.map(shape),
     ts: Date.now(),
   });
+}
+
+// ─── 인기 검색 종목 (finance.naver.com/sise/lastsearch2.naver) ─────────────
+// 코스피/코스닥 구분 없이 검색 비율 기준 TOP10. 이 페이지 자체엔 시장 구분이
+// 없어(사용자 검색량 집계라 sosok 파라미터가 없음), 정확한 티커 접미사(.KS/.KQ)를
+// 얻기 위해 네이버 실시간 polling API를 배치 조회(콤마 구분 1회 호출)한다.
+async function handlePopularSearch(req, res) {
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  const html = await fetchEucKr('https://finance.naver.com/sise/lastsearch2.naver');
+  const rows = rowsOf(html).slice(0, 10);
+  const items = rows.map((row, i) => {
+    const code = codeOf(row), name = nameOf(row);
+    if (!code || !name) return null;
+    const c = tdCells(row);
+    return {
+      rank: i + 1, code, name,
+      searchRatio: num(c[2]), price: num(c[3]),
+      changePercent: num(c[5]), volume: num(c[6]),
+    };
+  }).filter(Boolean);
+
+  try {
+    const codes = items.map(x => x.code).join(',');
+    const pr = await fetch(`https://polling.finance.naver.com/api/realtime/domestic/stock/${codes}`, {
+      headers: HEADERS, signal: AbortSignal.timeout(5000),
+    });
+    const pj = await pr.json();
+    const exMap = Object.fromEntries((pj.datas || []).map(d => [d.itemCode, d.stockExchangeType?.code]));
+    for (const it of items) {
+      const ex = exMap[it.code] || 'KS';
+      it.ticker = `${it.code}.${ex}`;
+      it.market = ex === 'KQ' ? 'KOSDAQ' : 'KOSPI';
+    }
+  } catch {
+    for (const it of items) { it.ticker = `${it.code}.KS`; it.market = 'KOSPI'; }
+  }
+
+  return res.status(200).json({ ok: true, items, ts: Date.now() });
 }

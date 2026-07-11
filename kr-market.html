@@ -975,6 +975,9 @@ button { font-family: inherit; }
      인라인 스타일(el.innerHTML의 grid-template-columns)보다 우선하려면 !important 필요.
      카드 내부 요소들이 %/em 기반이라 1열로 늘어나도 그대로 잘 맞음. */
   #insightsPanel > div { grid-template-columns: 1fr !important; }
+
+  /* 국장 요약: 차트(2fr) + 인기검색·해외지수(1fr) 좌우 배치를 세로 1열로 전환 */
+  #krSummaryGrid { grid-template-columns: minmax(0,1fr) !important; }
 }
 @media (max-width: 600px) {
   :root { --page-pad: 16px; }
@@ -1049,6 +1052,45 @@ button { font-family: inherit; }
 
 <main class="main-content">
   <div style="max-width:var(--page-max);margin:0 auto;padding:22px var(--page-pad) 48px;display:flex;flex-direction:column;gap:24px">
+    <div id="krSummarySection" class="section-block">
+      <div class="section-head">
+        <div class="section-head-l">
+          <span class="sh-mark" style="background:var(--blue)"></span>
+          <span class="sh-title">국장 요약</span>
+          <span id="krSummaryUpdatedAt" class="sh-desc">—</span>
+        </div>
+        <div class="section-head-r">
+          <button onclick="loadKrSummary()" title="수동 새로고침" class="icon-btn">🔄</button>
+        </div>
+      </div>
+
+      <div id="krIndexCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">
+        <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:16px">로딩 중...</div>
+      </div>
+
+      <div id="krSummaryGrid" style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px">
+        <div>
+          <div class="seg" id="krFlowChartTabs" style="margin-bottom:8px;display:inline-flex">
+            <button class="hm-tab kf-tab active" data-kf="KOSPI"  onclick="switchKrFlowChart('KOSPI')">코스피</button>
+            <button class="hm-tab kf-tab"        data-kf="KOSDAQ" onclick="switchKrFlowChart('KOSDAQ')">코스닥</button>
+            <button class="hm-tab kf-tab"        data-kf="KPI200" onclick="switchKrFlowChart('KPI200')">코스피200</button>
+          </div>
+          <img id="krFlowChartImg" alt="투자자별 순매수 추이" style="width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg2);display:block">
+          <div style="margin-top:6px;font-size:10px;color:var(--text3)">📡 데이터: 네이버 증권 · 개인·외국인·기관 누적 순매수 + 지수 추이(당일)</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:18px;min-width:0">
+          <div style="min-width:0">
+            <div class="sh-title" style="font-size:13px;margin-bottom:8px">🔍 인기 검색 종목</div>
+            <div id="krPopularSearch"><div style="text-align:center;color:var(--text3);font-size:12px;padding:16px">로딩 중...</div></div>
+          </div>
+          <div style="min-width:0">
+            <div class="sh-title" style="font-size:13px;margin-bottom:8px">🌍 주요 해외지수</div>
+            <div id="krOverseasIndices"><div style="text-align:center;color:var(--text3);font-size:12px;padding:16px">로딩 중...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="krMarketSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
