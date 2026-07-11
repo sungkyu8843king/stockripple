@@ -708,7 +708,12 @@ async function fetchFMPForTicker(sym, key) {
       const sorted = arr.slice().sort((a,b) => new Date(a.date) - new Date(b.date));
       const future = sorted.find(e => new Date(e.date).getTime() >= todayMs);
       const past   = sorted.filter(e => new Date(e.date).getTime() < todayMs).pop();
-      const e = future || past;
+      // 실적 발표 당일이 지나면 곧바로 다음 분기 예정일로 넘어가 방금 나온 결과를
+      // 확인할 새도 없이 사라지던 문제 — 지난 1주일 이내 발표(결과 반영됨)는
+      // 다음 예정일보다 우선 노출해 최소 일주일간 결과를 볼 수 있게 한다.
+      const SEVEN_DAYS_MS = 7 * 86400000;
+      const pastIsRecent = past && (todayMs - new Date(past.date).getTime()) <= SEVEN_DAYS_MS;
+      const e = pastIsRecent ? past : (future || past);
       if (!e) return null;
       return {
         symbol: sym, date: e.date,
@@ -809,10 +814,13 @@ async function handleEarnings(res) {
       recKey = rStr === 'buy' ? 'buy' : rStr === 'sell' ? 'sell' : rStr === 'hold' ? 'hold' : null;
     }
 
-    // 날짜: FMP 미래일 > Nasdaq 추정 예정일 > FMP 과거 발표일
+    // 날짜: FMP 미래일 > FMP 최근(1주 이내) 과거 발표일 > Nasdaq 추정 예정일 > 그 외 FMP 과거 발표일
+    // 최근 발표일은 결과를 확인할 시간을 주기 위해 Nasdaq의 다음 분기 예상일보다 우선한다.
     let date = fmp?.date || null;
     let dateEstimated = false;
-    if ((!date || date < todayStr) && nasdaq?.date && nasdaq.date >= todayStr) {
+    const isRecentPast = date && date < todayStr &&
+      (Date.now() - new Date(date).getTime()) <= 7 * 86400000;
+    if (!isRecentPast && (!date || date < todayStr) && nasdaq?.date && nasdaq.date >= todayStr) {
       date = nasdaq.date;
       dateEstimated = true;
     }

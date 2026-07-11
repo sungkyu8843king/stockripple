@@ -1174,15 +1174,16 @@ async function autoRegisterCompany(ticker) {
     // 시장 자동 판별 (.KS = 한국, 그 외 = 미국)
     const market = /\.KS$|\.KQ$/i.test(ticker) ? 'KR' : 'US';
 
-    // Yahoo의 v8/chart로 회사명 가져오기
-    let companyName = ticker;
+    // 회사명: 서버 프록시(펀더멘털 API)로 조회 — KR은 네이버(정확한 한글명), US는 FMP.
+    // 브라우저에서 Yahoo Finance를 직접 호출하면 CORS로 거의 항상 실패해(응답을 읽을 수
+    // 없음) 티커 코드가 그대로 회사명으로 저장되는 문제가 있었음 — /api/quotes가 이미
+    // 받아온 shortName을 우선 폴백으로 쓰고, 서버 경유 조회로 더 정확한 이름을 덮어쓴다.
+    let companyName = q.shortName || ticker;
     try {
-      const r2 = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`);
+      const r2 = await fetch(`/api/stock?type=fundamentals&ticker=${encodeURIComponent(ticker)}`);
       if (r2.ok) {
-        const cd = await r2.json();
-        companyName = cd?.chart?.result?.[0]?.meta?.longName
-                   || cd?.chart?.result?.[0]?.meta?.shortName
-                   || ticker;
+        const fd = await r2.json();
+        if (fd?.company) companyName = fd.company;
       }
     } catch {}
 
