@@ -57,6 +57,10 @@ const SHELL_HTML = `
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       👁 조회수 통계
     </button>
+    <button class="nav-item" data-panel="analytics">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+      📊 방문자 분석
+    </button>
     <button class="nav-item" data-panel="reanalyze">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
       재분석 (구→신 변환)
@@ -533,6 +537,56 @@ const SHELL_HTML = `
           <thead><tr><th style="width:40px">#</th><th>티커</th><th>회사명</th><th>시장</th><th style="text-align:right">조회수</th></tr></thead>
           <tbody id="viewsTableBody"><tr><td colspan="5" style="text-align:center;color:var(--text3)">로딩 중...</td></tr></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- 방문자 애널리틱스 -->
+    <div class="panel-section" id="panel-analytics">
+      <div class="section-header">
+        <h2>📊 방문자 분석</h2>
+        <p>일자별·시간대별 접속자, 유입경로, 페이지별 체류시간, 이동경로를 보여줍니다 (/sr-pulse.js 수집 기준).</p>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-ghost" onclick="loadAnalyticsAll()">🔄 새로고침</button>
+        <select id="anaDays" onchange="loadAnalyticsAll()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          <option value="7">최근 7일</option>
+          <option value="14" selected>최근 14일</option>
+          <option value="30">최근 30일</option>
+          <option value="90">최근 90일</option>
+        </select>
+        <span id="anaCappedNote" style="font-size:11px;color:var(--yellow)"></span>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-title">📅 일자별 접속자 (순 방문 세션 수)</div>
+        <div id="anaDaily" style="margin-top:10px">로딩 중...</div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-title">🕐 시간대별 접속자 (KST, 선택 기간 통합)</div>
+        <div id="anaHourly" style="margin-top:10px;display:flex;align-items:flex-end;gap:2px;height:120px">로딩 중...</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+        <div class="card">
+          <div class="card-title">🔗 유입경로 TOP 20</div>
+          <table style="margin-top:8px">
+            <thead><tr><th>경로</th><th style="text-align:right">방문자</th></tr></thead>
+            <tbody id="anaReferrers"><tr><td colspan="2" style="text-align:center;color:var(--text3)">로딩 중...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title">⏱ 페이지별 평균 체류시간 TOP 30</div>
+          <table style="margin-top:8px">
+            <thead><tr><th>페이지</th><th style="text-align:right">평균</th><th style="text-align:right">표본</th></tr></thead>
+            <tbody id="anaDwell"><tr><td colspan="3" style="text-align:center;color:var(--text3)">로딩 중...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-title">🧭 최근 이동경로 (세션 샘플 50개)</div>
+        <div id="anaPaths" style="margin-top:10px;font-size:12px">로딩 중...</div>
       </div>
     </div>
 

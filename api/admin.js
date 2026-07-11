@@ -19,6 +19,8 @@
  *  GET  /api/admin?action=ai-market-summary[&history=N] → AI 시장 종합 최신/과거 목록 (공개)
  *  GET  /api/admin?action=daily-report&market=KR|US[&date=|&history=N] → 데일리 리포트 조회 (공개)
  *  POST /api/admin?action=daily-report {market} → 데일리 리포트 생성 (장 마감 후 cron)
+ *  POST /api/admin?action=track {event:'enter'|'leave', ...} → 방문자 애널리틱스 수집 (공개)
+ *  GET  /api/admin?action=analytics&type=daily|hourly|referrers|paths|dwell|live[&days=N] → 방문자 통계 조회
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
@@ -73,6 +75,9 @@ export default async function handler(req, res) {
   if (action === 'delete-own-account') return handleDeleteOwnAccount(req, res);
   // announcement 조회는 공개 (사이트 전체 상단 배너가 매 페이지에서 호출)
   if (action === 'announcement' && req.method === 'GET') return handleGetAnnouncement(req, res);
+  // track: 방문자 애널리틱스 수집 — 모든 방문자가 매 페이지에서 호출하므로 공개.
+  // 실패해도 방문 경험에 영향 없도록 내부에서 항상 200을 반환한다.
+  if (action === 'track') return handleTrack(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -97,6 +102,7 @@ export default async function handler(req, res) {
   if (action === 'catalysts') return handleCatalystsPost(req, res);
   if (action === 'check-accuracy') return handleCheckAccuracy(req, res);
   if (action === 'view-stats') return handleViewStats(req, res);
+  if (action === 'analytics') return handleAnalytics(req, res);
   if (action === 'set-announcement') return handleSetAnnouncement(req, res);
   if (action === 'list-users') return handleListUsers(req, res);
   if (action === 'ban-user') return handleBanUser(req, res);
@@ -203,6 +209,157 @@ async function fetchAccuracyCheckPrice(ticker) {
 }
 
 const accuracySleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ════════════════════════════════════════════════════════════
+// 방문자 애널리틱스 — 수집(track) + 조회(analytics)
+// 클라이언트는 page_views 테이블에 절대 직접 접근하지 않고 이 두 액션만 거친다.
+// ════════════════════════════════════════════════════════════
+async function handleTrack(req, res) {
+  // 실패해도 방문 경험엔 영향 없도록 파싱 오류까지 전부 200으로 삼킨다.
+  try {
+    if (req.method !== 'POST') return res.status(200).json({ ok: false });
+    const body = req.body || {};
+    const { event, view_id, session_id, path, referrer, utm_source, utm_medium, utm_campaign, dwell_ms } = body;
+
+    if (event === 'enter') {
+      if (!view_id || !session_id || !path) return res.status(200).json({ ok: false });
+      let referrer_host = null;
+      if (referrer) {
+        try { referrer_host = new URL(referrer).hostname.replace(/^www\./, '').slice(0, 100); } catch {}
+      }
+      await supabase.from('page_views').insert({
+        view_id: String(view_id).slice(0, 100),
+        session_id: String(session_id).slice(0, 100),
+        path: String(path).slice(0, 300),
+        referrer: referrer ? String(referrer).slice(0, 500) : null,
+        referrer_host,
+        utm_source: utm_source ? String(utm_source).slice(0, 100) : null,
+        utm_medium: utm_medium ? String(utm_medium).slice(0, 100) : null,
+        utm_campaign: utm_campaign ? String(utm_campaign).slice(0, 100) : null,
+      });
+    } else if (event === 'leave') {
+      if (!view_id || dwell_ms == null) return res.status(200).json({ ok: false });
+      const clamped = Math.max(0, Math.min(Number(dwell_ms) || 0, 3 * 3600 * 1000)); // 최대 3시간으로 클램프(비정상값 방지)
+      await supabase.from('page_views').update({ dwell_ms: clamped }).eq('view_id', String(view_id).slice(0, 100));
+    }
+    return res.status(200).json({ ok: true });
+  } catch {
+    return res.status(200).json({ ok: false });
+  }
+}
+
+async function handleAnalytics(req, res) {
+  const type = (req.query.type || 'daily').toString();
+  const days = Math.min(Math.max(parseInt(req.query.days) || 14, 1), 90);
+  const sinceIso = new Date(Date.now() - days * 86400000).toISOString();
+  const ROW_CAP = 20000; // 개인/소규모 트래픽 기준 — 그 이상이면 DB 집계 함수로 전환 필요
+
+  try {
+    if (type === 'live') {
+      // 최근 5분 내 활동한 세션 = 실시간 접속자, 페이지별로도 묶어서 보여줌
+      const fiveMinAgo = new Date(Date.now() - 5 * 60000).toISOString();
+      const { data, error } = await supabase.from('page_views').select('session_id, path').gte('created_at', fiveMinAgo);
+      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const sessions = new Set();
+      const byPage = {};
+      for (const row of data || []) {
+        sessions.add(row.session_id);
+        byPage[row.path] = (byPage[row.path] || 0) + 1;
+      }
+      const pages = Object.entries(byPage).sort((a, b) => b[1] - a[1]).slice(0, 8)
+        .map(([path, count]) => ({ path, count }));
+      return res.status(200).json({ ok: true, visitors: sessions.size, pages });
+    }
+
+    if (type === 'daily') {
+      const { data, error } = await supabase.from('page_views').select('created_at, session_id')
+        .gte('created_at', sinceIso).limit(ROW_CAP);
+      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const byDay = {};
+      for (const row of data || []) {
+        const day = row.created_at.slice(0, 10);
+        (byDay[day] ??= new Set()).add(row.session_id);
+      }
+      const items = Object.entries(byDay)
+        .map(([day, set]) => ({ day, visitors: set.size }))
+        .sort((a, b) => a.day.localeCompare(b.day));
+      return res.status(200).json({ ok: true, items, capped: (data || []).length >= ROW_CAP });
+    }
+
+    if (type === 'hourly') {
+      // 최근 N일 통합 — 몇 시대에 방문이 몰리는지 (KST 기준)
+      const { data, error } = await supabase.from('page_views').select('created_at, session_id')
+        .gte('created_at', sinceIso).limit(ROW_CAP);
+      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const byHour = {};
+      for (const row of data || []) {
+        const kst = new Date(new Date(row.created_at).getTime() + 9 * 3600000);
+        const h = kst.getUTCHours();
+        (byHour[h] ??= new Set()).add(row.session_id);
+      }
+      const items = Array.from({ length: 24 }, (_, h) => ({ hour: h, visitors: byHour[h]?.size || 0 }));
+      return res.status(200).json({ ok: true, items, capped: (data || []).length >= ROW_CAP });
+    }
+
+    if (type === 'referrers') {
+      const { data, error } = await supabase.from('page_views').select('referrer_host, utm_source, session_id')
+        .gte('created_at', sinceIso).limit(ROW_CAP);
+      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const groups = {};
+      for (const row of data || []) {
+        const key = row.utm_source ? `📣 ${row.utm_source}` : (row.referrer_host || '직접 방문/북마크');
+        (groups[key] ??= new Set()).add(row.session_id);
+      }
+      const items = Object.entries(groups)
+        .map(([source, set]) => ({ source, visitors: set.size }))
+        .sort((a, b) => b.visitors - a.visitors)
+        .slice(0, 20);
+      return res.status(200).json({ ok: true, items, capped: (data || []).length >= ROW_CAP });
+    }
+
+    if (type === 'dwell') {
+      const { data, error } = await supabase.from('page_views').select('path, dwell_ms')
+        .gte('created_at', sinceIso).not('dwell_ms', 'is', null).limit(ROW_CAP);
+      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const byPath = {};
+      for (const row of data || []) {
+        (byPath[row.path] ??= []).push(row.dwell_ms);
+      }
+      const items = Object.entries(byPath)
+        .map(([path, arr]) => ({
+          path, samples: arr.length,
+          avgMs: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
+        }))
+        .sort((a, b) => b.samples - a.samples)
+        .slice(0, 30);
+      return res.status(200).json({ ok: true, items });
+    }
+
+    if (type === 'paths') {
+      // 최근 세션들의 페이지 이동 순서 (샘플 — 세션당 최대 20페이지)
+      const { data, error } = await supabase.from('page_views').select('session_id, path, created_at')
+        .gte('created_at', sinceIso).order('created_at', { ascending: true }).limit(ROW_CAP);
+      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const bySession = {};
+      for (const row of data || []) {
+        (bySession[row.session_id] ??= []).push({ path: row.path, at: row.created_at });
+      }
+      const items = Object.entries(bySession)
+        .map(([session_id, seq]) => ({
+          session_id,
+          start: seq[0]?.at,
+          steps: seq.slice(0, 20).map(s => s.path),
+        }))
+        .sort((a, b) => new Date(b.start) - new Date(a.start))
+        .slice(0, 50);
+      return res.status(200).json({ ok: true, items });
+    }
+
+    return res.status(400).json({ ok: false, error: 'unknown type' });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
 
 // ════════════════════════════════════════════════════════════
 // 종목 조회수 통계 (어드민 대시보드 — 어떤 종목이 많이 보이는지)

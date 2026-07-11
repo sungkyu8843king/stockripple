@@ -1,4 +1,4 @@
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', feedback: '💬 사용자 피드백', users: '👤 회원 관리', announcement: '🚨 긴급 안내', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', analytics: '📊 방문자 분석', feedback: '💬 사용자 피드백', users: '👤 회원 관리', announcement: '🚨 긴급 안내', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -14,6 +14,7 @@ function showPanel(name) {
   if (name === 'backtest' && !window._btLoaded) { window._btLoaded = true; loadBacktest(); }
   if (name === 'investments') invLoad();
   if (name === 'views') loadViewStats();
+  if (name === 'analytics') loadAnalyticsAll();
   if (name === 'feedback') loadFeedback();
   if (name === 'users') loadUsers();
   if (name === 'announcement') loadAnnouncement();
@@ -143,6 +144,21 @@ async function loadDashStats() {
   document.getElementById('ds-companies').textContent = c.count ?? '—';
   loadFeedbackBadge();
   loadAnnouncementBadge();
+  loadLiveVisitors();
+}
+
+async function loadLiveVisitors() {
+  const el = document.getElementById('ds-live-visitors');
+  const pagesEl = document.getElementById('ds-live-pages');
+  if (!el) return;
+  const data = await callApi('/api/admin?action=analytics&type=live', {}, null);
+  if (!data?.ok) { el.textContent = '—'; return; }
+  el.textContent = data.visitors;
+  if (pagesEl) {
+    pagesEl.innerHTML = (data.pages || [])
+      .map(p => `<div>${escHtml(p.path)} · ${p.count}</div>`)
+      .join('') || '<div style="color:var(--text3)">활동 없음</div>';
+  }
 }
 
 async function loadIssuesTable() {
@@ -1091,6 +1107,106 @@ async function loadViewStats() {
       <td>${it.market === 'KR' ? '🇰🇷 국장' : it.market === 'US' ? '🇺🇸 미장' : '-'}</td>
       <td style="text-align:right;font-weight:600">${it.views.toLocaleString()}</td>
     </tr>
+  `).join('');
+}
+
+// ── 📊 방문자 분석 (page_views 기반: 일자/시간별 접속자, 유입경로, 체류시간, 이동경로) ──
+function fmtDwell(ms) {
+  if (ms == null) return '—';
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}초`;
+  const m = Math.floor(s / 60);
+  return `${m}분 ${s % 60}초`;
+}
+function fmtPathShort(p) {
+  if (!p) return p;
+  return p.length > 40 ? p.slice(0, 40) + '…' : p;
+}
+
+async function loadAnalyticsAll() {
+  const days = document.getElementById('anaDays')?.value || '14';
+  const capNote = document.getElementById('anaCappedNote');
+  if (capNote) capNote.textContent = '';
+
+  const [daily, hourly, referrers, dwell, paths] = await Promise.all([
+    callApi(`/api/admin?action=analytics&type=daily&days=${days}`, {}, null),
+    callApi(`/api/admin?action=analytics&type=hourly&days=${days}`, {}, null),
+    callApi(`/api/admin?action=analytics&type=referrers&days=${days}`, {}, null),
+    callApi(`/api/admin?action=analytics&type=dwell&days=${days}`, {}, null),
+    callApi(`/api/admin?action=analytics&type=paths&days=${days}`, {}, null),
+  ]);
+
+  if (capNote && ((daily?.capped) || (hourly?.capped) || (referrers?.capped))) {
+    capNote.textContent = '⚠ 표본이 많아 일부만 집계했습니다 (기간을 줄여보세요)';
+  }
+
+  renderAnaDaily(daily);
+  renderAnaHourly(hourly);
+  renderAnaReferrers(referrers);
+  renderAnaDwell(dwell);
+  renderAnaPaths(paths);
+}
+
+function renderAnaDaily(data) {
+  const el = document.getElementById('anaDaily');
+  if (!el) return;
+  if (!data?.ok || !data.items.length) { el.innerHTML = '<div style="color:var(--text3);text-align:center">데이터 없음</div>'; return; }
+  const max = Math.max(...data.items.map(x => x.visitors), 1);
+  el.innerHTML = data.items.map(x => `
+    <div style="display:flex;align-items:center;gap:10px;padding:3px 0">
+      <span style="width:84px;flex-shrink:0;font-size:11px;color:var(--text2);font-family:monospace">${x.day}</span>
+      <div style="flex:1;height:14px;background:var(--bg3);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${(x.visitors / max * 100).toFixed(1)}%;background:var(--blue);border-radius:3px"></div>
+      </div>
+      <span style="width:40px;text-align:right;font-size:12px;font-weight:700">${x.visitors}</span>
+    </div>
+  `).join('');
+}
+
+function renderAnaHourly(data) {
+  const el = document.getElementById('anaHourly');
+  if (!el) return;
+  if (!data?.ok || !data.items.length) { el.innerHTML = '<div style="color:var(--text3)">데이터 없음</div>'; return; }
+  const max = Math.max(...data.items.map(x => x.visitors), 1);
+  el.innerHTML = data.items.map(x => `
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px" title="${x.hour}시 · ${x.visitors}명">
+      <div style="width:100%;max-width:16px;height:${Math.max(2, x.visitors / max * 90)}px;background:var(--blue);border-radius:2px 2px 0 0"></div>
+      <span style="font-size:9px;color:var(--text3)">${x.hour}</span>
+    </div>
+  `).join('');
+}
+
+function renderAnaReferrers(data) {
+  const tbody = document.getElementById('anaReferrers');
+  if (!tbody) return;
+  if (!data?.ok || !data.items.length) { tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text3)">데이터 없음</td></tr>'; return; }
+  tbody.innerHTML = data.items.map(x => `
+    <tr><td>${escHtml(x.source)}</td><td style="text-align:right;font-weight:600">${x.visitors}</td></tr>
+  `).join('');
+}
+
+function renderAnaDwell(data) {
+  const tbody = document.getElementById('anaDwell');
+  if (!tbody) return;
+  if (!data?.ok || !data.items.length) { tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3)">데이터 없음</td></tr>'; return; }
+  tbody.innerHTML = data.items.map(x => `
+    <tr>
+      <td style="font-size:12px" title="${escHtml(x.path)}">${escHtml(fmtPathShort(x.path))}</td>
+      <td style="text-align:right;font-weight:600">${fmtDwell(x.avgMs)}</td>
+      <td style="text-align:right;color:var(--text3)">${x.samples}</td>
+    </tr>
+  `).join('');
+}
+
+function renderAnaPaths(data) {
+  const el = document.getElementById('anaPaths');
+  if (!el) return;
+  if (!data?.ok || !data.items.length) { el.innerHTML = '<div style="color:var(--text3);text-align:center">데이터 없음</div>'; return; }
+  el.innerHTML = data.items.map(x => `
+    <div style="padding:6px 0;border-bottom:1px solid var(--border-soft);display:flex;gap:10px;align-items:baseline">
+      <span style="font-size:10.5px;color:var(--text3);font-family:monospace;flex-shrink:0">${x.start ? new Date(x.start).toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'}</span>
+      <span style="font-size:12px;color:var(--text2)">${x.steps.map(s => escHtml(fmtPathShort(s))).join(' <span style="color:var(--text3)">→</span> ')}</span>
+    </div>
   `).join('');
 }
 
