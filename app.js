@@ -1197,7 +1197,9 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
     const strictMode = document.getElementById('strictModeToggle')?.checked;
     const beforeStrict = candidatePool.length;
     const filteredPool = strictMode ? candidatePool.filter(s => s.avgConf >= 80) : candidatePool;
-    const finalScored = filteredPool.slice(0, maxCards);
+    // 홈 미리보기(showMoreLink)는 히트맵/국장현황처럼 다음 줄이 살짝 보이다 페이드아웃
+    // 되도록 카드를 2장 더 그려서 CSS로 자른다 (전체보기 유도 개수는 여전히 maxCards 기준).
+    const finalScored = filteredPool.slice(0, maxCards + (showMoreLink ? 2 : 0));
 
     if (!finalScored.length) {
       sec.style.display = 'block';
@@ -1213,7 +1215,7 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
 
     sec.style.display = 'block';
     const upd = document.getElementById('insightsUpdated');
-    if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', {timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit'}) + ' KST · 최근 ' + RECENT_DAYS + '일' + (strictMode ? ` · 🔒 (${finalScored.length}/${beforeStrict})` : '');
+    if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', {timeZone:'Asia/Seoul', hour:'2-digit', minute:'2-digit'}) + ' KST · 최근 ' + RECENT_DAYS + '일' + (strictMode ? ` · 🔒 (${Math.min(finalScored.length, maxCards)}/${beforeStrict})` : '');
 
     const tickers = finalScored.map(s => s.ticker);
 
@@ -1241,7 +1243,8 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
     };
     const tfLabel = { '1w':'단기 1주', '1m':'중기 1개월', '3m':'중장기 3개월', '6m':'장기 6개월' };
 
-    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:12px">` +
+    el.innerHTML = (showMoreLink ? `<div id="insightsCropWrap">` : '') +
+      `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:12px">` +
       finalScored.map((s, i) => {
         const isKr = s.market === 'KR';
         // 3=STRONG BUY, 2=BUY, 1=WATCH, 0=WEAK — 과거 누적 점수가 아무리 높아도
@@ -1405,7 +1408,7 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
             </div>
           </div>
         </a>`;
-      }).join('') + `</div>` +
+      }).join('') + `</div>` + (showMoreLink ? `</div>` : '') +
       (showMoreLink && filteredPool.length > maxCards
         ? `<div style="text-align:center;margin-top:14px"><a href="/picks.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">전체 매수 후보 ${filteredPool.length}개 보기 →</a></div>`
         : '');

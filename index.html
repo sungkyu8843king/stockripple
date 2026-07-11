@@ -335,9 +335,11 @@ button { font-family: inherit; }
    (정보 밀도 완화 — 전체 랭킹/탭은 전용 페이지에서) */
 #heatmapSection #heatmapGrid { max-height: 260px; overflow: hidden; position: relative; }
 #krMarketSection #krMarketPanel { max-height: 280px; overflow: hidden; position: relative; }
+#insightsCropWrap { max-height: 640px; overflow: hidden; position: relative; }
 #heatmapSection #heatmapGrid::after,
-#krMarketSection #krMarketPanel::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 56px;
+#krMarketSection #krMarketPanel::after,
+#insightsCropWrap::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 100px;
   background: linear-gradient(to bottom, transparent, var(--bg) 80%);
   pointer-events: none;
 }
