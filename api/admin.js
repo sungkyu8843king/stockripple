@@ -2725,10 +2725,58 @@ function liveMarketState() {
   return { krOpen, usOpen, any: krOpen || usOpen };
 }
 
+// ── 코스피200 선물 ±5% 감지 → 사이드카 "발동 조건" 조기경보 ──────────────
+// 진짜 KRX 사이드카는 뉴스보다 훨씬 빠르니, 뉴스 키워드 감지(analyze.js)와
+// 별개로 선물 급변을 직접 봐서 먼저 배너를 켠다. 다만 이건 KRX가 공식
+// 발동을 선언한 게 아니라 "발동 조건에 해당하는 변동폭이 감지됐다"는
+// 근사치다 — 1분 지속 여부까지 확인하는 게 아니라 라이브 리프레시가 호출될
+// 때(방문자가 있을 때마다, 최소 90초 간격)마다 순간 변동률만 본다.
+let _futuresLastCheck = 0;
+const SIDECAR_THRESHOLD = 5; // KRX 규정: 선물 전일종가 대비 ±5%
+async function checkFuturesSidecar() {
+  const now = Date.now();
+  if (now - _futuresLastCheck < 90000) return;
+  _futuresLastCheck = now;
+
+  // KRX 사이드카는 09:05~14:50(종료 40분 전까지)에만 유효
+  const kst = new Date(now + 9 * 3600000);
+  const minOfDay = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+  if (minOfDay < 545 || minOfDay > 890) return;
+
+  try {
+    const r = await fetch('https://polling.finance.naver.com/api/realtime/domestic/index/FUT', {
+      headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000),
+    });
+    const j = await r.json();
+    const d = j?.datas?.[0];
+    const ratio = parseFloat(d?.fluctuationsRatioRaw);
+    // marketStatus는 이미 위에서 KR 정규장 시간대로 걸러졌으니 여기선 값 유효성만 확인
+    if (!d || isNaN(ratio) || Math.abs(ratio) < SIDECAR_THRESHOLD) return;
+
+    const { data: cur } = await supabase.from('site_announcement').select('active, source').eq('id', 1).maybeSingle();
+    if (cur?.active && cur?.source === 'manual') return; // 관리자 수동 배너 보존
+
+    const dir = ratio > 0 ? '매수' : '매도';
+    const message = `🚨 [속보] 코스피200 선물 ${ratio > 0 ? '+' : ''}${ratio.toFixed(2)}% — ${dir}사이드카 발동 조건 감지 (KRX 공식 확인 전)`;
+    const startedAt = new Date().toISOString();
+    await supabase.from('site_announcement').upsert({
+      id: 1, active: true, message, source: 'auto', source_issue_id: null,
+      auto_expires_at: new Date(now + 2 * 3600000).toISOString(), updated_at: startedAt,
+    });
+    if (!cur?.active) {
+      await supabase.from('announcement_log').update({ ended_at: startedAt }).is('ended_at', null);
+      await supabase.from('announcement_log').insert({ source: 'auto', message, started_at: startedAt });
+    }
+  } catch (e) {
+    console.error('futures sidecar check failed:', e.message);
+  }
+}
+
 async function handleLiveRefresh(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const mk = liveMarketState();
   if (!mk.any) return res.status(200).json({ ok: true, triggered: false, reason: 'market closed' });
+  if (mk.krOpen) checkFuturesSidecar().catch(() => {}); // 뉴스 수집 스로틀과 무관하게 항상 시도(자체 90s 게이트 有)
 
   const now = Date.now();
   // (1) 인스턴스 버스트 방지: 같은 워밍 인스턴스에서 60s 내 재호출 차단
