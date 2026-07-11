@@ -864,7 +864,7 @@ async function tryDirectLookup(input) {
 }
 
 let searchTimeout;
-document.getElementById('searchInput').addEventListener('input', e => {
+document.getElementById('searchInput')?.addEventListener('input', e => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
     searchQuery = e.target.value.trim();
