@@ -335,6 +335,7 @@ button { font-family: inherit; }
    (정보 밀도 완화 — 전체 랭킹/탭은 전용 페이지에서) */
 #heatmapSection #heatmapGrid { max-height: 260px; overflow: hidden; position: relative; }
 #krMarketSection #krMarketPanel { max-height: 280px; overflow: hidden; position: relative; }
+/* max-height는 loadInsights()가 실제 카드 높이를 측정해 인라인으로 덮어씀 (아래는 JS 실행 전 폴백) */
 #insightsCropWrap { max-height: 640px; overflow: hidden; position: relative; }
 #heatmapSection #heatmapGrid::after,
 #krMarketSection #krMarketPanel::after,

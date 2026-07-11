@@ -1413,6 +1413,19 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
         ? `<div style="text-align:center;margin-top:14px"><a href="/picks.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">전체 매수 후보 ${filteredPool.length}개 보기 →</a></div>`
         : '');
 
+    // 카드 높이는 사유/경고 문구 길이에 따라 들쭉날쭉하므로, 고정 px 크롭 대신
+    // 실제 렌더된 마지막 "정식" 카드의 하단 위치를 측정해 딱 그 지점 + 고정
+    // 피크(next row 살짝 보이는 정도)만큼만 잘라 히트맵과 동일한 미리보기 느낌을 낸다.
+    if (showMoreLink) {
+      const wrap = document.getElementById('insightsCropWrap');
+      const grid = wrap?.firstElementChild;
+      if (wrap && grid && grid.children.length > maxCards) {
+        const wrapTop = wrap.getBoundingClientRect().top;
+        const cutoff = grid.children[maxCards - 1].getBoundingClientRect().bottom - wrapTop + 72;
+        wrap.style.maxHeight = cutoff + 'px';
+      }
+    }
+
     // 실시간 시세 즉시 로드 + 기술 지표 chip 채우기 (반드시 카드가 DOM에 렌더된 뒤에 호출 —
     // 미리 호출하면 _techCache가 이미 캐시돼 있을 때 동기적으로 끝나버려 새 카드가 생기기 전에
     // querySelectorAll이 아무것도 못 찾고 끝나는 경합 문제가 있었음)
