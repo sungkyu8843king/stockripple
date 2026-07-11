@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="/announcement-bar.js" defer></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
-<title>국장 현황 — StockRipple</title>
+<title>국장·미장 현황 — StockRipple</title>
 <meta name="description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -397,6 +397,23 @@ button { font-family: inherit; }
 .hm-tab.active {
   background: var(--bg2); color: var(--text); font-weight: 700;
   box-shadow: var(--shadow-sm);
+}
+
+/* 국장현황/미장현황 — 페이지 전체를 가르는 주 토글이라 일반 세그먼트보다 크고 뚜렷하게 */
+#marketSectionToggle { padding: 4px; background: var(--bg3); border-radius: 999px; }
+#marketSectionToggle .ms-tab {
+  padding: 10px 22px; font-size: 14px; font-weight: 700; border-radius: 999px;
+}
+#marketSectionToggle .ms-tab.active { background: var(--text); color: #fff; box-shadow: none; }
+
+/* 국장현황/미장현황 두 뷰의 섹션을 명확한 카드로 구분 (section-block 기본값은 배경 없음) */
+#krSummarySection, #krMarketSection, #usSummarySection, #usMarketSection {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 18px 20px;
+}
+.flow-chart-wrap {
+  background: var(--bg); border: 1px solid var(--border-soft); border-radius: var(--r-md);
+  padding: 10px;
 }
 .icon-btn {
   background: var(--bg3); border: none; color: var(--text2);
@@ -1045,8 +1062,8 @@ button { font-family: inherit; }
 </div>
 
 <div class="hero" id="heroSection">
-  <h1 class="hero-title">국장 현황</h1>
-  <p class="hero-sub">코스피·코스닥 거래량 TOP · 상한가 · 하한가 · 수급 TOP · 거래량 급증 랭킹</p>
+  <h1 class="hero-title" id="marketHeroTitle">국장·미장 현황</h1>
+  <p class="hero-sub" id="marketHeroSub">코스피·코스닥 거래량 TOP · 상한가 · 하한가 · 수급 TOP · 거래량 급증 랭킹</p>
 </div>
 
 
@@ -1082,7 +1099,9 @@ button { font-family: inherit; }
               <button class="hm-tab kf-tab"        data-kf="KOSDAQ" onclick="switchKrFlowChart('KOSDAQ')">코스닥</button>
               <button class="hm-tab kf-tab"        data-kf="KPI200" onclick="switchKrFlowChart('KPI200')">코스피200</button>
             </div>
-            <img id="krFlowChartImg" alt="투자자별 순매수 추이" style="width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg2);display:block">
+            <div class="flow-chart-wrap">
+              <img id="krFlowChartImg" alt="투자자별 순매수 추이" style="width:100%;border-radius:8px;display:block">
+            </div>
             <div style="margin-top:6px;font-size:10px;color:var(--text3)">📡 데이터: 네이버 증권 · 개인·외국인·기관 누적 순매수 + 지수 추이(당일)</div>
           </div>
           <div style="min-width:0">

@@ -112,11 +112,12 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .impact-badge {
   font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
   text-transform: uppercase; letter-spacing: 0.5px;
+  white-space: nowrap; flex-shrink: 0;
 }
 .impact-positive { background: var(--green-dim); color: var(--green); }
 .impact-negative { background: var(--red-dim); color: var(--red); }
 .impact-neutral { background: var(--bg3); color: var(--text2); }
-.ripple-sector-name { font-size: 14px; font-weight: 600; }
+.ripple-sector-name { font-size: 14px; font-weight: 600; min-width: 0; }
 .ripple-reason { font-size: 12px; color: var(--text2); line-height: 1.55; }
 
 /* Companies Section */

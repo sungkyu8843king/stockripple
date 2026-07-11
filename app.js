@@ -3177,7 +3177,7 @@ async function loadKrSummary() {
       const d = q[def.t];
       if (!d) return '';
       const sign = d.change >= 0 ? '+' : '';
-      return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+      return `<div style="background:var(--bg3);border-left:3px solid ${krChgColor(d.changePercent)};border-radius:10px;padding:14px 16px">
         <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:4px">${def.label}</div>
         <div class="t-num" style="font-size:20px;font-weight:800">${krFmtNum(d.price)}</div>
         <div class="t-num" style="font-size:12px;font-weight:700;color:${krChgColor(d.changePercent)};margin-top:2px">${sign}${d.change.toFixed(2)} (${krFmtPct(d.changePercent)})</div>
@@ -3221,7 +3221,7 @@ async function loadUsSummary() {
       const d = q[def.t];
       if (!d) return '';
       const sign = d.change >= 0 ? '+' : '';
-      return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+      return `<div style="background:var(--bg3);border-left:3px solid ${krChgColor(d.changePercent)};border-radius:10px;padding:14px 16px">
         <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:4px">${def.label}</div>
         <div class="t-num" style="font-size:20px;font-weight:800">${krFmtNum(d.price)}</div>
         <div class="t-num" style="font-size:12px;font-weight:700;color:${krChgColor(d.changePercent)};margin-top:2px">${sign}${d.change.toFixed(2)} (${krFmtPct(d.changePercent)})</div>
@@ -3300,6 +3300,17 @@ function renderUsMarket(tab, d) {
 // ─── 국장현황 / 미장현황 상위 토글 ──────────────────────────────────────
 let _marketSection = 'kr';
 
+const MARKET_SECTION_META = {
+  kr: {
+    title: '국장 현황',
+    sub: '코스피·코스닥 거래량 TOP · 상한가 · 하한가 · 수급 TOP · 거래량 급증 랭킹',
+  },
+  us: {
+    title: '미장 현황',
+    sub: 'S&P 500·나스닥·다우 + 거래량 TOP · 상승률 TOP · 하락률 TOP 랭킹',
+  },
+};
+
 function switchMarketSection(sec) {
   _marketSection = sec;
   document.querySelectorAll('.ms-tab').forEach(b => b.classList.toggle('active', b.dataset.ms === sec));
@@ -3307,6 +3318,14 @@ function switchMarketSection(sec) {
   const usWrap = document.getElementById('usMarketWrap');
   if (krWrap) krWrap.style.display = sec === 'kr' ? 'flex' : 'none';
   if (usWrap) usWrap.style.display = sec === 'us' ? 'flex' : 'none';
+  const meta = MARKET_SECTION_META[sec];
+  if (meta) {
+    const titleEl = document.getElementById('marketHeroTitle');
+    const subEl = document.getElementById('marketHeroSub');
+    if (titleEl) titleEl.textContent = meta.title;
+    if (subEl) subEl.textContent = meta.sub;
+    document.title = `${meta.title} — StockRipple`;
+  }
   if (sec === 'us' && !_usmCache[_usmTab]) { loadUsSummary(); loadUsMarket(); }
 }
 
@@ -3572,10 +3591,11 @@ function dailyReportHTML(d, compact) {
       }).join('')}</div>`
     : '';
 
+  const drTime = d.created_at ? new Date(d.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
   return `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <span class="dr-mood" style="background:${moodColor}">${moodIcon} ${escHtml(d.mood || '혼조')}</span>
-      <span style="font-size:11px;color:var(--text3)">${escHtml(d.report_date || '')} · ${d.based_on_issues || 0}건 분석</span>
+      <span style="font-size:11px;color:var(--text3)">${escHtml(d.report_date || '')}${drTime ? ' ' + drTime : ''} · ${d.based_on_issues || 0}건 분석</span>
     </div>
     <div class="dr-headline" style="font-size:13px;font-weight:600;line-height:1.4;margin-bottom:10px">${escHtml(d.headline || '')}</div>
     ${idxChips}
@@ -3833,7 +3853,7 @@ async function renderArchList() {
     const isAi = _archTab === 'ai';
     const dateStr = isAi
       ? new Date(d.created_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-      : d.report_date;
+      : (d.report_date || '') + (d.created_at ? ' ' + new Date(d.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '');
     const badge = isAi
       ? `<span style="font-size:10px;font-weight:700;color:${d.regime === 'RISK-ON' ? 'var(--green)' : d.regime === 'RISK-OFF' ? 'var(--red)' : 'var(--yellow)'}">${escHtml(d.regime || '')}</span>`
       : `<span style="font-size:10px;font-weight:700;color:${d.mood === '상승' ? 'var(--green)' : d.mood === '하락' ? 'var(--red)' : 'var(--yellow)'}">${escHtml(d.mood || '')}</span>`;
@@ -4241,6 +4261,7 @@ function computeMarketStatus(market) {
     try { loadCorrelation();      } catch (e) { console.error('corr', e); }
     try { loadKrMarket();         } catch (e) { console.error('krMarket', e); }
     try { loadKrSummary();        } catch (e) { console.error('krSummary', e); }
+    try { if (document.getElementById('marketSectionToggle')) switchMarketSection('kr'); } catch (e) { console.error('marketSection', e); }
   };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', kick, { once: true });
