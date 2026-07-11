@@ -307,7 +307,11 @@ button { font-family: inherit; }
   display: grid; grid-template-columns: minmax(0,1fr) 328px; gap: 24px; align-items: start;
 }
 @media (max-width: 1100px) {
-  .layout-with-sidebar { grid-template-columns: 1fr; padding: 18px 16px; gap: 18px; }
+  /* minmax(0,1fr) 필수 — 그냥 1fr이면 그리드 트랙 최소 너비가 내용물의
+     intrinsic 너비(min-width:auto 기본값)를 따라가서, 안에 폭 넓은 콘텐츠
+     (예: 국장 현황 테이블) 하나만 있어도 이 컬럼 전체와 그 안의 모든 카드가
+     같이 늘어나 페이지 전체가 가로로 밀리는 문제가 있었음 */
+  .layout-with-sidebar { grid-template-columns: minmax(0,1fr); padding: 18px 16px; gap: 18px; }
   .sidebar { position: static !important; }
 }
 
