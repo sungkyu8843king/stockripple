@@ -8,6 +8,7 @@
  * GET /api/market-data?source=earnings[&type=analyst]    (구 /api/earnings)
  * GET /api/market-data?source=market-pulse[&type=trump]  (구 /api/market-pulse)
  * GET /api/market-data?source=kr-overtime&codes=...&session=pre|post (구 /api/kr-overtime)
+ * GET /api/market-data?source=us-market&type=actives|gainers|losers  (미장현황 랭킹 — Yahoo 스크리너)
  *
  * 실제 공개 경로(/api/quotes 등)는 vercel.json rewrites로 여기로 연결되며,
  * 프론트엔드 fetch 호출은 전혀 바뀌지 않는다.
@@ -25,6 +26,7 @@ export default async function handler(req, res) {
       return handleEconomic(res, limit);
     }
     case 'kr-overtime':  return handleKrOvertime(req, res);
+    case 'us-market':    return handleUsMarket(req, res);
     default:
       return res.status(400).json({ ok: false, error: 'unknown source' });
   }
@@ -903,4 +905,40 @@ async function handleAnalyst(res) {
   const items = settled.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
 
   return res.status(200).json({ ok: true, items, ts: Date.now() });
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// us-market — 미장현황(거래량 TOP/상승률 TOP/하락률 TOP) — Yahoo Finance의
+// predefined screener(most_actives/day_gainers/day_losers)를 그대로 사용.
+// 한국 상/하한가 같은 가격 제한폭 개념이 미국엔 없어 국장현황과 카테고리를
+// 그대로 대응시키지 않고 미국 시장에 자연스러운 3개 랭킹으로 구성.
+// GET ?source=us-market&type=actives|gainers|losers
+async function handleUsMarket(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
+
+  const type = (req.query.type || 'actives').toString();
+  const scrId = type === 'gainers' ? 'day_gainers' : type === 'losers' ? 'day_losers' : 'most_actives';
+
+  try {
+    const r = await fetch(
+      `https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&lang=en-US&region=US&scrIds=${scrId}&count=30`,
+      { headers: SHARED_HEADERS, signal: AbortSignal.timeout(8000) }
+    );
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    const quotes = j?.finance?.result?.[0]?.quotes || [];
+    const items = quotes.map(q => ({
+      ticker: q.symbol,
+      name: q.shortName || q.longName || q.symbol,
+      price: q.regularMarketPrice ?? null,
+      changePercent: q.regularMarketChangePercent ?? null,
+      volume: q.regularMarketVolume ?? null,
+      marketCap: q.marketCap ?? null,
+    })).filter(it => it.ticker);
+
+    return res.status(200).json({ ok: true, items, ts: Date.now() });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
 }

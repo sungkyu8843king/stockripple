@@ -1052,70 +1052,123 @@ button { font-family: inherit; }
 
 <main class="main-content">
   <div style="max-width:var(--page-max);margin:0 auto;padding:22px var(--page-pad) 48px;display:flex;flex-direction:column;gap:24px">
-    <div id="krSummarySection" class="section-block">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--blue)"></span>
-          <span class="sh-title">국장 요약</span>
-          <span id="krSummaryUpdatedAt" class="sh-desc">—</span>
-        </div>
-        <div class="section-head-r">
-          <button onclick="loadKrSummary()" title="수동 새로고침" class="icon-btn">🔄</button>
-        </div>
-      </div>
 
-      <div id="krIndexCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">
-        <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:16px">로딩 중...</div>
-      </div>
+    <div class="seg" id="marketSectionToggle" style="align-self:flex-start">
+      <button class="hm-tab ms-tab active" data-ms="kr" onclick="switchMarketSection('kr')">🇰🇷 국장현황</button>
+      <button class="hm-tab ms-tab"        data-ms="us" onclick="switchMarketSection('us')">🇺🇸 미장현황</button>
+    </div>
 
-      <div id="krSummaryGrid" style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px">
-        <div>
-          <div class="seg" id="krFlowChartTabs" style="margin-bottom:8px;display:inline-flex">
-            <button class="hm-tab kf-tab active" data-kf="KOSPI"  onclick="switchKrFlowChart('KOSPI')">코스피</button>
-            <button class="hm-tab kf-tab"        data-kf="KOSDAQ" onclick="switchKrFlowChart('KOSDAQ')">코스닥</button>
-            <button class="hm-tab kf-tab"        data-kf="KPI200" onclick="switchKrFlowChart('KPI200')">코스피200</button>
+    <div id="krMarketWrap" style="display:flex;flex-direction:column;gap:24px">
+      <div id="krSummarySection" class="section-block">
+        <div class="section-head">
+          <div class="section-head-l">
+            <span class="sh-mark" style="background:var(--blue)"></span>
+            <span class="sh-title">국장 요약</span>
+            <span id="krSummaryUpdatedAt" class="sh-desc">—</span>
           </div>
-          <img id="krFlowChartImg" alt="투자자별 순매수 추이" style="width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg2);display:block">
-          <div style="margin-top:6px;font-size:10px;color:var(--text3)">📡 데이터: 네이버 증권 · 개인·외국인·기관 누적 순매수 + 지수 추이(당일)</div>
+          <div class="section-head-r">
+            <button onclick="loadKrSummary()" title="수동 새로고침" class="icon-btn">🔄</button>
+          </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:18px;min-width:0">
+
+        <div id="krIndexCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">
+          <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:16px">로딩 중...</div>
+        </div>
+
+        <div id="krSummaryGrid" style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px">
+          <div>
+            <div class="seg" id="krFlowChartTabs" style="margin-bottom:8px;display:inline-flex">
+              <button class="hm-tab kf-tab active" data-kf="KOSPI"  onclick="switchKrFlowChart('KOSPI')">코스피</button>
+              <button class="hm-tab kf-tab"        data-kf="KOSDAQ" onclick="switchKrFlowChart('KOSDAQ')">코스닥</button>
+              <button class="hm-tab kf-tab"        data-kf="KPI200" onclick="switchKrFlowChart('KPI200')">코스피200</button>
+            </div>
+            <img id="krFlowChartImg" alt="투자자별 순매수 추이" style="width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg2);display:block">
+            <div style="margin-top:6px;font-size:10px;color:var(--text3)">📡 데이터: 네이버 증권 · 개인·외국인·기관 누적 순매수 + 지수 추이(당일)</div>
+          </div>
           <div style="min-width:0">
             <div class="sh-title" style="font-size:13px;margin-bottom:8px">🔍 인기 검색 종목</div>
             <div id="krPopularSearch"><div style="text-align:center;color:var(--text3);font-size:12px;padding:16px">로딩 중...</div></div>
           </div>
-          <div style="min-width:0">
-            <div class="sh-title" style="font-size:13px;margin-bottom:8px">🌍 주요 해외지수</div>
-            <div id="krOverseasIndices"><div style="text-align:center;color:var(--text3);font-size:12px;padding:16px">로딩 중...</div></div>
+        </div>
+      </div>
+
+      <div id="krMarketSection" class="section-block">
+        <div class="section-head">
+          <div class="section-head-l">
+            <span class="sh-mark" style="background:var(--yellow)"></span>
+            <span class="sh-title">국장 현황</span>
+            <span id="krMarketUpdatedAt" class="sh-desc">—</span>
           </div>
+          <div class="section-head-r">
+            <button onclick="loadKrMarket()" title="수동 새로고침" class="icon-btn">🔄</button>
+            <div class="seg">
+              <button class="hm-tab km-tab active" data-km="volume" onclick="switchKrMarket('volume')">📊 거래량 TOP</button>
+              <button class="hm-tab km-tab"        data-km="up"     onclick="switchKrMarket('up')">🔴 상한가</button>
+              <button class="hm-tab km-tab"        data-km="down"  onclick="switchKrMarket('down')">🔵 하한가</button>
+              <button class="hm-tab km-tab"        data-km="flow"  onclick="switchKrMarket('flow')">💰 수급 TOP (5일)</button>
+              <button class="hm-tab km-tab"        data-km="surge" onclick="switchKrMarket('surge')">🚀 거래량 급증</button>
+            </div>
+          </div>
+        </div>
+        <div id="krMarketPanel" style="min-height:80px">
+          <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:var(--text3)">
+          📡 데이터: 네이버 증권 · 거래량/상한가/하한가는 코스피+코스닥 전체, 수급 TOP은 시가총액 상위 약 150종목(ETF 제외) 기준 5일 누적 순매수
         </div>
       </div>
     </div>
 
-    <div id="krMarketSection" class="section-block">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--yellow)"></span>
-          <span class="sh-title">국장 현황</span>
-          <span id="krMarketUpdatedAt" class="sh-desc">—</span>
+    <div id="usMarketWrap" style="display:none;flex-direction:column;gap:24px">
+      <div id="usSummarySection" class="section-block">
+        <div class="section-head">
+          <div class="section-head-l">
+            <span class="sh-mark" style="background:var(--blue)"></span>
+            <span class="sh-title">미장 요약</span>
+            <span id="usSummaryUpdatedAt" class="sh-desc">—</span>
+          </div>
+          <div class="section-head-r">
+            <button onclick="loadUsSummary()" title="수동 새로고침" class="icon-btn">🔄</button>
+          </div>
         </div>
-        <div class="section-head-r">
-          <button onclick="loadKrMarket()" title="수동 새로고침" class="icon-btn">🔄</button>
-          <div class="seg">
-            <button class="hm-tab km-tab active" data-km="volume" onclick="switchKrMarket('volume')">📊 거래량 TOP</button>
-            <button class="hm-tab km-tab"        data-km="up"     onclick="switchKrMarket('up')">🔴 상한가</button>
-            <button class="hm-tab km-tab"        data-km="down"  onclick="switchKrMarket('down')">🔵 하한가</button>
-            <button class="hm-tab km-tab"        data-km="flow"  onclick="switchKrMarket('flow')">💰 수급 TOP (5일)</button>
-            <button class="hm-tab km-tab"        data-km="surge" onclick="switchKrMarket('surge')">🚀 거래량 급증</button>
+
+        <div id="usIndexCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">
+          <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:16px">로딩 중...</div>
+        </div>
+
+        <div style="min-width:0">
+          <div class="sh-title" style="font-size:13px;margin-bottom:8px">🌍 주요 해외지수 (비美 시장)</div>
+          <div id="usGlobalIndices" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px 16px">
+            <div style="text-align:center;color:var(--text3);font-size:12px;padding:16px">로딩 중...</div>
           </div>
         </div>
       </div>
-      <div id="krMarketPanel" style="min-height:80px">
-        <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
-      </div>
-      <div style="margin-top:10px;font-size:10px;color:var(--text3)">
-        📡 데이터: 네이버 증권 · 거래량/상한가/하한가는 코스피+코스닥 전체, 수급 TOP은 시가총액 상위 약 150종목(ETF 제외) 기준 5일 누적 순매수
+
+      <div id="usMarketSection" class="section-block">
+        <div class="section-head">
+          <div class="section-head-l">
+            <span class="sh-mark" style="background:var(--yellow)"></span>
+            <span class="sh-title">미장 현황</span>
+            <span id="usMarketUpdatedAt" class="sh-desc">—</span>
+          </div>
+          <div class="section-head-r">
+            <button onclick="loadUsMarket()" title="수동 새로고침" class="icon-btn">🔄</button>
+            <div class="seg">
+              <button class="hm-tab usm-tab active" data-usm="actives" onclick="switchUsMarket('actives')">📊 거래량 TOP</button>
+              <button class="hm-tab usm-tab"        data-usm="gainers" onclick="switchUsMarket('gainers')">🟢 상승률 TOP</button>
+              <button class="hm-tab usm-tab"        data-usm="losers"  onclick="switchUsMarket('losers')">🔴 하락률 TOP</button>
+            </div>
+          </div>
+        </div>
+        <div id="usMarketPanel" style="min-height:80px">
+          <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:var(--text3)">
+          📡 데이터: Yahoo Finance (Day Gainers/Losers/Most Actives 스크리너) · 미국 시장은 상/하한가 제도가 없어 상승률·하락률 TOP으로 대체
+        </div>
       </div>
     </div>
+
   </div>
 </main>
 
