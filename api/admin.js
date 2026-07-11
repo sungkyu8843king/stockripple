@@ -314,7 +314,8 @@ async function handleBanUser(req, res) {
 // ════════════════════════════════════════════════════════════
 async function handleGetAnnouncement(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+  // 긴급 안내라는 목적상 즉시 반영돼야 함 — 캐시 없음 (조회 1건짜리 가벼운 쿼리라 비용 부담 없음)
+  res.setHeader('Cache-Control', 'no-store');
   const { data, error } = await supabase
     .from('site_announcement')
     .select('active, message, updated_at')
