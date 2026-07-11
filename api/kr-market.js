@@ -47,10 +47,11 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const type = (req.query?.type || 'volume-top').toString();
   try {
-    if (type === 'volume-top')  return await handleVolumeTop(req, res);
-    if (type === 'limit-up')    return await handleLimitList(req, res, 'up');
-    if (type === 'limit-down')  return await handleLimitList(req, res, 'down');
-    if (type === 'flow-top')    return await handleFlowTop(req, res);
+    if (type === 'volume-top')   return await handleVolumeTop(req, res);
+    if (type === 'limit-up')     return await handleLimitList(req, res, 'up');
+    if (type === 'limit-down')   return await handleLimitList(req, res, 'down');
+    if (type === 'flow-top')     return await handleFlowTop(req, res);
+    if (type === 'volume-surge') return await handleVolumeSurge(req, res);
     return res.status(400).json({ ok: false, error: 'unknown type' });
   } catch (err) {
     return res.status(500).json({ ok: false, error: err.message });
@@ -83,6 +84,37 @@ async function handleVolumeTop(req, res) {
     }
   }
   items.sort((a, b) => (b.volume || 0) - (a.volume || 0));
+  return res.status(200).json({ ok: true, items: items.slice(0, 40), ts: Date.now() });
+}
+
+// ─── 거래량 급증 (finance.naver.com/sise/sise_quant_high.naver) ─────────
+// 평소 대비 거래량이 급증한 종목 — 거래량 TOP(항상 같은 초대형주 위주)과 달리
+// 뉴스/이슈 발생 시그널에 가까움. 컬럼: 0=순위 1=거래량증가율(%) 2=종목명
+// 3=현재가 4=등락구분+등락폭 5=등락률 6=시가 7=고가 8=거래량 9=거래대금(백만원) 10=회전율
+async function handleVolumeSurge(req, res) {
+  res.setHeader('Cache-Control', 'public, s-maxage=180, stale-while-revalidate=600');
+  const market = (req.query.market || 'ALL').toString().toUpperCase();
+  const sosokList = market === 'KOSPI' ? [0] : market === 'KOSDAQ' ? [1] : [0, 1];
+  const suffix = { 0: 'KS', 1: 'KQ' };
+  const label  = { 0: 'KOSPI', 1: 'KOSDAQ' };
+
+  const items = [];
+  for (const sosok of sosokList) {
+    const html = await fetchEucKr(`https://finance.naver.com/sise/sise_quant_high.naver?sosok=${sosok}`);
+    for (const row of rowsOf(html)) {
+      const code = codeOf(row), name = nameOf(row);
+      if (!code || !name) continue;
+      const c = tdCells(row);
+      items.push({
+        ticker: `${code}.${suffix[sosok]}`,
+        name, market: label[sosok],
+        surgeRatio: num(c[1]),
+        price: num(c[3]), changePercent: num(c[5]),
+        volume: num(c[8]), tradingValueM: num(c[9]),
+      });
+    }
+  }
+  items.sort((a, b) => (b.surgeRatio || 0) - (a.surgeRatio || 0));
   return res.status(200).json({ ok: true, items: items.slice(0, 40), ts: Date.now() });
 }
 

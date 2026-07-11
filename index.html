@@ -331,6 +331,10 @@ button { font-family: inherit; }
 .sh-desc  { font-size: 11.5px; color: var(--text3); font-weight: 500; }
 .section-head-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .section-block { margin-bottom: 28px; }
+/* 홈 미리보기: 히트맵/국장현황은 일부만 보여주고 전체는 /market.html로 유도
+   (정보 밀도 완화 — 전체 랭킹/탭은 전용 페이지에서) */
+#heatmapSection #heatmapGrid { max-height: 260px; overflow: hidden; }
+#krMarketSection #krMarketPanel { max-height: 280px; overflow: hidden; }
 
 /* ═══════════════════════════════════════════
  * Feed toolbar (카테고리 + 섹터 + 검색)
@@ -1005,6 +1009,7 @@ button { font-family: inherit; }
     <nav class="header-nav" id="headerNav">
       <button class="nav-btn" id="tabWatchlist" onclick="toggleWatchlistTab()">관심종목<span id="wlCount"></span></button>
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
+      <a href="/market.html" class="nav-btn">🔥 히트맵</a>
       <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
       <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
       <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
@@ -1145,6 +1150,7 @@ button { font-family: inherit; }
             <button class="hm-tab km-tab"        data-km="up"     onclick="switchKrMarket('up')">🔴 상한가</button>
             <button class="hm-tab km-tab"        data-km="down"  onclick="switchKrMarket('down')">🔵 하한가</button>
             <button class="hm-tab km-tab"        data-km="flow"  onclick="switchKrMarket('flow')">💰 수급 TOP (5일)</button>
+            <button class="hm-tab km-tab"        data-km="surge" onclick="switchKrMarket('surge')">🚀 거래량 급증</button>
           </div>
         </div>
       </div>
@@ -1154,6 +1160,10 @@ button { font-family: inherit; }
       <div style="margin-top:10px;font-size:10px;color:var(--text3)">
         📡 데이터: 네이버 증권 · 거래량/상한가/하한가는 코스피+코스닥 전체, 수급 TOP은 시가총액 상위 약 150종목(ETF 제외) 기준 5일 누적 순매수
       </div>
+    </div>
+
+    <div style="text-align:center;margin:-8px 0 24px">
+      <a href="/market.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">🔥 히트맵 전체 · 국장 현황 전체 탭 보기 →</a>
     </div>
 
     <!-- 📰 최신 분석 이슈 -->

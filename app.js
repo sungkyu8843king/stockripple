@@ -2805,7 +2805,7 @@ async function loadKrMarket() {
     panel.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>';
   }
   try {
-    const typeMap = { volume: 'volume-top', up: 'limit-up', down: 'limit-down', flow: 'flow-top' };
+    const typeMap = { volume: 'volume-top', up: 'limit-up', down: 'limit-down', flow: 'flow-top', surge: 'volume-surge' };
     const r = await fetch(`/api/kr-market?type=${typeMap[tab]}`);
     const d = await r.json();
     if (!d.ok) throw new Error(d.error || 'load failed');
@@ -2857,6 +2857,15 @@ function renderKrMarket(tab, d) {
       { label: '등락률', right: true, render: r => `<span style="color:${krChgColor(r.changePercent)};font-weight:700">${krFmtPct(r.changePercent)}</span>` },
       { label: '거래량', right: true, render: r => krFmtNum(r.volume) },
       { label: '연속', right: true, render: r => r.streakDays ? `${r.streakDays}일째` : '—' },
+    ]);
+  } else if (tab === 'surge') {
+    panel.innerHTML = krRowsTable(d.items, [
+      { label: '#', render: (_, i) => i + 1 },
+      { label: '종목', render: krNameCell },
+      { label: '시장', render: r => r.market === 'KOSPI' ? '코스피' : '코스닥' },
+      { label: '현재가', right: true, render: r => krFmtNum(r.price) },
+      { label: '등락률', right: true, render: r => `<span style="color:${krChgColor(r.changePercent)};font-weight:700">${krFmtPct(r.changePercent)}</span>` },
+      { label: '거래량 급증률', right: true, render: r => `<span style="color:var(--yellow);font-weight:700">${r.surgeRatio != null ? r.surgeRatio.toLocaleString('ko-KR') + '%' : '—'}</span>` },
     ]);
   } else if (tab === 'flow') {
     const half = c => `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
