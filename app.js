@@ -3175,13 +3175,7 @@ async function loadKrSummary() {
 
     cardsEl.innerHTML = KR_INDEX_DEFS.map(def => {
       const d = q[def.t];
-      if (!d) return '';
-      const sign = d.change >= 0 ? '+' : '';
-      return `<div style="background:var(--bg3);border-left:3px solid ${krChgColor(d.changePercent)};border-radius:10px;padding:14px 16px">
-        <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:4px">${def.label}</div>
-        <div class="t-num" style="font-size:20px;font-weight:800">${krFmtNum(d.price)}</div>
-        <div class="t-num" style="font-size:12px;font-weight:700;color:${krChgColor(d.changePercent)};margin-top:2px">${sign}${d.change.toFixed(2)} (${krFmtPct(d.changePercent)})</div>
-      </div>`;
+      return d ? krIndexCard(def.label, d) : '';
     }).join('');
 
     renderKrPopularSearch(searchRes?.items || []);
@@ -3219,13 +3213,7 @@ async function loadUsSummary() {
 
     cardsEl.innerHTML = US_INDEX_DEFS.map(def => {
       const d = q[def.t];
-      if (!d) return '';
-      const sign = d.change >= 0 ? '+' : '';
-      return `<div style="background:var(--bg3);border-left:3px solid ${krChgColor(d.changePercent)};border-radius:10px;padding:14px 16px">
-        <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:4px">${def.label}</div>
-        <div class="t-num" style="font-size:20px;font-weight:800">${krFmtNum(d.price)}</div>
-        <div class="t-num" style="font-size:12px;font-weight:700;color:${krChgColor(d.changePercent)};margin-top:2px">${sign}${d.change.toFixed(2)} (${krFmtPct(d.changePercent)})</div>
-      </div>`;
+      return d ? krIndexCard(def.label, d) : '';
     }).join('');
 
     const glEl = document.getElementById('usGlobalIndices');
@@ -3233,10 +3221,10 @@ async function loadUsSummary() {
       glEl.innerHTML = GLOBAL_INDEX_DEFS.map(def => {
         const d = q[def.t];
         if (!d) return '';
-        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 4px">
+        return `<div style="display:flex;align-items:center;gap:10px;padding:7px 4px">
           <span style="flex:1;min-width:0;font-size:12.5px;font-weight:600">${def.label}</span>
           <span class="t-num" style="font-size:12px;font-weight:600;text-align:right;white-space:nowrap">${krFmtNum(d.price)}</span>
-          <span class="t-num" style="font-size:11px;font-weight:700;color:${krChgColor(d.changePercent)};width:56px;text-align:right;flex-shrink:0">${krFmtPct(d.changePercent)}</span>
+          ${krChgChip(d.changePercent)}
         </div>`;
       }).join('');
     }
@@ -3289,10 +3277,10 @@ function usNameCell(item) {
 function renderUsMarket(tab, d) {
   const panel = document.getElementById('usMarketPanel');
   panel.innerHTML = krRowsTable(d.items, [
-    { label: '#', render: (_, i) => i + 1 },
+    { label: '#', render: (_, i) => krRankCell(i) },
     { label: '종목', render: usNameCell },
     { label: '현재가', right: true, render: r => r.price != null ? `$${Number(r.price).toFixed(2)}` : '—' },
-    { label: '등락률', right: true, render: r => `<span style="color:${krChgColor(r.changePercent)};font-weight:700">${krFmtPct(r.changePercent)}</span>` },
+    { label: '등락률', right: true, render: r => krChgChip(r.changePercent) },
     { label: '거래량', right: true, render: r => krFmtNum(r.volume) },
   ]);
 }
@@ -3333,12 +3321,12 @@ function renderKrPopularSearch(items) {
   const el = document.getElementById('krPopularSearch');
   if (!el) return;
   if (!items?.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:12px">데이터 없음</div>'; return; }
-  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:2px">` + items.map(it => `
-    <a href="/company.html?ticker=${encodeURIComponent(it.ticker)}" style="display:flex;align-items:center;gap:8px;padding:6px 4px;text-decoration:none;color:inherit;border-radius:6px" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-      <span style="width:16px;flex-shrink:0;font-size:11px;color:var(--text3);font-weight:700">${it.rank}</span>
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:2px">` + items.map((it, i) => `
+    <a href="/company.html?ticker=${encodeURIComponent(it.ticker)}" style="display:flex;align-items:center;gap:10px;padding:7px 4px;text-decoration:none;color:inherit;border-radius:6px" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      ${krRankCell(i)}
       <span style="flex:1;min-width:0;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(it.name)}</span>
       <span class="t-num" style="font-size:12px;font-weight:600;text-align:right;white-space:nowrap">${krFmtNum(it.price)}</span>
-      <span class="t-num" style="font-size:11px;font-weight:700;color:${krChgColor(it.changePercent)};width:56px;text-align:right;flex-shrink:0">${krFmtPct(it.changePercent)}</span>
+      ${krChgChip(it.changePercent)}
     </a>`).join('') + `</div>`;
 }
 
@@ -3377,50 +3365,82 @@ async function loadKrMarket() {
 function krRowsTable(rows, cols) {
   if (!rows?.length) return '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">데이터가 없습니다</div>';
   return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
-    <thead><tr style="border-bottom:1px solid var(--border)">${cols.map(c => `<th style="text-align:${c.right ? 'right' : 'left'};padding:6px 8px;color:var(--text3);font-weight:600;font-size:11px;white-space:nowrap">${c.label}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map((row, i) => `<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">${cols.map(c => `<td style="padding:7px 8px;text-align:${c.right ? 'right' : 'left'};white-space:nowrap">${c.render(row, i)}</td>`).join('')}</tr>`).join('')}</tbody>
+    <thead><tr style="border-bottom:2px solid var(--border)">${cols.map(c => `<th style="text-align:${c.right ? 'right' : 'left'};padding:8px;color:var(--text3);font-weight:700;font-size:10px;letter-spacing:.3px;white-space:nowrap;text-transform:uppercase">${c.label}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map((row, i) => {
+      const base = i % 2 ? 'var(--bg3)' : 'transparent';
+      return `<tr style="border-bottom:1px solid var(--border-soft,var(--border));background:${base};transition:background .1s" onmouseover="this.style.background='var(--blue-dim)'" onmouseout="this.style.background='${base}'">${cols.map(c => `<td style="padding:8px;text-align:${c.right ? 'right' : 'left'};white-space:nowrap">${c.render(row, i)}</td>`).join('')}</tr>`;
+    }).join('')}</tbody>
   </table></div>`;
+}
+
+function krRankCell(i) {
+  return i < 3
+    ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--blue-dim);color:var(--blue);font-weight:800;font-size:11px">${i + 1}</span>`
+    : `<span style="color:var(--text3);font-weight:600">${i + 1}</span>`;
 }
 
 function krNameCell(item) {
   const isWL = typeof isWatched === 'function' && isWatched(item.ticker);
-  return `<a href="/company.html?ticker=${encodeURIComponent(item.ticker)}" style="color:var(--text);font-weight:600;text-decoration:none">${escHtml(item.name)}</a>
+  return `<a href="/company.html?ticker=${encodeURIComponent(item.ticker)}" style="color:var(--text);font-weight:700;text-decoration:none">${escHtml(item.name)}</a>
     <span style="color:var(--text3);font-size:10.5px;font-family:monospace;margin-left:4px">${escHtml(item.ticker)}</span>`;
 }
 const krChgColor = v => v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text2)';
 const krFmtPct = v => v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
 const krFmtNum = v => v == null ? '—' : Math.round(v).toLocaleString('ko-KR');
 const krFmtEok = v => v == null ? '—' : `${v >= 0 ? '+' : ''}${(v / 1e8).toFixed(1)}억`;
+const krMktPill = label => `<span style="font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--blue-dim);color:var(--blue);white-space:nowrap">${label}</span>`;
+function krChgChip(pct) {
+  if (pct == null) return '—';
+  const bg = pct > 0 ? 'var(--green-dim)' : pct < 0 ? 'var(--red-dim)' : 'var(--bg4)';
+  const fg = pct > 0 ? 'var(--green)' : pct < 0 ? 'var(--red)' : 'var(--text2)';
+  return `<span style="display:inline-block;font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:6px;background:${bg};color:${fg}">${krFmtPct(pct)}</span>`;
+}
+
+// 지수 카드(코스피/코스닥/코스피200, S&P500/나스닥/다우 공용) — 등락 방향에 따라
+// 톤 있는 배경(dim)을 통째로 깔아 STRONG BUY 배지 등 사이트 전반의 "채워진 pill" 톤과 맞춘다.
+function krIndexCard(label, d) {
+  const up = d.changePercent > 0, dn = d.changePercent < 0;
+  const bg = up ? 'var(--green-dim)' : dn ? 'var(--red-dim)' : 'var(--bg3)';
+  const fg = up ? 'var(--green)' : dn ? 'var(--red)' : 'var(--text2)';
+  const arrow = up ? '▲' : dn ? '▼' : '·';
+  const sign = d.change >= 0 ? '+' : '';
+  return `<div style="background:${bg};border-radius:12px;padding:16px 18px">
+    <div style="font-size:12px;color:var(--text2);font-weight:700;margin-bottom:6px">${label}</div>
+    <div class="t-num" style="font-size:22px;font-weight:800;color:var(--text)">${krFmtNum(d.price)}</div>
+    <div class="t-num" style="font-size:12.5px;font-weight:800;color:${fg};margin-top:4px">${arrow} ${sign}${d.change.toFixed(2)} (${krFmtPct(d.changePercent)})</div>
+  </div>`;
+}
 
 function renderKrMarket(tab, d) {
   const panel = document.getElementById('krMarketPanel');
+  const mktPill = r => krMktPill(r.market === 'KOSPI' ? '코스피' : '코스닥');
   if (tab === 'volume') {
     panel.innerHTML = krRowsTable(d.items, [
-      { label: '#', render: (_, i) => i + 1 },
+      { label: '#', render: (_, i) => krRankCell(i) },
       { label: '종목', render: krNameCell },
-      { label: '시장', render: r => r.market === 'KOSPI' ? '코스피' : '코스닥' },
+      { label: '시장', render: mktPill },
       { label: '현재가', right: true, render: r => krFmtNum(r.price) },
-      { label: '등락률', right: true, render: r => `<span style="color:${krChgColor(r.changePercent)};font-weight:700">${krFmtPct(r.changePercent)}</span>` },
+      { label: '등락률', right: true, render: r => krChgChip(r.changePercent) },
       { label: '거래량', right: true, render: r => krFmtNum(r.volume) },
     ]);
   } else if (tab === 'up' || tab === 'down') {
     panel.innerHTML = krRowsTable(d.items, [
-      { label: '#', render: (_, i) => i + 1 },
+      { label: '#', render: (_, i) => krRankCell(i) },
       { label: '종목', render: krNameCell },
-      { label: '시장', render: r => r.market === 'KOSPI' ? '코스피' : '코스닥' },
+      { label: '시장', render: mktPill },
       { label: '현재가', right: true, render: r => krFmtNum(r.price) },
-      { label: '등락률', right: true, render: r => `<span style="color:${krChgColor(r.changePercent)};font-weight:700">${krFmtPct(r.changePercent)}</span>` },
+      { label: '등락률', right: true, render: r => krChgChip(r.changePercent) },
       { label: '거래량', right: true, render: r => krFmtNum(r.volume) },
       { label: '연속', right: true, render: r => r.streakDays ? `${r.streakDays}일째` : '—' },
     ]);
   } else if (tab === 'surge') {
     panel.innerHTML = krRowsTable(d.items, [
-      { label: '#', render: (_, i) => i + 1 },
+      { label: '#', render: (_, i) => krRankCell(i) },
       { label: '종목', render: krNameCell },
-      { label: '시장', render: r => r.market === 'KOSPI' ? '코스피' : '코스닥' },
+      { label: '시장', render: mktPill },
       { label: '현재가', right: true, render: r => krFmtNum(r.price) },
-      { label: '등락률', right: true, render: r => `<span style="color:${krChgColor(r.changePercent)};font-weight:700">${krFmtPct(r.changePercent)}</span>` },
-      { label: '거래량 급증률', right: true, render: r => `<span style="color:var(--yellow);font-weight:700">${r.surgeRatio != null ? r.surgeRatio.toLocaleString('ko-KR') + '%' : '—'}</span>` },
+      { label: '등락률', right: true, render: r => krChgChip(r.changePercent) },
+      { label: '거래량 급증률', right: true, render: r => `<span style="display:inline-block;font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:6px;background:var(--yellow-dim);color:var(--yellow)">${r.surgeRatio != null ? r.surgeRatio.toLocaleString('ko-KR') + '%' : '—'}</span>` },
     ]);
   } else if (tab === 'flow') {
     const half = c => `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -3428,7 +3448,7 @@ function renderKrMarket(tab, d) {
       <div><div style="font-size:11.5px;font-weight:700;color:var(--red);margin-bottom:4px">🔽 순매도 유출 TOP</div>${krRowsTable(d.outflow, c)}</div>
     </div>`;
     panel.innerHTML = half([
-      { label: '#', render: (_, i) => i + 1 },
+      { label: '#', render: (_, i) => krRankCell(i) },
       { label: '종목', render: krNameCell },
       { label: '외국인', right: true, render: r => `<span style="color:${krChgColor(r.foreignVal5d)}">${krFmtEok(r.foreignVal5d)}</span>` },
       { label: '기관', right: true, render: r => `<span style="color:${krChgColor(r.instVal5d)}">${krFmtEok(r.instVal5d)}</span>` },
