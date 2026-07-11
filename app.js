@@ -33,7 +33,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } catch {}
 })();
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 8;   // 홈 미리보기 노출량 축소 (기존 20 → 8, 페이지네이션으로 더 보기)
 let currentPage = 1;
 let currentSector = 'all';
 let searchQuery = '';
@@ -1785,8 +1785,13 @@ async function loadEarningsCalendar() {
     return;
   }
 
+  // 사이드바 미리보기는 최대 EARNINGS_SIDEBAR_LIMIT건만 — 전체는 "전체보기"(캘린더 모달)에서
+  const EARNINGS_SIDEBAR_LIMIT = 5;
+  const shownItems = apiItems.slice(0, EARNINGS_SIDEBAR_LIMIT);
+  const hiddenCount = apiItems.length - shownItems.length;
+
   // 적응적 렌더링: 데이터 있는 필드만 표시
-  const html = apiItems.map(item => {
+  const html = shownItems.map(item => {
     const isToday  = item.date === today;
     const isFuture = item.date && item.date > today;
     const isPast   = item.date && item.date < today;
@@ -1884,7 +1889,9 @@ async function loadEarningsCalendar() {
     </div>`;
   }).join('');
 
-  el.innerHTML = html;
+  el.innerHTML = html + (hiddenCount > 0
+    ? `<div onclick="openCalendarModal('earnings')" style="text-align:center;padding:8px 0 2px;font-size:11.5px;font-weight:700;color:var(--blue);cursor:pointer">+${hiddenCount}건 더 보기 → 캘린더 전체보기</div>`
+    : '');
 }
 
 // 투자의견 (애널리스트 레이팅)
@@ -2193,6 +2200,7 @@ let _curCalTab = 'eco';
 
 async function openCalendarModal(tab = 'eco') {
   _curCalTab = tab;
+  _calMonthOffset = 0;
   _calCache = { eco: null, earnings: null }; // 항상 최신 데이터 로드
   let el = document.getElementById('calendarModal');
   if (!el) {
@@ -2326,14 +2334,87 @@ function renderEcoCalTable(items) {
   body.innerHTML = html;
 }
 
+// 실적발표 캘린더 — "캘린더 형태"(월 그리드) 뷰. 날짜 미확정(TBD) 건은 그리드에
+// 표시할 자리가 없으므로 그리드 아래 별도 목록으로 붙인다.
+let _calMonthOffset = 0;   // 0=이번 달, ±N=이전/다음 달 (모달 열 때마다 리셋)
+let _earningsCalItems = [];
+
 function renderEarningsCalTable(items) {
   const body = document.getElementById('calBody');
   if (!items?.length) {
     body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">데이터 없음</div>';
     return;
   }
+  _earningsCalItems = items;
+  renderEarningsCalGrid();
+}
 
-  const today = new Date().toISOString().split('T')[0];
+function navEarningsCal(delta) {
+  _calMonthOffset += delta;
+  renderEarningsCalGrid();
+}
+
+function renderEarningsCalGrid() {
+  const body = document.getElementById('calBody');
+  const items = _earningsCalItems;
+  const now = new Date();
+  const base = new Date(now.getFullYear(), now.getMonth() + _calMonthOffset, 1);
+  const year = base.getFullYear(), month = base.getMonth();
+
+  const byDay = new Map();
+  const tbd = [];
+  for (const it of items) {
+    if (!it.date) { tbd.push(it); continue; }
+    const d = new Date(it.date + 'T12:00:00Z');
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      if (!byDay.has(it.date)) byDay.set(it.date, []);
+      byDay.get(it.date).push(it);
+    }
+  }
+
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const dowLabels = ['일','월','화','수','목','금','토'];
+  const monthTotal = [...byDay.values()].reduce((s, arr) => s + arr.length, 0);
+
+  const html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px 12px">
+      <button class="cal-nav-btn" onclick="navEarningsCal(-1)">‹ 이전달</button>
+      <div style="font-weight:800;font-size:15px">${year}년 ${month + 1}월 <span style="font-size:11px;font-weight:600;color:var(--text3)">· 실적발표 ${monthTotal}건</span></div>
+      <button class="cal-nav-btn" onclick="navEarningsCal(1)">다음달 ›</button>
+    </div>
+    <div class="cal-grid">
+      ${dowLabels.map(l => `<div class="cal-grid-dow">${l}</div>`).join('')}
+      ${cells.map(d => {
+        if (d == null) return '<div class="cal-grid-cell empty"></div>';
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dayItems = byDay.get(dateStr) || [];
+        const isToday = dateStr === todayStr;
+        return `<div class="cal-grid-cell${isToday ? ' today' : ''}${dayItems.length ? ' has-events' : ''}" ${dayItems.length ? `onclick="showEarningsDayDetail('${dateStr}')"` : ''}>
+          <div class="cal-grid-daynum">${d}</div>
+          ${dayItems.slice(0, 3).map(it => `<div class="cal-grid-badge">${escHtml(it.ticker || '')}</div>`).join('')}
+          ${dayItems.length > 3 ? `<div class="cal-grid-more">+${dayItems.length - 3}개</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>
+    ${tbd.length ? `<div style="margin-top:14px;font-size:11px;color:var(--text3)">📌 날짜 미확정 ${tbd.length}건: ${tbd.map(it => escHtml(it.ticker || '')).join(', ')}</div>` : ''}
+    <div id="earningsDayDetail"></div>
+  `;
+  body.innerHTML = html;
+}
+
+function showEarningsDayDetail(dateStr) {
+  const el = document.getElementById('earningsDayDetail');
+  if (!el) return;
+  const items = _earningsCalItems.filter(it => it.date === dateStr);
+
   const fmtNum = v => v != null ? `$${Number(v).toFixed(2)}` : '—';
   const fmtRev = v => {
     if (v == null) return '—';
@@ -2347,59 +2428,36 @@ function renderEarningsCalTable(items) {
     catch { return d; }
   };
 
-  const groups = new Map();
-  items.forEach(it => {
-    const k = it.date || 'TBD';
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k).push(it);
-  });
-  const sorted = [...groups.entries()].sort(([a],[b]) => a.localeCompare(b));
-
-  let html = `<table class="cal-tbl">
-    <thead><tr>
-      <th style="width:65px">종목</th>
-      <th>기업명</th>
-      <th style="width:38px">발표</th>
-      <th style="width:80px">EPS 예상</th>
-      <th style="width:90px">EPS 실적</th>
-      <th style="width:80px">매출 예상</th>
-      <th style="width:50px">IV</th>
-      <th style="width:70px">목표주가</th>
-    </tr></thead><tbody>`;
-
-  for (const [date, rows] of sorted) {
-    const allEst = date !== 'TBD' && rows.every(r => r.dateEstimated);
-    const dayLabel = date === 'TBD' ? '일정 미확정' : fmtDay(date) + (allEst ? ' <span style="font-size:10px;color:var(--text3)">(예상일)</span>' : '');
-    html += `<tr class="cal-day-hd"><td colspan="8">${dayLabel}</td></tr>`;
-    for (const item of rows) {
-      const isToday = item.date === today;
-      const consensus = item.epsConsensus ?? item.epsEstimate ?? null;
-      const hasPast = item.epsActual != null;
-      let epsActualHtml = '<span style="color:var(--text3)">미발표</span>';
-      if (hasPast) {
-        const beat = consensus != null ? item.epsActual >= consensus : null;
-        const cls = beat === true ? 'cal-beat' : beat === false ? 'cal-miss' : 'cal-meet';
-        const icon = beat === true ? ' ▲' : beat === false ? ' ▼' : '';
-        epsActualHtml = `<span class="${cls}">${fmtNum(item.epsActual)}${icon}</span>`;
-      }
-      const timing = item.callTime === 'BMO' ? '<span style="color:#60a5fa;font-size:10px">장전</span>'
-                   : item.callTime === 'AMC' ? '<span style="color:#a78bfa;font-size:10px">장후</span>'
-                   : '<span style="color:var(--text3);font-size:10px">—</span>';
-
-      html += `<tr style="${isToday ? 'background:rgba(59,130,246,.1)' : ''}">
-        <td style="font-weight:700;color:var(--yellow)">${escHtml(item.ticker || '')}</td>
-        <td style="font-size:11px;color:var(--text2)">${escHtml(item.company || '')}</td>
-        <td>${timing}</td>
-        <td style="color:var(--text3)">${fmtNum(consensus)}</td>
-        <td>${epsActualHtml}</td>
-        <td style="color:var(--text3)">${fmtRev(item.revEstimate)}</td>
-        <td style="color:var(--text2)">${item.iv != null ? item.iv.toFixed(1) + '%' : '—'}</td>
-        <td style="color:var(--text3)">${fmtNum(item.priceTarget)}</td>
-      </tr>`;
-    }
-  }
-  html += '</tbody></table>';
-  body.innerHTML = html;
+  el.innerHTML = `<div style="font-weight:800;font-size:13px;margin-bottom:8px">${fmtDay(dateStr)} 실적발표 (${items.length}건)</div>
+    <table class="cal-tbl">
+      <thead><tr>
+        <th style="width:65px">종목</th><th>기업명</th><th style="width:38px">발표</th>
+        <th style="width:80px">EPS 예상</th><th style="width:90px">EPS 실적</th>
+        <th style="width:80px">매출 예상</th><th style="width:70px">목표주가</th>
+      </tr></thead><tbody>
+      ${items.map(item => {
+        const consensus = item.epsConsensus ?? item.epsEstimate ?? null;
+        let epsActualHtml = '<span style="color:var(--text3)">미발표</span>';
+        if (item.epsActual != null) {
+          const beat = consensus != null ? item.epsActual >= consensus : null;
+          const cls = beat === true ? 'cal-beat' : beat === false ? 'cal-miss' : 'cal-meet';
+          const icon = beat === true ? ' ▲' : beat === false ? ' ▼' : '';
+          epsActualHtml = `<span class="${cls}">${fmtNum(item.epsActual)}${icon}</span>`;
+        }
+        const timing = item.callTime === 'BMO' ? '<span style="color:#60a5fa;font-size:10px">장전</span>'
+                     : item.callTime === 'AMC' ? '<span style="color:#a78bfa;font-size:10px">장후</span>'
+                     : '<span style="color:var(--text3);font-size:10px">—</span>';
+        return `<tr>
+          <td style="font-weight:700;color:var(--yellow)">${escHtml(item.ticker || '')}</td>
+          <td style="font-size:11px;color:var(--text2)">${escHtml(item.company || '')}</td>
+          <td>${timing}</td>
+          <td style="color:var(--text3)">${fmtNum(consensus)}</td>
+          <td>${epsActualHtml}</td>
+          <td style="color:var(--text3)">${fmtRev(item.revEstimate)}</td>
+          <td style="color:var(--text3)">${fmtNum(item.priceTarget)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>`;
 }
 
 // ─── 🔥 히트맵 ─────────────────────────────────────────────
@@ -2990,6 +3048,7 @@ function hmCellHtml(it) {
 // 종목 타일 그리드 렌더 — "전체보기"(opts.mobileLimit)와 섹터 드릴다운 2단계(opts.backLabel) 둘 다 여기서 처리.
 // needsRebuild가 false면 색/숫자만 갱신 + flash (실시간 폴링에서 깜빡임 없이 갱신하기 위함).
 function renderTileGrid(grid, items, needsRebuild, structureKey, opts = {}) {
+  grid.classList.add('hm-cropped');   // 종목 타일 나열 뷰(전체보기/드릴다운)는 홈 미리보기에서 크롭 대상
   if (needsRebuild) {
     const showAll = !opts.mobileLimit || !isNarrowViewport() || _hmMobileExpanded;
     const displayItems = showAll ? items : items.slice(0, HM_MOBILE_LIMIT);
@@ -3046,6 +3105,7 @@ function renderTileGrid(grid, items, needsRebuild, structureKey, opts = {}) {
 // 섹터 1단계 박스 렌더 — 종목별 등락률을 GICS 섹터로 묶어 평균 등락률로 박스 하나씩 표시.
 // 박스 클릭 시 heatmapDrillSector()로 2단계(해당 섹터 종목만)로 드릴다운.
 function renderSectorBoxes(grid, items, structureKey) {
+  grid.classList.remove('hm-cropped');   // 섹터 박스 11개는 작아서 홈 미리보기에서도 크롭 불필요
   const bySector = {};
   for (const it of items) {
     const s = sectorOf(it.ticker);

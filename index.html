@@ -333,11 +333,13 @@ button { font-family: inherit; }
 .section-block { margin-bottom: 28px; }
 /* 홈 미리보기: 히트맵/국장현황은 일부만 보여주고 전체는 /heatmap.html, /kr-market.html로 유도
    (정보 밀도 완화 — 전체 랭킹/탭은 전용 페이지에서) */
-#heatmapSection #heatmapGrid { max-height: 260px; overflow: hidden; position: relative; }
+/* 히트맵은 섹터 뷰(박스 11개, 작음)일 땐 크롭 없이 전부 보여주고, 전체보기/드릴다운
+   (종목 타일이 수십~수백개)일 때만 크롭 — loadHeatmap()이 hm-cropped 클래스를 토글 */
+#heatmapSection #heatmapGrid.hm-cropped { max-height: 260px; overflow: hidden; position: relative; }
 #krMarketSection #krMarketPanel { max-height: 280px; overflow: hidden; position: relative; }
 /* max-height는 loadInsights()가 실제 카드 높이를 측정해 인라인으로 덮어씀 (아래는 JS 실행 전 폴백) */
 #insightsCropWrap { max-height: 640px; overflow: hidden; position: relative; }
-#heatmapSection #heatmapGrid::after,
+#heatmapSection #heatmapGrid.hm-cropped::after,
 #krMarketSection #krMarketPanel::after,
 #insightsCropWrap::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 100px;
@@ -857,6 +859,22 @@ button { font-family: inherit; }
 .cal-tbl td { padding:7px 10px; border-bottom:1px solid var(--border-soft); vertical-align:middle; }
 .cal-tbl tr:hover td { background:var(--bg3); }
 .cal-day-hd { background:var(--bg3) !important; }
+
+/* 실적발표 캘린더 — 월 그리드 뷰 */
+.cal-nav-btn { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; color:var(--text2); cursor:pointer; }
+.cal-nav-btn:hover { background:var(--bg4); color:var(--text); }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding:0 4px; }
+.cal-grid-dow { text-align:center; font-size:11px; font-weight:700; color:var(--text3); padding:4px 0 8px; }
+.cal-grid-cell { min-height:64px; border:1px solid var(--border-soft); border-radius:8px; padding:5px 5px 3px; background:var(--bg2); }
+.cal-grid-cell.empty { border-color:transparent; background:transparent; }
+.cal-grid-cell.today { border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
+.cal-grid-cell.has-events { cursor:pointer; }
+.cal-grid-cell.has-events:hover { background:var(--bg3); }
+.cal-grid-daynum { font-size:11px; font-weight:700; color:var(--text2); margin-bottom:3px; }
+.cal-grid-cell.today .cal-grid-daynum { color:var(--blue); }
+.cal-grid-badge { font-size:9.5px; font-weight:700; font-family:var(--font-mono); color:var(--blue); background:var(--blue-dim); border-radius:3px; padding:1px 4px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cal-grid-more { font-size:9.5px; color:var(--text3); font-weight:600; }
+#earningsDayDetail { border-top:1px solid var(--border); padding-top:12px; font-size:12.5px; }
 
 /* 데일리 리포트 탭 + 아카이브 */
 .dr-tab { flex:1; padding:6px 0; font-size:12px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:6px; cursor:pointer; transition:all .15s; }
