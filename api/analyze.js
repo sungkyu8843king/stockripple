@@ -446,8 +446,13 @@ const BATCH_STUCK_TIMEOUT_MS = 3 * 3600 * 1000;
 async function handleBatchSubmit(req, res) {
   const limit = Math.min(parseInt(req.body?.limit, 10) || BATCH_SUBMIT_LIMIT, 100);
 
-  // discover/decide 각각 동시에 하나만 진행 — 이전 배치가 안 끝났으면 새로 제출하지 않음
-  const { data: inflight } = await supabase.from('analyze_batches').select('id, stage').in('status', ['submitted', 'processing']);
+  // discover/decide 각각 동시에 하나만 진행 — 이전 배치가 안 끝났으면 새로 제출하지 않음.
+  // 이 조회 자체가 실패하면(예: analyze_batches 테이블이 아직 마이그레이션 전) 아래에서
+  // Anthropic 배치를 만들어놓고 추적 행 insert가 실패해 배치가 고아로 남는 사고를 막기 위해
+  // 여기서 바로 에러 반환 — 실제 배치 생성(비용 발생) 이전에 걸러낸다.
+  const { data: inflight, error: inflightErr } = await supabase
+    .from('analyze_batches').select('id, stage').in('status', ['submitted', 'processing']);
+  if (inflightErr) return res.status(500).json({ error: 'analyze_batches table not ready: ' + inflightErr.message });
   if (inflight?.length) {
     return res.status(200).json({ ok: true, submitted: 0, reason: 'batch already in flight', inflight: inflight.map(r => r.stage) });
   }
@@ -486,12 +491,17 @@ async function handleBatchSubmit(req, res) {
   }
 
   const batch = await anthropic.messages.batches.create({ requests });
-  await supabase.from('analyze_batches').insert({
+  const { error: insertErr } = await supabase.from('analyze_batches').insert({
     anthropic_batch_id: batch.id,
     stage: 'discover',
     status: 'submitted',
     payload: { issueIds: issues.map(i => i.id) },
   });
+  if (insertErr) {
+    // 추적 행이 없으면 이 배치는 영원히 폴링되지 않아 비용만 나가고 버려짐 — 즉시 취소 시도
+    try { await anthropic.messages.batches.cancel(batch.id); } catch {}
+    return res.status(500).json({ error: 'failed to save batch tracking row, cancelled batch: ' + insertErr.message });
+  }
 
   return res.status(200).json({ ok: true, submitted: issues.length, batchId: batch.id, staleSkipped: staleSkipped || 0 });
 }
@@ -656,7 +666,7 @@ async function finalizeDiscoverStage(row, byId, req) {
   }));
 
   const batch = await anthropic.messages.batches.create({ requests });
-  await supabase.from('analyze_batches').insert({
+  const { error: insertErr } = await supabase.from('analyze_batches').insert({
     anthropic_batch_id: batch.id,
     stage: 'decide',
     status: 'submitted',
@@ -667,6 +677,12 @@ async function finalizeDiscoverStage(row, byId, req) {
       })),
     },
   });
+  if (insertErr) {
+    // 추적 행 저장 실패 — 배치를 취소하고, 해당 이슈들은 is_analyzed=false로 남겨두어
+    // 다음 discover 사이클이 처음부터 다시 집어가도록 한다 (analyses는 그때 재삭제/재생성됨).
+    try { await anthropic.messages.batches.cancel(batch.id); } catch {}
+    console.error('failed to save decide-stage batch tracking row, cancelled batch:', insertErr.message);
+  }
 }
 
 // decide 배치 완료 처리 — 게재 게이트/스코어링/저장까지 마무리
