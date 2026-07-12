@@ -8,7 +8,8 @@ name: Analyze Backlog
 
 on:
   schedule:
-    - cron: '15 * * * *'   # 매시 15분 (fetch 워크플로와 시간대 분산)
+    - cron: '15 * * * *'   # 매시 15분: 전체 파이프라인 (fetch 워크플로와 시간대 분산)
+    - cron: '*/10 * * * *' # 10분마다: 배치 폴링만 — Message Batches API 진행을 빠르게 이어간다
   workflow_dispatch:
 
 jobs:
@@ -17,31 +18,37 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      # 배치 폴링은 매 실행(10분 주기 포함)마다 — discover→decide 2단계 전환을 놓치지 않도록.
+      # 진행 중인 배치가 없으면 즉시 {checked:0}으로 끝나 비용/시간 낭비 없음.
+      - name: Batch Poll (진행 중인 배치 이어받기)
+        run: |
+          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=batch-poll" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" || true)
+          echo "$RESP" | jq -c '{checked, outcomes}' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
+
       - name: Fetch RSS News
+        if: github.event.schedule != '*/10 * * * *'
         run: |
           RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/fetch-rss" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" || true)
           echo "$RESP" | jq -r '.saved // "done"' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
-      # analyze API가 배치가 꽉 차면 스스로 다음 배치를 체이닝하므로 (waitUntil)
-      # 여기서는 1회만 호출한다 — max_chain 8 = 최대 40건/시간, 미분석 없으면 즉시 종료
-      # Vercel 60s 타임아웃 시 JSON이 아닌 에러 텍스트가 올 수 있어 jq 실패를 방어 (pipefail 대비)
-      - name: AI Analyze (체이닝 최대 8회 × 5건)
+      # Message Batches API로 제출만 하고 끝 — discover/decide 완료 처리는 위 Batch Poll
+      # 스텝(10분 주기)이 이어받는다. 입력 토큰 50% 할인 + 프롬프트 캐싱 적용.
+      # 이미 진행 중인 배치가 있으면 서버가 알아서 중복 제출을 스킵한다.
+      - name: AI Analyze (배치 제출, 최대 30건)
+        if: github.event.schedule != '*/10 * * * *'
         run: |
-          RESP=$(curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/analyze" \
+          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=batch-submit" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 5, "max_chain": 8}' || true)
-          N=$(echo "$RESP" | jq -r '.analyzed // 0' 2>/dev/null || echo '?')
-          SKIP=$(echo "$RESP" | jq -r '.staleSkipped // 0' 2>/dev/null || echo '?')
-          CORR=$(echo "$RESP" | jq -r '(.corrections // []) | join("; ")' 2>/dev/null || echo '')
-          echo "analyzed=$N staleSkipped=$SKIP"
-          if [ -n "$CORR" ]; then echo "ticker corrections: $CORR"; fi
-          if [ "$N" = "?" ]; then echo "non-JSON response: $(echo "$RESP" | head -c 200)"; fi
+            -d '{"limit": 30}' || true)
+          echo "$RESP" | jq -c '{submitted, staleSkipped, reason}' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
       # 예측 정확도 검증 — Vercel cron이 불안정해 GH Actions에서 매시간 실행 (due 항목만 처리, 멱등)
       - name: Check Accuracy (예측 검증)
+        if: github.event.schedule != '*/10 * * * *'
         run: |
           RESP=$(curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/check-accuracy" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" || true)
@@ -49,6 +56,7 @@ jobs:
 
       # Vercel daily cron 백업: 01시(UTC)대 실행 시 오케스트레이터 호출 (뉴스수집/AI요약 등)
       - name: Daily Orchestrator 백업 (01 UTC에만)
+        if: github.event.schedule != '*/10 * * * *'
         run: |
           if [ "$(date -u +%H)" = "01" ]; then
             curl -s --max-time 30 -X POST "${{ secrets.VERCEL_URL }}/api/cron-daily" \
@@ -62,6 +70,7 @@ jobs:
       # "해당 시장이 마감(+버퍼)했는데 오늘자 리포트가 아직 없으면 1회 생성" → 어느 시간대 run이든
       # 처음 뜨는 놈이 채워넣고, 이후 run은 이미 존재하므로 스킵 (upsert라 중복도 안전).
       - name: Daily Report catch-up (KR/US)
+        if: github.event.schedule != '*/10 * * * *'
         run: |
           gen() {
             local MKT="$1" TODAY="$2" CLOSE_EPOCH="$3"
@@ -98,6 +107,7 @@ jobs:
       # 드롭 시 며칠씩 멈췄음(실측 7/3 이후 정지). 매시간 도는 이 워크플로로 옮김.
       # 서버에 신선도 가드가 있어 자주 불려도 낭비 없음(요약 3h 이내면 스킵, catalyst는 멱등).
       - name: AI 시장 종합 + catalyst 갱신
+        if: github.event.schedule != '*/10 * * * *'
         run: |
           echo "-- ai-market-summary --"
           curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=ai-market-summary" \

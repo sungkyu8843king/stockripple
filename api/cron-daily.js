@@ -55,7 +55,9 @@ export default async function handler(req, res) {
   faf('/api/fetch?type=news');
   faf('/api/fetch?type=rss');
   faf('/api/market-pulse?type=trump');
-  faf('/api/analyze', { limit: 5 });
+  // Message Batches API로 제출만 하고 끝 — 완료 처리는 analyze-backlog.yml의
+  // 10분 주기 폴링(mode=batch-poll)이 이어받는다. 입력 토큰 50% 할인 + 프롬프트 캐싱 적용.
+  faf('/api/analyze?mode=batch-submit', { limit: 30 });
   faf('/api/admin?action=extract-investments', { since_hours: 48, max: 25 });
   faf('/api/admin?action=dart-poll', { days: 2 });
   faf('/api/admin?action=dart-sync-corp-codes');  // 신규 KR 종목의 corp_code 자동 매핑 (예: 히트맵에 추가된 HLB류)

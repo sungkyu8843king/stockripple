@@ -57,6 +57,13 @@ export default async function handler(req, res) {
   const auth = await verifyAdmin(req.headers.authorization);
   if (!auth.ok) return res.status(401).json({ error: auth.error });
 
+  // 배치 모드: analyze-backlog/cron-daily처럼 실시간 응답이 필요 없는 대량 처리 경로.
+  // Anthropic Message Batches API로 넘겨 입력 토큰 50% 할인을 추가로 받는다.
+  // (live-refresh의 장중 실시간 소량 새로고침은 지연을 감수할 수 없어 기존 동기 경로 그대로 유지)
+  const mode = (req.query?.mode || req.body?.mode || '').toString();
+  if (mode === 'batch-submit') return handleBatchSubmit(req, res);
+  if (mode === 'batch-poll') return handleBatchPoll(req, res);
+
   const rawBody = req.body || {};
   const issue_id = rawBody.issue_id;
   // Vercel 60초 타임아웃. 2-패스 분석(후보발굴 + 애널리스트 결정)으로 이슈당 ~18초 → 1회 최대 3건
@@ -168,172 +175,25 @@ export default async function handler(req, res) {
       if (analysisErr) throw new Error(analysisErr.message);
 
       // ── 1단계: 후보 티커 검증/교정 + 시장 데이터 수집 (병렬) ──
-      const allCompanyTasks = [];
-      for (const ripple of analysis.rippleEffects || []) {
-        for (const co of ripple.companies || []) {
-          allCompanyTasks.push({ ripple, co });
-        }
-      }
-      const pickedTickers = [];
-      const candidates = [];
+      const { uniqCandidates, errors: cErrors, corrections: cCorrections } = await enrichCandidates(analysis);
+      results.errors.push(...cErrors);
+      results.corrections.push(...cCorrections);
 
-      await Promise.all(allCompanyTasks.map(async ({ ripple, co }) => {
-        let valid = await validateTicker(co.ticker);
-        if (!valid) {
-          results.errors.push(`Invalid ticker skipped: ${co.ticker} (${co.name_ko})`);
-          return;
-        }
-
-        // 티커 실존 ≠ 회사 일치. AI가 "삼성전자" 의도로 000810.KS(삼성화재)를 주는 환각 차단
-        if (!namesMatch(co, valid.longName)) {
-          const resolved = await resolveTickerByName(co);
-          if (!resolved) {
-            results.errors.push(`Name mismatch skipped: ${co.ticker} "${co.name_en || co.name_ko}" ≠ Yahoo "${valid.longName || '?'}"`);
-            return;
-          }
-          if (resolved !== co.ticker) {
-            const revalid = await validateTicker(resolved);
-            if (!revalid) {
-              results.errors.push(`Name mismatch skipped: ${co.ticker} "${co.name_en || co.name_ko}" (교정 후보 ${resolved} 시세 조회 실패)`);
-              return;
-            }
-            results.corrections.push(`${co.ticker} → ${resolved} ("${co.name_en || co.name_ko}", Yahoo: ${revalid.longName || '?'})`);
-            co.ticker = resolved;
-            valid = revalid;
-          }
-          // resolved === co.ticker 이면 검색 결과가 AI 티커를 확인해준 것 (음역 등으로 토큰 비교만 실패한 케이스)
-        }
-
-        const [stats, fund] = await Promise.all([
-          fetchPriceStats(co.ticker),
-          fetchFundamentals(co.ticker),
-        ]);
-        candidates.push({ ripple, co, valid, stats, fund, fundScore: scoreFundamentals(fund) });
-      }));
-
-      // 티커 교정으로 같은 종목이 중복될 수 있음 → 첫 후보만 유지
-      const seenTickers = new Set();
-      const uniqCandidates = candidates.filter(c => {
-        const t = c.co.ticker.toUpperCase();
-        if (seenTickers.has(t)) return false;
-        seenTickers.add(t);
-        return true;
-      });
-
+      let pickedTickers = [];
       if (uniqCandidates.length) {
-        // 자기 적중률 피드백: 이 티커들의 과거 7일 검증 이력 (시스템이 자기 실적에서 학습)
-        const histMap = {};
-        try {
-          const { data: hist } = await supabase
-            .from('analysis_companies')
-            .select('is_accurate_7d, companies!inner(ticker)')
-            .in('companies.ticker', uniqCandidates.map(c => c.co.ticker))
-            .not('is_accurate_7d', 'is', null)
-            .limit(500);
-          for (const h of hist || []) {
-            const t = h.companies?.ticker;
-            if (!t) continue;
-            const m = (histMap[t] ||= { n: 0, hit: 0 });
-            m.n++;
-            if (h.is_accurate_7d) m.hit++;
-          }
-        } catch {}
+        const histMap = await fetchTickerAccuracyHistory(uniqCandidates.map(c => c.co.ticker));
 
         // ── 2단계: 애널리스트 패스 — 실제 시장 데이터를 보고 매수/제외 결정 ──
         const decisions = await decideTrades(issue, analysis, uniqCandidates, regime);
-
-        for (const cand of uniqCandidates) {
-          const t = cand.co.ticker.toUpperCase();
-          const d = decisions[t];
-          const s = cand.stats;
-
-          if (!d || d.action !== 'buy') {
-            results.excluded.push(`${cand.co.ticker}: ${d?.exclude_reason || '애널리스트 패스 제외'}`);
-            continue;
-          }
-          // 하드 필터: 차트가 명백히 반대인 종목은 AI 판단과 무관하게 차단
-          if (s && ((s.ret1m != null && s.ret1m < -10 && s.aboveSma50 === false) || s.signal === 'strong_bearish')) {
-            results.excluded.push(`${cand.co.ticker}: 하락 추세 (1M ${s.ret1m}%, 시그널 ${s.signal})`);
-            continue;
-          }
-          if (s?.rsi14 != null && s.rsi14 >= 80) {
-            results.excluded.push(`${cand.co.ticker}: 과열 (RSI ${s.rsi14}) — 추격 매수 금지`);
-            continue;
-          }
-
-          clampTrade(d, s);
-          const momScore = scoreTechnicals(s);
-
-          // 자기 적중률 피드백: 4회 이상 검증된 종목의 과거 성적을 점수에 반영
-          let trackAdj = 0, trackNote = '';
-          const h = histMap[cand.co.ticker];
-          if (h && h.n >= 4) {
-            const rate = h.hit / h.n;
-            if (rate < 0.3) { trackAdj = -10; trackNote = `과거 적중 ${h.hit}/${h.n}`; }
-            else if (rate >= 0.6) trackAdj = 5;
-          }
-
-          let composite = (d.confidence ?? 50) + (cand.fundScore ?? 0) + momScore + trackAdj;
-          composite = Math.max(0, Math.min(100, Math.round(composite)));
-
-          // 게재 게이트: 기본 60점, 해당 시장이 약세 레짐이면 70점으로 상향 (소수 정예)
-          const mkt = (cand.co.market === 'KR' || /\.K[SQ]$/i.test(cand.co.ticker)) ? regime.kr : regime.us;
-          const gateMin = mkt === 'bear' ? 70 : 60;
-          if (composite < gateMin) {
-            results.excluded.push(`${cand.co.ticker}: 종합점수 ${composite} < ${gateMin}${mkt === 'bear' ? ' (약세장 상향)' : ''} (AI ${d.confidence ?? 50}, 펀더 ${cand.fundScore ?? '-'}, 모멘텀 ${momScore}${trackNote ? ', ' + trackNote : ''})`);
-            continue;
-          }
-
-          const companyId = await upsertCompany(cand.co, cand.valid);
-
-          const tradeMeta = {
-            elp: d.entry_low_pct, ehp: d.entry_high_pct,
-            tp:  d.upside_pct,    sl:  d.stop_loss_pct,
-            tf:  d.time_frame,    th:  d.key_thesis,    rk: d.key_risk,
-          };
-          const cleanMeta = Object.fromEntries(
-            Object.entries(tradeMeta).filter(([_, v]) => v != null && v !== '')
-          );
-          const fund = cand.fund;
-          const fundMeta = (fund || s) ? {
-            ...(fund ? {
-              pe: fund.pe, pb: fund.pb, roe: fund.roe,
-              opm: fund.operatingMargin, de: fund.debtToEquity, cr: fund.currentRatio,
-              rev_yoy: fund.revenueGrowthYoY, ni_yoy: fund.netIncomeGrowthYoY,
-            } : {}),
-            ...(s ? {
-              mom1m: s.ret1m, mom3m: s.ret3m, atrm: s.atrMonthPct,
-              ma50: s.aboveSma50 ? 1 : 0, ma200: s.aboveSma200 ? 1 : 0,
-              rsi: s.rsi14, sig: s.signal, volr: s.volRatio,
-              macd: s.macdHistPct != null ? (s.macdHistPct > 0 ? 1 : -1) : null,
-              hi52: s.pctFrom52wHigh,
-            } : {}),
-            score: cand.fundScore, moms: momScore,
-          } : null;
-
-          let enrichedRationale = cand.co.rationale || d.key_thesis || '';
-          if (Object.keys(cleanMeta).length) enrichedRationale += `\n\n[TRADE]${JSON.stringify(cleanMeta)}`;
-          if (fundMeta) enrichedRationale += `\n\n[FUND]${JSON.stringify(fundMeta)}`;
-
-          await supabase.from('analysis_companies').insert({
-            analysis_id: savedAnalysis.id,
-            company_id: companyId,
-            ripple_sector: cand.ripple.sector,
-            rationale: enrichedRationale,
-            upside_pct: d.upside_pct,
-            confidence: composite,
-            entry_price: cand.valid.price,
-            entry_date: new Date().toISOString(),
-          });
-          pickedTickers.push(`${cand.co.ticker}(${composite}%)`);
-        }
+        const { pickedTickers: picked, excluded } = await finalizeIssueDecisions({
+          analysisId: savedAnalysis.id, candidates: uniqCandidates, decisions, regime, histMap,
+        });
+        pickedTickers = picked;
+        results.excluded.push(...excluded);
       }
 
-      // AI가 판정한 섹터를 표준 태그로 변환해 이슈에 역태깅 — 피드 고정 태그('글로벌, 주식')만으로는
-      // 프론트의 카테고리 탭/섹터 칩(sectors 배열 contains 검색)에 잡히지 않는 문제 해결
-      const derivedTags = deriveSectorTags(issue, analysis);
-      const mergedSectors = Array.from(new Set([...(issue.sectors || []), ...derivedTags]));
-      await supabase.from('issues').update({ is_analyzed: true, sectors: mergedSectors }).eq('id', issue.id);
+      await finalizeIssueCompletion({ issue, analysis, pickedTickers, req });
+
       results.analyzed++;
       results.processed.push({
         title: issue.title?.slice(0, 80) || '(제목 없음)',
@@ -341,15 +201,6 @@ export default async function handler(req, res) {
         duration_ms: Date.now() - issueStart,
         relevance: analysis.relevance_score,
       });
-
-      const breakingKeyword = detectBreakingNews(issue.title);
-      if (breakingKeyword) await maybeAutoAnnounce(issue, breakingKeyword);
-
-      const tickers = pickedTickers.slice(0, 5).join(', ');
-      await sendNotify(
-        `📊 <b>StockRipple 새 분석</b>\n${issue.title}\n\n게재 종목: ${tickers || '— (전원 제외)'}\n신뢰도: ${analysis.confidence_score || 50}%`,
-        req
-      ).catch(() => {});
 
       await new Promise(r => setTimeout(r, 200));
     } catch (err) {
@@ -367,6 +218,200 @@ export default async function handler(req, res) {
   return res.status(200).json({ ...results, reanalyzed, staleSkipped, timeBudgetHit, chainCount, maxChain: MAX_CHAIN });
 }
 
+// ── 1단계: 후보 티커 검증/교정 + 시장 데이터 수집 (병렬) ──────────────────
+// 동기 경로(handler)와 배치 경로(finalizeDiscoverStage) 양쪽에서 공유.
+async function enrichCandidates(analysis) {
+  const errors = [];
+  const corrections = [];
+  const allCompanyTasks = [];
+  for (const ripple of analysis.rippleEffects || []) {
+    for (const co of ripple.companies || []) {
+      allCompanyTasks.push({ ripple, co });
+    }
+  }
+  const candidates = [];
+
+  await Promise.all(allCompanyTasks.map(async ({ ripple, co }) => {
+    let valid = await validateTicker(co.ticker);
+    if (!valid) {
+      errors.push(`Invalid ticker skipped: ${co.ticker} (${co.name_ko})`);
+      return;
+    }
+
+    // 티커 실존 ≠ 회사 일치. AI가 "삼성전자" 의도로 000810.KS(삼성화재)를 주는 환각 차단
+    if (!namesMatch(co, valid.longName)) {
+      const resolved = await resolveTickerByName(co);
+      if (!resolved) {
+        errors.push(`Name mismatch skipped: ${co.ticker} "${co.name_en || co.name_ko}" ≠ Yahoo "${valid.longName || '?'}"`);
+        return;
+      }
+      if (resolved !== co.ticker) {
+        const revalid = await validateTicker(resolved);
+        if (!revalid) {
+          errors.push(`Name mismatch skipped: ${co.ticker} "${co.name_en || co.name_ko}" (교정 후보 ${resolved} 시세 조회 실패)`);
+          return;
+        }
+        corrections.push(`${co.ticker} → ${resolved} ("${co.name_en || co.name_ko}", Yahoo: ${revalid.longName || '?'})`);
+        co.ticker = resolved;
+        valid = revalid;
+      }
+      // resolved === co.ticker 이면 검색 결과가 AI 티커를 확인해준 것 (음역 등으로 토큰 비교만 실패한 케이스)
+    }
+
+    const [stats, fund] = await Promise.all([
+      fetchPriceStats(co.ticker),
+      fetchFundamentals(co.ticker),
+    ]);
+    candidates.push({ ripple, co, valid, stats, fund, fundScore: scoreFundamentals(fund) });
+  }));
+
+  // 티커 교정으로 같은 종목이 중복될 수 있음 → 첫 후보만 유지
+  const seenTickers = new Set();
+  const uniqCandidates = candidates.filter(c => {
+    const t = c.co.ticker.toUpperCase();
+    if (seenTickers.has(t)) return false;
+    seenTickers.add(t);
+    return true;
+  });
+  return { uniqCandidates, errors, corrections };
+}
+
+// 자기 적중률 피드백: 이 티커들의 과거 7일 검증 이력 (시스템이 자기 실적에서 학습)
+async function fetchTickerAccuracyHistory(tickers) {
+  const histMap = {};
+  if (!tickers.length) return histMap;
+  try {
+    const { data: hist } = await supabase
+      .from('analysis_companies')
+      .select('is_accurate_7d, companies!inner(ticker)')
+      .in('companies.ticker', tickers)
+      .not('is_accurate_7d', 'is', null)
+      .limit(500);
+    for (const h of hist || []) {
+      const t = h.companies?.ticker;
+      if (!t) continue;
+      const m = (histMap[t] ||= { n: 0, hit: 0 });
+      m.n++;
+      if (h.is_accurate_7d) m.hit++;
+    }
+  } catch {}
+  return histMap;
+}
+
+// ── 2단계 결과 반영: 게재 게이트 + 스코어링 + analysis_companies 저장 ──────
+// 동기 경로와 배치 경로(finalizeDecideStage) 양쪽에서 공유.
+async function finalizeIssueDecisions({ analysisId, candidates, decisions, regime, histMap }) {
+  const pickedTickers = [];
+  const excluded = [];
+
+  for (const cand of candidates) {
+    const t = cand.co.ticker.toUpperCase();
+    const d = decisions[t];
+    const s = cand.stats;
+
+    if (!d || d.action !== 'buy') {
+      excluded.push(`${cand.co.ticker}: ${d?.exclude_reason || '애널리스트 패스 제외'}`);
+      continue;
+    }
+    // 하드 필터: 차트가 명백히 반대인 종목은 AI 판단과 무관하게 차단
+    if (s && ((s.ret1m != null && s.ret1m < -10 && s.aboveSma50 === false) || s.signal === 'strong_bearish')) {
+      excluded.push(`${cand.co.ticker}: 하락 추세 (1M ${s.ret1m}%, 시그널 ${s.signal})`);
+      continue;
+    }
+    if (s?.rsi14 != null && s.rsi14 >= 80) {
+      excluded.push(`${cand.co.ticker}: 과열 (RSI ${s.rsi14}) — 추격 매수 금지`);
+      continue;
+    }
+
+    clampTrade(d, s);
+    const momScore = scoreTechnicals(s);
+
+    // 자기 적중률 피드백: 4회 이상 검증된 종목의 과거 성적을 점수에 반영
+    let trackAdj = 0, trackNote = '';
+    const h = histMap[cand.co.ticker];
+    if (h && h.n >= 4) {
+      const rate = h.hit / h.n;
+      if (rate < 0.3) { trackAdj = -10; trackNote = `과거 적중 ${h.hit}/${h.n}`; }
+      else if (rate >= 0.6) trackAdj = 5;
+    }
+
+    let composite = (d.confidence ?? 50) + (cand.fundScore ?? 0) + momScore + trackAdj;
+    composite = Math.max(0, Math.min(100, Math.round(composite)));
+
+    // 게재 게이트: 기본 60점, 해당 시장이 약세 레짐이면 70점으로 상향 (소수 정예)
+    const mkt = (cand.co.market === 'KR' || /\.K[SQ]$/i.test(cand.co.ticker)) ? regime.kr : regime.us;
+    const gateMin = mkt === 'bear' ? 70 : 60;
+    if (composite < gateMin) {
+      excluded.push(`${cand.co.ticker}: 종합점수 ${composite} < ${gateMin}${mkt === 'bear' ? ' (약세장 상향)' : ''} (AI ${d.confidence ?? 50}, 펀더 ${cand.fundScore ?? '-'}, 모멘텀 ${momScore}${trackNote ? ', ' + trackNote : ''})`);
+      continue;
+    }
+
+    const companyId = await upsertCompany(cand.co, cand.valid);
+
+    const tradeMeta = {
+      elp: d.entry_low_pct, ehp: d.entry_high_pct,
+      tp:  d.upside_pct,    sl:  d.stop_loss_pct,
+      tf:  d.time_frame,    th:  d.key_thesis,    rk: d.key_risk,
+    };
+    const cleanMeta = Object.fromEntries(
+      Object.entries(tradeMeta).filter(([_, v]) => v != null && v !== '')
+    );
+    const fund = cand.fund;
+    const fundMeta = (fund || s) ? {
+      ...(fund ? {
+        pe: fund.pe, pb: fund.pb, roe: fund.roe,
+        opm: fund.operatingMargin, de: fund.debtToEquity, cr: fund.currentRatio,
+        rev_yoy: fund.revenueGrowthYoY, ni_yoy: fund.netIncomeGrowthYoY,
+      } : {}),
+      ...(s ? {
+        mom1m: s.ret1m, mom3m: s.ret3m, atrm: s.atrMonthPct,
+        ma50: s.aboveSma50 ? 1 : 0, ma200: s.aboveSma200 ? 1 : 0,
+        rsi: s.rsi14, sig: s.signal, volr: s.volRatio,
+        macd: s.macdHistPct != null ? (s.macdHistPct > 0 ? 1 : -1) : null,
+        hi52: s.pctFrom52wHigh,
+      } : {}),
+      score: cand.fundScore, moms: momScore,
+    } : null;
+
+    let enrichedRationale = cand.co.rationale || d.key_thesis || '';
+    if (Object.keys(cleanMeta).length) enrichedRationale += `\n\n[TRADE]${JSON.stringify(cleanMeta)}`;
+    if (fundMeta) enrichedRationale += `\n\n[FUND]${JSON.stringify(fundMeta)}`;
+
+    await supabase.from('analysis_companies').insert({
+      analysis_id: analysisId,
+      company_id: companyId,
+      ripple_sector: cand.ripple.sector,
+      rationale: enrichedRationale,
+      upside_pct: d.upside_pct,
+      confidence: composite,
+      entry_price: cand.valid.price,
+      entry_date: new Date().toISOString(),
+    });
+    pickedTickers.push(`${cand.co.ticker}(${composite}%)`);
+  }
+
+  return { pickedTickers, excluded };
+}
+
+// ── 이슈 완료 처리: 섹터 역태깅 + is_analyzed 마킹 + 속보 배너 + 텔레그램 알림 ──
+// 동기 경로와 배치 경로(uniqCandidates 없는 경우 포함) 양쪽에서 공유.
+async function finalizeIssueCompletion({ issue, analysis, pickedTickers, req }) {
+  // AI가 판정한 섹터를 표준 태그로 변환해 이슈에 역태깅 — 피드 고정 태그('글로벌, 주식')만으로는
+  // 프론트의 카테고리 탭/섹터 칩(sectors 배열 contains 검색)에 잡히지 않는 문제 해결
+  const derivedTags = deriveSectorTags(issue, analysis);
+  const mergedSectors = Array.from(new Set([...(issue.sectors || []), ...derivedTags]));
+  await supabase.from('issues').update({ is_analyzed: true, sectors: mergedSectors }).eq('id', issue.id);
+
+  const breakingKeyword = detectBreakingNews(issue.title);
+  if (breakingKeyword) await maybeAutoAnnounce(issue, breakingKeyword);
+
+  const tickers = pickedTickers.slice(0, 5).join(', ');
+  await sendNotify(
+    `📊 <b>StockRipple 새 분석</b>\n${issue.title}\n\n게재 종목: ${tickers || '— (전원 제외)'}\n신뢰도: ${analysis.confidence_score || 50}%`,
+    req
+  ).catch(() => {});
+}
+
 function triggerNextChain(req, limit, nextChainCount, maxChain) {
   const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
@@ -382,6 +427,277 @@ function triggerNextChain(req, limit, nextChainCount, maxChain) {
     body: JSON.stringify({ limit, chain_count: nextChainCount, max_chain: maxChain }),
     signal: AbortSignal.timeout(8000),
   }).catch(() => {});
+}
+
+// ════════════════════════════════════════════════════════════
+// 배치 모드 — Anthropic Message Batches API (입력 토큰 50% 추가 할인, 완료까지
+// 공식적으로는 최대 24시간 소요될 수 있음). analyze-backlog/cron-daily처럼 응답을
+// 실시간으로 기다릴 필요 없는 경로 전용. discover(후보발굴) → decide(애널리스트
+// 결정) 2단계를 각각 별도 배치로 제출하고, 폴링으로 완료를 감지해 이어 붙인다.
+// (live-refresh의 장중 실시간 소량 새로고침은 지연을 감수할 수 없어 기존 동기
+// 경로 그대로 유지 — 이 배치 경로와 별개로 계속 동작)
+// ════════════════════════════════════════════════════════════
+const BATCH_SUBMIT_LIMIT = 30;
+// 안전장치: 배치가 이 시간 안에 안 끝나면 취소하고 그냥 놓아준다 — 이슈는
+// is_analyzed=false로 남아있으므로 다음 hourly 크론의 기존 동기 경로가 자연스럽게
+// 다시 집어가 처리한다 (하루 종일 안 끝나는 걸 무한정 기다리지 않기 위한 상한).
+const BATCH_STUCK_TIMEOUT_MS = 3 * 3600 * 1000;
+
+async function handleBatchSubmit(req, res) {
+  const limit = Math.min(parseInt(req.body?.limit, 10) || BATCH_SUBMIT_LIMIT, 100);
+
+  // discover/decide 각각 동시에 하나만 진행 — 이전 배치가 안 끝났으면 새로 제출하지 않음
+  const { data: inflight } = await supabase.from('analyze_batches').select('id, stage').in('status', ['submitted', 'processing']);
+  if (inflight?.length) {
+    return res.status(200).json({ ok: true, submitted: 0, reason: 'batch already in flight', inflight: inflight.map(r => r.stage) });
+  }
+
+  // 48시간 지난 미분석 이슈는 스킵 처리 (동기 경로와 동일한 정책)
+  const staleCutoff = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+  const { count: staleSkipped } = await supabase
+    .from('issues')
+    .update({ is_analyzed: true }, { count: 'exact' })
+    .eq('is_analyzed', false)
+    .lt('published_at', staleCutoff);
+
+  const { data: issues, error } = await supabase
+    .from('issues').select('*').eq('is_analyzed', false)
+    .order('published_at', { ascending: false }).limit(limit);
+  if (error) return res.status(500).json({ error: error.message });
+  if (!issues?.length) return res.status(200).json({ ok: true, submitted: 0, staleSkipped: staleSkipped || 0 });
+
+  const requests = [];
+  for (const issue of issues) {
+    const strategicCtx = await buildStrategicCtx(issue);
+    requests.push({
+      custom_id: issue.id,
+      params: {
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 4096,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: ANALYZE_STATIC_PROMPT, cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: buildAnalyzeDynamicBlock(issue, strategicCtx) },
+          ],
+        }],
+      },
+    });
+  }
+
+  const batch = await anthropic.messages.batches.create({ requests });
+  await supabase.from('analyze_batches').insert({
+    anthropic_batch_id: batch.id,
+    stage: 'discover',
+    status: 'submitted',
+    payload: { issueIds: issues.map(i => i.id) },
+  });
+
+  return res.status(200).json({ ok: true, submitted: issues.length, batchId: batch.id, staleSkipped: staleSkipped || 0 });
+}
+
+async function handleBatchPoll(req, res) {
+  const { data: rows } = await supabase.from('analyze_batches').select('*').eq('status', 'submitted').order('created_at', { ascending: true });
+  if (!rows?.length) return res.status(200).json({ ok: true, checked: 0 });
+
+  const outcomes = [];
+  for (const row of rows) {
+    try {
+      outcomes.push(await processBatchRow(row, req));
+    } catch (e) {
+      outcomes.push({ id: row.id, stage: row.stage, status: 'error', error: e.message });
+    }
+  }
+  return res.status(200).json({ ok: true, checked: rows.length, outcomes });
+}
+
+async function processBatchRow(row, req) {
+  const age = Date.now() - new Date(row.created_at).getTime();
+  const batch = await anthropic.messages.batches.retrieve(row.anthropic_batch_id);
+
+  if (batch.processing_status !== 'ended') {
+    if (age > BATCH_STUCK_TIMEOUT_MS) {
+      const { data: claimed } = await supabase.from('analyze_batches')
+        .update({ status: 'timeout', completed_at: new Date().toISOString() })
+        .eq('id', row.id).eq('status', 'submitted').select();
+      if (!claimed?.length) return { id: row.id, stage: row.stage, status: 'already_claimed' };
+      try { await anthropic.messages.batches.cancel(row.anthropic_batch_id); } catch {}
+      return { id: row.id, stage: row.stage, status: 'timeout_cancelled' };
+    }
+    return { id: row.id, stage: row.stage, status: 'processing' };
+  }
+
+  // 동시 실행(10분/1시간 폴링이 겹치는 등) 대비 — submitted 상태인 행만 원자적으로 선점해
+  // 같은 배치를 두 번 완료 처리(중복 DB insert)하지 않도록 방어
+  const { data: claimed } = await supabase.from('analyze_batches')
+    .update({ status: 'processing' }).eq('id', row.id).eq('status', 'submitted').select();
+  if (!claimed?.length) return { id: row.id, stage: row.stage, status: 'already_claimed' };
+
+  try {
+    const lines = await anthropic.messages.batches.results(row.anthropic_batch_id);
+    const byId = {};
+    for await (const line of lines) byId[line.custom_id] = line;
+
+    if (row.stage === 'discover') {
+      await finalizeDiscoverStage(row, byId, req);
+    } else {
+      await finalizeDecideStage(row, byId, req);
+    }
+
+    await supabase.from('analyze_batches').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', row.id);
+    return { id: row.id, stage: row.stage, status: 'completed' };
+  } catch (e) {
+    // 실패 시 submitted로 되돌려 다음 폴링에서 재시도할 수 있게 함
+    await supabase.from('analyze_batches').update({ status: 'submitted' }).eq('id', row.id);
+    throw e;
+  }
+}
+
+function extractBatchText(line) {
+  if (line?.result?.type !== 'succeeded') return null;
+  return line.result.message?.content?.[0]?.text?.trim() || null;
+}
+
+function parseJsonBlock(text) {
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('JSON not found in batch response');
+  return parseJsonSafe(m[0]);
+}
+
+// discover 배치 완료 처리 — 후보 티커 검증/시장데이터 수집(Claude 불필요, 동기 진행) 후
+// 매수 후보가 있는 이슈들만 모아 decide 배치를 새로 제출한다.
+async function finalizeDiscoverStage(row, byId, req) {
+  const issueIds = row.payload?.issueIds || [];
+  const decideItems = [];
+
+  // 시장 레짐은 이 배치 전체에서 1회만 조회 (동기 경로와 동일하게 배치당 하나의 스냅샷 공유)
+  const regime = await fetchMarketRegime().catch(() => ({ us: 'neutral', kr: 'neutral', vix: null }));
+
+  for (const issueId of issueIds) {
+    try {
+      const { data: issue } = await supabase.from('issues').select('*').eq('id', issueId).maybeSingle();
+      if (!issue || issue.is_analyzed) continue; // force_recent 등으로 이미 처리/삭제된 경우 스킵
+
+      const text = extractBatchText(byId[issueId]);
+      if (!text) continue; // 개별 요청 실패 — is_analyzed=false로 남겨 다음 백로그가 재시도
+
+      const analysis = parseJsonBlock(text);
+
+      if ((analysis.relevance_score ?? 100) < 40) {
+        await supabase.from('issues').delete().eq('id', issue.id);
+        continue;
+      }
+
+      const { data: staleAnalyses } = await supabase.from('analyses').select('id').eq('issue_id', issue.id);
+      if (staleAnalyses?.length) {
+        const staleIds = staleAnalyses.map(a => a.id);
+        await supabase.from('analysis_companies').delete().in('analysis_id', staleIds);
+        await supabase.from('analyses').delete().in('id', staleIds);
+      }
+
+      const { data: savedAnalysis, error: analysisErr } = await supabase
+        .from('analyses').insert({
+          issue_id: issue.id,
+          direct_sectors: analysis.directSectors || [],
+          ripple_effects: analysis.rippleEffects || [],
+          ai_summary: analysis.summary,
+          confidence_score: analysis.confidence_score || 50,
+        }).select().single();
+      if (analysisErr) throw new Error(analysisErr.message);
+
+      const { uniqCandidates } = await enrichCandidates(analysis);
+
+      if (!uniqCandidates.length) {
+        // 매수 후보가 없으면 애널리스트 패스(2단계) 없이 바로 완료 처리
+        await finalizeIssueCompletion({ issue, analysis, pickedTickers: [], req });
+        continue;
+      }
+
+      const histMap = await fetchTickerAccuracyHistory(uniqCandidates.map(c => c.co.ticker));
+
+      decideItems.push({
+        issueId: issue.id,
+        issueTitle: issue.title,
+        issueSummary: issue.summary,
+        analysisId: savedAnalysis.id,
+        analysis: {
+          summary: analysis.summary, directSectors: analysis.directSectors,
+          rippleEffects: analysis.rippleEffects, confidence_score: analysis.confidence_score,
+        },
+        candidates: uniqCandidates,
+        histMap, regime,
+      });
+    } catch (e) {
+      console.error(`discover finalize failed for issue ${issueId}:`, e.message);
+    }
+  }
+
+  if (!decideItems.length) return;
+
+  const requests = decideItems.map(item => ({
+    custom_id: item.issueId,
+    params: {
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 3000,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: DECIDE_TRADES_STATIC_PROMPT, cache_control: { type: 'ephemeral' } },
+          {
+            type: 'text',
+            text: buildDecideDynamicBlock(
+              { title: item.issueTitle, summary: item.issueSummary },
+              item.analysis, item.candidates, item.regime,
+            ),
+          },
+        ],
+      }],
+    },
+  }));
+
+  const batch = await anthropic.messages.batches.create({ requests });
+  await supabase.from('analyze_batches').insert({
+    anthropic_batch_id: batch.id,
+    stage: 'decide',
+    status: 'submitted',
+    payload: {
+      items: decideItems.map(item => ({
+        issueId: item.issueId, analysisId: item.analysisId, analysis: item.analysis,
+        candidates: item.candidates, histMap: item.histMap, regime: item.regime,
+      })),
+    },
+  });
+}
+
+// decide 배치 완료 처리 — 게재 게이트/스코어링/저장까지 마무리
+async function finalizeDecideStage(row, byId, req) {
+  const items = row.payload?.items || [];
+  for (const item of items) {
+    try {
+      const { data: issue } = await supabase.from('issues').select('*').eq('id', item.issueId).maybeSingle();
+      if (!issue || issue.is_analyzed) continue;
+
+      const text = extractBatchText(byId[item.issueId]);
+      let pickedTickers = [];
+      if (text) {
+        const parsed = parseJsonBlock(text);
+        const decisions = {};
+        for (const d of parsed.decisions || []) {
+          if (d?.ticker) decisions[d.ticker.toUpperCase()] = d;
+        }
+        const { pickedTickers: picked } = await finalizeIssueDecisions({
+          analysisId: item.analysisId, candidates: item.candidates, decisions,
+          regime: item.regime, histMap: item.histMap,
+        });
+        pickedTickers = picked;
+      }
+      // text가 없으면(개별 요청 실패) 전원 제외로 완료 처리 — analyses row는 이미 discover
+      // 단계에서 저장됐으니 is_analyzed만 마킹해 배치 재시도 루프에 갇히지 않게 한다.
+      await finalizeIssueCompletion({ issue, analysis: item.analysis, pickedTickers, req });
+    } catch (e) {
+      console.error(`decide finalize failed for issue ${item.issueId}:`, e.message);
+    }
+  }
 }
 
 // ─── 표준 섹터 태깅 — 분석 결과(직접·파급 섹터 + 제목)에서 프론트 필터용 태그 추출 ───
@@ -717,9 +1033,8 @@ buy 규칙:
 - price_data가 null인 종목은 확신이 매우 높지 않으면 exclude
 - 모든 후보에 대해 decisions에 하나씩 반드시 응답할 것`;
 
-// ─── 2단계: 애널리스트 패스 — 실데이터를 보고 매수/제외 결정 ────────
-async function decideTrades(issue, analysis, candidates, regime) {
-  const rows = candidates.map(c => ({
+function buildCandidateRows(candidates) {
+  return candidates.map(c => ({
     ticker: c.co.ticker,
     name: c.co.name_ko || c.co.name_en,
     sector: c.ripple.sector,
@@ -739,8 +1054,11 @@ async function decideTrades(issue, analysis, candidates, regime) {
       fund_score: c.fundScore,
     } : null,
   }));
+}
 
-  const dynamicBlock = `현재 시장 레짐: 미국 ${regime?.us || '?'}, 한국 ${regime?.kr || '?'}${regime?.vix != null ? `, VIX ${Math.round(regime.vix)}` : ''}
+function buildDecideDynamicBlock(issue, analysis, candidates, regime) {
+  const rows = buildCandidateRows(candidates);
+  return `현재 시장 레짐: 미국 ${regime?.us || '?'}, 한국 ${regime?.kr || '?'}${regime?.vix != null ? `, VIX ${Math.round(regime.vix)}` : ''}
 → bear 레짐 시장의 종목은 원칙 4를 훨씬 엄격히 적용 (지수가 꺾인 장에서 개별 매수는 예외적 확신이 있을 때만)
 
 뉴스 이슈: ${issue.title}
@@ -750,6 +1068,11 @@ async function decideTrades(issue, analysis, candidates, regime) {
 ${JSON.stringify(rows)}
 
 위 데이터에 대해 위 규칙에 따라 JSON으로만 응답하세요.`;
+}
+
+// ─── 2단계: 애널리스트 패스 — 실데이터를 보고 매수/제외 결정 ────────
+async function decideTrades(issue, analysis, candidates, regime) {
+  const dynamicBlock = buildDecideDynamicBlock(issue, analysis, candidates, regime);
 
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -867,8 +1190,9 @@ const ANALYZE_STATIC_PROMPT = `당신은 글로벌 주식시장 리서치 애널
   · 절대 다른 회사의 제품명/브랜드명 사용 금지 (예: LRCX를 "라이젠"이라고 하면 안 됨 — Ryzen은 AMD 제품)
 - 티커와 회사명이 매칭되는지 확실하지 않으면 그 종목을 제외할 것`;
 
-async function analyzeIssue(issue) {
-  // 전략적 투자 노출 컨텍스트: 이슈의 섹터·제목·요약에서 키워드 뽑아 관련 상장사 후보 제시
+// 전략적 투자 노출 컨텍스트: 이슈의 섹터·제목·요약에서 키워드 뽑아 관련 상장사 후보 제시
+// (동기 경로의 analyzeIssue와 배치 경로의 discover-stage 제출 양쪽에서 공유)
+async function buildStrategicCtx(issue) {
   let strategicCtx = '';
   try {
     const mod = await import('../lib/strategic-investments.js');
@@ -915,12 +1239,20 @@ async function analyzeIssue(issue) {
       if (formatted) strategicCtx = `\n\n🎯 ${formatted}\n주의: 위 상장사들 중 뉴스 테마와 정말 부합하는 곳은 적극 포함시키되, "지분 보유 → 선반영" 논리는 rationale에 명시할 것. [AI추출] 태그는 자동 누적된 것이라 더 보수적으로 검증. 단순 나열 금지.`;
     }
   } catch {}
+  return strategicCtx;
+}
 
-  const dynamicBlock = `이슈 제목: ${issue.title}
+function buildAnalyzeDynamicBlock(issue, strategicCtx) {
+  return `이슈 제목: ${issue.title}
 요약: ${issue.summary || '없음'}
 관련 섹터: ${issue.sectors?.join(', ') || '미분류'}${strategicCtx}
 
 위 이슈에 대해 위 규칙에 따라 JSON으로만 응답하세요.`;
+}
+
+async function analyzeIssue(issue) {
+  const strategicCtx = await buildStrategicCtx(issue);
+  const dynamicBlock = buildAnalyzeDynamicBlock(issue, strategicCtx);
 
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',

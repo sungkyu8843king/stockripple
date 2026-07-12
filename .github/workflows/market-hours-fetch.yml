@@ -30,13 +30,13 @@ jobs:
             -H "Content-Type: application/json" || true)
           echo "$RESP" | jq -r '.saved // "done"' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
-      # analyze API가 배치가 꽉 차면 스스로 다음 배치를 체이닝하므로 1회만 호출 (기본 max_chain 4 = 최대 20건)
-      # 주의: Vercel 60s 타임아웃 시 JSON이 아닌 에러 텍스트가 오는데, 이때 jq 파싱 실패가
-      # pipefail로 스텝 전체를 죽이지 않도록 방어 (분석 자체는 서버에서 계속 진행됨)
-      - name: AI Analyze (체이닝 최대 4회 × 5건)
+      # Message Batches API로 제출만 하고 끝 — 실제 처리/완료는 analyze-backlog.yml의
+      # 10분 주기 폴링(mode=batch-poll)이 이어받는다. 입력 토큰 50% 할인 + 프롬프트 캐싱 적용.
+      # 이미 진행 중인 배치가 있으면 서버가 알아서 중복 제출을 스킵한다.
+      - name: AI Analyze (배치 제출)
         run: |
-          RESP=$(curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/analyze" \
+          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=batch-submit" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 5}' || true)
-          echo "$RESP" | jq -r '.analyzed // 0' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
+            -d '{"limit": 30}' || true)
+          echo "$RESP" | jq -c '{submitted, staleSkipped, reason}' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
