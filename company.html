@@ -661,7 +661,6 @@ function renderPage(company, records, priceData) {
         <div class="stat-value ${acc7dPct != null && acc7dPct >= 50 ? 'green' : 'yellow'}">${acc7dPct != null ? acc7dPct + '%' : '—'}</div>
       </div>
     </div>
-    <center id="coupangAdSlot" style="margin:24px 0"></center>
     <!-- AI 종합 분석 -->
     <div id="aiSummaryWrap"></div>
 
@@ -748,7 +747,6 @@ function renderPage(company, records, priceData) {
   `;
 
   document.getElementById('pageWrap').innerHTML = html;
-  loadCoupangAd();
 
   // TradingView 차트 로드 (미장만 — KRX는 TradingView 무료 임베드에서 미지원)
   if (!isKr) {
@@ -790,7 +788,7 @@ function renderPage(company, records, priceData) {
   });
 }
 
-// 쿠팡 파트너스 광고 — 세 가지 문제를 피해야 한다:
+// 쿠팡 파트너스 광고 (AI 분석 로딩 영역) — 세 가지 문제를 피해야 한다:
 // 1) 스크립트 태그를 HTML 템플릿 리터럴 안에 문자열로 직접 넣으면 브라우저의 HTML
 //    파서가(JS 문법을 모른 채) 그 안의 스크립트 종료 태그 문자열을 페이지 전체를
 //    감싸는 진짜 메인 스크립트의 종료로 오인해 그 뒤 코드 전부가 텍스트로 노출되던 사고.
@@ -799,18 +797,22 @@ function renderPage(company, records, priceData) {
 //    무시해버려(에러 없이) 광고가 아예 안 뜬다.
 // 3) iframe에 srcdoc을 쓰면 진짜 URL이 없어(about:srcdoc) 광고 서버가 리퍼러를
 //    검증하다 막힐 수 있다.
-// → /coupang-ad.html(우리 도메인의 진짜 정적 페이지, 실제 script 태그로 작성됨)을
-//   iframe src로 로드해 세 문제를 전부 피한다.
-function loadCoupangAd() {
-  const slot = document.getElementById('coupangAdSlot');
-  if (!slot || slot.dataset.loaded) return;
-  slot.dataset.loaded = '1';
+// → /coupang-ad-pc.html, /coupang-ad-mobile.html(우리 도메인의 진짜 정적 페이지,
+//   실제 script 태그로 작성됨)을 iframe src로 로드해 세 문제를 전부 피한다.
+function loadAiPanelAd(container) {
+  if (!container || container.dataset.loaded) return;
+  container.dataset.loaded = '1';
+  const isMobile = window.innerWidth <= 768;
   const iframe = document.createElement('iframe');
   iframe.title = '광고';
   iframe.scrolling = 'no';
-  iframe.src = '/coupang-ad.html';
-  iframe.style.cssText = 'border:0;width:100%;max-width:1052px;height:84px;display:block;margin:0 auto';
-  slot.appendChild(iframe);
+  iframe.src = isMobile ? '/coupang-ad-mobile.html' : '/coupang-ad-pc.html';
+  iframe.style.cssText = `border:0;width:320px;height:${isMobile ? 100 : 480}px;display:block;margin:10px auto 0;max-width:100%`;
+  container.appendChild(iframe);
+  const disclosure = document.createElement('div');
+  disclosure.style.cssText = 'text-align:center;font-size:10px;color:var(--text3);margin-top:6px';
+  disclosure.textContent = '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.';
+  container.appendChild(disclosure);
 }
 
 // ── TradingView 차트 ──────────────────────────────────────
@@ -934,7 +936,9 @@ async function loadAiSummary(ticker, displayName) {
       <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">
         🤖 ${escHtml(displayName)} 종합 분석 생성 중... (약 10초)
       </div>
+      <div id="aiPanelAdSlot"></div>
     </div>`;
+  loadAiPanelAd(document.getElementById('aiPanelAdSlot'));
   try {
     const r = await fetch(`/api/company-summary?ticker=${encodeURIComponent(ticker)}`);
     if (!r.ok) { wrap.innerHTML = ''; return; }
