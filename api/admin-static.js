@@ -136,6 +136,20 @@ const SHELL_HTML = `
         </div>
         <div id="quickLog" class="log-box" style="display:none"></div>
       </div>
+
+      <div class="card">
+        <div class="card-title">📰 데일리 리포트 소급 생성</div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">크레딧 소진 등으로 특정 거래일 리포트가 안 만들어졌을 때, 날짜를 지정해서 그날 뉴스만으로 다시 생성합니다. 지수 데이터는 실시간 조회라 며칠 지나도 그날 종가가 그대로 잡힙니다.</p>
+        <div class="form-group" style="max-width:220px">
+          <label class="form-label">대상 거래일</label>
+          <input type="date" id="drBackfillDate" class="form-input">
+        </div>
+        <div class="action-row">
+          <button class="btn btn-ghost" onclick="runDailyReportBackfill('KR')">🇰🇷 국장 리포트 생성</button>
+          <button class="btn btn-ghost" onclick="runDailyReportBackfill('US')">🇺🇸 미장 리포트 생성</button>
+        </div>
+        <div id="drBackfillLog" class="log-box" style="display:none"></div>
+      </div>
     </div>
 
     <!-- News (수집 메뉴는 파이프라인으로 통합됨) -->

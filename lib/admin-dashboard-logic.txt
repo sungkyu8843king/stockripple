@@ -126,6 +126,25 @@ async function runAiMarketSummary() {
   showToast('AI 시장 종합 생성 완료', 'success');
 }
 
+async function runDailyReportBackfill(market) {
+  const dateEl = document.getElementById('drBackfillDate');
+  const date = dateEl?.value;
+  if (!date) { showToast('날짜를 선택하세요', 'error'); return; }
+  const logId = 'drBackfillLog';
+  const el = document.getElementById(logId);
+  if (el) { el.style.display = 'block'; el.innerHTML = ''; }
+  const label = market === 'KR' ? '국장' : '미장';
+  log(logId, `📰 ${date} ${label} 리포트 생성 중... (10~20초 소요)`, 'info');
+  const data = await callApi('/api/admin?action=daily-report', { market, date }, logId);
+  if (!data) return;
+  if (data.generated === false) {
+    log(logId, `생성 안 됨: ${data.reason || '해당 날짜에 뉴스/지수 데이터가 없습니다'}`, 'warn');
+    return;
+  }
+  log(logId, `✓ ${data.report_date} ${label} 리포트 생성 완료: ${data.headline || ''}`, 'ok');
+  showToast(`${date} ${label} 리포트 생성 완료`, 'success');
+}
+
 async function runAnalyzeSingle() {
   const id = document.getElementById('singleIssueId').value.trim();
   if (!id) { showToast('이슈 ID를 입력하세요', 'error'); return; }

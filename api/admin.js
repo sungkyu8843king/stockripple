@@ -2598,6 +2598,23 @@ function drReportDate(market) {
   return new Date().toLocaleDateString('en-CA', { timeZone: market === 'KR' ? 'Asia/Seoul' : 'America/New_York' });
 }
 
+// dateStr('YYYY-MM-DD')이 timeZone 기준 그 날짜 00:00~24:00에 해당하는 UTC 구간을 계산.
+// 과거 거래일 리포트 소급 생성 시 뉴스 수집 창을 그 하루로 정확히 좁히는 데 사용
+// (DST 유무와 무관하게 그 UTC 시점 기준 실제 오프셋을 Intl로 직접 읽어와 계산하므로 안전).
+function localDayBoundsUtc(dateStr, timeZone) {
+  const probe = new Date(`${dateStr}T00:00:00Z`);
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const p = Object.fromEntries(fmt.formatToParts(probe).map(x => [x.type, x.value]));
+  const asLocalMs = Date.UTC(+p.year, +p.month - 1, +p.day, p.hour === '24' ? 0 : +p.hour, +p.minute, +p.second);
+  const offsetMs = asLocalMs - probe.getTime();
+  const startUtc = new Date(probe.getTime() - offsetMs);
+  return { startUtc, endUtc: new Date(startUtc.getTime() + 24 * 3600 * 1000) };
+}
+
 // ════════════════════════════════════════════════════════════
 // 19) 예정 catalyst 레지스트리 (seed 수동 + 뉴스 기반 AI 추출)
 // ════════════════════════════════════════════════════════════
@@ -2894,8 +2911,8 @@ async function handleDailyReportPost(req, res) {
 
   const market = ((req.body?.market || req.query?.market || 'US') + '').toUpperCase() === 'KR' ? 'KR' : 'US';
   // 과거 날짜 소급 생성용(예: 크레딧 소진으로 놓친 날) — date를 명시하면 그 날짜로 라벨링하고,
-  // since_hours/until_hours로 뉴스 수집 창을 그 거래일로 좁힌다. 안 주면 기존 그대로
-  // "오늘 날짜 + 최근 24h" 자동 생성 동작 (매일 cron이 쓰는 기본 경로는 변경 없음).
+  // 뉴스 수집 창도 그 거래일(해당 시장 타임존 00:00~24:00) 하루로 정확히 좁힌다.
+  // 안 주면 기존 그대로 "오늘 날짜 + 최근 24h" 자동 생성 동작 (매일 cron이 쓰는 기본 경로는 변경 없음).
   const overrideDate = /^\d{4}-\d{2}-\d{2}$/.test(req.body?.date || '') ? req.body.date : null;
   const reportDate = overrideDate || drReportDate(market);
   const marketLabel = market === 'KR' ? '한국 증시(국장)' : '미국 증시(미장)';
@@ -2905,20 +2922,17 @@ async function handleDailyReportPost(req, res) {
     DR_INDICES[market].map(x => fetchDrIndexQuote(x.symbol, x.name))
   )).filter(Boolean);
 
-  // 2) 뉴스 수집 창 — 기본은 최근 24h. date 백필 시에는 since_hours/until_hours로
-  // 그 거래일만 좁혀서 주말/이후 뉴스가 섞이지 않게 한다.
-  const sinceHours = parseInt(req.body?.since_hours, 10);
-  const untilHours = parseInt(req.body?.until_hours, 10);
-  const sinceIso = !isNaN(sinceHours)
-    ? new Date(Date.now() - sinceHours * 3600 * 1000).toISOString()
-    : new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  // 2) 뉴스 수집 창 — 기본은 최근 24h, date 백필 시에는 그 거래일 하루로 정확히 좁힘
   let issuesQuery = supabase
     .from('issues')
     .select('title, summary, sectors, published_at, analyses(ai_summary, confidence_score)')
-    .eq('is_analyzed', true)
-    .gte('published_at', sinceIso);
-  if (!isNaN(untilHours)) {
-    issuesQuery = issuesQuery.lte('published_at', new Date(Date.now() - untilHours * 3600 * 1000).toISOString());
+    .eq('is_analyzed', true);
+  if (overrideDate) {
+    const tz = market === 'KR' ? 'Asia/Seoul' : 'America/New_York';
+    const { startUtc, endUtc } = localDayBoundsUtc(overrideDate, tz);
+    issuesQuery = issuesQuery.gte('published_at', startUtc.toISOString()).lte('published_at', endUtc.toISOString());
+  } else {
+    issuesQuery = issuesQuery.gte('published_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString());
   }
   const { data: issues } = await issuesQuery
     .order('published_at', { ascending: false })
