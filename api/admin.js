@@ -2893,7 +2893,11 @@ async function handleDailyReportPost(req, res) {
   if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
 
   const market = ((req.body?.market || req.query?.market || 'US') + '').toUpperCase() === 'KR' ? 'KR' : 'US';
-  const reportDate = drReportDate(market);
+  // 과거 날짜 소급 생성용(예: 크레딧 소진으로 놓친 날) — date를 명시하면 그 날짜로 라벨링하고,
+  // since_hours/until_hours로 뉴스 수집 창을 그 거래일로 좁힌다. 안 주면 기존 그대로
+  // "오늘 날짜 + 최근 24h" 자동 생성 동작 (매일 cron이 쓰는 기본 경로는 변경 없음).
+  const overrideDate = /^\d{4}-\d{2}-\d{2}$/.test(req.body?.date || '') ? req.body.date : null;
+  const reportDate = overrideDate || drReportDate(market);
   const marketLabel = market === 'KR' ? '한국 증시(국장)' : '미국 증시(미장)';
 
   // 1) 실제 지수 마감 데이터 (AI가 지어내지 않도록 직접 수집)
@@ -2901,13 +2905,22 @@ async function handleDailyReportPost(req, res) {
     DR_INDICES[market].map(x => fetchDrIndexQuote(x.symbol, x.name))
   )).filter(Boolean);
 
-  // 2) 최근 24h 분석 이슈
-  const sinceIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const { data: issues } = await supabase
+  // 2) 뉴스 수집 창 — 기본은 최근 24h. date 백필 시에는 since_hours/until_hours로
+  // 그 거래일만 좁혀서 주말/이후 뉴스가 섞이지 않게 한다.
+  const sinceHours = parseInt(req.body?.since_hours, 10);
+  const untilHours = parseInt(req.body?.until_hours, 10);
+  const sinceIso = !isNaN(sinceHours)
+    ? new Date(Date.now() - sinceHours * 3600 * 1000).toISOString()
+    : new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  let issuesQuery = supabase
     .from('issues')
     .select('title, summary, sectors, published_at, analyses(ai_summary, confidence_score)')
     .eq('is_analyzed', true)
-    .gte('published_at', sinceIso)
+    .gte('published_at', sinceIso);
+  if (!isNaN(untilHours)) {
+    issuesQuery = issuesQuery.lte('published_at', new Date(Date.now() - untilHours * 3600 * 1000).toISOString());
+  }
+  const { data: issues } = await issuesQuery
     .order('published_at', { ascending: false })
     .limit(60);
 
@@ -2933,7 +2946,7 @@ async function handleDailyReportPost(req, res) {
       }).join('\n')
     : '(등록된 예정 catalyst 없음)';
 
-  const prompt = `당신은 한국어 금융 시장 분석가입니다. 오늘(${reportDate}) ${marketLabel} 장 마감 데일리 리포트를 작성하세요.
+  const prompt = `당신은 한국어 금융 시장 분석가입니다. ${reportDate}일자 ${marketLabel} 장 마감 데일리 리포트를 작성하세요.
 
 ■ 실제 지수 마감 데이터 (이 수치만 사용, 지어내지 말 것):
 ${idxStr || '(지수 데이터 없음)'}
