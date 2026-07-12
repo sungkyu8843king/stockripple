@@ -2723,6 +2723,19 @@ async function handleCatalystsPost(req, res) {
   if (!anthropic) return res.status(200).json({ ok: true, aiExtract: false, reason: 'no ANTHROPIC_API_KEY' });
   if (!news?.length) return res.status(200).json({ ok: true, aiExtract: true, added: 0, reason: 'no news' });
 
+  // 신선도 가드: 매시간 크론이 불러도 3시간 이내 재추출은 스킵 — 예정 이벤트는 시간 단위로
+  // 안 바뀌므로 매시간 다시 뽑을 이유가 없음(기존엔 가드가 아예 없어 상시 비용의 큰 축이었음).
+  // catalysts 테이블 자체의 최신 row로는 "마지막 시도 시각"을 알 수 없어(새로 뽑을 게
+  // 없으면 새 row가 안 생김) 별도 상태 테이블로 추적.
+  if (!req.body?.force) {
+    const { data: state } = await supabase.from('catalysts_extraction_state').select('last_extracted_at').eq('id', 1).maybeSingle();
+    if (state?.last_extracted_at && Date.now() - new Date(state.last_extracted_at).getTime() < 3 * 3600 * 1000) {
+      return res.status(200).json({ ok: true, aiExtract: false, reason: 'fresh', ageMin: Math.round((Date.now() - new Date(state.last_extracted_at).getTime()) / 60000) });
+    }
+  }
+  // 호출 자체(성공/실패 무관)를 먼저 기록 — 실패해도 매시간 재시도가 몰리지 않도록
+  await supabase.from('catalysts_extraction_state').upsert({ id: 1, last_extracted_at: new Date().toISOString() });
+
   const { data: existing } = await supabase.from('catalysts').select('title, ticker').eq('status', 'upcoming').limit(60);
   const existingStr = (existing || []).map(e => `- ${e.ticker || ''} ${e.title}`).join('\n');
   const titles = news.map(n => n.title).filter(Boolean).slice(0, 260).join('\n');
