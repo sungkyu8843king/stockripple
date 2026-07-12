@@ -3569,6 +3569,10 @@ async function loadAiMarketSummary() {
     const updatedAt = d.created_at ? new Date(d.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
     document.getElementById('aiMSCreatedAt').textContent = updatedAt;
     body.innerHTML = aiSummaryHTML(d);
+    // 데스크톱 사이드바에 실제로 렌더링돼 보이는 순간 "봤음" 처리 — 이게 없으면 모바일
+    // 바텀시트(renderDrSheet)를 열 때만 markAiMsSeen이 호출돼서, 데스크톱에서는 계속
+    // 보고 있어도 영원히 "안 읽음"으로 남아 새로고침/페이지 이동마다 토스트가 또 뜸.
+    markAiMsSeen();
     refreshReportBadges();
   } catch { body.innerHTML = '<div style="color:var(--red);font-size:11px">로드 실패</div>'; }
 }
