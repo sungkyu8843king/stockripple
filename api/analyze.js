@@ -683,6 +683,40 @@ function clampTrade(d, stats) {
   }
 }
 
+// 프롬프트 캐싱용 고정 지침 블록 — 이슈/후보 데이터와 무관하게 매 호출 동일하므로
+// cache_control로 분리해 반복 호출 시 입력 토큰 비용을 절감 (analyze-backlog 등
+// 시간당 최대 수십 건씩 도는 파이프라인이라 누적 효과가 큼)
+const DECIDE_TRADES_STATIC_PROMPT = `당신은 미국 기관투자자(헤지펀드)의 바이사이드 주식 애널리스트입니다. 아래 뉴스 이슈에 대해 리서치팀이 올린 수혜 후보들을 실제 시장 데이터로 검증하고, 매수 추천할 종목만 선별하세요.
+
+애널리스트 원칙:
+1. 데이터가 논리를 뒷받침하지 않으면 제외. "수혜 기대"만으로 하락 추세 종목을 사지 않는다.
+2. catalyst(뉴스) → mechanism(매출/이익 경로) → timeframe이 명확하지 않으면 제외.
+3. 목표수익률은 종목의 실제 변동성(atr_month_pct) 안에서. 한 달에 5%도 안 움직이는 종목에 +15% 목표는 무효.
+4. 확신이 없으면 제외가 정답. 전원 제외도 훌륭한 결정이다. 게재 수보다 적중률이 평가 기준.
+
+차트 판독 원칙 (price_data 해석):
+- signal=strong_bearish (정배열 붕괴, 모든 이평선 아래) → 반드시 exclude
+- rsi_14 ≥ 75 → 과열. 추격 매수 금지: exclude 하거나 entry를 눌림목(-5 ~ -2%)으로 설정
+- rsi_14 ≤ 35 이면서 above_sma200=true → 장기 상승추세 속 조정 = 좋은 진입 기회 (가점)
+- macd_hist_pct < 0 이고 macd_rising=false → 모멘텀 꺾이는 중. 뉴스 촉매가 압도적이지 않으면 exclude
+- vol_ratio_5d_20d ≥ 1.5 + ret_5d > 0 → 뉴스에 수급이 실제 반응 중 (신뢰 가점)
+- vol_ratio_5d_20d ≥ 1.5 + ret_5d < 0 → 투매 진행 중 (exclude 우선)
+- bollinger_pct_b > 1.0 → 밴드 상단 돌파 상태. 단기 되돌림 위험, entry를 보수적으로
+- pct_from_52w_high > -5 (신고가 부근) → 저항 없음, 추세 지속 유리. 단 rsi 과열 동반 시 눌림목 대기
+- key_thesis에는 뉴스 촉매와 차트 근거를 함께 담을 것 (예: "RSI 52 건전 + 50일선 지지 + 관세 수혜")
+- key_thesis/key_risk는 일반 투자자가 읽는 문장 — above_sma50, ret_3m 같은 데이터 필드명 그대로 쓰지 말고 "50일선 위 안착", "3개월 +15% 추세"처럼 풀어 쓸 것
+
+JSON만 반환:
+{"decisions":[{"ticker":"...","action":"buy 또는 exclude","exclude_reason":"제외 시 한 문장","confidence":70,"upside_pct":8,"entry_low_pct":-2,"entry_high_pct":1,"stop_loss_pct":-4,"time_frame":"1w|1m|3m|6m","key_thesis":"왜 지금 사는가 한 문장 (데이터 근거 포함)","key_risk":"핵심 리스크 한 문장"}]}
+
+buy 규칙:
+- upside_pct: atr_month_pct × 기간계수(1w=0.5, 1m=1, 3m=1.7, 6m=2.4)의 0.5~1.5배 범위 내 양수
+- stop_loss_pct: 음수, 절댓값은 upside_pct의 40~70% (손익비 ≥ 1.4)
+- confidence: 0-100. 뉴스 연결 강도 × 데이터 정합성. 관성적으로 70을 주지 말 것 — 근거가 평범하면 50대
+- ret_1m < -10 이고 above_sma50=false인 종목은 반드시 exclude
+- price_data가 null인 종목은 확신이 매우 높지 않으면 exclude
+- 모든 후보에 대해 decisions에 하나씩 반드시 응답할 것`;
+
 // ─── 2단계: 애널리스트 패스 — 실데이터를 보고 매수/제외 결정 ────────
 async function decideTrades(issue, analysis, candidates, regime) {
   const rows = candidates.map(c => ({
@@ -706,27 +740,7 @@ async function decideTrades(issue, analysis, candidates, regime) {
     } : null,
   }));
 
-  const prompt = `당신은 미국 기관투자자(헤지펀드)의 바이사이드 주식 애널리스트입니다. 아래 뉴스 이슈에 대해 리서치팀이 올린 수혜 후보들을 실제 시장 데이터로 검증하고, 매수 추천할 종목만 선별하세요.
-
-애널리스트 원칙:
-1. 데이터가 논리를 뒷받침하지 않으면 제외. "수혜 기대"만으로 하락 추세 종목을 사지 않는다.
-2. catalyst(뉴스) → mechanism(매출/이익 경로) → timeframe이 명확하지 않으면 제외.
-3. 목표수익률은 종목의 실제 변동성(atr_month_pct) 안에서. 한 달에 5%도 안 움직이는 종목에 +15% 목표는 무효.
-4. 확신이 없으면 제외가 정답. 전원 제외도 훌륭한 결정이다. 게재 수보다 적중률이 평가 기준.
-
-차트 판독 원칙 (price_data 해석):
-- signal=strong_bearish (정배열 붕괴, 모든 이평선 아래) → 반드시 exclude
-- rsi_14 ≥ 75 → 과열. 추격 매수 금지: exclude 하거나 entry를 눌림목(-5 ~ -2%)으로 설정
-- rsi_14 ≤ 35 이면서 above_sma200=true → 장기 상승추세 속 조정 = 좋은 진입 기회 (가점)
-- macd_hist_pct < 0 이고 macd_rising=false → 모멘텀 꺾이는 중. 뉴스 촉매가 압도적이지 않으면 exclude
-- vol_ratio_5d_20d ≥ 1.5 + ret_5d > 0 → 뉴스에 수급이 실제 반응 중 (신뢰 가점)
-- vol_ratio_5d_20d ≥ 1.5 + ret_5d < 0 → 투매 진행 중 (exclude 우선)
-- bollinger_pct_b > 1.0 → 밴드 상단 돌파 상태. 단기 되돌림 위험, entry를 보수적으로
-- pct_from_52w_high > -5 (신고가 부근) → 저항 없음, 추세 지속 유리. 단 rsi 과열 동반 시 눌림목 대기
-- key_thesis에는 뉴스 촉매와 차트 근거를 함께 담을 것 (예: "RSI 52 건전 + 50일선 지지 + 관세 수혜")
-- key_thesis/key_risk는 일반 투자자가 읽는 문장 — above_sma50, ret_3m 같은 데이터 필드명 그대로 쓰지 말고 "50일선 위 안착", "3개월 +15% 추세"처럼 풀어 쓸 것
-
-현재 시장 레짐: 미국 ${regime?.us || '?'}, 한국 ${regime?.kr || '?'}${regime?.vix != null ? `, VIX ${Math.round(regime.vix)}` : ''}
+  const dynamicBlock = `현재 시장 레짐: 미국 ${regime?.us || '?'}, 한국 ${regime?.kr || '?'}${regime?.vix != null ? `, VIX ${Math.round(regime.vix)}` : ''}
 → bear 레짐 시장의 종목은 원칙 4를 훨씬 엄격히 적용 (지수가 꺾인 장에서 개별 매수는 예외적 확신이 있을 때만)
 
 뉴스 이슈: ${issue.title}
@@ -735,21 +749,18 @@ async function decideTrades(issue, analysis, candidates, regime) {
 후보 종목 데이터 (price_data: %단위, above_*: 이평선 상회 여부, atr_month_pct: 월간 기대 변동폭%):
 ${JSON.stringify(rows)}
 
-JSON만 반환:
-{"decisions":[{"ticker":"...","action":"buy 또는 exclude","exclude_reason":"제외 시 한 문장","confidence":70,"upside_pct":8,"entry_low_pct":-2,"entry_high_pct":1,"stop_loss_pct":-4,"time_frame":"1w|1m|3m|6m","key_thesis":"왜 지금 사는가 한 문장 (데이터 근거 포함)","key_risk":"핵심 리스크 한 문장"}]}
-
-buy 규칙:
-- upside_pct: atr_month_pct × 기간계수(1w=0.5, 1m=1, 3m=1.7, 6m=2.4)의 0.5~1.5배 범위 내 양수
-- stop_loss_pct: 음수, 절댓값은 upside_pct의 40~70% (손익비 ≥ 1.4)
-- confidence: 0-100. 뉴스 연결 강도 × 데이터 정합성. 관성적으로 70을 주지 말 것 — 근거가 평범하면 50대
-- ret_1m < -10 이고 above_sma50=false인 종목은 반드시 exclude
-- price_data가 null인 종목은 확신이 매우 높지 않으면 exclude
-- 모든 후보에 대해 decisions에 하나씩 반드시 응답할 것`;
+위 데이터에 대해 위 규칙에 따라 JSON으로만 응답하세요.`;
 
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 3000,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: DECIDE_TRADES_STATIC_PROMPT, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: dynamicBlock },
+      ],
+    }],
   });
 
   const text = message.content[0].text.trim();
@@ -779,61 +790,9 @@ async function sendNotify(message, req) {
   });
 }
 
-async function analyzeIssue(issue) {
-  // 전략적 투자 노출 컨텍스트: 이슈의 섹터·제목·요약에서 키워드 뽑아 관련 상장사 후보 제시
-  let strategicCtx = '';
-  try {
-    const mod = await import('../lib/strategic-investments.js');
-    // 이슈에서 테마 키워드 후보 추출
-    const haystack = `${issue.title || ''} ${issue.summary || ''} ${(issue.sectors || []).join(' ')}`.toLowerCase();
-    const THEME_KEYWORDS = [
-      // AI / LLM
-      'ai', '인공지능', 'llm', 'gpt', 'claude', 'anthropic', 'openai', 'gemini', 'grok', 'mistral', 'cohere', 'agentforce', 'copilot',
-      // 반도체
-      '반도체', 'hbm', 'gpu', '메모리', '파운드리', 'asic', 'tpu',
-      // 로봇 / 자율주행
-      '로봇', '휴머노이드', 'boston dynamics', 'optimus', '자율주행', 'waymo', 'robotaxi', '로보택시', 'fsd',
-      // 우주 / 위성 / UAM
-      '우주', '위성', 'spacex', 'starlink', 'kuiper', '로켓', 'rocket lab', 'uam', 'evtol',
-      // 방산
-      '방산', '국방', '미사일', '전투기', '전차', 'k2 흑표', 'k9', 'f-35', 'patriot', 'thaad', '천궁',
-      // 바이오 / 제약 / GLP-1
-      '바이오', 'cdmo', '의약품', '제약', 'mrna', 'glp-1', 'glp1', '비만치료', 'wegovy', 'ozempic', 'mounjaro', '항암제', '알츠하이머', 'fda', '신약', '바이오시밀러',
-      // EV / 배터리 / 에너지
-      'ev', '전기차', '배터리', 'ess', '전고체', '리튬',
-      // 원자력
-      '원자력', 'smr', '데이터센터', '원전', '핵발전',
-      // 재생에너지
-      '재생에너지', '태양광', '풍력', '수소', '암모니아',
-      // 클라우드 / SaaS / 데이터
-      '클라우드', 'saas', 'aws', 'azure', 'oci', '데이터 플랫폼', 'snowflake', 'databricks',
-      // XR / 메타버스
-      'xr', 'vr', 'ar', '메타버스',
-      // 핀테크 / 결제 / 암호화폐
-      '핀테크', '결제', '암호화폐', '비트코인', 'btc', 'crypto', 'stablecoin', '스테이블코인', 'etf',
-      // 게임
-      '게임', 'mmorpg', 'pubg', '인조이', '나혼렙', '엔씨', '크래프톤', '넷마블',
-      // 콘텐츠 / 엔터 / K-팝
-      'k-팝', 'k팝', 'kpop', 'bts', 'blackpink', 'newjeans', '하이브', '스트리밍', 'netflix', 'disney',
-      // 이커머스 / 플랫폼
-      '이커머스', '쿠팡', 'coupang', 'shopify', 'amazon', '물류',
-      // K-뷰티 / 소비재
-      'k-뷰티', 'k뷰티', '화장품', '아모레', '코스맥스',
-    ];
-    const matched = THEME_KEYWORDS.filter(k => haystack.includes(k));
-    if (matched.length) {
-      // 하드코딩 + DB 자동누적 항목 병합
-      const formatted = await mod.formatMergedThemeBetsForPrompt(supabase, matched, 16);
-      if (formatted) strategicCtx = `\n\n🎯 ${formatted}\n주의: 위 상장사들 중 뉴스 테마와 정말 부합하는 곳은 적극 포함시키되, "지분 보유 → 선반영" 논리는 rationale에 명시할 것. [AI추출] 태그는 자동 누적된 것이라 더 보수적으로 검증. 단순 나열 금지.`;
-    }
-  } catch {}
-
-  const prompt = `당신은 글로벌 주식시장 리서치 애널리스트입니다. 다음 뉴스/이슈의 파급효과와 수혜 후보 기업을 찾아주세요.
+// 후보발굴 패스 고정 지침 — 이슈 내용과 무관, 캐싱 대상
+const ANALYZE_STATIC_PROMPT = `당신은 글로벌 주식시장 리서치 애널리스트입니다. 다음 뉴스/이슈의 파급효과와 수혜 후보 기업을 찾아주세요.
 (주의: 지금은 "후보 발굴" 단계입니다. 매매 수치(목표가·손절가)는 이후 실제 시장 데이터를 보고 별도 단계에서 결정하므로 여기서 만들지 마세요.)
-
-이슈 제목: ${issue.title}
-요약: ${issue.summary || '없음'}
-관련 섹터: ${issue.sectors?.join(', ') || '미분류'}${strategicCtx}
 
 다음 형식으로 JSON만 반환하세요 (다른 텍스트 없이):
 {
@@ -908,10 +867,71 @@ async function analyzeIssue(issue) {
   · 절대 다른 회사의 제품명/브랜드명 사용 금지 (예: LRCX를 "라이젠"이라고 하면 안 됨 — Ryzen은 AMD 제품)
 - 티커와 회사명이 매칭되는지 확실하지 않으면 그 종목을 제외할 것`;
 
+async function analyzeIssue(issue) {
+  // 전략적 투자 노출 컨텍스트: 이슈의 섹터·제목·요약에서 키워드 뽑아 관련 상장사 후보 제시
+  let strategicCtx = '';
+  try {
+    const mod = await import('../lib/strategic-investments.js');
+    // 이슈에서 테마 키워드 후보 추출
+    const haystack = `${issue.title || ''} ${issue.summary || ''} ${(issue.sectors || []).join(' ')}`.toLowerCase();
+    const THEME_KEYWORDS = [
+      // AI / LLM
+      'ai', '인공지능', 'llm', 'gpt', 'claude', 'anthropic', 'openai', 'gemini', 'grok', 'mistral', 'cohere', 'agentforce', 'copilot',
+      // 반도체
+      '반도체', 'hbm', 'gpu', '메모리', '파운드리', 'asic', 'tpu',
+      // 로봇 / 자율주행
+      '로봇', '휴머노이드', 'boston dynamics', 'optimus', '자율주행', 'waymo', 'robotaxi', '로보택시', 'fsd',
+      // 우주 / 위성 / UAM
+      '우주', '위성', 'spacex', 'starlink', 'kuiper', '로켓', 'rocket lab', 'uam', 'evtol',
+      // 방산
+      '방산', '국방', '미사일', '전투기', '전차', 'k2 흑표', 'k9', 'f-35', 'patriot', 'thaad', '천궁',
+      // 바이오 / 제약 / GLP-1
+      '바이오', 'cdmo', '의약품', '제약', 'mrna', 'glp-1', 'glp1', '비만치료', 'wegovy', 'ozempic', 'mounjaro', '항암제', '알츠하이머', 'fda', '신약', '바이오시밀러',
+      // EV / 배터리 / 에너지
+      'ev', '전기차', '배터리', 'ess', '전고체', '리튬',
+      // 원자력
+      '원자력', 'smr', '데이터센터', '원전', '핵발전',
+      // 재생에너지
+      '재생에너지', '태양광', '풍력', '수소', '암모니아',
+      // 클라우드 / SaaS / 데이터
+      '클라우드', 'saas', 'aws', 'azure', 'oci', '데이터 플랫폼', 'snowflake', 'databricks',
+      // XR / 메타버스
+      'xr', 'vr', 'ar', '메타버스',
+      // 핀테크 / 결제 / 암호화폐
+      '핀테크', '결제', '암호화폐', '비트코인', 'btc', 'crypto', 'stablecoin', '스테이블코인', 'etf',
+      // 게임
+      '게임', 'mmorpg', 'pubg', '인조이', '나혼렙', '엔씨', '크래프톤', '넷마블',
+      // 콘텐츠 / 엔터 / K-팝
+      'k-팝', 'k팝', 'kpop', 'bts', 'blackpink', 'newjeans', '하이브', '스트리밍', 'netflix', 'disney',
+      // 이커머스 / 플랫폼
+      '이커머스', '쿠팡', 'coupang', 'shopify', 'amazon', '물류',
+      // K-뷰티 / 소비재
+      'k-뷰티', 'k뷰티', '화장품', '아모레', '코스맥스',
+    ];
+    const matched = THEME_KEYWORDS.filter(k => haystack.includes(k));
+    if (matched.length) {
+      // 하드코딩 + DB 자동누적 항목 병합
+      const formatted = await mod.formatMergedThemeBetsForPrompt(supabase, matched, 16);
+      if (formatted) strategicCtx = `\n\n🎯 ${formatted}\n주의: 위 상장사들 중 뉴스 테마와 정말 부합하는 곳은 적극 포함시키되, "지분 보유 → 선반영" 논리는 rationale에 명시할 것. [AI추출] 태그는 자동 누적된 것이라 더 보수적으로 검증. 단순 나열 금지.`;
+    }
+  } catch {}
+
+  const dynamicBlock = `이슈 제목: ${issue.title}
+요약: ${issue.summary || '없음'}
+관련 섹터: ${issue.sectors?.join(', ') || '미분류'}${strategicCtx}
+
+위 이슈에 대해 위 규칙에 따라 JSON으로만 응답하세요.`;
+
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 4096,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: ANALYZE_STATIC_PROMPT, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: dynamicBlock },
+      ],
+    }],
   });
 
   const text = message.content[0].text.trim();
