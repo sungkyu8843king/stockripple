@@ -588,7 +588,7 @@ async function handleSummary(req, res) {
 
     live = await fetchLiveSnapshot(ticker);
 
-    // 티커당 하루 1회만 Claude 재생성 — 2회차부터는 DB 캐시로 서빙 (방문자 트래픽에
+    // 티커당 3일에 1회만 Claude 재생성 — 그 안에는 DB 캐시로 서빙 (방문자 트래픽에
     // 비례해 API 비용이 느는 걸 방지). live(실시간 시세)는 캐시와 무관하게 항상 새로 받는다.
     // .single() 대신 배열+최신순 정렬 후 첫 건 사용 — 간헐적으로 .single()이 정상
     // 상황에서도 coerce 에러를 내는 걸 우회 (PostgREST/supabase-js 쪽 이슈로 추정).
@@ -599,8 +599,8 @@ async function handleSummary(req, res) {
       .order('created_at', { ascending: false })
       .limit(1);
     cached = cachedRows?.[0] || null;
-    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-    if (cached && Date.now() - new Date(cached.created_at).getTime() < ONE_DAY_MS) {
+    const CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+    if (cached && Date.now() - new Date(cached.created_at).getTime() < CACHE_TTL_MS) {
       return res.status(200).json({
         ok: true,
         ticker,

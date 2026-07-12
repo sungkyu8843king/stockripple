@@ -947,7 +947,6 @@ async function loadAiSummary(ticker, displayName) {
     const staleNote = d.stale && d.generated_at
       ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text3);text-align:right">
           ⏱ Last update: ${new Date(d.generated_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })}
-          (오늘 분석을 새로 생성하지 못해 이전 분석을 보여주는 중)
         </div>`
       : '';
 
