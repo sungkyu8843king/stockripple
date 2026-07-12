@@ -941,6 +941,16 @@ async function loadAiSummary(ticker, displayName) {
     const d = await r.json();
     if (!d.ok) { wrap.innerHTML = ''; return; }
 
+    // stale: 오늘 재생성(Claude 호출)에 실패했지만 DB에 예전 분석이 남아있어
+    // 그걸 그대로 보여주는 경우 — 완전히 안 나오는 것보다 낫다. 언제 생성된
+    // 내용인지 알 수 있게 하단에 명시.
+    const staleNote = d.stale && d.generated_at
+      ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text3);text-align:right">
+          ⏱ Last update: ${new Date(d.generated_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })}
+          (오늘 분석을 새로 생성하지 못해 이전 분석을 보여주는 중)
+        </div>`
+      : '';
+
     wrap.innerHTML = `
       <div class="ai-summary-card">
         <div class="ai-badge-row">
@@ -991,6 +1001,7 @@ async function loadAiSummary(ticker, displayName) {
             ${d.watch_points.map(x => `<div class="ai-watch-item">${escHtml(x)}</div>`).join('')}
           </div>
         </div>` : ''}
+        ${staleNote}
       </div>
     `;
   } catch(e) {

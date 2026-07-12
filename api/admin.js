@@ -573,15 +573,20 @@ async function handleSummary(req, res) {
   // 실패해도 본 응답에 영향 없도록 fire-and-forget.
   supabase.rpc('increment_company_view', { p_ticker: ticker }).then(() => {}, () => {});
 
+  // catch 블록에서도 참조해야 해서(토큰 소진 등으로 Claude 호출이 실패해도 DB
+  // 캐시로 폴백하기 위함) try 블록 바깥에 선언 — const로 try 안에서만 선언하면
+  // catch에서 접근할 수 없다.
+  let company, live, cached;
+
   try {
-    const { data: company } = await supabase
+    ({ data: company } = await supabase
       .from('companies')
       .select('id, ticker, name_ko, name_en, market, sector')
       .eq('ticker', ticker)
-      .single();
+      .single());
     if (!company) return res.status(404).json({ error: 'company not found' });
 
-    const live = await fetchLiveSnapshot(ticker);
+    live = await fetchLiveSnapshot(ticker);
 
     // 티커당 하루 1회만 Claude 재생성 — 2회차부터는 DB 캐시로 서빙 (방문자 트래픽에
     // 비례해 API 비용이 느는 걸 방지). live(실시간 시세)는 캐시와 무관하게 항상 새로 받는다.
@@ -593,7 +598,7 @@ async function handleSummary(req, res) {
       .eq('ticker', ticker)
       .order('created_at', { ascending: false })
       .limit(1);
-    const cached = cachedRows?.[0] || null;
+    cached = cachedRows?.[0] || null;
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
     if (cached && Date.now() - new Date(cached.created_at).getTime() < ONE_DAY_MS) {
       return res.status(200).json({
@@ -622,6 +627,26 @@ async function handleSummary(req, res) {
         p_day: new Date().toISOString().slice(0, 10),
       });
       if ((budgetCount ?? 0) > DAILY_CLAUDE_CALL_LIMIT) {
+        // 새로 생성은 못 하지만, DB에 예전 분석이 남아있으면 그거라도 보여준다
+        // (완전히 안 나오는 것보다 낫다) — stale로 표시해 하단에 마지막 업데이트 시각 노출.
+        if (cached) {
+          return res.status(200).json({
+            ok: true,
+            ticker,
+            company: { name_ko: company.name_ko, name_en: company.name_en, market: company.market, sector: company.sector },
+            live,
+            overview: cached.overview,
+            thesis: cached.thesis,
+            strategic_exposure: cached.strategic_exposure,
+            key_risks: cached.key_risks,
+            competitive_position: cached.competitive_position,
+            watch_points: cached.watch_points,
+            analyses_count: cached.analyses_count,
+            cached: true,
+            stale: true,
+            generated_at: cached.created_at,
+          });
+        }
         return res.status(200).json({
           ok: false,
           ticker,
@@ -730,6 +755,27 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
       cached: false,
     });
   } catch (e) {
+    // Claude 호출 실패(토큰 소진/레이트리밋/일시 장애 등) 시 완전히 빈 화면 대신
+    // DB에 남아있는 마지막 분석을 그대로 보여준다. stale:true + generated_at을
+    // 내려서 프론트가 "마지막 업데이트: ..."를 하단에 표시할 수 있게 한다.
+    if (cached) {
+      return res.status(200).json({
+        ok: true,
+        ticker,
+        company: company ? { name_ko: company.name_ko, name_en: company.name_en, market: company.market, sector: company.sector } : null,
+        live: live ?? null,
+        overview: cached.overview,
+        thesis: cached.thesis,
+        strategic_exposure: cached.strategic_exposure,
+        key_risks: cached.key_risks,
+        competitive_position: cached.competitive_position,
+        watch_points: cached.watch_points,
+        analyses_count: cached.analyses_count,
+        cached: true,
+        stale: true,
+        generated_at: cached.created_at,
+      });
+    }
     return res.status(500).json({ error: e.message });
   }
 }
