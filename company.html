@@ -939,8 +939,11 @@ async function loadAiSummary(ticker, displayName) {
       <div id="aiPanelAdSlot"></div>
     </div>`;
   loadAiPanelAd(document.getElementById('aiPanelAdSlot'));
+  // 캐시 히트로 응답이 순식간에 와도 광고 노출 시간을 최소 4초는 확보
+  const minAdDelay = new Promise(resolve => setTimeout(resolve, 4000));
   try {
     const r = await fetch(`/api/company-summary?ticker=${encodeURIComponent(ticker)}`);
+    await minAdDelay;
     if (!r.ok) { wrap.innerHTML = ''; return; }
     const d = await r.json();
     if (!d.ok) { wrap.innerHTML = ''; return; }
@@ -1008,6 +1011,7 @@ async function loadAiSummary(ticker, displayName) {
       </div>
     `;
   } catch(e) {
+    await minAdDelay;
     wrap.innerHTML = `<div class="ai-summary-card"><div style="color:var(--red);font-size:13px">AI 분석 로딩 실패: ${escHtml(e.message)}</div></div>`;
   }
 }
