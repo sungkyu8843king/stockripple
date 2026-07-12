@@ -3014,7 +3014,13 @@ ${ctx.slice(0, 10000)}
       catalysts: Array.isArray(parsed.upcoming_catalysts) ? parsed.upcoming_catalysts.slice(0, 6) : [],
       tomorrow: parsed.tomorrow || [],
       based_on_issues: issues?.length || 0,
-      created_at: new Date().toISOString(),
+      // 소급 생성 시 created_at도 "실제로 그 거래일에 자동 생성됐다면 찍혔을 시각"으로 맞춘다 —
+      // 국장은 마감 후 당일 오후(KST 16:40 = UTC 07:40), 미장은 마감 후 당일(ET 오후, UTC 21:10 —
+      // 이 시각을 KST로 보면 다음날 새벽/오전이라 "등록일자가 다음날"로 보이는 게 정상 동작이다.
+      // (daily-reports.yml 크론 시각과 동일하게 맞춤). date 없이 자동 생성될 때는 그냥 지금 시각.
+      created_at: overrideDate
+        ? `${overrideDate}T${market === 'KR' ? '07:40:00' : '21:10:00'}Z`
+        : new Date().toISOString(),
     };
     // daily_reports.catalysts 컬럼 마이그레이션 전 배포에서도 리포트 생성이 죽지 않도록 방어
     let { error } = await supabase.from('daily_reports').upsert(row, { onConflict: 'market,report_date' });
