@@ -507,7 +507,9 @@ function sectorChg(s) {
 
 function nextOf(tag, n = 5) { return (DATA.edges || []).filter(e => e.from === tag).slice(0, n); }
 function inflowOf(tag, n = 2) { return (DATA.edges || []).filter(e => e.to === tag).slice(0, n); }
-function sectorOf(tag) { return DATA.sectors.find(s => s.tag === tag); }
+// app.js가 전역 const sectorOf(티커→GICS 섹터 매핑)를 이미 쓰고 있어서 이름이
+// 겹치면 app.js 전체가 파싱 에러로 죽는다(로그인/티커 다 먹통) — sectorRecordOf로 분리
+function sectorRecordOf(tag) { return DATA.sectors.find(s => s.tag === tag); }
 
 /* ── 사분면 버블맵 ── */
 function renderMap() {
@@ -579,7 +581,7 @@ function renderStrip() {
 function select(tag, keepScroll) {
   selected = tag;
   document.querySelectorAll('.bubble').forEach(b => b.classList.toggle('selected', b.dataset.tag === tag));
-  const s = sectorOf(tag);
+  const s = sectorRecordOf(tag);
   if (!s) return;
   const card = document.getElementById('flowCard');
   card.style.display = '';
@@ -595,7 +597,7 @@ function select(tag, keepScroll) {
       ${escHtml(c.name)} <span class="pct ${chgCls(chg)}">${chg != null ? fmtChg(chg) : (c.upside != null ? '목표+' + c.upside + '%' : '')}</span></a>`;
   };
   const colOf = (colTag, cls, headExtra) => {
-    const cs = sectorOf(colTag);
+    const cs = sectorRecordOf(colTag);
     const chips = (cs?.companies || []).slice(0, 3).map(chipOf).join('') || '<div class="chain-empty">종목 없음</div>';
     return `<div class="chain-col ${cls}">
       <div class="chain-head" ${cls !== 'current' ? `style="cursor:pointer" onclick="select('${escHtml(colTag)}')"` : ''}>${escHtml(colTag)} ${headExtra || ''}</div>
