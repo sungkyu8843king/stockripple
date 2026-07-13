@@ -2540,7 +2540,7 @@ const HEATMAP_TICKERS = {
     { t:'SNDK',  n:'SanDisk' },      { t:'NASA',  n:'NASA ETF' },    { t:'TSLL', n:'TSLA 2x롱' },
     { t:'NVDL',  n:'NVDA 2x롱' },    { t:'NOWL',  n:'NOW 2x롱' },    { t:'ARMG', n:'ARM 2x롱' },
     { t:'QUBT',  n:'퀀텀컴퓨팅' },   { t:'BATL',  n:'Battalion Oil' },{ t:'BTBT', n:'Bit Digital' },
-    { t:'USBC',  n:'USBC' },        { t:'SKHYV', n:'SK하이닉스 ADR' },
+    { t:'USBC',  n:'USBC' },        { t:'SKHY',  n:'SK하이닉스 ADR' },
     // Mega cap (시총 1조+ )
     { t:'AAPL',  n:'Apple' },        { t:'MSFT',  n:'Microsoft' },   { t:'NVDA', n:'NVIDIA' },
     { t:'GOOGL', n:'Alphabet' },     { t:'AMZN',  n:'Amazon' },      { t:'META', n:'Meta' },
@@ -2885,7 +2885,7 @@ const SECTOR_GROUPS = {
     'CDNS','SNPS','INTU','ADSK','KEYS','TER','GEN','FICO','GDDY','AKAM','FFIV','JBL','FLEX','HPQ',
     'HPE','DELL','STX','WDC','SMCI','APH','GLW','TRMB','ZBRA','NTAP','CIEN','LITE','COHR','MPWR',
     'VRSN','CTSH','IT','MSI','CDW','TYL','PTC','FSLR','JKHY','VEEV','TEL','Q',
-    'SNDK','NVDL','NOWL','ARMG','QUBT','BTBT','SKHYV',
+    'SNDK','NVDL','NOWL','ARMG','QUBT','BTBT','SKHY',
     '005930.KS','000660.KS','005935.KS','009150.KS','018260.KS','011070.KS','034220.KS','402340.KS',
     '042700.KS','240810.KQ','000990.KS','348210.KQ','007660.KS','064400.KS','353200.KS',
     '036930.KQ','058470.KQ','039030.KQ','319660.KQ','222800.KQ','440110.KQ','403870.KQ','084370.KQ',
