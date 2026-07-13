@@ -2134,15 +2134,26 @@ async function handleAiMarketSummaryGet(req, res) {
   return res.status(200).json({ ok: true, ...data });
 }
 
+// KST 00/08/16시 중 가장 최근에 지난 시각의 UTC 시점을 구한다 — 하루 딱 3번(8시간 간격)만
+// 생성하도록 하는 스케줄 창의 시작점. KST는 DST 없이 항상 UTC+9라 고정 오프셋으로 계산 가능.
+function currentAiSummaryWindowStartUtc() {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const windowHour = kst.getUTCHours() - (kst.getUTCHours() % 8); // 0, 8, 16 중 가장 최근
+  const windowStartKst = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), windowHour, 0, 0);
+  return new Date(windowStartKst - 9 * 3600 * 1000);
+}
+
 async function handleAiMarketSummaryPost(req, res) {
   if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
 
-  // 신선도 가드: 최근 생성본이 3시간 내면 재생성 스킵(매시간·브라우저에서 자주 불려도 Claude 낭비 없음)
+  // 하루 3번(KST 00시/08시/16시)만 생성 — 그 스케줄 창 안에서 이미 생성됐으면 스킵.
+  // 매시간 크론이 불러도 실제 Claude 호출은 8시간에 1번뿐. 수동 강제 생성(force)은 항상 허용.
   if (!req.body?.force) {
+    const windowStart = currentAiSummaryWindowStartUtc();
     const { data: last } = await supabase.from('ai_market_summary')
       .select('created_at').order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (last?.created_at && Date.now() - new Date(last.created_at).getTime() < 3 * 3600 * 1000) {
-      return res.status(200).json({ ok: true, generated: false, reason: 'fresh', ageMin: Math.round((Date.now() - new Date(last.created_at).getTime()) / 60000) });
+    if (last?.created_at && new Date(last.created_at) >= windowStart) {
+      return res.status(200).json({ ok: true, generated: false, reason: 'already generated this window', windowStart: windowStart.toISOString() });
     }
   }
 
