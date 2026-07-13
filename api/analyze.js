@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { waitUntil } from '@vercel/functions';
 import { verifyAdmin } from '../lib/auth.js';
+import { isFeatureEnabled } from '../lib/feature-flags.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -61,8 +62,15 @@ export default async function handler(req, res) {
   // Anthropic Message Batches API로 넘겨 입력 토큰 50% 할인을 추가로 받는다.
   // (live-refresh의 장중 실시간 소량 새로고침은 지연을 감수할 수 없어 기존 동기 경로 그대로 유지)
   const mode = (req.query?.mode || req.body?.mode || '').toString();
-  if (mode === 'batch-submit') return handleBatchSubmit(req, res);
+  // batch-poll은 게이트와 무관하게 항상 진행 — 이미 제출(과금 완료)된 배치를 방치하면
+  // orphan 상태로 영원히 안 끝나므로, 기능이 꺼져 있어도 진행 중인 배치는 끝까지 수거한다.
   if (mode === 'batch-poll') return handleBatchPoll(req, res);
+
+  if (!(await isFeatureEnabled(supabase, 'analyze'))) {
+    return res.status(200).json({ ok: true, analyzed: 0, submitted: 0, disabled: true, reason: 'analyze 기능이 꺼져 있습니다' });
+  }
+
+  if (mode === 'batch-submit') return handleBatchSubmit(req, res);
 
   const rawBody = req.body || {};
   const issue_id = rawBody.issue_id;

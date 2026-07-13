@@ -338,6 +338,7 @@ async function doLoginSb() {
   if (result !== 'ok') { errEl.textContent = '대시보드 로드 실패 — 새로고침 후 다시 시도해주세요'; return; }
   document.getElementById('loginOverlay').style.display = 'none';
   loadDashStats();
+  loadFeatureFlags();
   initPresenceWatch();
 }
 
@@ -371,6 +372,7 @@ async function getAuthToken() {
     return;
   }
   loadDashStats();
+  loadFeatureFlags();
   initPresenceWatch();
 })();
 </script>

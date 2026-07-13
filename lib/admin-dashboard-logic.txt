@@ -7,7 +7,7 @@ function showPanel(name) {
   document.querySelector(`[data-panel="${name}"]`)?.classList.add('active');
   document.getElementById('topbarTitle').textContent = panels[name] || name;
 
-  if (name === 'dashboard') loadDashStats();
+  if (name === 'dashboard') { loadDashStats(); loadFeatureFlags(); }
   if (name === 'issues') loadIssuesTable();
   if (name === 'companies') loadCompaniesTable();
   if (name === 'accuracy') loadAccuracy();
@@ -143,6 +143,48 @@ async function runDailyReportBackfill(market) {
   }
   log(logId, `✓ ${data.report_date} ${label} 리포트 생성 완료: ${data.headline || ''}`, 'ok');
   showToast(`${date} ${label} 리포트 생성 완료`, 'success');
+}
+
+// ── AI 기능 on/off ──────────────────────────────────────────────────────
+async function loadFeatureFlags() {
+  const el = document.getElementById('featureFlagsList');
+  const token = await getAuthToken();
+  if (!token) return;
+  try {
+    const res = await fetch('/api/admin?action=feature-flags', { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (!data?.ok) { if (el) el.textContent = '불러오기 실패'; return; }
+    if (!el) return;
+    el.innerHTML = data.flags.map(f => `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:${f.enabled ? 'var(--bg2)' : 'rgba(227,25,55,.06)'}">
+        <input type="checkbox" ${f.enabled ? 'checked' : ''} onchange="toggleFeatureFlag('${f.key}', this.checked)" style="width:16px;height:16px;cursor:pointer">
+        <span style="flex:1;color:var(--text)">${escHtml(f.label)}</span>
+        <span style="font-size:11px;font-weight:700;color:${f.enabled ? '#00873a' : '#e31937'}">${f.enabled ? 'ON' : 'OFF'}</span>
+      </label>
+    `).join('');
+  } catch (e) {
+    if (el) el.textContent = '불러오기 실패: ' + e.message;
+  }
+}
+
+async function toggleFeatureFlag(key, enabled) {
+  const logId = 'featureFlagsLog';
+  const data = await callApi('/api/admin?action=feature-flags', { key, enabled }, logId);
+  if (data) log(logId, `${key} → ${enabled ? 'ON' : 'OFF'}`, enabled ? 'ok' : 'warn');
+  loadFeatureFlags();
+}
+
+async function bulkToggleFeatureFlags(enabled) {
+  if (!confirm(`AI 기능을 전체 ${enabled ? 'ON' : 'OFF'} 하시겠습니까?`)) return;
+  const logId = 'featureFlagsLog';
+  const el = document.getElementById(logId);
+  if (el) { el.style.display = 'block'; }
+  log(logId, `전체 ${enabled ? 'ON' : 'OFF'} 처리 중...`, 'info');
+  const data = await callApi('/api/admin?action=feature-flags', { enabled }, logId);
+  if (!data) return;
+  log(logId, `✓ ${data.updated.length}개 기능 ${enabled ? 'ON' : 'OFF'} 완료`, 'ok');
+  showToast(`AI 기능 전체 ${enabled ? 'ON' : 'OFF'} 완료`, 'success');
+  loadFeatureFlags();
 }
 
 async function runAnalyzeSingle() {

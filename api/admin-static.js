@@ -150,6 +150,18 @@ const SHELL_HTML = `
         </div>
         <div id="drBackfillLog" class="log-box" style="display:none"></div>
       </div>
+
+      <div class="card">
+        <div class="card-title">🔌 AI 기능 on/off (토큰 사용 제어)</div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">Claude API를 호출하는 자동/상시 파이프라인을 개별로, 또는 한 번에 켜고 끌 수 있습니다. 꺼도 크론 스케줄 자체는 계속 돌지만 실제 Claude 호출은 스킵되어 비용이 발생하지 않습니다.</p>
+        <div class="action-row" style="margin-bottom:12px">
+          <button class="btn btn-ghost" style="border-color:#e31937;color:#e31937" onclick="bulkToggleFeatureFlags(false)">🔴 전체 OFF</button>
+          <button class="btn btn-ghost" style="border-color:#00873a;color:#00873a" onclick="bulkToggleFeatureFlags(true)">🟢 전체 ON</button>
+          <button class="btn btn-ghost" onclick="loadFeatureFlags()">🔄 새로고침</button>
+        </div>
+        <div id="featureFlagsList" style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--text3)">로딩 중...</div>
+        <div id="featureFlagsLog" class="log-box" style="display:none;margin-top:12px"></div>
+      </div>
     </div>
 
     <!-- News (수집 메뉴는 파이프라인으로 통합됨) -->

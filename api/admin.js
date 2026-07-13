@@ -21,10 +21,13 @@
  *  POST /api/admin?action=daily-report {market} → 데일리 리포트 생성 (장 마감 후 cron)
  *  POST /api/admin?action=track {event:'enter'|'leave', ...} → 방문자 애널리틱스 수집 (공개)
  *  GET  /api/admin?action=analytics&type=daily|hourly|referrers|paths|dwell|live[&days=N] → 방문자 통계 조회
+ *  GET  /api/admin?action=feature-flags       → Claude 토큰 사용 기능 on/off 상태 조회
+ *  POST /api/admin?action=feature-flags {key?, keys?, enabled} → 개별/일괄 on/off (key·keys 생략 시 전체)
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAdmin, verifyUser } from '../lib/auth.js';
+import { FEATURE_FLAG_DEFS, isFeatureEnabled } from '../lib/feature-flags.js';
 
 // 일부 액션(dart-sync, sec-13f, extract-investments)은 무거우므로 최대 60초 허용
 export const config = { maxDuration: 60 };
@@ -107,6 +110,9 @@ export default async function handler(req, res) {
   if (action === 'announcement-log') return handleAnnouncementLog(req, res);
   if (action === 'list-users') return handleListUsers(req, res);
   if (action === 'ban-user') return handleBanUser(req, res);
+  if (action === 'feature-flags') {
+    return req.method === 'GET' ? handleFeatureFlagsGet(req, res) : handleFeatureFlagsPost(req, res);
+  }
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -618,15 +624,22 @@ async function handleSummary(req, res) {
       });
     }
 
+    // 기능 자체가 꺼져 있으면(어드민 일괄 on/off) budget 체크와 동일하게 취급 —
+    // 새로 생성하지 않고 캐시가 있으면 stale로 그거라도 보여준다.
+    const featureOff = !(await isFeatureEnabled(supabase, 'company_summary'));
+
     // 하루 전체 Claude 호출 상한 — 캐시가 어떤 이유로든 안 먹어도 비용이 무한정
     // 늘어나지 않도록 하는 이중 안전장치. RPC 실패(마이그레이션 전 등)는 안전하게
     // 통과시킨다 — 이 안전장치가 아직 없다고 기능 자체를 막지는 않음.
     const DAILY_CLAUDE_CALL_LIMIT = 150;
     try {
-      const { data: budgetCount } = await supabase.rpc('increment_ai_budget', {
-        p_day: new Date().toISOString().slice(0, 10),
-      });
-      if ((budgetCount ?? 0) > DAILY_CLAUDE_CALL_LIMIT) {
+      const budgetExceeded = !featureOff && await (async () => {
+        const { data: budgetCount } = await supabase.rpc('increment_ai_budget', {
+          p_day: new Date().toISOString().slice(0, 10),
+        });
+        return (budgetCount ?? 0) > DAILY_CLAUDE_CALL_LIMIT;
+      })();
+      if (featureOff || budgetExceeded) {
         // 새로 생성은 못 하지만, DB에 예전 분석이 남아있으면 그거라도 보여준다
         // (완전히 안 나오는 것보다 낫다) — stale로 표시해 하단에 마지막 업데이트 시각 노출.
         if (cached) {
@@ -652,8 +665,11 @@ async function handleSummary(req, res) {
           ticker,
           company: { name_ko: company.name_ko, name_en: company.name_en, market: company.market, sector: company.sector },
           live,
-          error: '오늘 AI 분석 요청량이 많아 잠시 제한 중입니다. 내일 다시 시도해주세요.',
-          budget_exceeded: true,
+          error: featureOff
+            ? 'AI 분석 기능이 일시 중지되었습니다.'
+            : '오늘 AI 분석 요청량이 많아 잠시 제한 중입니다. 내일 다시 시도해주세요.',
+          feature_disabled: featureOff,
+          budget_exceeded: budgetExceeded,
         });
       }
     } catch {}
@@ -1101,6 +1117,9 @@ function periodStats(rows, period, minAbs) {
 // → strategic_investments 테이블에 upsert. 중복은 seen_count 증가 + last_seen 갱신.
 async function handleExtractInvestments(req, res) {
   if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
+  if (!(await isFeatureEnabled(supabase, 'extract_investments'))) {
+    return res.status(200).json({ ok: true, scanned: 0, extracted: 0, disabled: true });
+  }
 
   const sinceHours = parseInt(req.body?.since_hours || req.query?.since_hours || 48, 10);
   const maxIssues  = Math.min(parseInt(req.body?.max || req.query?.max || 30, 10), 60);
@@ -2145,6 +2164,9 @@ function currentAiSummaryWindowStartUtc() {
 
 async function handleAiMarketSummaryPost(req, res) {
   if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
+  if (!(await isFeatureEnabled(supabase, 'ai_market_summary'))) {
+    return res.status(200).json({ ok: true, generated: false, reason: 'disabled' });
+  }
 
   // 하루 3번(KST 00시/08시/16시)만 생성 — 그 스케줄 창 안에서 이미 생성됐으면 스킵.
   // 매시간 크론이 불러도 실제 Claude 호출은 8시간에 1번뿐. 수동 강제 생성(force)은 항상 허용.
@@ -2383,6 +2405,10 @@ async function handleWeeklyScheduleGet(req, res) {
 }
 
 async function handleWeeklySchedulePost(req, res) {
+  if (!(await isFeatureEnabled(supabase, 'weekly_schedule'))) {
+    return res.status(200).json({ ok: true, generated: false, reason: 'disabled' });
+  }
+
   const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : `https://${req.headers.host}`;
@@ -2732,6 +2758,9 @@ async function handleCatalystsPost(req, res) {
 
   // (c) 최근 뉴스 제목 → forward catalyst AI 추출
   if (!anthropic) return res.status(200).json({ ok: true, aiExtract: false, reason: 'no ANTHROPIC_API_KEY' });
+  if (!(await isFeatureEnabled(supabase, 'catalysts'))) {
+    return res.status(200).json({ ok: true, aiExtract: false, reason: 'disabled' });
+  }
   if (!news?.length) return res.status(200).json({ ok: true, aiExtract: true, added: 0, reason: 'no news' });
 
   // 신선도 가드: 매시간 크론이 불러도 3시간 이내 재추출은 스킵 — 예정 이벤트는 시간 단위로
@@ -2932,6 +2961,9 @@ async function handleDailyReportGet(req, res) {
 
 async function handleDailyReportPost(req, res) {
   if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
+  if (!(await isFeatureEnabled(supabase, 'daily_report'))) {
+    return res.status(200).json({ ok: true, generated: false, reason: 'disabled' });
+  }
 
   const market = ((req.body?.market || req.query?.market || 'US') + '').toUpperCase() === 'KR' ? 'KR' : 'US';
   // 과거 날짜 소급 생성용(예: 크레딧 소진으로 놓친 날) — date를 명시하면 그 날짜로 라벨링하고,
@@ -3057,4 +3089,36 @@ ${ctx.slice(0, 10000)}
   } catch (e) {
     return res.status(500).json({ error: 'Daily report failed: ' + e.message });
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// 20) AI 기능 on/off — Claude 토큰을 쓰는 자동 파이프라인 개별/일괄 제어
+//     (lib/feature-flags.js의 각 핸들러가 실제 Claude 호출 직전에 이 값을 확인)
+// ════════════════════════════════════════════════════════════
+async function handleFeatureFlagsGet(req, res) {
+  const { data } = await supabase.from('feature_flags').select('key, enabled, updated_at');
+  const byKey = Object.fromEntries((data || []).map(r => [r.key, r]));
+  const flags = FEATURE_FLAG_DEFS.map(d => ({
+    key: d.key,
+    label: d.label,
+    enabled: byKey[d.key]?.enabled !== false,   // 행 없으면(마이그레이션 전) 기본 활성화
+    updated_at: byKey[d.key]?.updated_at || null,
+  }));
+  return res.status(200).json({ ok: true, flags });
+}
+
+async function handleFeatureFlagsPost(req, res) {
+  const { key, keys, enabled } = req.body || {};
+  if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled(boolean) required' });
+
+  const validKeys = new Set(FEATURE_FLAG_DEFS.map(d => d.key));
+  // key/keys를 안 주면 "전체" — 대시보드의 일괄 on/off 버튼이 쓰는 경로.
+  const targetKeys = key ? [key] : Array.isArray(keys) ? keys : [...validKeys];
+  const rows = targetKeys.filter(k => validKeys.has(k))
+    .map(k => ({ key: k, enabled, updated_at: new Date().toISOString() }));
+  if (!rows.length) return res.status(400).json({ error: 'no valid keys' });
+
+  const { error } = await supabase.from('feature_flags').upsert(rows, { onConflict: 'key' });
+  if (error) return res.status(500).json({ error: 'feature_flags upsert 실패: ' + error.message + ' (db/feature-flags.sql 실행 여부 확인)' });
+  return res.status(200).json({ ok: true, updated: rows.map(r => r.key), enabled });
 }
