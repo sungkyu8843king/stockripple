@@ -3065,16 +3065,26 @@ const hmCellOnClick = (t) => {
   return '';
 };
 
+const HM_SESSION_BADGE = {
+  pre:  { label: '🟡 프리',   color: '#b8860b' },
+  post: { label: '🟣 애프터', color: '#7c3aed' },
+};
+
 function hmCellHtml(it) {
   const sign = it.pct >= 0 ? '+' : '';
   const priceLabel = it.price == null ? '' : (it.currency === 'KRW'
     ? '₩' + Math.round(it.price).toLocaleString('ko-KR')
     : '$' + Number(it.price).toFixed(2));
   const c = heatmapColorFor(it.pct);
+  const badge = HM_SESSION_BADGE[it.session];
+  const badgeHtml = badge
+    ? `<div class="hm-session" style="font-size:9px;font-weight:800;opacity:.95;margin-top:1px;color:${badge.color}">${badge.label}</div>`
+    : '';
   return `<a class="hm-cell" data-ticker="${escAttr(it.ticker)}" href="${hmCellHref(it.ticker)}" ${hmCellOnClick(it.ticker)} style="display:flex;flex-direction:column;justify-content:center;text-decoration:none;color:${c.fg};background:${c.bg};border-radius:12px;padding:10px 8px;text-align:center;transition:transform .12s var(--ease),background .3s,color .3s;min-height:74px;line-height:1.2;box-shadow:0 1px 2px rgba(0,0,0,0.05);cursor:pointer" onmouseover="this.style.transform='translateY(-2px) scale(1.03)'" onmouseout="this.style.transform='translateY(0) scale(1)'" title="${escAttr(it.name)}">
     <div style="font-size:11px;font-weight:700;letter-spacing:.2px;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAttr(it.name)}</div>
     <div class="hm-price t-num" style="font-size:10px;font-weight:500;opacity:.85;margin-top:1px">${priceLabel}</div>
     <div class="hm-pct t-num" style="font-size:13px;font-weight:800;margin-top:3px">${sign}${it.pct.toFixed(2)}%</div>
+    ${badgeHtml}
   </a>`;
 }
 
@@ -3115,6 +3125,21 @@ function renderTileGrid(grid, items, needsRebuild, structureKey, opts = {}) {
         priceEl.textContent = it.currency === 'KRW'
           ? '₩' + Math.round(it.price).toLocaleString('ko-KR')
           : '$' + Number(it.price).toFixed(2);
+      }
+      // 프리/애프터장 배지 동기화 — 세션이 바뀌면(장 시작 등) 배지도 새로 붙이거나 뗀다
+      let sessionEl = cell.querySelector('.hm-session');
+      const badge = HM_SESSION_BADGE[it.session];
+      if (badge) {
+        if (!sessionEl) {
+          sessionEl = document.createElement('div');
+          sessionEl.className = 'hm-session';
+          sessionEl.style.cssText = 'font-size:9px;font-weight:800;opacity:.95;margin-top:1px';
+          cell.appendChild(sessionEl);
+        }
+        sessionEl.style.color = badge.color;
+        sessionEl.textContent = badge.label;
+      } else if (sessionEl) {
+        sessionEl.remove();
       }
       // flash 효과 — 상승/하락 방향에 따라
       if (oldPct != null && oldPct !== it.pct) {
@@ -4087,12 +4112,14 @@ async function loadHeatmap() {
     items = tickers.map(t => {
       const d = data[t];
       if (!d) return null;
-      let pct;
+      let pct, price = d.price, session = null;
       if (_hmRange === '1mo') pct = d.periodChangePercent;
-      else if (d.marketState === 'PRE' && d.preMarketChangePercent != null) { pct = d.preMarketChangePercent; liveSession = 'pre'; }
-      else if (d.marketState === 'POST' && d.postMarketChangePercent != null) { pct = d.postMarketChangePercent; liveSession = 'post'; }
-      else pct = d.changePercent;
-      return { ticker: t, pct, price: d.price, currency: d.currency, name: nameMap[t] || d.shortName || t };
+      else if (d.marketState === 'PRE' && d.preMarketChangePercent != null) {
+        pct = d.preMarketChangePercent; price = d.preMarketPrice ?? price; session = 'pre'; liveSession = 'pre';
+      } else if (d.marketState === 'POST' && d.postMarketChangePercent != null) {
+        pct = d.postMarketChangePercent; price = d.postMarketPrice ?? price; session = 'post'; liveSession = 'post';
+      } else pct = d.changePercent;
+      return { ticker: t, pct, price, currency: d.currency, name: nameMap[t] || d.shortName || t, session };
     }).filter(x => x && x.pct != null);
 
     // 국장 시간외(15:40–18:00 KST) — Yahoo가 KRX 시간외를 제공하지 않아 네이버 시세를 덮어씀
