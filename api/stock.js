@@ -19,7 +19,24 @@ export default async function handler(req, res) {
   if (type === 'investors')     return handleInvestors(req, res);
   if (type === 'score-factors') return handleScoreFactors(req, res);
   if (type === 'search-kr')     return handleSearchKr(req, res);
+  if (type === 'debug-fmp-quote') return handleDebugFmpQuote(req, res);
   return handlePrice(req, res);
+}
+
+// TEMP: FMP 실시간 시세 응답 구조 확인용 — 프리/애프터 필드 있는지 조사 후 제거 예정
+async function handleDebugFmpQuote(req, res) {
+  const key = process.env.FMP_API_KEY;
+  if (!key) return res.status(500).json({ error: 'no key' });
+  const ticker = (req.query?.ticker || 'AAPL').toString();
+  try {
+    const r = await fetch(`https://financialmodelingprep.com/stable/quote?symbol=${encodeURIComponent(ticker)}&apikey=${key}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(6000),
+    });
+    const j = await r.json();
+    return res.status(200).json({ ok: true, status: r.status, data: j });
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: e.message });
+  }
 }
 
 // ─── 한국 종목명 검색 (네이버 자동완성 프록시) ──────────────
