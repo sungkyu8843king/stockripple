@@ -2918,14 +2918,13 @@ async function handleLiveRefresh(req, res) {
   const faf = (path, body) => {
     fetch(`${base}${path}`, { method: 'POST', headers: authHeaders, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(55000) }).catch(() => {});
   };
-  // RSS 수집(무료) + 소량 AI 분석 — max_chain:1로 강제 고정해 체이닝 방지.
-  // (기존엔 max_chain 미지정 → analyze.js 기본값(4)까지 체이닝돼 트리거 1회당 최대 16건까지
-  //  Claude 호출이 번짐. 백로그 처리는 시간당 크론(analyze-backlog, 체이닝 최대 8회)이 이미
-  //  전담 — live-refresh는 "장중에 사이트 보는 동안 살짝 최신화"가 목적이라 가볍게 가야 함.
-  //  75s 크로스인스턴스 게이트와 합쳐도 동시접속자가 많으면 배수로 불어날 수 있어
-  //  트리거당 상한을 명시적으로 좁혀 방어. 비용 급증 대응 2026-07)
+  // RSS 수집(무료) + 소량 분석 큐 적재 — agent-submit은 Anthropic을 호출하지 않고
+  // analyze_batches(engine='agent')에 프롬프트만 쌓는다(비용 없음). 이전엔 동기 경로
+  // (limit:2, max_chain:1)로 방문자 트래픽마다 실제 Claude를 호출해 비용이 났었음
+  // (75s 크로스인스턴스 게이트가 있어도 동시접속자가 많으면 배수로 불어남 — 2026-07).
+  // 즉시성은 포기하되(스케줄 에이전트가 큐를 비울 때까지 대기) 비용은 0으로.
   faf('/api/fetch?type=rss');
-  faf('/api/analyze', { limit: 2, max_chain: 1 });
+  faf('/api/analyze?mode=agent-submit', { limit: 2 });
   // AI 시장 종합도 함께 갱신(서버 3h 신선도 가드로 Claude는 최대 3시간에 1회만) — 장중 브라우저가 열려 있으면 자동 최신화
   faf('/api/admin?action=ai-market-summary');
   return res.status(200).json({ ok: true, triggered: true, market: mk.krOpen ? 'KR' : 'US' });
