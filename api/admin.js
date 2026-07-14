@@ -2788,7 +2788,9 @@ async function handleCatalystsPost(req, res) {
     .gte('published_at', new Date(Date.now() - 14 * 86400000).toISOString())
     .order('published_at', { ascending: false }).limit(300);
 
-  // (b2) event_date가 없어 (b)의 날짜 기반 만료가 못 잡는 catalyst 정리 —
+  // (b2) (b)의 날짜 기반 만료로 못 잡는 catalyst 정리 — event_date가 없거나(미확정),
+  //      또는 event_date가 아직 안 지났어도(예: PDUFA 목표일 7/23으로 등록됐지만 실제
+  //      결과가 그보다 먼저 나온 경우, 예: HLB 리보세라닙 — 목표일 전에 CRL로 조기 결론)
   //      기업명 + 카테고리 키워드가 함께 등장하는 최근 뉴스가 있으면 "이미 벌어진 일"로 보고 passed 처리.
   //      (예: 날짜가 "7/7 또는 7/24 유력"처럼 미확정 상태로 남아있던 삼성전자 실적이 실제 발표된 뒤에도
   //       계속 "다가오는 핵심 이벤트"에 예정으로 재노출되던 문제 — 리포트가 같은 뉴스로 실적 결과를
@@ -2802,14 +2804,13 @@ async function handleCatalystsPost(req, res) {
     'M&A': /인수|합병|M&A|지분\s*취득/,
   };
   // "임박·예정·전망" 등 미래형 표현이 붙은 기사는 카테고리 키워드가 있어도 아직 안 벌어진 것 —
-  // (예: "SK하이닉스 ADR 상장 임박" 오탐 방지). event_date가 세팅되면 애초에 이 경로를 안 타지만
-  // null-date로 등록되는 catalyst 일반에 대한 방어 차원에서 둔다.
+  // (예: "SK하이닉스 ADR 상장 임박" 오탐 방지).
   const NOT_HAPPENED_YET = /예정|임박|앞두고|앞서|전망|기대|추진\s*중|곧|예상|앞둔|D-\d/;
   if (news?.length) {
-    const { data: undated } = await supabase.from('catalysts')
-      .select('id, company, category').eq('status', 'upcoming').is('event_date', null);
+    const { data: openCatalysts } = await supabase.from('catalysts')
+      .select('id, company, category').eq('status', 'upcoming');
     const titles2 = news.map(n => n.title).filter(Boolean);
-    const toResolve = (undated || []).filter(c => {
+    const toResolve = (openCatalysts || []).filter(c => {
       const pat = c.company && CATEGORY_HAPPEN_PAT[c.category];
       return pat && titles2.some(t => t.includes(c.company) && pat.test(t) && !NOT_HAPPENED_YET.test(t));
     });
