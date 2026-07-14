@@ -4344,13 +4344,17 @@ function computeMarketStatus(market) {
 
 // 신규 위젯 초기화 — load 이벤트 의존하지 않고 즉시 실행 (DOM은 이미 파싱됨)
 (function initNewWidgets() {
-  const kick = () => {
+  const kick = async () => {
     try { loadHeatmap();          } catch (e) { console.error('heatmap', e); }
     try { loadExpiries();         } catch (e) { console.error('expiries', e); }
+    // checkNewReports가 "안 읽음" 여부를 localStorage seen값과 비교해 토스트를 띄우는데,
+    // loadAiMarketSummary/loadDailyReport는 렌더링과 동시에 markAiMsSeen/markReportSeen으로
+    // seen값을 바로 덮어써버린다. 순서가 바뀌면(먼저 render) 토스트가 뜨기도 전에 이미
+    // "읽음" 처리돼 영원히 안 뜨는 레이스가 생기므로, 반드시 먼저 await로 완료시킨다.
+    try { await checkNewReports(); } catch (e) { console.error('checkNewReports', e); }
     try { loadAiMarketSummary();  } catch (e) { console.error('aims', e); }
     try { loadWeeklySchedule();   } catch (e) { console.error('wsched', e); }
     try { loadDailyReport();      } catch (e) { console.error('dailyReport', e); }
-    try { checkNewReports();      } catch (e) { console.error('checkNewReports', e); }
     try { updateFeedLiveTag();    } catch (e) { console.error('feedLiveTag', e); }
     try { loadSectorMomentum();   } catch (e) { console.error('sectorMo', e); }
     try { loadCorrelation();      } catch (e) { console.error('corr', e); }
@@ -4372,10 +4376,13 @@ function computeMarketStatus(market) {
   setInterval(() => { try { loadSectorMomentum(); } catch {} }, 60000);
   // 30분 상관관계 (시계열이라 자주 갱신 불필요)
   setInterval(() => { try { loadCorrelation(); } catch {} }, 1800000);
-  // 1시간 AI 시장 종합 (cron이 매일 새로 만들지만 새로고침)
-  setInterval(() => { try { loadAiMarketSummary(); } catch {} }, 3600000);
-  // 1시간 데일리 리포트 새로고침 (장 마감 후 자동생성분 반영) + 새 리포트 감지/알림
-  setInterval(() => { try { delete _drCache.US; delete _drCache.KR; loadDailyReport(); checkNewReports(); } catch {} }, 3600000);
+  // 1시간마다 새 리포트/AI 종합 감지(토스트) → AI 시장 종합 + 데일리 리포트 새로고침.
+  // kick()과 동일한 이유로 checkNewReports가 먼저 끝나야 render 쪽의 markSeen이 토스트를 가리지 않는다.
+  setInterval(async () => {
+    try { delete _drCache.US; delete _drCache.KR; await checkNewReports(); } catch (e) { console.error('checkNewReports', e); }
+    try { loadAiMarketSummary(); } catch (e) { console.error('aims', e); }
+    try { loadDailyReport();     } catch (e) { console.error('dailyReport', e); }
+  }, 3600000);
   // 만기일은 자정 지나면 갱신
   setInterval(() => { try { loadExpiries(); } catch {} }, 3600000);
   // 이슈 피드 실시간: 장중 45초마다 새 이슈 감지(배너), 30초마다 LIVE 태그 갱신
