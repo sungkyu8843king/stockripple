@@ -71,6 +71,10 @@ export default async function handler(req, res) {
   }
 
   if (mode === 'batch-submit') return handleBatchSubmit(req, res);
+  // agent-submit: Anthropic Batches API를 전혀 부르지 않고(과금 없음), 렌더링된 프롬프트만
+  // analyze_batches(engine='agent')에 적재. 스케줄 Claude Code 에이전트가 이 큐를 읽어
+  // response 컬럼에 답을 써넣으면, 기존 batch-poll(mode=batch-poll)이 그대로 완료 처리한다.
+  if (mode === 'agent-submit') return handleBatchSubmit(req, res, { engine: 'agent' });
 
   const rawBody = req.body || {};
   const issue_id = rawBody.issue_id;
@@ -451,15 +455,17 @@ const BATCH_SUBMIT_LIMIT = 30;
 // 다시 집어가 처리한다 (하루 종일 안 끝나는 걸 무한정 기다리지 않기 위한 상한).
 const BATCH_STUCK_TIMEOUT_MS = 3 * 3600 * 1000;
 
-async function handleBatchSubmit(req, res) {
+async function handleBatchSubmit(req, res, opts = {}) {
+  const engine = opts.engine === 'agent' ? 'agent' : 'anthropic';
   const limit = Math.min(parseInt(req.body?.limit, 10) || BATCH_SUBMIT_LIMIT, 100);
 
   // discover/decide 각각 동시에 하나만 진행 — 이전 배치가 안 끝났으면 새로 제출하지 않음.
   // 이 조회 자체가 실패하면(예: analyze_batches 테이블이 아직 마이그레이션 전) 아래에서
   // Anthropic 배치를 만들어놓고 추적 행 insert가 실패해 배치가 고아로 남는 사고를 막기 위해
   // 여기서 바로 에러 반환 — 실제 배치 생성(비용 발생) 이전에 걸러낸다.
+  // anthropic/agent 엔진은 서로 다른 큐이므로 in-flight 체크도 엔진별로 분리한다.
   const { data: inflight, error: inflightErr } = await supabase
-    .from('analyze_batches').select('id, stage').in('status', ['submitted', 'processing']);
+    .from('analyze_batches').select('id, stage').eq('engine', engine).in('status', ['submitted', 'processing']);
   if (inflightErr) return res.status(500).json({ error: 'analyze_batches table not ready: ' + inflightErr.message });
   if (inflight?.length) {
     return res.status(200).json({ ok: true, submitted: 0, reason: 'batch already in flight', inflight: inflight.map(r => r.stage) });
@@ -478,6 +484,29 @@ async function handleBatchSubmit(req, res) {
     .order('published_at', { ascending: false }).limit(limit);
   if (error) return res.status(500).json({ error: error.message });
   if (!issues?.length) return res.status(200).json({ ok: true, submitted: 0, staleSkipped: staleSkipped || 0 });
+
+  if (engine === 'agent') {
+    // Anthropic을 전혀 호출하지 않음 — 렌더링된 프롬프트 전문만 큐에 적재하고 끝.
+    // 실제 "추론"은 스케줄 Claude Code 에이전트가 이 행을 읽어 response에 답을 써넣는 방식으로 수행.
+    const prompts = [];
+    for (const issue of issues) {
+      const strategicCtx = await buildStrategicCtx(issue);
+      prompts.push({
+        issueId: issue.id,
+        static: ANALYZE_STATIC_PROMPT,
+        dynamic: buildAnalyzeDynamicBlock(issue, strategicCtx),
+      });
+    }
+    const { error: insertErr } = await supabase.from('analyze_batches').insert({
+      engine: 'agent',
+      stage: 'discover',
+      status: 'submitted',
+      payload: { issueIds: issues.map(i => i.id) },
+      prompts,
+    });
+    if (insertErr) return res.status(500).json({ error: 'failed to save agent queue row: ' + insertErr.message });
+    return res.status(200).json({ ok: true, submitted: issues.length, engine: 'agent', staleSkipped: staleSkipped || 0 });
+  }
 
   const requests = [];
   for (const issue of issues) {
@@ -501,6 +530,7 @@ async function handleBatchSubmit(req, res) {
   const batch = await anthropic.messages.batches.create({ requests });
   const { error: insertErr } = await supabase.from('analyze_batches').insert({
     anthropic_batch_id: batch.id,
+    engine: 'anthropic',
     stage: 'discover',
     status: 'submitted',
     payload: { issueIds: issues.map(i => i.id) },
@@ -531,6 +561,39 @@ async function handleBatchPoll(req, res) {
 
 async function processBatchRow(row, req) {
   const age = Date.now() - new Date(row.created_at).getTime();
+
+  if (row.engine === 'agent') {
+    // Anthropic 배치 상태 대신 에이전트가 response 컬럼을 채웠는지로 완료 여부를 판단.
+    if (!row.response) {
+      if (age > BATCH_STUCK_TIMEOUT_MS) {
+        const { data: claimed } = await supabase.from('analyze_batches')
+          .update({ status: 'timeout', completed_at: new Date().toISOString() })
+          .eq('id', row.id).eq('status', 'submitted').select();
+        if (!claimed?.length) return { id: row.id, stage: row.stage, status: 'already_claimed' };
+        return { id: row.id, stage: row.stage, status: 'timeout' };
+      }
+      return { id: row.id, stage: row.stage, status: 'processing' };
+    }
+
+    const { data: claimed } = await supabase.from('analyze_batches')
+      .update({ status: 'processing' }).eq('id', row.id).eq('status', 'submitted').select();
+    if (!claimed?.length) return { id: row.id, stage: row.stage, status: 'already_claimed' };
+
+    try {
+      const byId = row.response; // { [issueId]: "<raw JSON text the agent wrote>" }
+      if (row.stage === 'discover') {
+        await finalizeDiscoverStage(row, byId, req);
+      } else {
+        await finalizeDecideStage(row, byId, req);
+      }
+      await supabase.from('analyze_batches').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', row.id);
+      return { id: row.id, stage: row.stage, status: 'completed' };
+    } catch (e) {
+      await supabase.from('analyze_batches').update({ status: 'submitted' }).eq('id', row.id);
+      throw e;
+    }
+  }
+
   const batch = await anthropic.messages.batches.retrieve(row.anthropic_batch_id);
 
   if (batch.processing_status !== 'ended') {
@@ -571,7 +634,8 @@ async function processBatchRow(row, req) {
   }
 }
 
-function extractBatchText(line) {
+function extractBatchText(engine, line) {
+  if (engine === 'agent') return typeof line === 'string' ? line.trim() : null;
   if (line?.result?.type !== 'succeeded') return null;
   return line.result.message?.content?.[0]?.text?.trim() || null;
 }
@@ -596,7 +660,7 @@ async function finalizeDiscoverStage(row, byId, req) {
       const { data: issue } = await supabase.from('issues').select('*').eq('id', issueId).maybeSingle();
       if (!issue || issue.is_analyzed) continue; // force_recent 등으로 이미 처리/삭제된 경우 스킵
 
-      const text = extractBatchText(byId[issueId]);
+      const text = extractBatchText(row.engine, byId[issueId]);
       if (!text) continue; // 개별 요청 실패 — is_analyzed=false로 남겨 다음 백로그가 재시도
 
       const analysis = parseJsonBlock(text);
@@ -652,6 +716,33 @@ async function finalizeDiscoverStage(row, byId, req) {
 
   if (!decideItems.length) return;
 
+  const decidePayload = {
+    items: decideItems.map(item => ({
+      issueId: item.issueId, analysisId: item.analysisId, analysis: item.analysis,
+      candidates: item.candidates, histMap: item.histMap, regime: item.regime,
+    })),
+  };
+
+  if (row.engine === 'agent') {
+    const prompts = decideItems.map(item => ({
+      issueId: item.issueId,
+      static: DECIDE_TRADES_STATIC_PROMPT,
+      dynamic: buildDecideDynamicBlock(
+        { title: item.issueTitle, summary: item.issueSummary },
+        item.analysis, item.candidates, item.regime,
+      ),
+    }));
+    const { error: insertErr } = await supabase.from('analyze_batches').insert({
+      engine: 'agent',
+      stage: 'decide',
+      status: 'submitted',
+      payload: decidePayload,
+      prompts,
+    });
+    if (insertErr) console.error('failed to save agent decide-stage queue row:', insertErr.message);
+    return;
+  }
+
   const requests = decideItems.map(item => ({
     custom_id: item.issueId,
     params: {
@@ -676,14 +767,10 @@ async function finalizeDiscoverStage(row, byId, req) {
   const batch = await anthropic.messages.batches.create({ requests });
   const { error: insertErr } = await supabase.from('analyze_batches').insert({
     anthropic_batch_id: batch.id,
+    engine: 'anthropic',
     stage: 'decide',
     status: 'submitted',
-    payload: {
-      items: decideItems.map(item => ({
-        issueId: item.issueId, analysisId: item.analysisId, analysis: item.analysis,
-        candidates: item.candidates, histMap: item.histMap, regime: item.regime,
-      })),
-    },
+    payload: decidePayload,
   });
   if (insertErr) {
     // 추적 행 저장 실패 — 배치를 취소하고, 해당 이슈들은 is_analyzed=false로 남겨두어
@@ -701,7 +788,7 @@ async function finalizeDecideStage(row, byId, req) {
       const { data: issue } = await supabase.from('issues').select('*').eq('id', item.issueId).maybeSingle();
       if (!issue || issue.is_analyzed) continue;
 
-      const text = extractBatchText(byId[item.issueId]);
+      const text = extractBatchText(row.engine, byId[item.issueId]);
       let pickedTickers = [];
       if (text) {
         const parsed = parseJsonBlock(text);
