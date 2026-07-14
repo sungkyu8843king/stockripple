@@ -91,6 +91,7 @@ export default async function handler(req, res) {
   if (action === 'fix-names')           return handleFixNames(req, res);
   if (action === 'stats')               return handleStats(req, res);
   if (action === 'extract-investments') return handleExtractInvestments(req, res);
+  if (action === 'company-summary-backfill') return handleCompanySummaryBackfill(req, res);
   if (action === 'list-investments')    return handleListInvestments(req, res);
   if (action === 'update-investment')   return handleUpdateInvestment(req, res);
   if (action === 'delete-investment')   return handleDeleteInvestment(req, res);
@@ -698,55 +699,10 @@ async function handleSummary(req, res) {
       strategicCtx = await mod.formatMergedBetsForPrompt(supabase, ticker);
     } catch {}
 
-    const liveCtx = live ? `📡 실시간 시장 데이터 (Yahoo Finance, ${live.asOf || '오늘'} 기준 — 사실 판단의 최우선 근거):
-- 종목명: ${live.name || ticker} — ${live.exchange || '?'} 에서 현재 정상 거래 중인 상장 종목
-- 현재가: ${live.price} ${live.currency}${live.dayChangePct != null ? ` (전일 대비 ${live.dayChangePct >= 0 ? '+' : ''}${live.dayChangePct}%)` : ''}
-- 52주 범위: ${live.w52Low ?? '?'} ~ ${live.w52High ?? '?'}
-- 최근 1년 수익률: ${live.perf1yPct != null ? `${live.perf1yPct >= 0 ? '+' : ''}${live.perf1yPct}%` : '?'}
-- 최초 거래일: ${live.firstTradeDate || '?'}${live.firstTradeDate && live.firstTradeDate > '2020-01-01' ? ' ← 최근 신규상장/분사 재상장/재편 가능성. 당신의 학습 지식이 이 티커를 과거 폐지·인수된 종목으로 기억하더라도 현재는 별개의 정상 거래 종목임' : ''}
-` : `📡 실시간 시장 데이터: 조회 실패 — 상장/거래 상태를 단정하지 말 것.
-`;
-
-    const prompt = `당신은 주식 분석 전문가입니다. 아래 회사에 대해 한국 투자자를 위한 종합 분석 보고서를 작성하세요.
-
-회사 정보:
-- 티커: ${ticker}
-- 한국명: ${company.name_ko || '없음'}
-- 영문명: ${company.name_en || '없음'}
-- 시장: ${company.market === 'KR' ? '한국' : '미국'}
-
-${liveCtx}
-${strategicCtx ? `🎯 전략적 투자/지분 (본업 외 미래 성장축 — 매우 중요):\n${strategicCtx}\n\n이 정보는 주가 선반영 논리의 핵심 단서입니다. 예: SK텔레콤이 Anthropic에 투자했다면 Claude(AI) 성공 → SKT 주가 선반영. 종합 근거(thesis)와 전략적 노출(strategic_exposure) 작성 시 반드시 반영.\n` : ''}
-최근 AI 분석들 (${analyses.length}건):
-${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   - 섹터: ${a.sector||'미분류'}, 예상 상승: ${a.upside??'?'}%, 신뢰도: ${a.confidence??'?'}%\n   - 근거: ${a.rationale.slice(0, 200)}`).join('\n')}
-
-다음 JSON만 반환하세요 (다른 텍스트 없이):
-{
-  "overview": "회사 개요 - 어떤 사업을 하는지, 주력 제품/서비스, 시장 점유율 (2-3문장, 150자 내외)",
-  "thesis": "현재 매수 후보로 거론되는 종합 근거 (위 분석들 + 전략적 투자 통합) (2-3문장, 200자 내외)",
-  "strategic_exposure": "본업 외 보유한 전략적 지분/투자로 인한 간접 노출 (예: 'Anthropic 지분 보유 → Claude AI 성공이 주가에 선반영 중'). 해당 없으면 빈 문자열. (1-3문장, 250자 내외)",
-  "key_risks": ["주요 리스크 1", "주요 리스크 2"],
-  "competitive_position": "시장 내 경쟁 우위 또는 약점 — 전략적 투자가 만든 차별화 포지션 포함 (1-2문장)",
-  "watch_points": ["주시 포인트 1 — 전략적 지분 가치를 끌어올릴 만한 이벤트 1개 이상 포함", "주시 포인트 2"]
-}
-
-규칙:
-- 사실 기반, 한국어, 객관적, 추측 금지
-- ⚠️ 실시간 시장 데이터가 당신의 학습 지식과 충돌하면 반드시 실시간 데이터가 우선. 지식 컷오프 이후 분사·재상장·합병·구조 변화가 있었을 수 있음
-- 실시간 데이터가 존재하는 종목에 '상장폐지', '거래 불가', '인수되어 비활성' 등의 서술 절대 금지
-- 확실하지 않은 과거 기업 이력(인수/합병/모회사 관계)은 단정하지 말 것
-- 위에 제공된 "전략적 투자/지분" 정보가 있다면 thesis와 strategic_exposure에 반드시 활용 (특히 ⭐ 표시된 항목)
-- 전략적 투자 정보가 없으면 strategic_exposure는 빈 문자열 ""로 반환`;
-
     // 방문 시점에 즉답할 수 없으므로(에이전트가 나중에 처리) 큐에 적재만 하고, 지금은
     // 있는 캐시(stale이라도)나 "아직 없음" 상태를 바로 내려준다. 다음 방문(3일 캐시 TTL
     // 지난 뒤) 즈음엔 스케줄 에이전트가 채워둔 새 캐시가 서빙된다.
-    await submitAgentJob({
-      pipeline: 'company_summary',
-      stage: ticker,      // 티커별로 in-flight를 분리해 여러 종목이 서로 막지 않게 함
-      items: [{ itemId: ticker, static: '', dynamic: prompt }],
-      payload: { ticker, analyses_count: analyses.length },
-    });
+    await submitCompanySummaryJob({ ticker, company, live, analyses, strategicCtx });
 
     if (cached) {
       return res.status(200).json({
@@ -796,6 +752,147 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
     }
     return res.status(500).json({ error: e.message });
   }
+}
+
+// handleSummary(방문 시)와 handleCompanySummaryBackfill(주기적 사전 생성) 공용 —
+// 프롬프트 조립 + agent_jobs 제출까지. 호출부는 company/live/analyses/strategicCtx를
+// 미리 구해서 넘긴다(백필은 fetchLiveSnapshot 등을 여러 티커에 걸쳐 반복 호출해야 하므로
+// 여기서 다시 fetch하지 않고 얇게 유지).
+async function submitCompanySummaryJob({ ticker, company, live, analyses, strategicCtx }) {
+  const liveCtx = live ? `📡 실시간 시장 데이터 (Yahoo Finance, ${live.asOf || '오늘'} 기준 — 사실 판단의 최우선 근거):
+- 종목명: ${live.name || ticker} — ${live.exchange || '?'} 에서 현재 정상 거래 중인 상장 종목
+- 현재가: ${live.price} ${live.currency}${live.dayChangePct != null ? ` (전일 대비 ${live.dayChangePct >= 0 ? '+' : ''}${live.dayChangePct}%)` : ''}
+- 52주 범위: ${live.w52Low ?? '?'} ~ ${live.w52High ?? '?'}
+- 최근 1년 수익률: ${live.perf1yPct != null ? `${live.perf1yPct >= 0 ? '+' : ''}${live.perf1yPct}%` : '?'}
+- 최초 거래일: ${live.firstTradeDate || '?'}${live.firstTradeDate && live.firstTradeDate > '2020-01-01' ? ' ← 최근 신규상장/분사 재상장/재편 가능성. 당신의 학습 지식이 이 티커를 과거 폐지·인수된 종목으로 기억하더라도 현재는 별개의 정상 거래 종목임' : ''}
+` : `📡 실시간 시장 데이터: 조회 실패 — 상장/거래 상태를 단정하지 말 것.
+`;
+
+  const prompt = `당신은 주식 분석 전문가입니다. 아래 회사에 대해 한국 투자자를 위한 종합 분석 보고서를 작성하세요.
+
+회사 정보:
+- 티커: ${ticker}
+- 한국명: ${company.name_ko || '없음'}
+- 영문명: ${company.name_en || '없음'}
+- 시장: ${company.market === 'KR' ? '한국' : '미국'}
+
+${liveCtx}
+${strategicCtx ? `🎯 전략적 투자/지분 (본업 외 미래 성장축 — 매우 중요):\n${strategicCtx}\n\n이 정보는 주가 선반영 논리의 핵심 단서입니다. 예: SK텔레콤이 Anthropic에 투자했다면 Claude(AI) 성공 → SKT 주가 선반영. 종합 근거(thesis)와 전략적 노출(strategic_exposure) 작성 시 반드시 반영.\n` : ''}
+최근 AI 분석들 (${analyses.length}건):
+${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   - 섹터: ${a.sector||'미분류'}, 예상 상승: ${a.upside??'?'}%, 신뢰도: ${a.confidence??'?'}%\n   - 근거: ${a.rationale.slice(0, 200)}`).join('\n')}
+
+다음 JSON만 반환하세요 (다른 텍스트 없이):
+{
+  "overview": "회사 개요 - 어떤 사업을 하는지, 주력 제품/서비스, 시장 점유율 (2-3문장, 150자 내외)",
+  "thesis": "현재 매수 후보로 거론되는 종합 근거 (위 분석들 + 전략적 투자 통합) (2-3문장, 200자 내외)",
+  "strategic_exposure": "본업 외 보유한 전략적 지분/투자로 인한 간접 노출 (예: 'Anthropic 지분 보유 → Claude AI 성공이 주가에 선반영 중'). 해당 없으면 빈 문자열. (1-3문장, 250자 내외)",
+  "key_risks": ["주요 리스크 1", "주요 리스크 2"],
+  "competitive_position": "시장 내 경쟁 우위 또는 약점 — 전략적 투자가 만든 차별화 포지션 포함 (1-2문장)",
+  "watch_points": ["주시 포인트 1 — 전략적 지분 가치를 끌어올릴 만한 이벤트 1개 이상 포함", "주시 포인트 2"]
+}
+
+규칙:
+- 사실 기반, 한국어, 객관적, 추측 금지
+- ⚠️ 실시간 시장 데이터가 당신의 학습 지식과 충돌하면 반드시 실시간 데이터가 우선. 지식 컷오프 이후 분사·재상장·합병·구조 변화가 있었을 수 있음
+- 실시간 데이터가 존재하는 종목에 '상장폐지', '거래 불가', '인수되어 비활성' 등의 서술 절대 금지
+- 확실하지 않은 과거 기업 이력(인수/합병/모회사 관계)은 단정하지 말 것
+- 위에 제공된 "전략적 투자/지분" 정보가 있다면 thesis와 strategic_exposure에 반드시 활용 (특히 ⭐ 표시된 항목)
+- 전략적 투자 정보가 없으면 strategic_exposure는 빈 문자열 ""로 반환`;
+
+  return submitAgentJob({
+    pipeline: 'company_summary',
+    stage: ticker,      // 티커별로 in-flight를 분리해 여러 종목이 서로 막지 않게 함
+    items: [{ itemId: ticker, static: '', dynamic: prompt }],
+    payload: { ticker, analyses_count: analyses.length },
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// AI 종합분석 사전 백필 — 방문자가 우연히 눌러야만 생성되던 걸, 캐시 없는(또는 3일
+// TTL 지난) 종목을 주기적으로 미리 몇 건씩 큐에 채워둔다. 첫 방문자가 빈 화면을
+//보는 경우를 줄이는 목적. 스케줄 에이전트가 큐를 드레인하는 것과 별개로, 이 액션
+// 자체는 "무엇을 채울지 고르고 프롬프트를 큐에 넣는" 제출 역할만 한다(analyze의
+// agent-submit과 동일한 성격).
+async function handleCompanySummaryBackfill(req, res) {
+  if (!(await isFeatureEnabled(supabase, 'company_summary'))) {
+    return res.status(200).json({ ok: true, submitted: 0, disabled: true });
+  }
+  const limit = Math.min(parseInt(req.body?.limit || req.query?.limit, 10) || 15, 30);
+
+  // 최근 30일 조회수가 있는(방문 트래픽이 있는) 종목 위주로 우선순위를 둔다 —
+  // company_views는 티커별·일자별 카운터라 여기서 합산한다 (view-stats 액션과 동일 패턴).
+  // 아무도 안 보는 종목까지 무제한으로 채우면 큐만 늘어나고 실효는 낮다.
+  const since30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const { data: viewRows, error: viewErr } = await supabase
+    .from('company_views').select('ticker, views').gte('view_date', since30);
+  if (viewErr) return res.status(500).json({ error: viewErr.message });
+  const viewTotals = {};
+  for (const row of viewRows || []) viewTotals[row.ticker] = (viewTotals[row.ticker] || 0) + row.views;
+  const rankedTickers = Object.keys(viewTotals).sort((a, b) => viewTotals[b] - viewTotals[a]).slice(0, 200);
+  if (!rankedTickers.length) return res.status(200).json({ ok: true, submitted: 0, reason: 'no recent view traffic' });
+
+  const { data: companies, error } = await supabase
+    .from('companies')
+    .select('id, ticker, name_ko, name_en, market, sector')
+    .in('ticker', rankedTickers);
+  if (error) return res.status(500).json({ error: error.message });
+  if (!companies?.length) return res.status(200).json({ ok: true, submitted: 0 });
+  companies.sort((a, b) => (viewTotals[b.ticker] || 0) - (viewTotals[a.ticker] || 0));
+
+  const CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+  const { data: freshSummaries } = await supabase
+    .from('company_ai_summary')
+    .select('ticker, created_at')
+    .gte('created_at', new Date(Date.now() - CACHE_TTL_MS).toISOString());
+  const freshSet = new Set((freshSummaries || []).map(s => s.ticker));
+
+  // 이미 대기/처리 중인 company_summary job도 제외(중복 제출 방지) — stage에 티커가 들어있다.
+  const { data: pendingJobs } = await supabase
+    .from('agent_jobs')
+    .select('stage')
+    .eq('pipeline', 'company_summary')
+    .in('status', ['submitted', 'processing']);
+  const pendingSet = new Set((pendingJobs || []).map(j => j.stage));
+
+  const targets = companies
+    .filter(c => c.ticker && !freshSet.has(c.ticker) && !pendingSet.has(c.ticker))
+    .slice(0, limit);
+  if (!targets.length) return res.status(200).json({ ok: true, submitted: 0, reason: 'no stale/missing targets' });
+
+  let submitted = 0;
+  const errors = [];
+  for (const company of targets) {
+    try {
+      const [live, { data: recent }] = await Promise.all([
+        fetchLiveSnapshot(company.ticker),
+        supabase.from('analysis_companies')
+          .select('upside_pct, confidence, rationale, entry_date, ripple_sector, analyses(ai_summary, issues(title, published_at))')
+          .eq('company_id', company.id)
+          .order('entry_date', { ascending: false })
+          .limit(8),
+      ]);
+      const analyses = (recent || []).map(r => ({
+        sector: r.ripple_sector,
+        upside: r.upside_pct,
+        confidence: r.confidence,
+        rationale: (r.rationale || '').split('[TRADE]')[0].trim(),
+        issueTitle: r.analyses?.issues?.title || '',
+        date: r.entry_date,
+      }));
+      let strategicCtx = null;
+      try {
+        const mod = await import('../lib/strategic-investments.js');
+        strategicCtx = await mod.formatMergedBetsForPrompt(supabase, company.ticker);
+      } catch {}
+
+      const result = await submitCompanySummaryJob({ ticker: company.ticker, company, live, analyses, strategicCtx });
+      if (result.submitted) submitted++;
+    } catch (e) {
+      errors.push({ ticker: company.ticker, error: e.message?.slice(0, 200) });
+    }
+  }
+
+  return res.status(200).json({ ok: true, submitted, scanned: targets.length, errors });
 }
 
 async function finalizeCompanySummary(row) {

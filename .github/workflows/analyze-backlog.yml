@@ -118,3 +118,14 @@ jobs:
           curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=catalysts" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
             | jq -c '{ok,added,candidates}' 2>/dev/null || echo "  (non-JSON)"
+
+      # 종목 AI 종합분석 사전 백필 — 방문자가 우연히 눌러야만(캐시 없으면 빈 화면) 생성되던
+      # company_summary를, 조회수 있는 종목 위주로 매시간 최대 15건씩 미리 큐에 채워둔다.
+      # 비용은 없음(agent 큐 제출만) — 스케줄 에이전트가 실제 처리.
+      - name: AI 종합분석 사전 백필
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=company-summary-backfill" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
+            -d '{"limit": 15}' \
+            | jq -c '{ok,submitted,scanned,reason}' 2>/dev/null || echo "  (non-JSON)"
