@@ -57,7 +57,7 @@ export default async function handler(req, res) {
   faf('/api/market-pulse?type=trump');
   // Claude Code 에이전트 큐에 제출만 하고 끝 — Anthropic 비용 없음. 완료 처리는
   // analyze-backlog.yml의 10분 주기 폴링(mode=batch-poll)이 이어받는다.
-  faf('/api/analyze?mode=agent-submit', { limit: 100 });
+  faf('/api/analyze?mode=agent-submit', { limit: 20 });
   faf('/api/admin?action=extract-investments', { since_hours: 48, max: 25 });
   faf('/api/admin?action=dart-poll', { days: 2 });
   faf('/api/admin?action=dart-sync-corp-codes');  // 신규 KR 종목의 corp_code 자동 매핑 (예: 히트맵에 추가된 HLB류)
