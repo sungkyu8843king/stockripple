@@ -871,7 +871,25 @@ async function tryDirectLookup(input) {
       location.href = `/company.html?ticker=${encodeURIComponent(upper)}`;
       return;
     }
-    // 그 외 (한글 등) → 이슈 제목에서 검색
+
+    // companies 테이블은 방문/분석으로 자동등록된 종목만 있는 부분집합이라, 아직
+    // 한 번도 등록 안 된 한국 종목(예: SK네트웍스)은 여기서 못 찾는다 — 네이버
+    // 자동완성(한글 종목명 인덱싱 정확)으로 한 번 더 시도한 뒤에야 포기한다.
+    try {
+      const krRes = await fetch(`/api/stock?type=search-kr&q=${encodeURIComponent(raw)}`);
+      const krData = await krRes.json();
+      const krItems = krData.items || [];
+      if (krItems.length === 1) {
+        location.href = `/company.html?ticker=${encodeURIComponent(krItems[0].ticker)}`;
+        return;
+      }
+      if (krItems.length > 1) {
+        openSearchPicker(raw, krItems.map(it => ({ ticker: it.ticker, name_ko: it.name, market: 'KR' })));
+        return;
+      }
+    } catch {}
+
+    // 그 외 → 이슈 제목에서 검색
     showToast(`"${raw}" 종목 매칭 없음 — 이슈 제목에서 검색`, 'info');
     document.getElementById('searchInput').value = raw;
     searchQuery = raw;

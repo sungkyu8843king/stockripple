@@ -18,7 +18,37 @@ export default async function handler(req, res) {
   if (type === 'fundamentals')  return handleFundamentals(req, res);
   if (type === 'investors')     return handleInvestors(req, res);
   if (type === 'score-factors') return handleScoreFactors(req, res);
+  if (type === 'search-kr')     return handleSearchKr(req, res);
   return handlePrice(req, res);
+}
+
+// ─── 한국 종목명 검색 (네이버 자동완성 프록시) ──────────────
+// companies 테이블은 방문/분석으로 자동등록된 종목만 있는 부분집합이라, "SK네트웍스"
+// 처럼 아직 한 번도 등록된 적 없는 종목은 로컬 검색으로 못 찾는다. Yahoo Finance
+// 검색은 한글 질의를 잘 못 찾지만(예: "SK네트웍스"→SK하이닉스로 오매칭), 네이버
+// 자동완성은 한국 상장사 이름을 정확히 인덱싱하고 있어 이걸로 티커를 알아낸다.
+async function handleSearchKr(req, res) {
+  const q = (req.query?.q || '').toString().trim();
+  if (!q) return res.status(400).json({ error: 'q required' });
+  try {
+    const r = await fetch(
+      `https://ac.stock.naver.com/ac?q=${encodeURIComponent(q)}&target=stock,index,marketindicator`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) }
+    );
+    if (!r.ok) return res.status(200).json({ ok: true, items: [] });
+    const data = await r.json();
+    const items = (data.items || [])
+      .filter(it => it.category === 'stock' && it.code && (it.typeCode === 'KOSPI' || it.typeCode === 'KOSDAQ'))
+      .map(it => ({
+        ticker: `${it.code}.${it.typeCode === 'KOSDAQ' ? 'KQ' : 'KS'}`,
+        name: it.name,
+        market: 'KR',
+      }))
+      .slice(0, 10);
+    return res.status(200).json({ ok: true, items });
+  } catch (e) {
+    return res.status(200).json({ ok: true, items: [], error: e.message });
+  }
 }
 
 // ─── 현재가 + 시총 (DB 캐시 1시간) ────────────────────────
