@@ -34,16 +34,17 @@ jobs:
             -H "Content-Type: application/json" || true)
           echo "$RESP" | jq -r '.saved // "done"' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
-      # Message Batches API로 제출만 하고 끝 — discover/decide 완료 처리는 위 Batch Poll
-      # 스텝(10분 주기)이 이어받는다. 입력 토큰 50% 할인 + 프롬프트 캐싱 적용.
-      # 이미 진행 중인 배치가 있으면 서버가 알아서 중복 제출을 스킵한다.
-      - name: AI Analyze (배치 제출, 최대 30건)
+      # Claude Code 에이전트 큐에 제출만 하고 끝 — Anthropic API 비용 없음. 프롬프트만
+      # analyze_batches(engine='agent')에 적재되고, 스케줄 에이전트가 답을 채우면 위
+      # Batch Poll 스텝(10분 주기)이 기존과 동일한 로직으로 완료 처리를 이어받는다.
+      # 이미 진행 중인 큐가 있으면 서버가 알아서 중복 제출을 스킵한다.
+      - name: AI Analyze (에이전트 큐 제출, 최대 20건 — 신규 유입만, 백로그는 2026-07-14에 의도적으로 스킵 처리함)
         if: github.event.schedule != '*/10 * * * *'
         run: |
-          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=batch-submit" \
+          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=agent-submit" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 30}' || true)
+            -d '{"limit": 20}' || true)
           echo "$RESP" | jq -c '{submitted, staleSkipped, reason}' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
       # 예측 정확도 검증 — Vercel cron이 불안정해 GH Actions에서 매시간 실행 (due 항목만 처리, 멱등)
@@ -117,3 +118,15 @@ jobs:
           curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=catalysts" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
             | jq -c '{ok,added,candidates}' 2>/dev/null || echo "  (non-JSON)"
+
+      # 종목 AI 종합분석 사전 백필 — 방문자가 우연히 눌러야만(캐시 없으면 빈 화면) 생성되던
+      # company_summary를, 조회수 있는 종목 위주로 매시간 최대 25건씩 미리 큐에 채워둔다.
+      # 비용은 없음(agent 큐 제출만) — 스케줄 에이전트가 실제 처리. 이 크론이 드롭돼도
+      # 스케줄 Claude Code 에이전트(30분 주기)가 매 실행마다 직접 백업 제출도 한다.
+      - name: AI 종합분석 사전 백필
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=company-summary-backfill" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
+            -d '{"limit": 25}' \
+            | jq -c '{ok,submitted,scanned,reason}' 2>/dev/null || echo "  (non-JSON)"

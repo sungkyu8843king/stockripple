@@ -30,13 +30,13 @@ jobs:
             -H "Content-Type: application/json" || true)
           echo "$RESP" | jq -r '.saved // "done"' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
-      # Message Batches API로 제출만 하고 끝 — 실제 처리/완료는 analyze-backlog.yml의
-      # 10분 주기 폴링(mode=batch-poll)이 이어받는다. 입력 토큰 50% 할인 + 프롬프트 캐싱 적용.
-      # 이미 진행 중인 배치가 있으면 서버가 알아서 중복 제출을 스킵한다.
-      - name: AI Analyze (배치 제출)
+      # Claude Code 에이전트 큐에 제출만 하고 끝 — Anthropic 비용 없음. 완료 처리는
+      # analyze-backlog.yml의 10분 주기 폴링(mode=batch-poll)이 이어받는다.
+      # 이미 진행 중인 큐가 있으면 서버가 알아서 중복 제출을 스킵한다.
+      - name: AI Analyze (에이전트 큐 제출)
         run: |
-          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=batch-submit" \
+          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=agent-submit" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 30}' || true)
+            -d '{"limit": 20}' || true)
           echo "$RESP" | jq -c '{submitted, staleSkipped, reason}' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
