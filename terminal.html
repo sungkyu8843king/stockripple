@@ -666,7 +666,7 @@ async function loadTermHeatmap() {
     }).join('');
   } catch { grid.innerHTML = '<div class="loading" style="grid-column:1/-1">로드 실패</div>'; }
 }
-loadTermHeatmap(); setInterval(loadTermHeatmap, 1000);
+loadTermHeatmap(); setInterval(loadTermHeatmap, 15000);
 
 // ─── Buy Candidates (top 8) ───
 async function loadBuyCandidates() {

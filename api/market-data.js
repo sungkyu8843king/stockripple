@@ -59,7 +59,12 @@ async function mapWithConcurrency(items, concurrency, fn) {
 
 async function handleQuotes(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, s-maxage=3, stale-while-revalidate=10');
+  // s-maxage=3은 프론트가 1초마다 폴링하던 시절 기준이었음 — edge cache가 완벽히
+  // 흡수하지 못하면 실사용자 트래픽 증가 시 origin→Yahoo Finance 팬아웃(요청당 최대
+  // 600개 티커)이 초당 수십 회로 폭증해 레이트리밋+장애로 이어짐(2026-07-15 발생).
+  // 클라이언트 폴링 주기를 15초로 늦춘 것과 별개로, 서버 쪽에서도 origin 호출 자체를
+  // 못 박아두는 이중 방어선.
+  res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30');
 
   const param = (req.query.tickers || '').toString();
   const range = (req.query.range || '1d').toString();

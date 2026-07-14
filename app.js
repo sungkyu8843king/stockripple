@@ -2205,7 +2205,10 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   loadEarningsCalendar();
   loadAnalystRatings();
   setInterval(loadIndices, 30000);
-  setInterval(refreshInsightQuotes, 1000);    // 1초마다 시세 갱신 (마켓 상태는 카드에 표시)
+  // 15초마다 시세 갱신 (마켓 상태는 카드에 표시) — 사용자마다 화면에 보이는 종목
+  // 조합이 달라 edge cache 히트율이 낮음. 1초 간격은 실사용자 트래픽 증가 시
+  // Yahoo Finance 레이트리밋을 유발한 원인 중 하나였음(히트맵 폴링과 동일 이슈).
+  setInterval(refreshInsightQuotes, 15000);
   setInterval(loadEconomicCalendar, 30000);   // 30초마다 (발표 결과 빠른 반영)
 }
 
@@ -4315,8 +4318,11 @@ function computeMarketStatus(market) {
   } else {
     kick();
   }
-  // 1초마다 히트맵 갱신 (edge cache 덕에 실제 origin 호출은 3초당 1회)
-  setInterval(() => { try { loadHeatmap(); } catch {} }, 1000);
+  // 15초마다 히트맵 갱신 — 과거엔 1초 간격이었는데, edge cache가 모든 사용자의
+  // 쿼리스트링이 완전히 같을 때만 origin 호출을 흡수해줘서 실사용자 트래픽이 조금만
+  // 몰려도 origin→Yahoo Finance 팬아웃(요청당 최대 600개 티커)이 초당 수십 회씩
+  // 발생해 Yahoo 레이트리밋 + Supabase/게이트웨이 타임아웃까지 이어지는 장애가 있었음.
+  setInterval(() => { try { loadHeatmap(); } catch {} }, 15000);
   // 60초 섹터 모멘텀
   setInterval(() => { try { loadSectorMomentum(); } catch {} }, 60000);
   // 30분 상관관계 (시계열이라 자주 갱신 불필요)
