@@ -34,13 +34,14 @@ jobs:
             -H "Content-Type: application/json" || true)
           echo "$RESP" | jq -r '.saved // "done"' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
-      # Message Batches API로 제출만 하고 끝 — discover/decide 완료 처리는 위 Batch Poll
-      # 스텝(10분 주기)이 이어받는다. 입력 토큰 50% 할인 + 프롬프트 캐싱 적용.
-      # 이미 진행 중인 배치가 있으면 서버가 알아서 중복 제출을 스킵한다.
-      - name: AI Analyze (배치 제출, 최대 30건)
+      # Claude Code 에이전트 큐에 제출만 하고 끝 — Anthropic API 비용 없음. 프롬프트만
+      # analyze_batches(engine='agent')에 적재되고, 스케줄 에이전트가 답을 채우면 위
+      # Batch Poll 스텝(10분 주기)이 기존과 동일한 로직으로 완료 처리를 이어받는다.
+      # 이미 진행 중인 큐가 있으면 서버가 알아서 중복 제출을 스킵한다.
+      - name: AI Analyze (에이전트 큐 제출, 최대 30건)
         if: github.event.schedule != '*/10 * * * *'
         run: |
-          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=batch-submit" \
+          RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=agent-submit" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
             -d '{"limit": 30}' || true)
