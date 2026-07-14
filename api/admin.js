@@ -28,6 +28,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAdmin, verifyUser } from '../lib/auth.js';
 import { FEATURE_FLAG_DEFS, isFeatureEnabled } from '../lib/feature-flags.js';
+import { submitAgentJob, extractJobText, parseJobJson, JOB_STUCK_TIMEOUT_MS } from '../lib/agent-jobs.js';
 
 // 일부 액션(dart-sync, sec-13f, extract-investments)은 무거우므로 최대 60초 허용
 export const config = { maxDuration: 60 };
@@ -113,6 +114,7 @@ export default async function handler(req, res) {
   if (action === 'feature-flags') {
     return req.method === 'GET' ? handleFeatureFlagsGet(req, res) : handleFeatureFlagsPost(req, res);
   }
+  if (action === 'agent-poll') return handleAgentPoll(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -573,7 +575,6 @@ async function fetchLiveSnapshot(ticker) {
 async function handleSummary(req, res) {
   const ticker = (req.query?.ticker || '').toString().trim().toUpperCase();
   if (!ticker) return res.status(400).json({ error: 'ticker required' });
-  if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
 
   // 조회수 집계 (어드민 통계용) — 캐시 히트/미스와 무관하게 순수 방문 트래픽을 센다.
   // 실패해도 본 응답에 영향 없도록 fire-and-forget.
@@ -737,43 +738,44 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
 - 위에 제공된 "전략적 투자/지분" 정보가 있다면 thesis와 strategic_exposure에 반드시 활용 (특히 ⭐ 표시된 항목)
 - 전략적 투자 정보가 없으면 strategic_exposure는 빈 문자열 ""로 반환`;
 
-    const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
+    // 방문 시점에 즉답할 수 없으므로(에이전트가 나중에 처리) 큐에 적재만 하고, 지금은
+    // 있는 캐시(stale이라도)나 "아직 없음" 상태를 바로 내려준다. 다음 방문(3일 캐시 TTL
+    // 지난 뒤) 즈음엔 스케줄 에이전트가 채워둔 새 캐시가 서빙된다.
+    await submitAgentJob({
+      pipeline: 'company_summary',
+      stage: ticker,      // 티커별로 in-flight를 분리해 여러 종목이 서로 막지 않게 함
+      items: [{ itemId: ticker, static: '', dynamic: prompt }],
+      payload: { ticker, analyses_count: analyses.length },
     });
-    const text = msg.content[0].text.trim();
-    const m = text.match(/\{[\s\S]*\}/);
-    if (!m) throw new Error('No JSON in AI response');
-    const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
 
-    try {
-      await supabase.from('company_ai_summary').upsert({
+    if (cached) {
+      return res.status(200).json({
+        ok: true,
         ticker,
-        overview: parsed.overview,
-        thesis: parsed.thesis,
-        strategic_exposure: parsed.strategic_exposure,
-        key_risks: parsed.key_risks,
-        competitive_position: parsed.competitive_position,
-        watch_points: parsed.watch_points,
-        analyses_count: analyses.length,
-        created_at: new Date().toISOString(),
-      }, { onConflict: 'ticker' });
-    } catch {}
-
+        company: { name_ko: company.name_ko, name_en: company.name_en, market: company.market, sector: company.sector },
+        live,
+        overview: cached.overview,
+        thesis: cached.thesis,
+        strategic_exposure: cached.strategic_exposure,
+        key_risks: cached.key_risks,
+        competitive_position: cached.competitive_position,
+        watch_points: cached.watch_points,
+        analyses_count: cached.analyses_count,
+        cached: true,
+        stale: true,
+        generated_at: cached.created_at,
+      });
+    }
     return res.status(200).json({
-      ok: true,
+      ok: false,
       ticker,
       company: { name_ko: company.name_ko, name_en: company.name_en, market: company.market, sector: company.sector },
       live,
-      ...parsed,
-      analyses_count: analyses.length,
-      cached: false,
+      error: '분석 준비 중입니다. 잠시 후 다시 확인해주세요.',
+      pending: true,
     });
   } catch (e) {
-    // Claude 호출 실패(토큰 소진/레이트리밋/일시 장애 등) 시 완전히 빈 화면 대신
-    // DB에 남아있는 마지막 분석을 그대로 보여준다. stale:true + generated_at을
-    // 내려서 프론트가 "마지막 업데이트: ..."를 하단에 표시할 수 있게 한다.
+    // DB 조회 등 그 외 실패 시 완전히 빈 화면 대신 마지막 분석을 그대로 보여준다.
     if (cached) {
       return res.status(200).json({
         ok: true,
@@ -794,6 +796,26 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
     }
     return res.status(500).json({ error: e.message });
   }
+}
+
+async function finalizeCompanySummary(row) {
+  const ticker = row.payload?.ticker;
+  const text = extractJobText(row, ticker);
+  if (!text) throw new Error('No agent response for company_summary/' + ticker);
+  const parsed = parseJobJson(text);
+  const dbRow = {
+    ticker,
+    overview: parsed.overview,
+    thesis: parsed.thesis,
+    strategic_exposure: parsed.strategic_exposure,
+    key_risks: parsed.key_risks,
+    competitive_position: parsed.competitive_position,
+    watch_points: parsed.watch_points,
+    analyses_count: row.payload?.analyses_count || 0,
+    created_at: new Date().toISOString(),
+  };
+  await supabase.from('company_ai_summary').upsert(dbRow, { onConflict: 'ticker' });
+  return dbRow;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1115,36 +1137,7 @@ function periodStats(rows, period, minAbs) {
 // ════════════════════════════════════════════════════════════
 // 최근 24~48h 내 분석된 이슈에서 "X가 Y에 투자/인수/지분" 패턴을 Claude로 추출
 // → strategic_investments 테이블에 upsert. 중복은 seen_count 증가 + last_seen 갱신.
-async function handleExtractInvestments(req, res) {
-  if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
-  if (!(await isFeatureEnabled(supabase, 'extract_investments'))) {
-    return res.status(200).json({ ok: true, scanned: 0, extracted: 0, disabled: true });
-  }
-
-  const sinceHours = parseInt(req.body?.since_hours || req.query?.since_hours || 48, 10);
-  const maxIssues  = Math.min(parseInt(req.body?.max || req.query?.max || 30, 10), 60);
-
-  // 최근 분석된 이슈 수집
-  const sinceIso = new Date(Date.now() - sinceHours * 3600 * 1000).toISOString();
-  const { data: issues, error: issErr } = await supabase
-    .from('issues')
-    .select('id, title, summary, source_url')
-    .eq('is_analyzed', true)
-    .gte('published_at', sinceIso)
-    .order('published_at', { ascending: false })
-    .limit(maxIssues);
-  if (issErr) return res.status(500).json({ error: issErr.message });
-  if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, extracted: 0 });
-
-  const results = { scanned: 0, extracted: 0, new: 0, updated: 0, skipped: 0, errors: [] };
-
-  for (const issue of issues) {
-    results.scanned++;
-    try {
-      const prompt = `당신은 금융 뉴스 분석가입니다. 아래 뉴스에서 "상장사가 다른 기업/프로젝트에 투자·인수·지분 확보" 사실이 명시적으로 언급되었는지만 추출하세요.
-
-뉴스 제목: ${issue.title}
-요약: ${issue.summary || '없음'}
+const EXTRACT_INVESTMENTS_STATIC_PROMPT = `당신은 금융 뉴스 분석가입니다. 아래 뉴스에서 "상장사가 다른 기업/프로젝트에 투자·인수·지분 확보" 사실이 명시적으로 언급되었는지만 추출하세요.
 
 엄격한 규칙:
 1. 명시적 사실만 추출. "할 수도 있다", "검토 중" 등 추측·계획은 제외
@@ -1181,15 +1174,53 @@ highlight=true 조건:
 - 핵심 사업과의 강한 연결 (예: SKT-Anthropic, 현대차-Boston Dynamics)
 - 단순 소수 지분은 false`;
 
-      const msg = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1500,
-        messages: [{ role: 'user', content: prompt }],
-      });
-      const text = msg.content[0].text.trim();
-      const m = text.match(/\{[\s\S]*\}/);
-      if (!m) { results.skipped++; continue; }
-      const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
+function buildExtractInvestmentsDynamicBlock(issue) {
+  return `뉴스 제목: ${issue.title}\n요약: ${issue.summary || '없음'}\n\n위 뉴스에 대해 위 규칙에 따라 JSON으로만 응답하세요.`;
+}
+
+async function handleExtractInvestments(req, res) {
+  if (!(await isFeatureEnabled(supabase, 'extract_investments'))) {
+    return res.status(200).json({ ok: true, scanned: 0, extracted: 0, disabled: true });
+  }
+
+  const sinceHours = parseInt(req.body?.since_hours || req.query?.since_hours || 48, 10);
+  const maxIssues  = Math.min(parseInt(req.body?.max || req.query?.max || 30, 10), 60);
+
+  // 최근 분석된 이슈 수집
+  const sinceIso = new Date(Date.now() - sinceHours * 3600 * 1000).toISOString();
+  const { data: issues, error: issErr } = await supabase
+    .from('issues')
+    .select('id, title, summary, source_url')
+    .eq('is_analyzed', true)
+    .gte('published_at', sinceIso)
+    .order('published_at', { ascending: false })
+    .limit(maxIssues);
+  if (issErr) return res.status(500).json({ error: issErr.message });
+  if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, extracted: 0 });
+
+  const items = issues.map(issue => ({
+    itemId: issue.id,
+    static: EXTRACT_INVESTMENTS_STATIC_PROMPT,
+    dynamic: buildExtractInvestmentsDynamicBlock(issue),
+  }));
+  const result = await submitAgentJob({
+    pipeline: 'extract_investments',
+    items,
+    payload: { issues: issues.map(i => ({ id: i.id, title: i.title, source_url: i.source_url })) },
+  });
+  return res.status(200).json({ ok: true, scanned: issues.length, ...result });
+}
+
+// agent-poll에서 호출 — row.response[issue.id]를 읽어 기존과 동일한 파싱/upsert 로직 수행
+async function finalizeExtractInvestments(row) {
+  const issues = row.payload?.issues || [];
+  const results = { extracted: 0, new: 0, updated: 0, skipped: 0, errors: [] };
+
+  for (const issue of issues) {
+    try {
+      const text = extractJobText(row, issue.id);
+      if (!text) { results.skipped++; continue; }
+      const parsed = parseJobJson(text);
       const list = Array.isArray(parsed.extractions) ? parsed.extractions : [];
       if (!list.length) { results.skipped++; continue; }
 
@@ -1201,7 +1232,6 @@ highlight=true 조건:
         const ticker = ex.investor_ticker.toUpperCase().trim();
         const target = ex.target_name.trim();
 
-        // 기존 항목 있는지 확인 (UNIQUE constraint 활용)
         const { data: existing } = await supabase
           .from('strategic_investments')
           .select('id, seen_count, confidence')
@@ -1213,7 +1243,6 @@ highlight=true 조건:
         let eventType = null;
 
         if (existing) {
-          // 재등장 → seen_count++ + last_seen + confidence 평균
           const newConf = Math.round(((existing.confidence || 70) + (ex.confidence || 70)) / 2);
           await supabase.from('strategic_investments')
             .update({
@@ -1225,7 +1254,6 @@ highlight=true 조건:
           results.updated++;
           eventType = 'reextracted';
         } else {
-          // 신규 삽입
           const { data: inserted, error: insErr } = await supabase.from('strategic_investments').insert({
             investor_ticker: ticker,
             investor_name:   ex.investor_name || null,
@@ -1246,7 +1274,6 @@ highlight=true 조건:
           }
         }
 
-        // 이벤트 로그 (그래프용)
         if (investmentId && eventType) {
           await supabase.from('strategic_investment_events').insert({
             investment_id:   investmentId,
@@ -1264,7 +1291,7 @@ highlight=true 조건:
     }
   }
 
-  return res.status(200).json({ ok: true, ...results, ts: new Date().toISOString() });
+  return results;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2163,7 +2190,6 @@ function currentAiSummaryWindowStartUtc() {
 }
 
 async function handleAiMarketSummaryPost(req, res) {
-  if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
   if (!(await isFeatureEnabled(supabase, 'ai_market_summary'))) {
     return res.status(200).json({ ok: true, generated: false, reason: 'disabled' });
   }
@@ -2196,7 +2222,7 @@ async function handleAiMarketSummaryPost(req, res) {
     return `[${(i.published_at || '').slice(0, 16)}] (${conf || '?'}점) ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.summary || ''}`.slice(0, 400);
   }).join('\n\n');
 
-  const prompt = `당신은 한국어 금융 시장 분석가입니다. 아래 지난 24시간 분석 이슈 ${issues.length}건을 종합해서 오늘의 시장 종합 보고서를 작성하세요.
+  const dynamic = `당신은 한국어 금융 시장 분석가입니다. 아래 지난 24시간 분석 이슈 ${issues.length}건을 종합해서 오늘의 시장 종합 보고서를 작성하세요.
 
 ${ctx.slice(0, 12000)}
 
@@ -2214,33 +2240,32 @@ ${ctx.slice(0, 12000)}
 
 규칙: 사실 기반, 객관적, 한국어, 추측 금지. 강세/약세 요인은 본문에 명시된 것만.`;
 
-  try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    const text = msg.content[0].text.trim();
-    const m = text.match(/\{[\s\S]*\}/);
-    if (!m) return res.status(500).json({ error: 'No JSON in response' });
-    const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
+  const result = await submitAgentJob({
+    pipeline: 'ai_market_summary',
+    items: [{ itemId: 'main', static: '', dynamic }],
+    payload: { based_on_issues: issues.length },
+  });
+  return res.status(200).json({ ok: true, generated: false, queued: result.submitted, reason: result.reason });
+}
 
-    const row = {
-      headline: parsed.headline,
-      regime: parsed.regime,
-      bullish_drivers: parsed.bullish_drivers || [],
-      bearish_drivers: parsed.bearish_drivers || [],
-      sectors_winning: parsed.sectors_winning || [],
-      sectors_losing: parsed.sectors_losing || [],
-      key_events_today: parsed.key_events_today || [],
-      watch_tomorrow: parsed.watch_tomorrow || [],
-      based_on_issues: issues.length,
-      created_at: new Date().toISOString(),
-    };
-    await supabase.from('ai_market_summary').insert(row);
-    return res.status(200).json({ ok: true, generated: true, ...row });
-  } catch (e) {
-    return res.status(500).json({ error: 'AI summary failed: ' + e.message });
-  }
+async function finalizeAiMarketSummary(row) {
+  const text = extractJobText(row, 'main');
+  if (!text) throw new Error('No agent response for ai_market_summary');
+  const parsed = parseJobJson(text);
+  const dbRow = {
+    headline: parsed.headline,
+    regime: parsed.regime,
+    bullish_drivers: parsed.bullish_drivers || [],
+    bearish_drivers: parsed.bearish_drivers || [],
+    sectors_winning: parsed.sectors_winning || [],
+    sectors_losing: parsed.sectors_losing || [],
+    key_events_today: parsed.key_events_today || [],
+    watch_tomorrow: parsed.watch_tomorrow || [],
+    based_on_issues: row.payload?.based_on_issues || 0,
+    created_at: new Date().toISOString(),
+  };
+  await supabase.from('ai_market_summary').insert(dbRow);
+  return dbRow;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2474,14 +2499,13 @@ async function handleWeeklySchedulePost(req, res) {
     };
   });
 
-  // 뉴스에서 다음 주 예정 이벤트 추출 (상장·지수 편입·주총·잠정실적·월매출 등)
-  let newsEvents = [];
-  if (anthropic && newsRes?.data?.length) {
-    try {
-      const titles = newsRes.data.map(n => n.title).filter(Boolean).slice(0, 300).join('\n');
-      const msg = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 1200,
-        messages: [{ role: 'user', content: `아래는 최근 10일간 수집된 금융 뉴스 제목들입니다. 이 중에서 ${weekStart} ~ ${new Date(rangeEndMs - 86400000).toISOString().slice(0, 10)} 사이에 예정된 "구체적 이벤트"만 추출하세요 (기업 상장/ADR 상장, 지수 편입, 주주총회, 잠정 실적발표, 월간 매출 발표, 제품 출시, 정책 시행 등).
+  const wsPayloadBase = { weekStart, weekLabel, rangeStartMs, rangeEndMs, econItems, earnItems, tdItems };
+
+  // 뉴스가 있으면 이벤트 추출(stage 'events')부터 큐에 넣고, 없으면 newsEvents=[]로 바로
+  // 조립 단계(stage 'highlights' 직행)로 넘어간다 — 기존 `if (anthropic && newsRes?.data?.length)` 분기와 동일한 게이트.
+  if (newsRes?.data?.length) {
+    const titles = newsRes.data.map(n => n.title).filter(Boolean).slice(0, 300).join('\n');
+    const dynamic = `아래는 최근 10일간 수집된 금융 뉴스 제목들입니다. 이 중에서 ${weekStart} ~ ${new Date(rangeEndMs - 86400000).toISOString().slice(0, 10)} 사이에 예정된 "구체적 이벤트"만 추출하세요 (기업 상장/ADR 상장, 지수 편입, 주주총회, 잠정 실적발표, 월간 매출 발표, 제품 출시, 정책 시행 등).
 
 규칙:
 - 뉴스에 날짜나 시점("다음 주", "7월 7일" 등)이 실제로 언급된 이벤트만. 날짜 추측/창작 절대 금지
@@ -2491,25 +2515,16 @@ async function handleWeeklySchedulePost(req, res) {
 JSON만 반환: {"events":[{"date":"YYYY-MM-DD","title":"이벤트 설명 (30자 내)"}]}
 
 뉴스 제목:
-${titles.slice(0, 15000)}` }],
-      });
-      const m = msg.content[0].text.match(/\{[\s\S]*\}/);
-      if (m) {
-        const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
-        newsEvents = (parsed.events || []).filter(e => {
-          if (!e?.date || !e?.title) return false;
-          const t = new Date(`${e.date}T12:00:00Z`).getTime();
-          return t >= rangeStartMs && t < rangeEndMs;
-        }).slice(0, 10);
-      }
-    } catch {}
+${titles.slice(0, 15000)}`;
+    const result = await submitAgentJob({ pipeline: 'weekly_schedule', stage: 'events', items: [{ itemId: 'main', static: '', dynamic }], payload: wsPayloadBase });
+    return res.status(200).json({ ok: true, generated: false, queued: result.submitted, reason: result.reason });
   }
 
-  if (!econItems.length && !earnItems.length && !tdItems.length && !newsEvents.length) {
-    return res.status(200).json({ ok: true, generated: false, reason: '다음 주 일정 데이터 없음', weekStart });
-  }
+  return continueWeeklyScheduleAfterEvents(res, { ...wsPayloadBase, newsEvents: [] });
+}
 
-  // ── 3) 일자별 조립 (KST 시각 기준) ──
+// ── 일자별 조립 (KST 시각 기준) — stage 'events' 완료 후와 "뉴스 없음" 직행 경로 공용 ──
+function assembleWeekDays({ econItems, earnItems, tdItems, newsEvents, KST_MS }) {
   const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
   const FLAG = { USD: '🇺🇸', EUR: '🇪🇺', JPY: '🇯🇵' };
   const dayMap = {};
@@ -2546,15 +2561,16 @@ ${titles.slice(0, 15000)}` }],
     addItem(ev.date, { time: '', type: '이벤트', title: ev.title, stars: 3 });
   }
 
-  const days = Object.entries(dayMap)
+  return Object.entries(dayMap)
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, items]) => ({
       date,
       weekday: DAY_KO[new Date(`${date}T00:00:00Z`).getUTCDay()],
       items: items.sort((a, b) => (a.time || '99').localeCompare(b.time || '99')),
     }));
+}
 
-  // ── 4) 하이라이트: Claude로 시장 영향 큰 순 요약 (실패 시 이벤트 → High 지표 → 실적 순 폴백) ──
+function computeHighlightsFallback({ newsEvents, econItems, earnItems }) {
   let highlights = [
     ...newsEvents.slice(0, 3).map(e => `${e.title} (${e.date.slice(5).replace('-', '/')})`),
     ...econItems.filter(e => e.impact === 'High').slice(0, 3).map(e => `${e.titleKo || e.title}`),
@@ -2563,32 +2579,80 @@ ${titles.slice(0, 15000)}` }],
     highlights = earnItems.slice(0, 5).map(e =>
       `${e.company || e.ticker} 실적 발표 (${e.date?.slice(5).replace('-', '/')})`);
   }
-  if (anthropic) {
+  return highlights;
+}
+
+// stage 'events' 완료 처리(agent-poll에서 호출) — newsEvents 확정 후 일자 조립 + 하이라이트
+// 폴백 계산까지 마치고 stage 'highlights' 큐를 이어서 제출한다.
+async function finalizeWeeklyScheduleEvents(row) {
+  const text = extractJobText(row, 'main');
+  let newsEvents = [];
+  if (text) {
     try {
-      const flat = days.flatMap(d => d.items.map(i => `${d.date}(${d.weekday}) ${i.time} [${i.type}] ${i.title}`)).join('\n');
-      const msg = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 600,
-        messages: [{ role: 'user', content: `다음 주(${weekLabel}) 미국 시장 일정입니다. 시장 파급력이 큰 순서로 하이라이트 5개를 한 문장씩 뽑아주세요. 날짜를 "(7/8)" 형식으로 포함. JSON만 반환: {"highlights":["...","..."]}\n\n${flat.slice(0, 4000)}` }],
-      });
-      const m = msg.content[0].text.match(/\{[\s\S]*\}/);
-      if (m) {
-        const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
-        if (Array.isArray(parsed.highlights) && parsed.highlights.length) highlights = parsed.highlights.slice(0, 6);
-      }
-    } catch {}
+      const parsed = parseJobJson(text);
+      const { rangeStartMs, rangeEndMs } = row.payload;
+      newsEvents = (parsed.events || []).filter(e => {
+        if (!e?.date || !e?.title) return false;
+        const t = new Date(`${e.date}T12:00:00Z`).getTime();
+        return t >= rangeStartMs && t < rangeEndMs;
+      }).slice(0, 10);
+    } catch { /* 파싱 실패 시 newsEvents=[]로 계속 진행(기존 동작과 동일) */ }
+  }
+  return continueWeeklyScheduleAfterEvents(null, { ...row.payload, newsEvents });
+}
+
+const WS_KST_MS = 9 * 3600000;
+
+// res가 있으면(동기 "뉴스 없음" 직행 경로) 그 자리에서 응답, null이면(agent-poll finalize 경로)
+// stage 'highlights' 큐만 제출하고 반환한다.
+async function continueWeeklyScheduleAfterEvents(res, ctx) {
+  const { weekStart, weekLabel, econItems, earnItems, tdItems, newsEvents } = ctx;
+
+  if (!econItems.length && !earnItems.length && !tdItems.length && !newsEvents.length) {
+    if (res) return res.status(200).json({ ok: true, generated: false, reason: '다음 주 일정 데이터 없음', weekStart });
+    return;
   }
 
-  const row = {
-    week_start: weekStart,
-    week_label: weekLabel,
+  const days = assembleWeekDays({ econItems, earnItems, tdItems, newsEvents, KST_MS: WS_KST_MS });
+  const highlightsFallback = computeHighlightsFallback({ newsEvents, econItems, earnItems });
+  const flat = days.flatMap(d => d.items.map(i => `${d.date}(${d.weekday}) ${i.time} [${i.type}] ${i.title}`)).join('\n');
+  const dynamic = `다음 주(${weekLabel}) 미국 시장 일정입니다. 시장 파급력이 큰 순서로 하이라이트 5개를 한 문장씩 뽑아주세요. 날짜를 "(7/8)" 형식으로 포함. JSON만 반환: {"highlights":["...","..."]}\n\n${flat.slice(0, 4000)}`;
+
+  const result = await submitAgentJob({
+    pipeline: 'weekly_schedule',
+    stage: 'highlights',
+    items: [{ itemId: 'main', static: '', dynamic }],
+    payload: {
+      week_start: weekStart, week_label: weekLabel, days,
+      based_on: { econ: econItems.length, earnings: earnItems.length },
+      highlightsFallback,
+    },
+  });
+  if (res) return res.status(200).json({ ok: true, generated: false, queued: result.submitted, reason: result.reason });
+}
+
+// stage 'highlights' 완료 처리(agent-poll에서 호출) — 최종 weekly_schedule row upsert
+async function finalizeWeeklyScheduleHighlights(row) {
+  const text = extractJobText(row, 'main');
+  let highlights = row.payload?.highlightsFallback || [];
+  if (text) {
+    try {
+      const parsed = parseJobJson(text);
+      if (Array.isArray(parsed.highlights) && parsed.highlights.length) highlights = parsed.highlights.slice(0, 6);
+    } catch { /* 파싱 실패 시 폴백 유지 */ }
+  }
+
+  const dbRow = {
+    week_start: row.payload.week_start,
+    week_label: row.payload.week_label,
     highlights,
-    days,
-    based_on: { econ: econItems.length, earnings: earnItems.length },
+    days: row.payload.days,
+    based_on: row.payload.based_on,
     created_at: new Date().toISOString(),
   };
-  const { error } = await supabase.from('weekly_schedule').upsert(row, { onConflict: 'week_start' });
-  if (error) return res.status(500).json({ error: `weekly_schedule upsert 실패: ${error.message} (db/weekly-schedule.sql 실행 여부 확인)` });
-  return res.status(200).json({ ok: true, generated: true, ...row });
+  const { error } = await supabase.from('weekly_schedule').upsert(dbRow, { onConflict: 'week_start' });
+  if (error) throw new Error(`weekly_schedule upsert 실패: ${error.message}`);
+  return dbRow;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2757,7 +2821,6 @@ async function handleCatalystsPost(req, res) {
   }
 
   // (c) 최근 뉴스 제목 → forward catalyst AI 추출
-  if (!anthropic) return res.status(200).json({ ok: true, aiExtract: false, reason: 'no ANTHROPIC_API_KEY' });
   if (!(await isFeatureEnabled(supabase, 'catalysts'))) {
     return res.status(200).json({ ok: true, aiExtract: false, reason: 'disabled' });
   }
@@ -2780,11 +2843,7 @@ async function handleCatalystsPost(req, res) {
   const existingStr = (existing || []).map(e => `- ${e.ticker || ''} ${e.title}`).join('\n');
   const titles = news.map(n => n.title).filter(Boolean).slice(0, 260).join('\n');
 
-  let parsed = { catalysts: [] };
-  try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 1600,
-      messages: [{ role: 'user', content: `아래 최근 2주 금융 뉴스 제목에서 "앞으로 예정된 대형 catalyst"만 추출하세요.
+  const dynamic = `아래 최근 2주 금융 뉴스 제목에서 "앞으로 예정된 대형 catalyst"만 추출하세요.
 대상: FDA/식약처 심사·PDUFA, 상장/IPO/ADR/나스닥 상장, 지수 편입(MSCI/나스닥100 등), 잠정/정식 실적발표 예정, 대형 정책 시행, 대형 M&A 종결.
 제외: 이미 벌어진 일, 단순 시황/전망 기사.
 
@@ -2801,24 +2860,31 @@ JSON만 반환 (다른 텍스트 없이):
 {"catalysts":[{"market":"KR|US|GLOBAL","ticker":"티커 또는 null","company":"기업명","title":"이벤트(35자내)","category":"FDA|IPO|실적|편입|정책|M&A|기타","event_date":"YYYY-MM-DD 또는 null","date_text":"시점/불확실성 표기 또는 null","importance":1|2|3,"source":"근거 뉴스 제목 요지"}]}
 
 뉴스 제목:
-${titles.slice(0, 14000)}` }],
-    });
-    const m = msg.content[0].text.match(/\{[\s\S]*\}/);
-    if (m) parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
-  } catch (e) {
-    return res.status(200).json({ ok: true, aiExtract: true, added: 0, error: e.message });
-  }
+${titles.slice(0, 14000)}`;
+
+  const result = await submitAgentJob({
+    pipeline: 'catalysts',
+    items: [{ itemId: 'main', static: '', dynamic }],
+    payload: { today },
+  });
+  return res.status(200).json({ ok: true, aiExtract: false, queued: result.submitted, reason: result.reason });
+}
+
+async function finalizeCatalysts(row) {
+  const text = extractJobText(row, 'main');
+  if (!text) throw new Error('No agent response for catalysts');
+  const parsed = parseJobJson(text);
+  const today = row.payload?.today || catalystTodayKST();
 
   const rows = (parsed.catalysts || []).map(c => normalizeCatalystRow(c, 'ai')).filter(Boolean)
     .filter(r => !r.event_date || r.event_date >= today);
   let added = 0;
   if (rows.length) {
-    // 기존 seed/수동 항목을 덮지 않도록 ignoreDuplicates
     const { error, count } = await supabase.from('catalysts')
       .upsert(rows, { onConflict: 'dedupe_key', ignoreDuplicates: true, count: 'exact' });
     if (!error) added = count ?? rows.length;
   }
-  return res.status(200).json({ ok: true, aiExtract: true, candidates: rows.length, added });
+  return { candidates: rows.length, added };
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2959,7 +3025,6 @@ async function handleDailyReportGet(req, res) {
 }
 
 async function handleDailyReportPost(req, res) {
-  if (!anthropic) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
   if (!(await isFeatureEnabled(supabase, 'daily_report'))) {
     return res.status(200).json({ ok: true, generated: false, reason: 'disabled' });
   }
@@ -3047,47 +3112,47 @@ ${ctx.slice(0, 10000)}
   "tomorrow": ["다음 거래일 관전 포인트 1", "포인트 2"]
 }`;
 
-  try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 1700,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    const text = msg.content[0].text.trim();
-    const m = text.match(/\{[\s\S]*\}/);
-    if (!m) return res.status(500).json({ error: 'No JSON in response' });
-    const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
-
-    const row = {
-      market,
-      report_date: reportDate,
-      headline: parsed.headline || '',
-      mood: ['상승', '하락', '혼조'].includes(parsed.mood) ? parsed.mood : '혼조',
-      indices,
-      recap: parsed.recap || [],
-      top_events: parsed.top_events || [],
-      sector_notes: parsed.sector_notes || [],
-      catalysts: Array.isArray(parsed.upcoming_catalysts) ? parsed.upcoming_catalysts.slice(0, 6) : [],
-      tomorrow: parsed.tomorrow || [],
+  const result = await submitAgentJob({
+    pipeline: 'daily_report',
+    items: [{ itemId: 'main', static: '', dynamic: prompt }],
+    payload: {
+      market, reportDate, indices,
       based_on_issues: issues?.length || 0,
-      // 소급 생성 시 created_at도 "실제로 그 거래일에 자동 생성됐다면 찍혔을 시각"으로 맞춘다 —
-      // 국장은 마감 후 당일 오후(KST 16:40 = UTC 07:40), 미장은 마감 후 당일(ET 오후, UTC 21:10 —
-      // 이 시각을 KST로 보면 다음날 새벽/오전이라 "등록일자가 다음날"로 보이는 게 정상 동작이다.
-      // (daily-reports.yml 크론 시각과 동일하게 맞춤). date 없이 자동 생성될 때는 그냥 지금 시각.
-      created_at: overrideDate
-        ? `${overrideDate}T${market === 'KR' ? '07:40:00' : '21:10:00'}Z`
-        : new Date().toISOString(),
-    };
-    // daily_reports.catalysts 컬럼 마이그레이션 전 배포에서도 리포트 생성이 죽지 않도록 방어
-    let { error } = await supabase.from('daily_reports').upsert(row, { onConflict: 'market,report_date' });
-    if (error && /catalysts/i.test(error.message || '')) {
-      const { catalysts, ...rowNoCat } = row;
-      ({ error } = await supabase.from('daily_reports').upsert(rowNoCat, { onConflict: 'market,report_date' }));
-    }
-    if (error) return res.status(500).json({ error: 'DB upsert failed: ' + error.message });
-    return res.status(200).json({ ok: true, generated: true, ...row });
-  } catch (e) {
-    return res.status(500).json({ error: 'Daily report failed: ' + e.message });
+      overrideDate,
+    },
+  });
+  return res.status(200).json({ ok: true, generated: false, queued: result.submitted, reason: result.reason });
+}
+
+async function finalizeDailyReport(row) {
+  const text = extractJobText(row, 'main');
+  if (!text) throw new Error('No agent response for daily_report');
+  const parsed = parseJobJson(text);
+  const { market, reportDate, indices, based_on_issues, overrideDate } = row.payload || {};
+
+  const dbRow = {
+    market,
+    report_date: reportDate,
+    headline: parsed.headline || '',
+    mood: ['상승', '하락', '혼조'].includes(parsed.mood) ? parsed.mood : '혼조',
+    indices,
+    recap: parsed.recap || [],
+    top_events: parsed.top_events || [],
+    sector_notes: parsed.sector_notes || [],
+    catalysts: Array.isArray(parsed.upcoming_catalysts) ? parsed.upcoming_catalysts.slice(0, 6) : [],
+    tomorrow: parsed.tomorrow || [],
+    based_on_issues: based_on_issues || 0,
+    created_at: overrideDate
+      ? `${overrideDate}T${market === 'KR' ? '07:40:00' : '21:10:00'}Z`
+      : new Date().toISOString(),
+  };
+  let { error } = await supabase.from('daily_reports').upsert(dbRow, { onConflict: 'market,report_date' });
+  if (error && /catalysts/i.test(error.message || '')) {
+    const { catalysts, ...rowNoCat } = dbRow;
+    ({ error } = await supabase.from('daily_reports').upsert(rowNoCat, { onConflict: 'market,report_date' }));
   }
+  if (error) throw new Error('DB upsert failed: ' + error.message);
+  return dbRow;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -3120,4 +3185,59 @@ async function handleFeatureFlagsPost(req, res) {
   const { error } = await supabase.from('feature_flags').upsert(rows, { onConflict: 'key' });
   if (error) return res.status(500).json({ error: 'feature_flags upsert 실패: ' + error.message + ' (db/feature-flags.sql 실행 여부 확인)' });
   return res.status(200).json({ ok: true, updated: rows.map(r => r.key), enabled });
+}
+
+// ════════════════════════════════════════════════════════════
+// 21) agent_jobs 폴링 — analyze.js의 batch-poll과 별개. extract_investments/
+//     ai_market_summary/weekly_schedule/catalysts/daily_report/company_summary
+//     6개 파이프라인 공용. 스케줄 Claude Code 에이전트가 response를 채운 job을
+//     파이프라인별 finalize 함수로 완료 처리(DB 저장까지)한다.
+// ════════════════════════════════════════════════════════════
+const AGENT_JOB_FINALIZERS = {
+  extract_investments: { main: finalizeExtractInvestments },
+  ai_market_summary:   { main: finalizeAiMarketSummary },
+  catalysts:           { main: finalizeCatalysts },
+  daily_report:        { main: finalizeDailyReport },
+  weekly_schedule:      { events: finalizeWeeklyScheduleEvents, highlights: finalizeWeeklyScheduleHighlights },
+};
+
+async function handleAgentPoll(req, res) {
+  const { data: rows, error } = await supabase.from('agent_jobs').select('*').eq('status', 'submitted').order('created_at', { ascending: true });
+  if (error) return res.status(500).json({ error: 'agent_jobs table not ready: ' + error.message });
+  if (!rows?.length) return res.status(200).json({ ok: true, checked: 0 });
+
+  const outcomes = [];
+  for (const row of rows) {
+    const age = Date.now() - new Date(row.created_at).getTime();
+    if (!row.response) {
+      if (age > JOB_STUCK_TIMEOUT_MS) {
+        const { data: claimed } = await supabase.from('agent_jobs')
+          .update({ status: 'timeout', completed_at: new Date().toISOString() })
+          .eq('id', row.id).eq('status', 'submitted').select();
+        outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: claimed?.length ? 'timeout' : 'already_claimed' });
+      } else {
+        outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'processing' });
+      }
+      continue;
+    }
+
+    const { data: claimed } = await supabase.from('agent_jobs')
+      .update({ status: 'processing' }).eq('id', row.id).eq('status', 'submitted').select();
+    if (!claimed?.length) { outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'already_claimed' }); continue; }
+
+    try {
+      // company_summary는 stage에 티커가 들어가므로 finalizer는 pipeline만으로 고정 조회
+      const finalizer = row.pipeline === 'company_summary'
+        ? finalizeCompanySummary
+        : AGENT_JOB_FINALIZERS[row.pipeline]?.[row.stage];
+      if (!finalizer) throw new Error(`no finalizer for ${row.pipeline}/${row.stage}`);
+      const result = await finalizer(row, req);
+      await supabase.from('agent_jobs').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', row.id);
+      outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'completed', result });
+    } catch (e) {
+      await supabase.from('agent_jobs').update({ status: 'submitted' }).eq('id', row.id);
+      outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'error', error: e.message });
+    }
+  }
+  return res.status(200).json({ ok: true, checked: rows.length, outcomes });
 }
