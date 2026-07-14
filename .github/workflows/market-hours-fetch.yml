@@ -38,5 +38,5 @@ jobs:
           RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=agent-submit" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 30}' || true)
+            -d '{"limit": 100}' || true)
           echo "$RESP" | jq -c '{submitted, staleSkipped, reason}' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"

@@ -44,7 +44,7 @@ jobs:
           RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=agent-submit" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 30}' || true)
+            -d '{"limit": 100}' || true)
           echo "$RESP" | jq -c '{submitted, staleSkipped, reason}' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
       # 예측 정확도 검증 — Vercel cron이 불안정해 GH Actions에서 매시간 실행 (due 항목만 처리, 멱등)
