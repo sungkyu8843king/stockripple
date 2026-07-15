@@ -30,8 +30,13 @@ const AUTO_ANNOUNCE_TTL_MS = 2 * 3600 * 1000;
 
 async function maybeAutoAnnounce(issue, matchedKeyword) {
   try {
-    const { data: cur } = await supabase.from('site_announcement').select('active, source, source_issue_id').eq('id', 1).maybeSingle();
-    if (cur?.source === 'manual' && cur?.active) return; // 관리자가 수동으로 켠 배너는 보존
+    const { data: cur } = await supabase.from('site_announcement').select('active, source, source_issue_id, auto_expires_at').eq('id', 1).maybeSingle();
+    if (cur?.source === 'manual') {
+      if (cur.active) return; // 관리자가 켠 배너 보존
+      // 관리자가 방금 끈 배너 — checkFuturesSidecar와 동일하게 auto_expires_at을 뮤트
+      // 마감시각으로 존중한다(꺼도 바로 다시 켜지던 버그, 2026-07-15).
+      if (cur.auto_expires_at && new Date(cur.auto_expires_at) > new Date()) return;
+    }
     if (cur?.source === 'auto' && cur?.active && cur?.source_issue_id === issue.id) return; // 같은 이슈로 이미 노출 중
 
     // 다른 배너가 켜져 있었다면 그 이력 종료 처리 후 새 이력 시작

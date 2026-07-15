@@ -1125,6 +1125,11 @@ async function loadAnnouncement() {
     if (status) status.textContent = d.updated_at ? `마지막 수정: ${new Date(d.updated_at).toLocaleString('ko-KR')}` : '';
     const note = document.getElementById('annAutoNote');
     if (note) note.style.display = (d.active && d.source === 'auto') ? 'block' : 'none';
+    const muteNote = document.getElementById('annMuteNote');
+    if (muteNote) {
+      muteNote.style.display = d.mute_until ? 'block' : 'none';
+      if (d.mute_until) muteNote.textContent = `🔇 수동으로 끈 배너입니다 — ${new Date(d.mute_until).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' })}까지는 자동 감지가 다시 켜지지 않습니다.`;
+    }
   } catch {
     if (status) status.textContent = '불러오기 실패';
   }

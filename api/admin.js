@@ -501,7 +501,10 @@ async function handleGetAnnouncement(req, res) {
     await supabase.from('announcement_log').update({ ended_at: now }).is('ended_at', null);
     return res.status(200).json({ active: false, message: '', source: 'auto' });
   }
-  return res.status(200).json({ active: !!data.active, message: data.message || '', updated_at: data.updated_at, source: data.source || 'manual' });
+  // 수동으로 끈 직후라 auto_expires_at이 "뮤트 마감시각"으로 쓰이는 중이면 관리자 화면에 노출
+  const muteUntil = (!data.active && data.source === 'manual' && data.auto_expires_at && new Date(data.auto_expires_at) > new Date())
+    ? data.auto_expires_at : null;
+  return res.status(200).json({ active: !!data.active, message: data.message || '', updated_at: data.updated_at, source: data.source || 'manual', mute_until: muteUntil });
 }
 
 async function handleSetAnnouncement(req, res) {
@@ -514,9 +517,14 @@ async function handleSetAnnouncement(req, res) {
   const wasActive = !!prev?.active;
 
   // 관리자가 대시보드에서 직접 저장하면 항상 'manual'로 표시 — 이후 자동 트리거
-  // 로직(analyze.js)이 이 배너를 절대 덮어쓰지 않도록 하는 표식.
+  // 로직(analyze.js/checkFuturesSidecar)이 이 배너를 절대 덮어쓰지 않도록 하는 표식.
+  // active:false로 끄는 경우도 마찬가지다 — 예전엔 이 케이스를 안 지켜줘서, 관리자가 끄자마자
+  // 다음 라이브 리프레시(최소 90초 간격)에서 사이드카 조건이 여전히 참이면 바로 다시 켜지는
+  // 버그가 있었다(2026-07-15 실측). active:false일 땐 auto_expires_at을 "이 시각까지는 자동이
+  // 재점화하지 않는다"는 뮤트 마감시각으로 재사용한다(2시간 — 위 auto 배너 TTL과 동일 길이).
+  const muteUntil = active ? null : new Date(Date.now() + 2 * 3600000).toISOString();
   const { error } = await supabase.from('site_announcement').upsert({
-    id: 1, active, message, source: 'manual', source_issue_id: null, auto_expires_at: null, updated_at: now,
+    id: 1, active, message, source: 'manual', source_issue_id: null, auto_expires_at: muteUntil, updated_at: now,
   });
   if (error) return res.status(500).json({ error: error.message });
 
@@ -3036,8 +3044,13 @@ async function checkFuturesSidecar() {
     // marketStatus는 이미 위에서 KR 정규장 시간대로 걸러졌으니 여기선 값 유효성만 확인
     if (!d || isNaN(ratio) || Math.abs(ratio) < SIDECAR_THRESHOLD) return;
 
-    const { data: cur } = await supabase.from('site_announcement').select('active, source').eq('id', 1).maybeSingle();
-    if (cur?.active && cur?.source === 'manual') return; // 관리자 수동 배너 보존
+    const { data: cur } = await supabase.from('site_announcement').select('active, source, auto_expires_at').eq('id', 1).maybeSingle();
+    if (cur?.source === 'manual') {
+      if (cur.active) return; // 관리자가 켠 배너 보존
+      // 관리자가 방금 끈 배너 — auto_expires_at을 뮤트 마감시각으로 사용(handleSetAnnouncement 참고).
+      // 이게 없으면 다음 90초 리프레시에서 조건이 여전히 참이라 바로 다시 켜져버린다.
+      if (cur.auto_expires_at && new Date(cur.auto_expires_at) > new Date()) return;
+    }
 
     const dir = ratio > 0 ? '매수' : '매도';
     const message = `🚨 [속보] 코스피200 선물 ${ratio > 0 ? '+' : ''}${ratio.toFixed(2)}% — ${dir}사이드카 발동 조건 감지 (KRX 공식 확인 전)`;

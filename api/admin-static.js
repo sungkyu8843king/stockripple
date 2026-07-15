@@ -700,6 +700,7 @@ const SHELL_HTML = `
       </div>
       <div class="card">
         <div id="annAutoNote" style="display:none;font-size:12px;color:var(--blue);background:var(--blue-dim,rgba(59,130,246,.08));padding:8px 12px;border-radius:8px;margin-bottom:12px">🤖 속보 감지로 자동 활성화된 배너입니다. 저장하면 수동 배너로 전환되어 이후 자동 갱신되지 않습니다.</div>
+        <div id="annMuteNote" style="display:none;font-size:12px;color:var(--yellow);background:rgba(234,179,8,.08);padding:8px 12px;border-radius:8px;margin-bottom:12px">🔇 수동으로 끈 배너입니다 — 자동 감지가 이 시각까지는 다시 켜지 않습니다.</div>
         <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:14px">
           <input type="checkbox" id="annActive" style="width:16px;height:16px;cursor:pointer">
           배너 활성화
