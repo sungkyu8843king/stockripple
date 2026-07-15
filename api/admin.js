@@ -3299,19 +3299,33 @@ const AGENT_JOB_FINALIZERS = {
   weekly_schedule:      { events: finalizeWeeklyScheduleEvents, highlights: finalizeWeeklyScheduleHighlights },
 };
 
+// claim(submitted→processing) 직후 finalize 도중 함수가 죽으면(Vercel 타임아웃 등) 그 row는
+// response가 이미 있는데도 status만 processing에 영구히 멈춰 다음 poll의 select(status=submitted)에
+// 아예 안 걸리는 버그가 있었다(id=99 실사례, 2026-07-15). finalize는 DB upsert 한 번뿐이라 몇 초면
+// 끝나야 정상이므로, 이 시간을 넘겨 processing인 row는 죽은 것으로 보고 같은 poll에서 바로 재시도한다.
+const PROCESSING_STUCK_TIMEOUT_MS = 10 * 60 * 1000;
+
 async function handleAgentPoll(req, res) {
-  const { data: rows, error } = await supabase.from('agent_jobs').select('*').eq('status', 'submitted').order('created_at', { ascending: true });
+  const { data: rows, error } = await supabase.from('agent_jobs').select('*')
+    .in('status', ['submitted', 'processing']).order('created_at', { ascending: true });
   if (error) return res.status(500).json({ error: 'agent_jobs table not ready: ' + error.message });
   if (!rows?.length) return res.status(200).json({ ok: true, checked: 0 });
 
   const outcomes = [];
   for (const row of rows) {
     const age = Date.now() - new Date(row.created_at).getTime();
+
+    // 방금 다른(동시) poll 호출이 claim해서 아직 finalize 중일 수 있는 신선한 processing → 건드리지 않고 대기
+    if (row.status === 'processing' && age <= PROCESSING_STUCK_TIMEOUT_MS) {
+      outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'processing' });
+      continue;
+    }
+
     if (!row.response) {
       if (age > JOB_STUCK_TIMEOUT_MS) {
         const { data: claimed } = await supabase.from('agent_jobs')
           .update({ status: 'timeout', completed_at: new Date().toISOString() })
-          .eq('id', row.id).eq('status', 'submitted').select();
+          .eq('id', row.id).eq('status', row.status).select();
         outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: claimed?.length ? 'timeout' : 'already_claimed' });
       } else {
         outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'processing' });
@@ -3320,7 +3334,7 @@ async function handleAgentPoll(req, res) {
     }
 
     const { data: claimed } = await supabase.from('agent_jobs')
-      .update({ status: 'processing' }).eq('id', row.id).eq('status', 'submitted').select();
+      .update({ status: 'processing' }).eq('id', row.id).eq('status', row.status).select();
     if (!claimed?.length) { outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'already_claimed' }); continue; }
 
     try {
