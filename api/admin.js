@@ -2613,14 +2613,30 @@ async function handleWeeklySchedulePost(req, res) {
   // 조립 단계(stage 'highlights' 직행)로 넘어간다 — 기존 `if (anthropic && newsRes?.data?.length)` 분기와 동일한 게이트.
   if (newsRes?.data?.length) {
     const titles = newsRes.data.map(n => n.title).filter(Boolean).slice(0, 300).join('\n');
+
+    // 발표 시각은 지났는데 ForexFactory/FMP가 아직 actual을 못 채운 지표 — 뉴스 제목에서 실제
+    // 발표치를 찾아 보강한다(2026-07-15 추가). 실측: 근원 CPI가 뉴스엔 이미 여러 건 나왔는데
+    // 캘린더 API는 며칠씩 actual을 안 채워주는 경우가 있었음.
+    const pendingActuals = econItems.filter(e => e.actual == null && new Date(e.date).getTime() <= Date.now());
+    const actualsAsk = pendingActuals.length ? `
+
+또한 위 뉴스 제목 중에 아래 경제지표의 "실제 발표치"가 명확히 언급된 게 있으면 함께 추출하세요
+(예: "Consumer Price Index: Inflation At 3.5% In June" → 지표명이 정확히 일치하면 그 수치).
+반드시 아래 목록의 지표명과 정확히 일치하는 것만, 수치가 뉴스에 명시적으로 나온 경우만 포함.
+추측·계산·창작 절대 금지 — 확실하지 않으면 아예 포함하지 마세요.
+
+발표 대기 중인 지표 목록:
+${pendingActuals.map(e => `- ${e.titleKo}`).join('\n')}` : '';
+
     const dynamic = `아래는 최근 10일간 수집된 금융 뉴스 제목들입니다. 이 중에서 ${weekStart} ~ ${new Date(rangeEndMs - 86400000).toISOString().slice(0, 10)} 사이에 예정된 "구체적 이벤트"만 추출하세요 (기업 상장/ADR 상장, 지수 편입, 주주총회, 잠정 실적발표, 월간 매출 발표, 제품 출시, 정책 시행 등).
 
 규칙:
 - 뉴스에 날짜나 시점("다음 주", "7월 7일" 등)이 실제로 언급된 이벤트만. 날짜 추측/창작 절대 금지
 - 이미 지나간 일, 단순 시황/전망 기사는 제외
 - 확실한 것이 없으면 빈 배열
+${actualsAsk}
 
-JSON만 반환: {"events":[{"date":"YYYY-MM-DD","title":"이벤트 설명 (30자 내)"}]}
+JSON만 반환: {"events":[{"date":"YYYY-MM-DD","title":"이벤트 설명 (30자 내)"}]${pendingActuals.length ? ', "actualResults":[{"titleKo":"목록의 지표명 그대로","actual":"실제 수치(원문 단위 그대로)"}]' : ''}}
 
 뉴스 제목:
 ${titles.slice(0, 15000)}`;
@@ -2698,6 +2714,7 @@ function computeHighlightsFallback({ newsEvents, econItems, earnItems }) {
 async function finalizeWeeklyScheduleEvents(row) {
   const text = extractJobText(row, 'main');
   let newsEvents = [];
+  let econItems = row.payload.econItems || [];
   if (text) {
     try {
       const parsed = parseJobJson(text);
@@ -2707,9 +2724,19 @@ async function finalizeWeeklyScheduleEvents(row) {
         const t = new Date(`${e.date}T12:00:00Z`).getTime();
         return t >= rangeStartMs && t < rangeEndMs;
       }).slice(0, 10);
+
+      // 뉴스에서 찾은 실제 발표치를 econItems에 병합 — titleKo가 정확히 일치하는 것만
+      // 반영해서(AI가 지어낸/오매칭된 지표명은 아무 항목과도 안 걸려 자동 무시됨), 이미
+      // actual이 있는 항목은 덮어쓰지 않는다.
+      if (Array.isArray(parsed.actualResults)) {
+        const actualMap = new Map(parsed.actualResults.filter(a => a?.titleKo && a?.actual).map(a => [a.titleKo, a.actual]));
+        if (actualMap.size) {
+          econItems = econItems.map(e => (e.actual == null && actualMap.has(e.titleKo)) ? { ...e, actual: actualMap.get(e.titleKo) } : e);
+        }
+      }
     } catch { /* 파싱 실패 시 newsEvents=[]로 계속 진행(기존 동작과 동일) */ }
   }
-  return continueWeeklyScheduleAfterEvents(null, { ...row.payload, newsEvents });
+  return continueWeeklyScheduleAfterEvents(null, { ...row.payload, econItems, newsEvents });
 }
 
 const WS_KST_MS = 9 * 3600000;
