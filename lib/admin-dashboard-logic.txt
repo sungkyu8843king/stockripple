@@ -1154,7 +1154,7 @@ async function loadAnnouncementLog() {
       : '<span style="color:var(--green);font-weight:700">노출 중</span>';
     return `<tr>
       <td>${badge}</td>
-      <td><div class="truncate" title="${escHtml(it.message || '')}">${escHtml(it.message || '—')}</div></td>
+      <td><div class="wrap-msg" title="${escHtml(it.message || '')}">${escHtml(it.message || '—')}</div></td>
       <td style="font-size:11px;color:var(--text3);white-space:nowrap">${fmt(it.started_at)}</td>
       <td style="font-size:11px;color:var(--text3);white-space:nowrap">${it.ended_at ? fmt(it.ended_at) : '—'}</td>
       <td style="text-align:right;font-size:11px">${dur}</td>

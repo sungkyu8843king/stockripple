@@ -162,6 +162,42 @@ const SHELL_HTML = `
         <div id="featureFlagsList" style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--text3)">로딩 중...</div>
         <div id="featureFlagsLog" class="log-box" style="display:none;margin-top:12px"></div>
       </div>
+
+      <div class="card">
+        <div class="card-title">⏰ AI 파이프라인 큐 스케줄 (KST 2시간 주기)</div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">
+          이 표는 실제로 돌아가는 스케줄을 참고용으로 기록해둔 것(여기서 수정해도 반영 안 됨) — 진짜 소스는
+          스케줄 Claude Code 에이전트의 <code>stockripple-analyze-agent</code> SKILL.md. GitHub Actions
+          시간별 크론이 자주 드롭돼서(2026-07-15 실측: 미장 데일리 리포트가 하루 종일 안 만들어짐), 이 고정
+          시간표대로 스케줄 에이전트가 직접 각 파이프라인을 제출하는 게 주(主) 경로다.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th style="width:60px">KST 시</th><th>항상 제출</th><th>슬롯별 추가 제출</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1</td><td>뉴스분석</td><td>AI 시장종합(일반)</td></tr>
+              <tr><td>3</td><td>뉴스분석</td><td>종목분석(5개)</td></tr>
+              <tr><td>5</td><td>뉴스분석</td><td>종목분석(5개)</td></tr>
+              <tr><td>7</td><td style="color:var(--text3)">—</td><td>미장 데일리(실적발표 위주) — 평일+토요일만(일요일 스킵)</td></tr>
+              <tr><td>9</td><td>뉴스분석</td><td>AI 시장종합(일반)</td></tr>
+              <tr><td>11</td><td>뉴스분석</td><td>종목분석(5개)</td></tr>
+              <tr><td>13</td><td>뉴스분석</td><td>전략적 투자 추출</td></tr>
+              <tr><td>15</td><td>뉴스분석</td><td>catalysts</td></tr>
+              <tr><td>17</td><td>뉴스분석</td><td>AI 시장종합(일반)</td></tr>
+              <tr><td>19</td><td>뉴스분석</td><td>국장 데일리 — 평일만(토·일 스킵)</td></tr>
+              <tr><td>21</td><td>뉴스분석</td><td>종목분석(5개) + 수·일에는 주간일정 업데이트도 추가</td></tr>
+              <tr><td>23</td><td>뉴스분석</td><td>전략적 투자 추출</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:11px;color:var(--text3);margin:10px 0 0">
+          뉴스분석·종목분석은 회당 최대 5건(2026-07-15에 20→5로 축소 — 한 사이클이 40분/5시간 사용량 절반을 태운 사고 때문).
+          실행 cron은 <code>35 1-23/2 * * *</code>(매 홀수시 35분) — 위 시각 라벨과 20분 어긋나 있지만
+          슬롯 판별은 시(hour) 단위라 동작엔 영향 없음.
+        </p>
+      </div>
     </div>
 
     <!-- News (수집 메뉴는 파이프라인으로 통합됨) -->

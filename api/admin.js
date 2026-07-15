@@ -287,7 +287,10 @@ async function handleAnalytics(req, res) {
       if (error) return res.status(500).json({ ok: false, error: error.message });
       const byDay = {};
       for (const row of data || []) {
-        const day = row.created_at.slice(0, 10);
+        // created_at은 UTC로 저장됨 — 그냥 slice(0,10)하면 UTC 캘린더 날짜라 KST 00~09시
+        // 트래픽이 전날로 잘못 잡힌다(아래 hourly와 동일하게 +9h 보정 후 날짜를 뽑아야 함).
+        const kst = new Date(new Date(row.created_at).getTime() + 9 * 3600000);
+        const day = kst.toISOString().slice(0, 10);
         (byDay[day] ??= new Set()).add(row.session_id);
       }
       const items = Object.entries(byDay)
