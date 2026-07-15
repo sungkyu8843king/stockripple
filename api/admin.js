@@ -2641,10 +2641,13 @@ function assembleWeekDays({ econItems, earnItems, tdItems, newsEvents, KST_MS })
   for (const e of econItems) {
     const dK = new Date(new Date(e.date).getTime() + KST_MS);
     const isFed = /speaks|testifies|speech|fomc member|fed chair|fomc press/i.test(e.title || '');
+    // 예상치만 있고 실제 발표치는 표시가 안 되던 문제 — market-pulse(type=economic)가 이미
+    // ForexFactory/FMP에서 actual을 채워주는데 여기서 안 읽고 있었다. 발표 후엔 같이 노출.
+    const stat = [e.forecast ? `예상 ${e.forecast}` : '', e.actual ? `발표 ${e.actual}` : ''].filter(Boolean).join('/');
     addItem(dK.toISOString().slice(0, 10), {
       time: dK.toISOString().slice(11, 16),
       type: isFed ? '연준' : '지표',
-      title: `${FLAG[e.country] || e.country} ${e.titleKo || e.title}${e.forecast ? ` (예상 ${e.forecast})` : ''}`,
+      title: `${FLAG[e.country] || e.country} ${e.titleKo || e.title}${stat ? ` (${stat})` : ''}`,
       stars: e.impact === 'High' ? 3 : 2,
     });
   }

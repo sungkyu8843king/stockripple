@@ -177,7 +177,7 @@ const SHELL_HTML = `
               <tr><th style="width:60px">KST 시</th><th>항상 제출</th><th>슬롯별 추가 제출</th></tr>
             </thead>
             <tbody>
-              <tr><td>1</td><td>뉴스분석</td><td>AI 시장종합(일반)</td></tr>
+              <tr><td>1</td><td>뉴스분석</td><td>AI 시장종합(일반) + 주간일정 업데이트(매일 — 지표 실제 발표치 반영용)</td></tr>
               <tr><td>3</td><td>뉴스분석</td><td>종목분석(5개)</td></tr>
               <tr><td>5</td><td>뉴스분석</td><td>종목분석(5개)</td></tr>
               <tr><td>7</td><td style="color:var(--text3)">—</td><td>미장 데일리(실적발표 위주) — 평일+토요일만(일요일 스킵)</td></tr>
