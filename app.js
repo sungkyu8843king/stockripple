@@ -3584,7 +3584,12 @@ const _aiMsSeenKey = 'sr_seen_ai_ms';
 async function getAiMsData() {
   if (_aiMsCache === undefined) {
     try {
-      const r = await fetch('/api/admin?action=ai-market-summary');
+      // 60초 버킷 캐시버스터 — getDrData와 동일한 이유. 이 엔드포인트가
+      // Cache-Control: s-maxage=600이라 버스터 없이는 엣지가 최대 10분(스테일까지
+      // 합치면 최대 70분) 묵은 응답을 그대로 돌려줘서, 일반 새로고침으로는 방금
+      // 갱신된 AI 시장종합이 안 보이고 강제 새로고침(캐시 무시)에서만 보이는 문제가 있었다.
+      const bust = Math.floor(Date.now() / 60000);
+      const r = await fetch(`/api/admin?action=ai-market-summary&_t=${bust}`);
       _aiMsCache = r.ok ? await r.json() : null;
     } catch { _aiMsCache = null; }
   }
@@ -3635,7 +3640,10 @@ async function loadWeeklySchedule() {
   const body = document.getElementById('weeklyScheduleBody');
   if (!card || !body) return;
   try {
-    const r = await fetch('/api/admin?action=weekly-schedule');
+    // 60초 버킷 캐시버스터 — 이 엔드포인트가 s-maxage=1800(30분)이라 버스터 없이는
+    // 방금 갱신된 주간일정이 최대 30분(스테일까지 합치면 2시간30분)까지 안 보일 수 있다.
+    const bust = Math.floor(Date.now() / 60000);
+    const r = await fetch(`/api/admin?action=weekly-schedule&_t=${bust}`);
     if (!r.ok) return;                       // 아직 생성 전이면 카드 숨김 유지
     const d = await r.json();
     if (!d.days?.length) return;
