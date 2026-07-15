@@ -3128,6 +3128,9 @@ async function handleDailyReportPost(req, res) {
   }
 
   const market = ((req.body?.market || req.query?.market || 'US') + '').toUpperCase() === 'KR' ? 'KR' : 'US';
+  // focus='earnings' — 미장 마감+실적 발표가 몰리는 새벽 슬롯(KST 7:15)용 변형. 별도 리포트/테이블이
+  // 아니라 같은 daily_reports 행에 실적 뉴스 비중을 높인 프롬프트로 덮어쓰는 것뿐(upsert라 안전).
+  const focus = ((req.body?.focus || req.query?.focus || '') + '').toLowerCase() === 'earnings' ? 'earnings' : null;
   // 과거 날짜 소급 생성용(예: 크레딧 소진으로 놓친 날) — date를 명시하면 그 날짜로 라벨링하고,
   // 뉴스 수집 창도 그 거래일(해당 시장 타임존 00:00~24:00) 하루로 정확히 좁힌다.
   // 안 주면 기존 그대로 "오늘 날짜 + 최근 24h" 자동 생성 동작 (매일 cron이 쓰는 기본 경로는 변경 없음).
@@ -3197,7 +3200,11 @@ ${ctx.slice(0, 10000)}
    내용이 있으면 — 그 사실은 이미 recap/top_events에 반영했을 것이므로 — upcoming_catalysts에는
    "예정"인 것처럼 다시 넣지 말고 제외한다. 같은 리포트 안에서 "이미 발표됨"과 "예정"을 동시에
    말하는 자기모순을 절대 만들지 말 것.
-4. 사실 기반·객관적·한국어. 추측/날짜 창작 금지 — 지수·본문·catalyst 목록에 있는 것만 사용.
+4. 사실 기반·객관적·한국어. 추측/날짜 창작 금지 — 지수·본문·catalyst 목록에 있는 것만 사용.${focus === 'earnings' ? `
+5. ⭐ 이번 리포트는 장 마감 직후 실적 발표가 몰리는 시간대에 생성됩니다. "지난 24시간 뉴스"에 있는
+   실적 발표(어닝서프라이즈/쇼크, 가이던스 상향·하향, EPS·매출 발표 등) 관련 이슈를 최우선으로
+   추려서 headline·recap·top_events에 반영하세요. 실적 발표가 없는 날이면 이 지침은 무시하고
+   평소처럼 가장 큰 동인 위주로 작성.` : ''}
 
 다음 JSON만 반환 (다른 텍스트 없이):
 {
