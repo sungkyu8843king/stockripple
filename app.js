@@ -3694,11 +3694,18 @@ function dailyReportHTML(d, compact) {
       }).join('')}</div>`
     : '';
 
-  const drTime = d.created_at ? new Date(d.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
+  // report_date(장 마감 거래일)와 created_at(실제 생성 시각)이 다른 날일 수 있다 — 미장은
+  // 마감 다음날 새벽에 생성되는 게 정상이라, report_date의 날짜에 created_at의 시:분만
+  // 이어붙이면 "7/15 07:32"처럼 실제로는 7/16 07:32에 만들어진 걸 7/15 07:32에 만든
+  // 것처럼 보이게 된다(2026-07-16 실측 혼동 사례). 거래일과 생성 시각을 분리해서 표기.
+  const genAt = d.created_at
+    ? new Date(d.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : '';
+  const drDateShort = d.report_date ? d.report_date.slice(5).replace('-', '/') : '';
   return `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       ${sentimentBadge(d.mood)}
-      <span style="${REPORT_META}">${escHtml(d.report_date || '')}${drTime ? ' ' + drTime : ''} · ${d.based_on_issues || 0}건 분석</span>
+      <span style="${REPORT_META}">${drDateShort ? drDateShort + ' 장마감' : ''}${genAt ? ` · ${genAt} 생성` : ''} · ${d.based_on_issues || 0}건 분석</span>
     </div>
     <div style="${REPORT_HEADLINE}">${escHtml(d.headline || '')}</div>
     ${idxChips}

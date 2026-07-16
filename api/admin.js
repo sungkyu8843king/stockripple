@@ -2614,19 +2614,20 @@ async function handleWeeklySchedulePost(req, res) {
   if (newsRes?.data?.length) {
     const titles = newsRes.data.map(n => n.title).filter(Boolean).slice(0, 300).join('\n');
 
-    // 발표 시각은 지났는데 ForexFactory/FMP가 아직 actual을 못 채운 지표 — 뉴스 제목에서 실제
-    // 발표치를 찾아 보강한다(2026-07-15 추가). 실측: 근원 CPI가 뉴스엔 이미 여러 건 나왔는데
-    // 캘린더 API는 며칠씩 actual을 안 채워주는 경우가 있었음.
-    const pendingActuals = econItems.filter(e => e.actual == null && new Date(e.date).getTime() <= Date.now());
-    const actualsAsk = pendingActuals.length ? `
+    // 경제지표 실제 발표치는 뉴스 분석 기반으로 찾는다(2026-07-16, ForexFactory+FMP 캘린더가
+    // 실측으로 며칠씩 완전히 죽어있던 사고 이후 — FMP_API_KEY 만료 확인됨, ForexFactory도
+    // Vercel에서만 계속 비어옴). econItems에 이미 있는 지표는 actual만 채우고, 캘린더가 아예
+    // 비어서 econItems에 없는 지표도 뉴스에서 새로 찾아서 추가한다 — 항상 시도(캘린더 상태와
+    // 무관하게). WS_CANON_INDICATORS 목록과 정확히 일치하는 이름만 인정해서 오매칭/창작 방지.
+    const actualsAsk = `
 
-또한 위 뉴스 제목 중에 아래 경제지표의 "실제 발표치"가 명확히 언급된 게 있으면 함께 추출하세요
-(예: "Consumer Price Index: Inflation At 3.5% In June" → 지표명이 정확히 일치하면 그 수치).
-반드시 아래 목록의 지표명과 정확히 일치하는 것만, 수치가 뉴스에 명시적으로 나온 경우만 포함.
-추측·계산·창작 절대 금지 — 확실하지 않으면 아예 포함하지 마세요.
+또한 위 뉴스 제목 중에 아래 "주요 경제지표" 목록에 해당하는 지표의 실제 발표치가 명확히 언급된 게 있으면
+추출하세요(예: "Consumer Price Index: Inflation At 3.5% In June" → 목록의 지표명과 정확히 일치하면 그 수치).
+반드시 아래 목록의 지표명과 정확히 일치하는 것만, 수치가 뉴스에 명시적으로 나온 경우만, 그 지표가 실제로
+발표된 날짜(뉴스에 언급되지 않았으면 뉴스 게재일)도 함께. 추측·계산·창작 절대 금지 — 확실하지 않으면 포함하지 마세요.
 
-발표 대기 중인 지표 목록:
-${pendingActuals.map(e => `- ${e.titleKo}`).join('\n')}` : '';
+주요 경제지표 목록(미국):
+${WS_CANON_INDICATORS.join(', ')}`;
 
     const dynamic = `아래는 최근 10일간 수집된 금융 뉴스 제목들입니다. 이 중에서 ${weekStart} ~ ${new Date(rangeEndMs - 86400000).toISOString().slice(0, 10)} 사이에 예정된 "구체적 이벤트"만 추출하세요 (기업 상장/ADR 상장, 지수 편입, 주주총회, 잠정 실적발표, 월간 매출 발표, 제품 출시, 정책 시행 등).
 
@@ -2636,7 +2637,7 @@ ${pendingActuals.map(e => `- ${e.titleKo}`).join('\n')}` : '';
 - 확실한 것이 없으면 빈 배열
 ${actualsAsk}
 
-JSON만 반환: {"events":[{"date":"YYYY-MM-DD","title":"이벤트 설명 (30자 내)"}]${pendingActuals.length ? ', "actualResults":[{"titleKo":"목록의 지표명 그대로","actual":"실제 수치(원문 단위 그대로)"}]' : ''}}
+JSON만 반환: {"events":[{"date":"YYYY-MM-DD","title":"이벤트 설명 (30자 내)"}], "indicatorResults":[{"date":"YYYY-MM-DD","titleKo":"목록의 지표명 그대로","actual":"실제 수치(원문 단위 그대로)"}]}
 
 뉴스 제목:
 ${titles.slice(0, 15000)}`;
@@ -2646,6 +2647,19 @@ ${titles.slice(0, 15000)}`;
 
   return continueWeeklyScheduleAfterEvents(res, { ...wsPayloadBase, newsEvents: [] });
 }
+
+// 뉴스 기반 경제지표 실제치 추출에서 인정하는 지표명 화이트리스트 — market-data.js의
+// NAME_KO 한국어 표기와 맞춰뒀다(다른 이름 쓰면 매칭 안 되게 해서 오매칭/창작 방지).
+const WS_CANON_INDICATORS = [
+  '소비자물가 (MoM)', '근원 CPI (MoM)', '소비자물가 (YoY)', '근원 CPI (YoY)',
+  '생산자물가 (MoM)', '근원 PPI (MoM)', '생산자물가 (YoY)', '근원 PPI (YoY)',
+  '비농업 신규고용 (NFP)', '실업률', 'ADP 비농업 고용', '신규실업급여 청구', '계속실업급여 청구',
+  'GDP (QoQ)', 'GDP 예비치 (QoQ)', '소매판매 (MoM)', '근원 소매판매 (MoM)',
+  'ISM 제조업 PMI', 'ISM 서비스업 PMI', '제조업 PMI (예비)', '서비스업 PMI (예비)',
+  'PCE 물가 (MoM)', '근원 PCE 물가 (MoM)', 'PCE 물가 (YoY)', '근원 PCE 물가 (YoY)',
+  '미시간대 소비자심리', '미시간대 소비자심리 (예비)', '소비자신뢰지수 (CB)',
+  'FOMC 기준금리', '신규주택착공', '기존주택판매', '신규주택판매', '내구재주문 (MoM)',
+];
 
 // ── 일자별 조립 (KST 시각 기준) — stage 'events' 완료 후와 "뉴스 없음" 직행 경로 공용 ──
 function assembleWeekDays({ econItems, earnItems, tdItems, newsEvents, KST_MS }) {
@@ -2725,13 +2739,28 @@ async function finalizeWeeklyScheduleEvents(row) {
         return t >= rangeStartMs && t < rangeEndMs;
       }).slice(0, 10);
 
-      // 뉴스에서 찾은 실제 발표치를 econItems에 병합 — titleKo가 정확히 일치하는 것만
-      // 반영해서(AI가 지어낸/오매칭된 지표명은 아무 항목과도 안 걸려 자동 무시됨), 이미
-      // actual이 있는 항목은 덮어쓰지 않는다.
-      if (Array.isArray(parsed.actualResults)) {
-        const actualMap = new Map(parsed.actualResults.filter(a => a?.titleKo && a?.actual).map(a => [a.titleKo, a.actual]));
-        if (actualMap.size) {
-          econItems = econItems.map(e => (e.actual == null && actualMap.has(e.titleKo)) ? { ...e, actual: actualMap.get(e.titleKo) } : e);
+      // 뉴스에서 찾은 실제 발표치를 econItems에 병합 — WS_CANON_INDICATORS 화이트리스트와
+      // 정확히 일치하는 이름만 인정(오매칭/창작 방지). 이미 econItems에 있는 지표면 actual만
+      // 채우고(기존 actual은 덮어쓰지 않음), 캘린더 API가 아예 못 준 지표는 뉴스만으로 새
+      // 항목을 만들어 추가한다 — ForexFactory/FMP가 통째로 죽어도(2026-07-16 실측: FMP 키
+      // 만료 + ForexFactory가 Vercel에서만 계속 빈 응답) 지표 섹션이 완전히 비지 않게 하려는
+      // 목적. 이번 주 범위(rangeStartMs~rangeEndMs) 밖 날짜는 무시.
+      if (Array.isArray(parsed.indicatorResults)) {
+        const { rangeStartMs: rMs, rangeEndMs: rMe } = row.payload;
+        for (const r of parsed.indicatorResults) {
+          if (!r?.titleKo || !r?.actual || !r?.date || !WS_CANON_INDICATORS.includes(r.titleKo)) continue;
+          const t = new Date(`${r.date}T12:00:00Z`).getTime();
+          if (isNaN(t) || t < rMs || t >= rMe) continue;
+          const idx = econItems.findIndex(e => e.titleKo === r.titleKo);
+          if (idx >= 0) {
+            if (econItems[idx].actual == null) econItems[idx] = { ...econItems[idx], actual: r.actual };
+          } else {
+            econItems.push({
+              date: `${r.date}T12:00:00.000Z`, titleKo: r.titleKo, title: r.titleKo,
+              country: 'USD', impact: 'High', forecast: null, previous: null,
+              actual: r.actual, lowerIsBetter: false,
+            });
+          }
         }
       }
     } catch { /* 파싱 실패 시 newsEvents=[]로 계속 진행(기존 동작과 동일) */ }
