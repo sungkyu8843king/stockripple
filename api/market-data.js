@@ -13,13 +13,6 @@
  * 실제 공개 경로(/api/quotes 등)는 vercel.json rewrites로 여기로 연결되며,
  * 프론트엔드 fetch 호출은 전혀 바뀌지 않는다.
  */
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
-
 export default async function handler(req, res) {
   const source = (req.query.source || '').toString();
   switch (source) {
@@ -429,28 +422,9 @@ function normalizeTitle(s) {
     .replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-// FMP 무료 플랜(250콜/일)을 스케줄 에이전트 매일 1:15 등 반복 호출이 순식간에 태워서
-// "Invalid API KEY"(실은 한도초과)로 계속 막히는 사고가 있었다(2026-07-16 실측: 1,001/250).
-// 30분 DB 캐시로 재호출을 줄인다 — 캐시가 신선하면 FMP/ForexFactory를 아예 안 부른다.
-const ECON_CACHE_TTL_MS = 30 * 60 * 1000;
-
 async function handleEconomic(res, limit = 30) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'no-store');
-
-  let cached = null;
-  try {
-    const { data } = await supabase.from('econ_calendar_cache').select('*').eq('id', 1).maybeSingle();
-    cached = data;
-  } catch { /* 캐시 테이블이 아직 없어도(마이그레이션 전) fail-open — 그냥 매번 새로 가져온다 */ }
-  const cacheAgeMs = cached?.updated_at ? Date.now() - new Date(cached.updated_at).getTime() : Infinity;
-
-  if (cached?.items?.length && cacheAgeMs < ECON_CACHE_TTL_MS) {
-    return res.status(200).json({
-      ok: true, items: cached.items.slice(0, limit), ts: Date.now(),
-      source: cached.source, fmp: cached.fmp, cached: true, cacheAgeMs,
-    });
-  }
 
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -589,13 +563,6 @@ async function handleEconomic(res, limit = 30) {
     }
 
     if (!raw.length) {
-      // 소스가 완전히 죽었을 때 — 캐시가 있으면(TTL 지난 것이라도) 완전 공백보다 낫다
-      if (cached?.items?.length) {
-        return res.status(200).json({
-          ok: true, items: cached.items.slice(0, limit), ts: Date.now(),
-          source: cached.source, fmp: cached.fmp, cached: true, stale: true, cacheAgeMs,
-        });
-      }
       return res.status(200).json({ ok: false, error: 'ForexFactory+FMP both empty', items: [], fmpCount: fmpArr.length });
     }
 
@@ -638,16 +605,15 @@ async function handleEconomic(res, limit = 30) {
         return t >= windowStart && t <= windowEnd;
       })
       .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .slice(0, 80); // 캐시엔 넉넉히 저장(호출부 limit 상한과 동일) — 응답은 아래서 실제 limit만큼만
+      .slice(0, limit);
 
-    const source = usedFmpFallback ? 'fmp-only' : 'forexfactory+fmp';
-    const fmp = { ok: !!fmpArr.length, count: fmpArr.length, withActual: fmpArr.filter(e => e?.actual != null).length, status: fmpStatus };
-
-    try {
-      await supabase.from('econ_calendar_cache').upsert({ id: 1, items, source, fmp, updated_at: new Date().toISOString() });
-    } catch { /* 캐시 쓰기 실패해도 응답 자체는 정상 반환 — 마이그레이션 전이면 그냥 매번 새로 가져오는 예전 동작으로 fail-open */ }
-
-    return res.status(200).json({ ok: true, items: items.slice(0, limit), ts: Date.now(), source, fmp });
+    return res.status(200).json({
+      ok: true,
+      items,
+      ts: Date.now(),
+      source: usedFmpFallback ? 'fmp-only' : 'forexfactory+fmp',
+      fmp: { ok: !!fmpArr.length, count: fmpArr.length, withActual: fmpArr.filter(e => e?.actual != null).length, status: fmpStatus },
+    });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message, items: [] });
   }
