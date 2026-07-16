@@ -1230,8 +1230,8 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
     } catch {}
     candidatePool.sort((a, b) => b.score - a.score);
 
-    // 엄격 모드: AI 신뢰도 ≥80% 종목만
-    const strictMode = document.getElementById('strictModeToggle')?.checked;
+    // 엄격 모드: AI 신뢰도 ≥80% 종목만 — 2026-07에 토글 UI를 없애고 항상 켬(사용자 요청)
+    const strictMode = true;
     const beforeStrict = candidatePool.length;
     const filteredPool = strictMode ? candidatePool.filter(s => s.avgConf >= 80) : candidatePool;
     // 홈 미리보기(showMoreLink)는 히트맵/국장현황처럼 다음 줄이 살짝 보이다 페이드아웃
@@ -1242,7 +1242,7 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
       sec.style.display = 'block';
       el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text3);background:var(--bg2);border:1px dashed var(--border);border-radius:10px;font-size:13px">
         ${strictMode
-          ? `🔒 엄격 모드: AI 신뢰도 ≥80% 종목 없음 (전체 ${beforeStrict}개 중 0개 통과)<br><span style="font-size:11px">→ 엄격 모드 해제하거나 더 많은 분석 누적 필요</span>`
+          ? `🔒 AI 신뢰도 ≥80% 종목 없음 (전체 ${beforeStrict}개 중 0개 통과)<br><span style="font-size:11px">→ 더 많은 분석이 쌓이면 채워집니다</span>`
           : '데이터 부족'}
       </div>`;
       const upd = document.getElementById('insightsUpdated');
