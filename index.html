@@ -264,40 +264,27 @@ button { font-family: inherit; }
 .ticker-chg.flat { color: var(--text3); }
 
 /* ═══════════════════════════════════════════
- * Hero — compact command header + KPI strip
+ * Hero strip — 1줄 AI 브리핑 + 매수후보 CTA (2026-07 개편: 예전엔 슬로건+통계 5개가
+ * 첫 화면 대부분을 차지해서 방문자가 원하는 정보(오늘 시장이 어떤지)를 안 보여줬음.
+ * 지수 자체는 이미 위 .indices-ticker가 보여주고 있어서, 여기선 AI 한줄 요약만.
  * ═══════════════════════════════════════════ */
-.hero {
+.hero-strip {
   max-width: var(--page-max); margin: 0 auto;
-  padding: 26px var(--page-pad) 0;
+  padding: 14px var(--page-pad);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
 }
-.hero-title { font-size: 22px; font-weight: 800; margin-bottom: 4px; letter-spacing: -0.025em; }
-.hero-title span { color: var(--blue); }
-.hero-sub { font-size: 13px; color: var(--text3); line-height: 1.6; }
-
-.stats-bar {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0,1fr));
-  gap: 10px;
-  margin: 16px 0 0;
+.hero-strip-text { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 320px; }
+.hero-strip-badge {
+  flex-shrink: 0; font-size: 10.5px; font-weight: 700; color: var(--blue);
+  background: var(--blue-dim, rgba(59,130,246,.1)); border-radius: 999px; padding: 3px 10px;
 }
-.stat-item {
-  display: flex; flex-direction: column; gap: 4px;
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--r-lg); padding: 14px 16px;
-  box-shadow: var(--shadow-sm);
-  position: relative; overflow: hidden;
+.hero-strip-headline { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.hero-strip-actions { flex-shrink: 0; display: flex; gap: 8px; }
+.hero-strip-btn {
+  font-size: 12.5px; font-weight: 700; color: var(--blue); text-decoration: none;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 8px 14px; white-space: nowrap;
 }
-.stat-item::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--bg4);
-}
-.stat-item:has(.stat-value.blue)::before  { background: var(--blue); }
-.stat-item:has(.stat-value.green)::before { background: var(--green); }
-.stat-label { font-size: 10.5px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
-.stat-value { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.15; }
-.stat-value.green { color: var(--green); }
-.stat-value.blue { color: var(--blue); }
-.stat-sep { display: none; }
 
 /* ═══════════════════════════════════════════
  * Layout
@@ -1081,36 +1068,13 @@ button { font-family: inherit; }
   </div>
 </div>
 
-<div class="hero" id="heroSection">
-  <h1 class="hero-title">
-    오늘의 이슈가 <span>어떤 주식</span>을 움직이나요?
-  </h1>
-  <p class="hero-sub">뉴스 이슈 → 파급 섹터 분석 → 수혜 기업 발굴 → 상승 가능성 시각화</p>
-  <div class="stats-bar" id="statsBar">
-    <div class="stat-item">
-      <span class="stat-label">분석된 이슈</span>
-      <span class="stat-value blue" id="statIssues">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">발굴 기업</span>
-      <span class="stat-value blue" id="statCompanies">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">평균 예상 상승률</span>
-      <span class="stat-value green" id="statUpside">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">AI 1일 정확도</span>
-      <span class="stat-value green" id="statAccuracy">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">최근 업데이트</span>
-      <span class="stat-value" id="statUpdated" style="font-size:15px;color:var(--text2);margin-top:3px">—</span>
-    </div>
+<div class="hero-strip" id="heroSection">
+  <div class="hero-strip-text">
+    <span class="hero-strip-badge">🤖 AI 브리핑</span>
+    <span class="hero-strip-headline" id="heroHeadline">오늘의 시장 브리핑을 불러오는 중...</span>
+  </div>
+  <div class="hero-strip-actions">
+    <a href="/picks.html" class="hero-strip-btn">🎯 매수 후보 보기</a>
   </div>
 </div>
 
@@ -1141,7 +1105,71 @@ button { font-family: inherit; }
       <div id="insightsPanel"></div>
     </div>
 
-    <!-- 🔥 마켓 히트맵 -->
+    <!-- 📰 최신 분석 이슈 (2026-07 개편: 시장현황 프리뷰보다 위로 — 이 사이트의 핵심 가치인
+         "이슈→수혜주" 흐름을 신규 방문자가 스크롤 없이 바로 보게) -->
+    <div id="issuesSection" class="section-block">
+      <div class="section-head">
+        <div class="section-head-l">
+          <span class="sh-mark" style="background:var(--purple)"></span>
+          <span class="sh-title">최신 분석 이슈</span>
+          <span class="sh-desc">뉴스 → 파급 섹터 → 수혜 기업 분석</span>
+          <span id="feedLiveTag" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
+        </div>
+        <span style="font-size:11px;color:var(--text3)" id="issuesCount"></span>
+      </div>
+
+      <!-- 카테고리 + 섹터 필터 + 검색 (이슈 피드 전용 툴바) -->
+      <div class="feed-toolbar">
+        <div class="category-tabs" id="categoryTabs">
+          <button class="cat-tab active" data-cat="all">🔥 전체</button>
+          <button class="cat-tab" data-cat="earnings">📊 실적발표</button>
+          <button class="cat-tab" data-cat="politics">🌐 정세·외교</button>
+          <button class="cat-tab" data-cat="economy">📈 경제지표</button>
+          <button class="cat-tab" data-cat="tech">💻 AI·반도체</button>
+          <button class="cat-tab" data-cat="bio">🧬 바이오</button>
+          <button class="cat-tab" data-cat="ev">🔋 전기차·배터리</button>
+          <button class="cat-tab" data-cat="energy">⚡ 에너지</button>
+          <button class="cat-tab" data-cat="defense">🚀 방산·우주</button>
+          <button class="cat-tab" data-cat="game">🎮 게임·엔터</button>
+          <button class="cat-tab" data-cat="crypto">🪙 크립토</button>
+        </div>
+        <div class="filters">
+          <span class="filter-label">섹터</span>
+          <button class="filter-chip active" data-sector="all">전체</button>
+          <button class="filter-chip" data-sector="AI">AI</button>
+          <button class="filter-chip" data-sector="반도체">반도체</button>
+          <button class="filter-chip" data-sector="전기차">전기차</button>
+          <button class="filter-chip" data-sector="배터리">배터리</button>
+          <button class="filter-chip" data-sector="바이오">바이오</button>
+          <button class="filter-chip" data-sector="에너지">에너지</button>
+          <button class="filter-chip" data-sector="핀테크">핀테크</button>
+          <button class="filter-chip" data-sector="금융">금융</button>
+          <button class="filter-chip" data-sector="클라우드">클라우드</button>
+          <button class="filter-chip" data-sector="로봇">로봇</button>
+          <button class="filter-chip" data-sector="방산·우주">방산·우주</button>
+          <button class="filter-chip" data-sector="게임">게임</button>
+          <button class="filter-chip" data-sector="크립토">크립토</button>
+          <button class="filter-chip" data-sector="자동차">자동차</button>
+          <button class="filter-chip" data-sector="물류·운송">물류·운송</button>
+        </div>
+      </div>
+
+      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:12.5px;font-weight:700;text-align:center">
+        🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
+      </div>
+
+      <div id="issuesContainer">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>이슈 불러오는 중...</p>
+        </div>
+      </div><!-- issuesContainer end -->
+
+      <!-- Pagination -->
+      <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:24px;padding-bottom:8px"></div>
+    </div>
+
+    <!-- 🔥 마켓 히트맵 (시장 현황 프리뷰 — 2026-07 개편으로 이슈 피드 아래로 이동) -->
     <div id="heatmapSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
@@ -1211,69 +1239,6 @@ button { font-family: inherit; }
 
     <div style="text-align:center;margin:-8px 0 24px">
       <a href="/kr-market.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">🇰🇷 국장 현황 전체보기 →</a>
-    </div>
-
-    <!-- 📰 최신 분석 이슈 -->
-    <div id="issuesSection" class="section-block">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--purple)"></span>
-          <span class="sh-title">최신 분석 이슈</span>
-          <span class="sh-desc">뉴스 → 파급 섹터 → 수혜 기업 분석</span>
-          <span id="feedLiveTag" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
-        </div>
-        <span style="font-size:11px;color:var(--text3)" id="issuesCount"></span>
-      </div>
-
-      <!-- 카테고리 + 섹터 필터 + 검색 (이슈 피드 전용 툴바) -->
-      <div class="feed-toolbar">
-        <div class="category-tabs" id="categoryTabs">
-          <button class="cat-tab active" data-cat="all">🔥 전체</button>
-          <button class="cat-tab" data-cat="earnings">📊 실적발표</button>
-          <button class="cat-tab" data-cat="politics">🌐 정세·외교</button>
-          <button class="cat-tab" data-cat="economy">📈 경제지표</button>
-          <button class="cat-tab" data-cat="tech">💻 AI·반도체</button>
-          <button class="cat-tab" data-cat="bio">🧬 바이오</button>
-          <button class="cat-tab" data-cat="ev">🔋 전기차·배터리</button>
-          <button class="cat-tab" data-cat="energy">⚡ 에너지</button>
-          <button class="cat-tab" data-cat="defense">🚀 방산·우주</button>
-          <button class="cat-tab" data-cat="game">🎮 게임·엔터</button>
-          <button class="cat-tab" data-cat="crypto">🪙 크립토</button>
-        </div>
-        <div class="filters">
-          <span class="filter-label">섹터</span>
-          <button class="filter-chip active" data-sector="all">전체</button>
-          <button class="filter-chip" data-sector="AI">AI</button>
-          <button class="filter-chip" data-sector="반도체">반도체</button>
-          <button class="filter-chip" data-sector="전기차">전기차</button>
-          <button class="filter-chip" data-sector="배터리">배터리</button>
-          <button class="filter-chip" data-sector="바이오">바이오</button>
-          <button class="filter-chip" data-sector="에너지">에너지</button>
-          <button class="filter-chip" data-sector="핀테크">핀테크</button>
-          <button class="filter-chip" data-sector="금융">금융</button>
-          <button class="filter-chip" data-sector="클라우드">클라우드</button>
-          <button class="filter-chip" data-sector="로봇">로봇</button>
-          <button class="filter-chip" data-sector="방산·우주">방산·우주</button>
-          <button class="filter-chip" data-sector="게임">게임</button>
-          <button class="filter-chip" data-sector="크립토">크립토</button>
-          <button class="filter-chip" data-sector="자동차">자동차</button>
-          <button class="filter-chip" data-sector="물류·운송">물류·운송</button>
-        </div>
-      </div>
-
-      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:12.5px;font-weight:700;text-align:center">
-        🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
-      </div>
-
-      <div id="issuesContainer">
-        <div class="loading-state">
-          <div class="spinner"></div>
-          <p>이슈 불러오는 중...</p>
-        </div>
-      </div><!-- issuesContainer end -->
-
-      <!-- Pagination -->
-      <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:24px;padding-bottom:8px"></div>
     </div>
 
     <div class="watchlist-view" id="watchlistView"></div>
@@ -1600,6 +1565,22 @@ button { font-family: inherit; }
   disclosure.style.cssText = 'text-align:center;font-size:10px;color:var(--text3);margin-top:6px';
   disclosure.textContent = '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.';
   container.appendChild(disclosure);
+})();
+
+// 히어로 스트립 — AI 시장종합 헤드라인 한 줄 (2026-07 메인 개편: 슬로건+통계 5개짜리
+// 히어로가 방문자가 실제로 궁금한 정보를 안 보여줘서 얇은 브리핑 줄로 교체)
+(async function loadHeroHeadline() {
+  const el = document.getElementById('heroHeadline');
+  if (!el) return;
+  try {
+    const bust = Math.floor(Date.now() / 60000);
+    const r = await fetch(`/api/admin?action=ai-market-summary&_t=${bust}`);
+    if (!r.ok) throw new Error('no summary');
+    const d = await r.json();
+    el.textContent = d?.headline || '오늘의 이슈가 어떤 주식을 움직이나요?';
+  } catch {
+    el.textContent = '오늘의 이슈가 어떤 주식을 움직이나요?';
+  }
 })();
 
 let _icurIdx = null, _icurInterval = 'D';
