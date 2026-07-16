@@ -38,13 +38,18 @@ jobs:
       # analyze_batches(engine='agent')에 적재되고, 스케줄 에이전트가 답을 채우면 위
       # Batch Poll 스텝(10분 주기)이 기존과 동일한 로직으로 완료 처리를 이어받는다.
       # 이미 진행 중인 큐가 있으면 서버가 알아서 중복 제출을 스킵한다.
-      - name: AI Analyze (에이전트 큐 제출, 최대 30건 — 2026-07-15에 5→30 상향. limit=5로는 실유입 하루 670건+를 못 따라가서 ASML/엔비디아 H200 같은 중요 기사도 48h 스킵 규칙에 걸려 분석 한번 못 받고 사라지고 있었음. company-summary-backfill 등 무거운 파이프라인과 달리 discover 단계는 항목당 가벼워서 이 값만 올림)
+      # 최대 40건 — 2026-07-15에 5→30, 2026-07-16에 30→40 상향(절반 최신순/절반 오래된순
+      # 분할 선택으로 바뀌면서 40=최신20+오래된20). limit=5로는 실유입 하루 670건+를 못
+      # 따라가서 ASML/엔비디아 H200 같은 중요 기사도 48h 스킵 규칙에 걸려 분석 한번 못
+      # 받고 사라지고 있었음. company-summary-backfill 등 무거운 파이프라인과 달리
+      # discover 단계는 항목당 가벼워서 이 값만 올림.
+      - name: AI Analyze (에이전트 큐 제출, 최대 40건 — 최신 20 + 오래된 20)
         if: github.event.schedule != '*/10 * * * *'
         run: |
           RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=agent-submit" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 30}' || true)
+            -d '{"limit": 40}' || true)
           echo "$RESP" | jq -c '{submitted, staleSkipped, reason}' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
       # 예측 정확도 검증 — Vercel cron이 불안정해 GH Actions에서 매시간 실행 (due 항목만 처리, 멱등)

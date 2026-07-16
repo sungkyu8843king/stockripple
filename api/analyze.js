@@ -454,7 +454,7 @@ function triggerNextChain(req, limit, nextChainCount, maxChain) {
 // (live-refresh의 장중 실시간 소량 새로고침은 지연을 감수할 수 없어 기존 동기
 // 경로 그대로 유지 — 이 배치 경로와 별개로 계속 동작)
 // ════════════════════════════════════════════════════════════
-const BATCH_SUBMIT_LIMIT = 30;
+const BATCH_SUBMIT_LIMIT = 40;
 // 안전장치: 배치가 이 시간 안에 안 끝나면 취소하고 그냥 놓아준다 — 이슈는
 // is_analyzed=false로 남아있으므로 다음 hourly 크론의 기존 동기 경로가 자연스럽게
 // 다시 집어가 처리한다 (하루 종일 안 끝나는 걸 무한정 기다리지 않기 위한 상한).
@@ -484,11 +484,31 @@ async function handleBatchSubmit(req, res, opts = {}) {
     .eq('is_analyzed', false)
     .lt('published_at', staleCutoff);
 
-  const { data: issues, error } = await supabase
+  // 최신순으로만 뽑으면 새 뉴스가 계속 밀려들어와 먼저 들어온(아직 안 밀린) 이슈가
+  // 순번을 영영 못 받고 48시간 스킵 규칙에 걸려 사라지는 starvation이 있었음
+  // (2026-07-16 실측: 미분석 백로그 1,400건+가 이틀 전 뉴스까지 고르게 쌓여있었음,
+  // 최신순 배치만 반복돼서 오래된 백로그는 한 번도 선택되지 못했던 것으로 확인).
+  // → 절반은 최신순(속보 반응성 유지), 절반은 오래된순(백로그 소진 + 곧 48h 만료될
+  // 이슈 구제)으로 나눠서 가져오고 겹치면 dedup.
+  const halfLimit = Math.ceil(limit / 2);
+  const { data: recentIssues, error: recentErr } = await supabase
     .from('issues').select('*').eq('is_analyzed', false)
-    .order('published_at', { ascending: false }).limit(limit);
-  if (error) return res.status(500).json({ error: error.message });
-  if (!issues?.length) return res.status(200).json({ ok: true, submitted: 0, staleSkipped: staleSkipped || 0 });
+    .order('published_at', { ascending: false }).limit(halfLimit);
+  if (recentErr) return res.status(500).json({ error: recentErr.message });
+
+  const { data: oldestIssues, error: oldestErr } = await supabase
+    .from('issues').select('*').eq('is_analyzed', false)
+    .order('published_at', { ascending: true }).limit(halfLimit);
+  if (oldestErr) return res.status(500).json({ error: oldestErr.message });
+
+  const seenIds = new Set();
+  const issues = [];
+  for (const issue of [...(recentIssues || []), ...(oldestIssues || [])]) {
+    if (seenIds.has(issue.id)) continue;
+    seenIds.add(issue.id);
+    issues.push(issue);
+  }
+  if (!issues.length) return res.status(200).json({ ok: true, submitted: 0, staleSkipped: staleSkipped || 0 });
 
   if (engine === 'agent') {
     // Anthropic을 전혀 호출하지 않음 — 렌더링된 프롬프트 전문만 큐에 적재하고 끝.
