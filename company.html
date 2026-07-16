@@ -434,6 +434,64 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   .history-table th:nth-child(1), .history-table td:nth-child(1) { display: none; }
   .history-table th:nth-child(4), .history-table td:nth-child(4) { display: none; }
 }
+
+/* ═══ 2026-07 종목 페이지 개편: 판단 히어로 + 지표 칩 + 탭 ═══ */
+.cmp-hero {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card); overflow: hidden; margin-bottom: 14px;
+}
+.cmp-hero-top { display: flex; align-items: center; gap: 14px; padding: 18px 22px; flex-wrap: wrap; }
+.cmp-hero-top .company-name-main { font-size: 22px; margin: 0; }
+.cmp-hero-top .price-block { margin-left: auto; }
+.cmp-verdict {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 13px 22px; border-top: 1px solid var(--border); background: var(--bg2);
+}
+.vbadge {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700;
+  color: #fff; border-radius: var(--r-pill); padding: 7px 16px; white-space: nowrap;
+}
+.vbadge.buy { background: var(--green); }
+.vbadge.neutral { background: var(--text3); }
+.vmeta { display: flex; flex-direction: column; gap: 1px; }
+.vmeta .k { font-size: 11px; color: var(--text3); }
+.vmeta .v { font-size: 15px; font-weight: 700; font-family: 'SF Mono', monospace; }
+.vmeta .v.pos { color: var(--green); }
+.vmeta .v.neg { color: var(--red); }
+.vdivider { width: 1px; height: 30px; background: var(--border); }
+.cmp-cta { margin-left: auto; display: flex; gap: 8px; }
+.cmp-watch-btn {
+  font-size: 13px; font-weight: 700; color: #fff; background: var(--blue);
+  border: none; border-radius: var(--r-sm); padding: 9px 16px; cursor: pointer; white-space: nowrap;
+}
+.cmp-watch-btn.on { background: var(--bg3); color: var(--text2); }
+
+.cmp-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; min-height: 34px; }
+.cmp-chip {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-pill);
+  padding: 7px 14px; font-size: 12.5px; color: var(--text2); display: flex; align-items: baseline; gap: 6px;
+}
+.cmp-chip b { font-family: 'SF Mono', monospace; font-weight: 700; color: var(--text); font-size: 13px; }
+.cmp-chip b.pos { color: var(--green); } .cmp-chip b.neg { color: var(--red); }
+
+.cmp-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 22px; overflow-x: auto; }
+.cmp-tab {
+  font-size: 14px; font-weight: 600; color: var(--text3); background: none; border: none;
+  padding: 11px 16px; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.cmp-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.cmp-tab:hover:not(.active) { color: var(--text2); }
+.cmp-panel { display: none; }
+.cmp-panel.active { display: block; animation: cmpFade 0.2s var(--ease); }
+@keyframes cmpFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.cmp-empty { text-align: center; color: var(--text3); font-size: 13px; padding: 40px 20px; }
+@media (max-width: 700px) {
+  .cmp-hero-top { gap: 10px; padding: 16px; }
+  .cmp-hero-top .price-block .current-price { font-size: 22px; }
+  .cmp-verdict { padding: 12px 16px; gap: 12px; }
+  .cmp-cta { margin-left: 0; width: 100%; }
+  .cmp-watch-btn { width: 100%; }
+}
 </style>
 </head>
 <body>
@@ -1103,9 +1161,17 @@ function renderPage(company, records, priceData) {
       </tr>`;
   }).join('');
 
+  // 판단 배지 (동기 산출): [TRADE] 마커 있으면 매수 후보, 아니면 평균 예상 상승률로 판단
+  const hasTradeMarker = (records || []).some(r => (r.rationale || '').includes('[TRADE]'));
+  let verdictLabel, verdictClass;
+  if (hasTradeMarker) { verdictLabel = '🎯 매수 후보'; verdictClass = 'buy'; }
+  else if (avgUpside != null && avgUpside > 0) { verdictLabel = '📈 상승 기대'; verdictClass = 'buy'; }
+  else { verdictLabel = '📊 분석 이력 보유'; verdictClass = 'neutral'; }
+
   const html = `
-    <div class="company-header">
-      <div class="company-header-top">
+    <!-- 1. 핵심 판단 히어로 -->
+    <div class="cmp-hero">
+      <div class="cmp-hero-top">
         <span class="ticker-badge ${isKr ? 'kr' : 'us'}">${escHtml(ticker)}</span>
         <div class="company-name-wrap">
           <div class="company-name-main">${escHtml(name)}</div>
@@ -1114,114 +1180,125 @@ function renderPage(company, records, priceData) {
         <div class="price-block" id="priceBlock">${priceHtml}</div>
         <button class="share-icon-btn" style="align-self:center" data-share-title="${escHtml(`${name} (${ticker}) — StockRipple`)}" data-share-url="${escHtml(location.href)}" onclick="shareContent(event, this)" title="공유하기">🔗</button>
       </div>
-    </div>
-
-    <div id="quoteCardWrap">${quoteCardHtml}</div>
-
-    <div class="stats-bar">
-      <div class="stat-card">
-        <div class="stat-label">등장 횟수</div>
-        <div class="stat-value blue">${totalCount}회</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">평균 예상 상승률</div>
-        <div class="stat-value ${avgUpside != null && avgUpside >= 0 ? 'green' : ''}">${avgUpside != null ? (avgUpside >= 0 ? '+' : '') + avgUpside + '%' : '—'}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">1일 정확도</div>
-        <div class="stat-value ${acc1dPct != null && acc1dPct >= 50 ? 'green' : 'yellow'}">${acc1dPct != null ? acc1dPct + '%' : '—'}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">7일 정확도</div>
-        <div class="stat-value ${acc7dPct != null && acc7dPct >= 50 ? 'green' : 'yellow'}">${acc7dPct != null ? acc7dPct + '%' : '—'}</div>
+      <div class="cmp-verdict">
+        <span class="vbadge ${verdictClass}">${verdictLabel}</span>
+        <div class="vmeta" id="verdictTargetWrap" style="display:none">
+          <span class="k">AI 목표가 평균</span><span class="v" id="verdictTarget">—</span>
+        </div>
+        <div class="vdivider" id="verdictDiv1" style="display:none"></div>
+        <div class="vmeta" id="verdictUpsideWrap" style="display:none">
+          <span class="k">상승여력</span><span class="v" id="verdictUpside">—</span>
+        </div>
+        <div class="vdivider"></div>
+        <div class="vmeta">
+          <span class="k">분석 등장 · 1일 적중</span>
+          <span class="v">${totalCount}회 · ${acc1dPct != null ? acc1dPct + '%' : '—'}</span>
+        </div>
       </div>
     </div>
-    <!-- AI 종합 분석 -->
-    <div id="aiSummaryWrap"></div>
 
-    <!-- 매매 정보 (최근 분석에서 추출) -->
-    <div id="tradeBoxWrap"></div>
+    <!-- 2. 핵심 지표 칩 (기술지표·펀더멘털 로드되면 채워짐) -->
+    <div class="cmp-chips" id="cmpChips"></div>
 
-    <!-- 기술 지표 -->
-    <div id="techChipsWrap"></div>
+    <!-- 3. 탭 -->
+    <div class="cmp-tabs">
+      <button class="cmp-tab active" data-tab="overview" onclick="switchCompanyTab('overview',this)">개요</button>
+      <button class="cmp-tab" data-tab="chart" onclick="switchCompanyTab('chart',this)">차트·시세</button>
+      <button class="cmp-tab" data-tab="fundamentals" onclick="switchCompanyTab('fundamentals',this)">펀더멘털</button>
+      <button class="cmp-tab" data-tab="flow" onclick="switchCompanyTab('flow',this)">${isKr ? '수급·공시' : '옵션·공시'}</button>
+      <button class="cmp-tab" data-tab="history" onclick="switchCompanyTab('history',this)">분석 이력</button>
+    </div>
 
-    <!-- 펀더멘털 (밸류에이션/수익성/재무 안정성/실적) -->
-    <div id="fundamentalsWrap"></div>
+    <!-- 개요: AI 종합분석 + 매매정보 + 기술지표 + 오늘의 시세 -->
+    <div class="cmp-panel active" data-panel="overview">
+      <div id="aiSummaryWrap"></div>
+      <div id="tradeBoxWrap"></div>
+      <div id="techChipsWrap"></div>
+      <div id="quoteCardWrap">${quoteCardHtml}</div>
+    </div>
 
-    <!-- 🇰🇷 DART 상세 (주주/임원/재무) — KR 종목만 -->
-    <div id="dartDetailWrap"></div>
-
-    <!-- 🧭 투자자별 매매동향 — KR 종목만 -->
-    <div id="investorTrendWrap"></div>
-
-    <!-- 📜 SEC 공시 — US 종목만 -->
-    <div id="secFilingsWrap"></div>
-
-    <!-- 📈 옵션 체인 요약 — US 종목만 -->
-    <div id="optionsWrap"></div>
-
-    <!-- TradingView 캔들 차트 + 거래량 (미장만 제공) -->
-    ${isKr ? '' : `
-    <div class="tv-wrap">
-      <div class="tv-header">
-        <div class="section-title" style="margin:0;padding:0">
+    <!-- 차트·시세: 캔들(미장) + 라인 차트 -->
+    <div class="cmp-panel" data-panel="chart">
+      ${isKr ? '' : `
+      <div class="tv-wrap">
+        <div class="tv-header">
+          <div class="section-title" style="margin:0;padding:0">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            캔들 차트 + 거래량
+          </div>
+          <div class="tv-tabs" style="margin-left:auto">
+            <button class="tv-tab active" data-int="D" onclick="setTvInterval('D',this)">일봉</button>
+            <button class="tv-tab" data-int="W" onclick="setTvInterval('W',this)">주봉</button>
+            <button class="tv-tab" data-int="M" onclick="setTvInterval('M',this)">월봉</button>
+            <button class="tv-tab" data-int="60" onclick="setTvInterval('60',this)">1시간</button>
+          </div>
+        </div>
+        <iframe id="tvFrame" class="tv-frame" src="" loading="lazy"></iframe>
+      </div>
+      `}
+      <div class="chart-section" style="margin-bottom:0">
+        <div class="section-title">
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          캔들 차트 + 거래량
+          라인 차트 (Yahoo)
         </div>
-        <div class="tv-tabs" style="margin-left:auto">
-          <button class="tv-tab active" data-int="D" onclick="setTvInterval('D',this)">일봉</button>
-          <button class="tv-tab" data-int="W" onclick="setTvInterval('W',this)">주봉</button>
-          <button class="tv-tab" data-int="M" onclick="setTvInterval('M',this)">월봉</button>
-          <button class="tv-tab" data-int="60" onclick="setTvInterval('60',this)">1시간</button>
-        </div>
-      </div>
-      <iframe id="tvFrame" class="tv-frame" src="" loading="lazy"></iframe>
-    </div>
-    `}
-
-    <!-- 라인 차트 (기존) -->
-    <div class="chart-section">
-      <div class="section-title">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        라인 차트 (Yahoo)
-      </div>
-      <div class="chart-container">
-        <div class="chart-range-btns">
-          <button class="range-btn" data-range="1mo" onclick="selectRange('1mo')">1개월</button>
-          <button class="range-btn active" data-range="3mo" onclick="selectRange('3mo')">3개월</button>
-          <button class="range-btn" data-range="6mo" onclick="selectRange('6mo')">6개월</button>
-          <button class="range-btn" data-range="1y" onclick="selectRange('1y')">1년</button>
-        </div>
-        <div class="chart-wrap" id="mainChartWrap">
-          <div class="chart-loading">차트 불러오는 중...</div>
+        <div class="chart-container">
+          <div class="chart-range-btns">
+            <button class="range-btn" data-range="1mo" onclick="selectRange('1mo')">1개월</button>
+            <button class="range-btn active" data-range="3mo" onclick="selectRange('3mo')">3개월</button>
+            <button class="range-btn" data-range="6mo" onclick="selectRange('6mo')">6개월</button>
+            <button class="range-btn" data-range="1y" onclick="selectRange('1y')">1년</button>
+          </div>
+          <div class="chart-wrap" id="mainChartWrap">
+            <div class="chart-loading">차트 불러오는 중...</div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="history-section">
-      <div class="section-title">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-        분석 이력 <span style="font-size:13px;color:var(--text2);font-weight:400">(${totalCount}건)</span>
-      </div>
-      <div class="history-table-wrap">
-        <table class="history-table">
-          <thead>
-            <tr>
-              <th>날짜</th>
-              <th>이슈</th>
-              <th>예상 상승률</th>
-              <th>실제 수익률</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${historyRows || '<tr class="empty-row"><td colspan="4">분석 이력이 없습니다.</td></tr>'}
-          </tbody>
-        </table>
+    <!-- 펀더멘털 (밸류에이션/수익성/안정성/실적/배당 + 애널리스트 컨센서스 + 동종업계) -->
+    <div class="cmp-panel" data-panel="fundamentals">
+      <div id="fundamentalsWrap"></div>
+    </div>
+
+    <!-- 수급·공시 (국장: DART+투자자동향 / 미장: SEC+옵션) -->
+    <div class="cmp-panel" data-panel="flow">
+      ${isKr
+        ? '<div id="dartDetailWrap"></div><div id="investorTrendWrap"></div>'
+        : '<div id="secFilingsWrap"></div><div id="optionsWrap"></div>'}
+    </div>
+
+    <!-- 분석 이력 -->
+    <div class="cmp-panel" data-panel="history">
+      <div class="history-section" style="margin-bottom:0">
+        <div class="section-title">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          분석 이력 <span style="font-size:13px;color:var(--text2);font-weight:400">(${totalCount}건)</span>
+        </div>
+        <div class="history-table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>날짜</th>
+                <th>이슈</th>
+                <th>예상 상승률</th>
+                <th>실제 수익률</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${historyRows || '<tr class="empty-row"><td colspan="4">분석 이력이 없습니다.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   `;
 
   document.getElementById('pageWrap').innerHTML = html;
+
+  // 지표 칩 초기화 + 동기 산출 가능한 칩(평균 예상 상승률) 먼저 표시
+  _chipData = {};
+  if (avgUpside != null) setChip('avgUpside', '평균 예상', (avgUpside >= 0 ? '+' : '') + avgUpside + '%', avgUpside >= 0 ? 'pos' : 'neg');
+  else renderCmpChips();
 
   // TradingView 차트 로드 (미장만 — KRX는 TradingView 무료 임베드에서 미지원)
   if (!isKr) {
@@ -1252,15 +1329,66 @@ function renderPage(company, records, priceData) {
     loadOptionsChain(ticker);
   }
 
-  // Load line chart
-  loadChartData(ticker, _currentRange).then(data => {
-    if (data && data.points && data.points.length) {
-      renderLineChart(data);
-    } else {
-      const wrap = document.getElementById('mainChartWrap');
-      if (wrap) wrap.innerHTML = '<div class="chart-loading" style="color:var(--red)">차트 데이터를 불러올 수 없습니다.</div>';
-    }
-  });
+  // 라인 차트는 "차트·시세" 탭이 처음 열릴 때 그린다 — 숨겨진(display:none) 컨테이너에
+  // Chart.js를 그리면 너비 0으로 렌더되는 문제 때문. ensureChart()가 최초 1회 로드.
+  _chartRequested = false;
+}
+
+// ── 탭 전환 ──────────────────────────────────────────────
+function switchCompanyTab(name, btn) {
+  document.querySelectorAll('.cmp-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('.cmp-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
+  if (name === 'chart') ensureChart();
+}
+
+let _chartRequested = false;
+function ensureChart() {
+  if (!_chartRequested) {
+    _chartRequested = true;
+    loadChartData(_currentTicker, _currentRange).then(data => {
+      if (data && data.points && data.points.length) {
+        renderLineChart(data);
+      } else {
+        const wrap = document.getElementById('mainChartWrap');
+        if (wrap) wrap.innerHTML = '<div class="chart-loading" style="color:var(--red)">차트 데이터를 불러올 수 없습니다.</div>';
+      }
+    });
+  } else if (_lineChart) {
+    _lineChart.resize();  // 탭 재진입 시 크기 재계산
+  }
+}
+
+// ── 핵심 지표 칩 (기술지표·펀더멘털 로드 시 채워짐) ──────────
+let _chipData = {};
+function setChip(key, label, val, cls) {
+  _chipData[key] = { label, val, cls: cls || '' };
+  renderCmpChips();
+}
+function renderCmpChips() {
+  const el = document.getElementById('cmpChips');
+  if (!el) return;
+  const order = ['avgUpside', 'rsi', 'per', 'pbr', 'roe', 'opMargin', 'debt', 'div', 'foreign'];
+  el.innerHTML = order.filter(k => _chipData[k]).map(k => {
+    const c = _chipData[k];
+    return `<div class="cmp-chip">${c.label} <b class="${c.cls}">${escHtml(String(c.val))}</b></div>`;
+  }).join('');
+}
+
+// ── 판단 히어로: AI 목표가 평균 · 상승여력 채우기 (KR 컨센서스) ──
+function hydrateVerdictTarget(mean) {
+  if (mean == null) return;
+  const tWrap = document.getElementById('verdictTargetWrap');
+  const tEl = document.getElementById('verdictTarget');
+  const div1 = document.getElementById('verdictDiv1');
+  if (tWrap && tEl) { tWrap.style.display = ''; tEl.textContent = Math.round(mean).toLocaleString() + '원'; }
+  if (div1) div1.style.display = '';
+  if (_currentLivePrice != null) {
+    const up = ((mean - _currentLivePrice) / _currentLivePrice) * 100;
+    const uWrap = document.getElementById('verdictUpsideWrap');
+    const uEl = document.getElementById('verdictUpside');
+    if (uWrap && uEl) { uWrap.style.display = ''; uEl.textContent = (up >= 0 ? '+' : '') + up.toFixed(1) + '%'; uEl.className = 'v ' + (up >= 0 ? 'pos' : 'neg'); }
+  }
 }
 
 // 쿠팡 파트너스 광고 (AI 분석 로딩 영역) — 세 가지 문제를 피해야 한다:
@@ -1381,6 +1509,9 @@ async function loadTechChips(ticker) {
       strong_bearish: { label: '🔴 약세 추세',  color: 'var(--red)' },
     };
     const sig = sigMap[info.signal] || sigMap.neutral;
+
+    // 핵심 지표 칩(상단)에 RSI 반영
+    if (info.rsi14 != null) setChip('rsi', 'RSI', info.rsi14);
 
     const chips = [
       `<span class="tech-chip" style="color:${sig.color}">${sig.label}</span>`,
@@ -1706,6 +1837,19 @@ function renderFundamentals(wrap, f, ticker) {
     </div>
   `;
   wrap.innerHTML = html;
+
+  // 상단 핵심 지표 칩에 펀더멘털 반영
+  if (f.pe != null) setChip('per', 'PER', Number(f.pe).toFixed(1));
+  if (f.pb != null) setChip('pbr', 'PBR', Number(f.pb).toFixed(2));
+  if (f.roe != null) setChip('roe', 'ROE', Number(f.roe).toFixed(1) + '%');
+  if (f.operatingMargin != null) setChip('opMargin', '영업이익률', Number(f.operatingMargin).toFixed(1) + '%');
+  if (isKrw && f.debtRatioPct != null) setChip('debt', '부채비율', Math.round(f.debtRatioPct) + '%');
+  else if (!isKrw && f.debtToEquity != null) setChip('debt', 'D/E', Number(f.debtToEquity).toFixed(2));
+  if (f.dividendYield != null) setChip('div', '배당', (f.dividendYield * 100).toFixed(2) + '%');
+  if (isKrw && f.foreignRatePct != null) setChip('foreign', '외인', Number(f.foreignRatePct).toFixed(1) + '%');
+
+  // 판단 히어로: 애널리스트 목표가 평균 · 상승여력 (KR 컨센서스가 있을 때만)
+  if (isKrw && f.priceTargetMean != null) hydrateVerdictTarget(f.priceTargetMean);
 }
 
 // Yahoo Finance에서 정보 가져와 companies 테이블에 자동 등록
