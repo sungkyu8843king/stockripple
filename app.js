@@ -3888,6 +3888,65 @@ function switchDrSheetTab(mkt) { _drSheetTab = mkt; renderDrSheet(); }
   });
 })();
 
+// ─── 🤖 히어로 스트립 — 오늘의 AI 브리핑 롤링 (index/heatmap/kr-market/picks/sectors 공통) ───
+// AI 시장종합은 하루 3번(1/9/17시 KST) 생성되는데 예전엔 최신 1건만 보여줬음 — 오늘 나온
+// 것 전부를 몇 초 간격으로 롤링해서 보여주고, 클릭하면 그 회차의 전체 리포트(강세/약세
+// 요인·수혜/피해 섹터·내일 주시)를 지난 리포트 모달로 바로 띄운다. #heroHeadline이 없는
+// 페이지에서는 loadHeroHeadline이 조용히 no-op.
+const HERO_ROTATE_MS = 7000;
+let _heroBriefs = [];
+let _heroIdx = 0;
+let _heroRotateTimer = null;
+
+function _kstDateStr(d) { return new Date(new Date(d).getTime() + 9 * 3600000).toISOString().slice(0, 10); }
+
+function renderHeroBrief() {
+  const el = document.getElementById('heroHeadline');
+  if (!el || !_heroBriefs.length) return;
+  el.style.opacity = '0';
+  setTimeout(() => {
+    el.textContent = _heroBriefs[_heroIdx]?.headline || '오늘의 이슈가 어떤 주식을 움직이나요?';
+    el.style.opacity = '1';
+  }, 250);
+}
+
+async function loadHeroHeadline() {
+  const el = document.getElementById('heroHeadline');
+  if (!el) return;
+  try {
+    const bust = Math.floor(Date.now() / 60000);
+    const r = await fetch(`/api/admin?action=ai-market-summary&history=20&_t=${bust}`);
+    if (!r.ok) throw new Error('no summary');
+    const j = await r.json();
+    const items = j?.items || [];
+    const todayKst = _kstDateStr(Date.now());
+    _heroBriefs = items.filter(d => d.created_at && _kstDateStr(d.created_at) === todayKst);
+    if (!_heroBriefs.length && items.length) _heroBriefs = items.slice(0, 1); // 오늘자가 아직 없으면 최신 1건이라도
+  } catch {
+    _heroBriefs = [];
+  }
+  if (!_heroBriefs.length) { el.textContent = '오늘의 이슈가 어떤 주식을 움직이나요?'; return; }
+  _heroIdx = 0;
+  renderHeroBrief();
+  if (_heroRotateTimer) clearInterval(_heroRotateTimer);
+  if (_heroBriefs.length > 1) {
+    _heroRotateTimer = setInterval(() => {
+      _heroIdx = (_heroIdx + 1) % _heroBriefs.length;
+      renderHeroBrief();
+    }, HERO_ROTATE_MS);
+  }
+}
+loadHeroHeadline();
+
+// 헤드라인 클릭 → 그 회차의 전체 리포트를 "지난 리포트" 모달로 바로 표시(목록 경유 없이)
+async function openHeroBriefDetail() {
+  if (!_heroBriefs.length) { openReportArchive('ai'); return; }
+  const current = _heroBriefs[_heroIdx];
+  await openReportArchive('ai');
+  const idx = (_archCache['ai'] || []).findIndex(d => d.created_at === current.created_at);
+  renderArchDetail(idx >= 0 ? idx : 0);
+}
+
 // ─── 📚 지난 리포트 아카이브 모달 ─────────────────────────
 let _archTab = 'ai';
 const _archCache = {};   // { ai: [...], 'dr-us': [...], 'dr-kr': [...] }

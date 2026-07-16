@@ -201,6 +201,33 @@ button { font-family: inherit; }
   max-width: var(--page-max); margin: 0 auto;
   display: flex; align-items: center; gap: 20px; height: 58px;
 }
+.header-search {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 7px 10px; flex: 1 1 auto; max-width: 260px; min-width: 0;
+}
+.header-search svg { color: var(--text3); flex-shrink: 0; }
+.header-search input {
+  flex: 1; min-width: 0; border: none; outline: none; background: none;
+  font-size: 13px; color: var(--text); font-family: inherit;
+}
+.header-search input::placeholder { color: var(--text3); }
+@media (max-width: 900px) { .header-search { display: none; } }
+.hero-strip {
+  max-width: var(--page-max); margin: 0 auto;
+  padding: 14px var(--page-pad);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.hero-strip-text { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 320px; }
+.hero-strip-badge {
+  flex-shrink: 0; font-size: 10.5px; font-weight: 700; color: var(--blue);
+  background: var(--blue-dim, rgba(59,130,246,.1)); border-radius: 999px; padding: 3px 10px;
+}
+.hero-strip-headline {
+  font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; min-width: 0; cursor: pointer; transition: opacity .3s ease;
+}
+.hero-strip-headline:hover { color: var(--blue); }
 .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .logo-icon {
   width: 32px; height: 32px; border-radius: 9px;
@@ -1003,6 +1030,11 @@ button { font-family: inherit; }
         <div class="logo-sub">파급효과 주식 전망</div>
       </div>
     </a>
+    <div class="header-search" id="headerSearch">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)"
+             onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
+    </div>
     <nav class="header-nav" id="headerNav">
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
       <a href="/heatmap.html" class="nav-btn active">🔥 히트맵</a>
@@ -1039,6 +1071,13 @@ button { font-family: inherit; }
     <div class="ticker-item"><span class="ticker-name">ETH</span><span class="ticker-price" id="tk-eth">—</span><span class="ticker-chg flat" id="tk-eth-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="eth"></svg></div>
     <div class="ticker-item"><span class="ticker-name">NIKKEI</span><span class="ticker-price" id="tk-nikkei">—</span><span class="ticker-chg flat" id="tk-nikkei-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="nikkei"></svg></div>
     <div class="ticker-item"><span class="ticker-name">HSI</span><span class="ticker-price" id="tk-hsi">—</span><span class="ticker-chg flat" id="tk-hsi-chg">—</span><svg class="ticker-spark" viewBox="0 0 44 14" data-spark="hsi"></svg></div>
+  </div>
+</div>
+
+<div class="hero-strip" id="heroBriefSection">
+  <div class="hero-strip-text">
+    <span class="hero-strip-badge">🤖 오늘의 AI 브리핑</span>
+    <span class="hero-strip-headline" id="heroHeadline" onclick="openHeroBriefDetail()" role="button" tabindex="0">오늘의 시장 브리핑을 불러오는 중...</span>
   </div>
 </div>
 
