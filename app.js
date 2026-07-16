@@ -358,9 +358,9 @@ function renderIssueCard(issue) {
       <div class="card-body">
         <div class="card-title">${escHtml(issue.title)}</div>
         ${issue.summary ? `<div class="card-summary">${escHtml(issue.summary)}</div>` : ''}
-        <div class="card-sectors">${sectorTags}</div>
+        ${sectors.length ? `<div class="card-flow-label">📡 파급 섹터</div><div class="card-sectors">${sectorTags}</div>` : ''}
       </div>
-      ${companies.length ? `<div class="card-companies">${companyRows}</div>` : ''}
+      ${companies.length ? `<div class="card-companies"><div class="card-flow-label">🎯 수혜 예상 종목</div>${companyRows}</div>` : ''}
       <div class="card-footer">
         <div class="footer-stat">
           <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
