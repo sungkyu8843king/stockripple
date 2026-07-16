@@ -739,6 +739,17 @@ button { font-family: inherit; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 .sidebar-card-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 9px; }
 
+/* 📅 일정 통합 탭 (2026-07 사이드바 개편) */
+.sched-tabs { display: flex; gap: 3px; padding: 8px 12px 0; }
+.sched-tab {
+  flex: 1; font-size: 11.5px; font-weight: 600; color: var(--text3);
+  background: none; border: none; padding: 7px 4px; border-radius: 8px 8px 0 0;
+  cursor: pointer; text-align: center;
+}
+.sched-tab.active { color: var(--blue); background: var(--bg); }
+.sched-panel { display: none; padding: 10px 16px 12px; }
+.sched-panel.active { display: block; }
+
 /* Index Row */
 .index-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .index-name { font-size: 12.5px; color: var(--text2); font-weight: 500; }
@@ -1083,9 +1094,6 @@ button { font-family: inherit; }
   <!-- 메인 피드 -->
   <div id="mainCol">
 
-    <!-- 📢 피드 상단 배너 광고 -->
-    <div id="feedAdSlot" style="margin-bottom:20px"></div>
-
     <!-- 🎯 지금 매수 후보 -->
     <div id="insightsSection" class="section-block" style="display:none">
       <div class="section-head">
@@ -1104,6 +1112,9 @@ button { font-family: inherit; }
       </div>
       <div id="insightsPanel"></div>
     </div>
+
+    <!-- 📢 피드 광고 (2026-07 개편: 매수 후보 아래로 이동) -->
+    <div id="feedAdSlot" style="margin:20px 0"></div>
 
     <!-- 📰 최신 분석 이슈 (2026-07 개편: 시장현황 프리뷰보다 위로 — 이 사이트의 핵심 가치인
          "이슈→수혜주" 흐름을 신규 방문자가 스크롤 없이 바로 보게) -->
@@ -1273,15 +1284,6 @@ button { font-family: inherit; }
       </div>
     </div>
 
-    <!-- 📌 주간 일정 (토·일 자동 생성) -->
-    <div class="sidebar-card" id="weeklyScheduleCard" style="display:none">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📌 주간 주요 일정</span>
-        <span style="font-size:11px;color:var(--text3)" id="wsWeekLabel">—</span>
-      </div>
-      <div style="padding:12px 16px" id="weeklyScheduleBody"></div>
-    </div>
-
     <!-- 📰 데일리 리포트 (국장/미장) -->
     <div class="sidebar-card" id="dailyReportCard">
       <div class="sidebar-card-header">
@@ -1297,29 +1299,54 @@ button { font-family: inherit; }
       </div>
     </div>
 
-    <!-- 📊 섹터 모멘텀 -->
+    <!-- 📅 일정 통합 (2026-07 개편: 주간일정·경제지표·실적캘린더·만기일 4개 카드를
+         탭 하나로 — 각 패널 안의 콘텐츠 div id는 그대로 유지해서 app.js 로직은 안 건드림 -->
     <div class="sidebar-card">
       <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📊 섹터 모멘텀</span>
-        <span style="font-size:11px;color:var(--text3)">SPDR 1d</span>
+        <span class="sidebar-card-title">📅 일정</span>
       </div>
-      <div style="padding:12px 16px" id="sectorMomentum">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+      <div class="sched-tabs">
+        <button class="sched-tab active" data-sched="weekly"   onclick="switchSchedTab('weekly')">주간</button>
+        <button class="sched-tab"        data-sched="econ"     onclick="switchSchedTab('econ')">지표</button>
+        <button class="sched-tab"        data-sched="earnings" onclick="switchSchedTab('earnings')">실적</button>
+        <button class="sched-tab"        data-sched="expiry"   onclick="switchSchedTab('expiry')">만기</button>
+      </div>
+
+      <!-- 주간 주요 일정 — display:none 초기값은 그대로 유지(loadWeeklySchedule이 데이터
+           있을 때만 card.style.display=''로 해제, 없으면 탭을 눌러도 빈 화면 대신 계속 숨김) -->
+      <div class="sched-panel active" data-panel="weekly" id="weeklyScheduleCard" style="display:none">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><span style="font-size:11px;color:var(--text3)" id="wsWeekLabel">—</span></div>
+        <div id="weeklyScheduleBody"></div>
+      </div>
+
+      <div class="sched-panel" data-panel="econ">
+        <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:4px">
+          <span onclick="openCalendarModal('eco')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
+          <span class="live-dot" style="background:var(--yellow);animation:pulse 2s infinite"></span>
+        </div>
+        <div id="economicCalendar">
+          <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
+        </div>
+      </div>
+
+      <div class="sched-panel" data-panel="earnings">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+          <span onclick="openCalendarModal('earnings')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
+        </div>
+        <div id="earningsCalendar">
+          <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
+        </div>
+      </div>
+
+      <div class="sched-panel" data-panel="expiry">
+        <div id="expiryPanel">
+          <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+        </div>
       </div>
     </div>
 
-    <!-- 🔗 Cross-Asset Correlation -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">🔗 자산 간 상관관계</span>
-        <span style="font-size:11px;color:var(--text3)">30일</span>
-      </div>
-      <div style="padding:10px" id="corrMatrix">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 주요 지수 -->
+    <!-- 주요 지수 + 섹터 모멘텀 (2026-07 개편: 지수는 상단 티커 바와 성격이 겹쳐서
+         모멘텀과 한 카드로 묶어 비중을 줄임) -->
     <div class="sidebar-card">
       <div class="sidebar-card-header">
         <span class="sidebar-card-title"><span class="live-dot"></span> 주요 지수</span>
@@ -1337,52 +1364,42 @@ button { font-family: inherit; }
         <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('usdkrw')">USD/KRW</span><span class="index-val" id="si-usdkrw">—</span><span class="index-chg flat" id="si-usdkrw-chg">—</span></div>
         <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('vix')">VIX (공포지수)</span><span class="index-val" id="si-vix">—</span><span class="index-chg flat" id="si-vix-chg">—</span></div>
       </div>
-    </div>
-
-    <!-- 선물/옵션 만기일 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📅 만기일</span>
-        <span style="font-size:11px;color:var(--text3)">선물·옵션</span>
-      </div>
-      <div style="padding:8px 16px 12px" id="expiryPanel">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 경제지표 일정 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📈 경제지표 일정</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span onclick="openCalendarModal('eco')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
-          <span class="live-dot" style="background:var(--yellow);animation:pulse 2s infinite"></span>
+      <div style="border-top:1px solid var(--border-soft);padding:10px 16px 12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:11.5px;font-weight:700;color:var(--text2)">📊 섹터 모멘텀</span>
+          <span style="font-size:10px;color:var(--text3)">SPDR 1d</span>
+        </div>
+        <div id="sectorMomentum">
+          <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
         </div>
       </div>
-      <div style="padding:12px 16px" id="economicCalendar">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
     </div>
 
-    <!-- 실적발표 캘린더 -->
+    <!-- 🧰 더 많은 도구 (2026-07 개편: 상관관계·투자의견은 파워유저용이라 기본 접힘) -->
     <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📊 실적발표 캘린더</span>
-        <span onclick="openCalendarModal('earnings')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
+      <div class="sidebar-card-header" style="cursor:pointer" onclick="toggleMoreTools()">
+        <span class="sidebar-card-title">🧰 더 많은 도구</span>
+        <span id="moreToolsChevron" style="font-size:11px;color:var(--text3);transition:transform .15s">▾</span>
       </div>
-      <div style="padding:12px 16px" id="earningsCalendar">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 투자의견 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">🏦 투자의견</span>
-        <span style="font-size:11px;color:var(--text3)" id="analystUpdatedAt">—</span>
-      </div>
-      <div style="padding:12px 16px" id="analystRatings">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
+      <div id="moreToolsBody" style="display:none">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border-soft)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:11.5px;font-weight:700;color:var(--text2)">🔗 자산 간 상관관계</span>
+            <span style="font-size:10px;color:var(--text3)">30일</span>
+          </div>
+          <div id="corrMatrix">
+            <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+          </div>
+        </div>
+        <div style="padding:12px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:11.5px;font-weight:700;color:var(--text2)">🏦 투자의견</span>
+            <span style="font-size:10px;color:var(--text3)" id="analystUpdatedAt">—</span>
+          </div>
+          <div id="analystRatings">
+            <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1582,6 +1599,21 @@ button { font-family: inherit; }
     el.textContent = '오늘의 이슈가 어떤 주식을 움직이나요?';
   }
 })();
+
+// 📅 일정 탭 전환 + 🧰 더 많은 도구 접기/펼치기 (2026-07 사이드바 개편, index.html 전용 —
+// app.js는 각 패널 안의 콘텐츠 div id만 그대로 참조하므로 건드리지 않음)
+function switchSchedTab(name) {
+  document.querySelectorAll('.sched-tab').forEach(b => b.classList.toggle('active', b.dataset.sched === name));
+  document.querySelectorAll('.sched-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
+}
+function toggleMoreTools() {
+  const body = document.getElementById('moreToolsBody');
+  const chevron = document.getElementById('moreToolsChevron');
+  if (!body) return;
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
+}
 
 let _icurIdx = null, _icurInterval = 'D';
 
