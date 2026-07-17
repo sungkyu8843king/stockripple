@@ -457,6 +457,13 @@ button { font-family: inherit; }
 @media (max-width: 900px) { .mkt-dash-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
 @media (max-width: 520px) { .mkt-dash-grid { grid-template-columns: minmax(0,1fr); } }
 
+.mkt-bond-strip { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 10px; padding: 12px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md); }
+.mkt-bond-label { font-size: 12px; font-weight: 700; color: var(--text2); flex-shrink: 0; }
+.mkt-bond-item { display: flex; align-items: baseline; gap: 5px; font-size: 12.5px; color: var(--text3); }
+.mkt-bond-item b { font-family: var(--font-mono); font-size: 13.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.mkt-bond-item small { font-size: 10.5px; color: var(--text3); }
+@media (max-width: 600px) { .mkt-bond-strip { gap: 10px 14px; padding: 10px 14px; } }
+
 .mkt-hero {
   grid-row: span 2; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
   padding: 16px 18px; display: flex; flex-direction: column; box-shadow: var(--shadow-card);
@@ -1175,6 +1182,10 @@ button { font-family: inherit; }
           </div>
         </div>
         <!-- 나머지 카드는 JS(renderMarketDash)가 채움 -->
+      </div>
+      <div class="mkt-bond-strip" id="mktBondStrip" style="display:none">
+        <span class="mkt-bond-label">🇰🇷 국고채 금리</span>
+        <!-- 만기별 항목은 JS(renderBondStrip)가 채움 -->
       </div>
     </div>
 

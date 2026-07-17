@@ -1086,6 +1086,34 @@ function renderMarketDash(data) {
   });
 }
 
+// 🇰🇷 국고채 금리 스트립 — 홈 전용(mktBondStrip 없는 페이지는 no-op). 토스증권 공식 API.
+const BOND_TENORS = [
+  { key: 'y2',  label: '2년' },
+  { key: 'y3',  label: '3년' },
+  { key: 'y5',  label: '5년' },
+  { key: 'y10', label: '10년' },
+  { key: 'y20', label: '20년' },
+  { key: 'y30', label: '30년' },
+];
+async function loadBondStrip() {
+  const wrap = document.getElementById('mktBondStrip');
+  if (!wrap) return;
+  try {
+    const bust = Math.floor(Date.now() / 60000);
+    const r = await fetch(`/api/toss?_t=${bust}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    if (!j.ok || !j.bonds) return;
+    const items = BOND_TENORS
+      .filter(t => j.bonds[t.key] != null)
+      .map(t => `<span class="mkt-bond-item"><small>${t.label}</small><b>${Number(j.bonds[t.key]).toFixed(2)}%</b></span>`)
+      .join('');
+    if (!items) return;
+    wrap.insertAdjacentHTML('beforeend', items);
+    wrap.style.display = '';
+  } catch {}
+}
+
 async function loadIndices() {
   try {
     const r = await fetch('/api/indices');
@@ -2346,6 +2374,7 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   loadIssues();
   reloadInsightsForPage();
   loadIndices();
+  loadBondStrip();
   loadEconomicCalendar();
   loadEarningsCalendar();
   loadAnalystRatings();
