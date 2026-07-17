@@ -240,11 +240,17 @@ body {
 .price-block { text-align: right; flex-shrink: 0; }
 .share-icon-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .share-icon-btn:hover { background: var(--bg3); color: var(--text); }
-.current-price { font-size: 28px; font-weight: 700; }
+.current-price { font-size: 28px; font-weight: 700; transition: color 0.4s ease; }
+.current-price.price-flash-up { color: var(--green); }
+.current-price.price-flash-down { color: var(--red); }
 .price-change { font-size: 14px; font-weight: 600; margin-top: 2px; }
 .price-change.pos { color: var(--green); }
 .price-change.neg { color: var(--red); }
 .price-loading { font-size: 14px; color: var(--text3); }
+.toss-live-price { font-size: 11px; color: var(--blue); font-weight: 600; margin-top: 5px; display: flex; align-items: center; gap: 5px; justify-content: flex-end; font-family: var(--mono); }
+.toss-live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--green); animation: tossLivePulse 2s infinite; flex-shrink: 0; }
+.toss-live-tag { color: var(--text3); font-weight: 500; font-family: 'Inter', sans-serif; }
+@keyframes tossLivePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 /* Stats Bar */
 .stats-bar {
@@ -1204,9 +1210,47 @@ function buildPriceBlock(priceData) {
           <div style="font-size:12px;font-weight:700;color:${ahChgColor}">${ahSign}${ahPct.toFixed(2)}%</div>
         </div>`;
     }
+    // 국내 종목: 토스증권 공식 실시간가 배지 자리 — startTossFastPriceSync()가 10초마다 채움
+    if (priceData.currency === 'KRW') {
+      priceHtml += `<div class="toss-live-price" id="tossLiveWrap" style="display:none"><span class="toss-live-dot"></span><span id="tossLiveVal"></span><span class="toss-live-tag">토스 공식 실시간</span></div>`;
+    }
     _currentLivePrice = priceData.price;
   }
   return priceHtml;
+}
+
+// 국내 종목 실시간가 고속 동기화(토스증권 공식 API, 10초 간격) — 기존 15초 Yahoo 폴링과
+// 별개로 헤드라인 숫자만 더 자주 갱신. day range/52주/거래량 등 나머지는 기존 주기 유지.
+let _tossFastTimer = null;
+let _lastTossPrice = null;
+function startTossFastPriceSync(ticker) {
+  if (_tossFastTimer || !ticker) return;
+  const fmtKrw = new Intl.NumberFormat('ko-KR');
+  const tick = async () => {
+    if (document.hidden) return;
+    try {
+      const r = await fetch(`/api/toss?action=prices&symbols=${encodeURIComponent(ticker)}`);
+      if (!r.ok) return;
+      const j = await r.json();
+      const d = j?.data?.[ticker];
+      if (!j.ok || !d || d.price == null) return;
+      const wrap = document.getElementById('tossLiveWrap');
+      const valEl = document.getElementById('tossLiveVal');
+      if (wrap) wrap.style.display = 'flex';
+      if (valEl) valEl.textContent = fmtKrw.format(d.price) + '원';
+      if (_lastTossPrice != null && d.price !== _lastTossPrice) {
+        const cpEl = document.querySelector('.current-price');
+        if (cpEl) {
+          cpEl.classList.remove('price-flash-up', 'price-flash-down');
+          void cpEl.offsetWidth; // 리플로우 강제 — 애니메이션 재시작
+          cpEl.classList.add(d.price > _lastTossPrice ? 'price-flash-up' : 'price-flash-down');
+        }
+      }
+      _lastTossPrice = d.price;
+    } catch {}
+  };
+  tick();
+  _tossFastTimer = setInterval(tick, 10000);
 }
 
 // 페이지 머문 동안 주가를 계속 폴링해서 가격·등락률·레인지 바(오늘의 시세) 위치를 실시간 갱신
@@ -2132,6 +2176,7 @@ async function init() {
 
   renderPage(company, records || [], priceData);
   startLivePriceRefresh();
+  if (_isKr) startTossFastPriceSync(ticker);
 }
 
 init();
