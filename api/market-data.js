@@ -116,21 +116,20 @@ async function handleToss(req, res) {
     nextBusinessDay: kr.nextBusinessDay?.date ?? null,
   } : null;
 
+  // 휴일(주말)에 date=오늘로 조회하면 Toss가 아예 에러를 내는 경우가 있어(callTossProxy가
+  // null로 흡수) usToday가 통째로 비어있을 수 있다 — 그럴 땐 usYest로 완전히 폴백한다.
   const withinSess = sess => sess && kstNowMs >= new Date(sess.startTime).getTime() && kstNowMs < new Date(sess.endTime).getTime();
   const todaySess = usToday?.today?.regularMarket ?? null;
   const yestSess = usYest?.today?.regularMarket ?? null;
   // 어제 세션이 자정을 넘겨 아직 진행 중이면 그걸 쓰고, 아니면 오늘 세션(시작 전이어도) 사용
   const regularMarket = withinSess(yestSess) ? yestSess : (todaySess ?? yestSess ?? null);
-  const usMarket = usToday ? {
+  const usBase = usToday || usYest;
+  const usMarket = usBase ? {
     isHoliday: !regularMarket,
-    today: usToday.today?.date ?? null,
+    today: usToday?.today?.date ?? kstToday,
     regularMarket,
-    nextBusinessDay: usToday.nextBusinessDay?.date ?? null,
+    nextBusinessDay: usToday?.nextBusinessDay?.date ?? usYest?.nextBusinessDay?.date ?? null,
   } : null;
-
-  if (req.query.debug === '1') {
-    return res.status(200).json({ ok: true, debug: true, kstToday, kstYest, usCalToday, usCalYest });
-  }
 
   return res.status(200).json({
     ok: true,
