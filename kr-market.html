@@ -247,7 +247,7 @@ button { font-family: inherit; }
   transition: all var(--t-fast) var(--ease); white-space: nowrap;
 }
 .nav-btn:hover { background: var(--bg3); color: var(--text); }
-.nav-btn.active { background: var(--text); color: #fff; font-weight: 600; }
+.nav-btn.active { background: var(--blue); color: #fff; font-weight: 600; }
 .nav-btn-primary {
   background: var(--blue); color: #fff; padding: 7px 16px; margin-left: 6px;
   border-radius: var(--r-md); font-size: 13px; font-weight: 600;
@@ -380,7 +380,7 @@ button { font-family: inherit; }
   transition: all var(--t-fast) var(--ease);
 }
 .cat-tab:hover { background: var(--bg3); color: var(--text); }
-.cat-tab.active { background: var(--text); color: #fff; }
+.cat-tab.active { background: var(--blue); color: #fff; }
 
 .filters {
   display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
@@ -432,7 +432,7 @@ button { font-family: inherit; }
 #marketSectionToggle .ms-tab {
   padding: 10px 22px; font-size: 14px; font-weight: 700; border-radius: 999px;
 }
-#marketSectionToggle .ms-tab.active { background: var(--text); color: #fff; box-shadow: none; }
+#marketSectionToggle .ms-tab.active { background: var(--blue); color: #fff; box-shadow: none; }
 
 /* 국장현황/미장현황 두 뷰의 섹션을 명확한 카드로 구분 (section-block 기본값은 배경 없음) */
 #krSummarySection, #krMarketSection, #usSummarySection, #usMarketSection {
@@ -536,7 +536,7 @@ button { font-family: inherit; }
 /* Toast */
 .toast {
   position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-  background: var(--text); color: #fff; border: none; border-radius: var(--r-md);
+  background: var(--bg4); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r-md);
   padding: 12px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px;
   box-shadow: var(--shadow-pop); transform: translateY(80px); opacity: 0;
   transition: all var(--t-med) var(--ease); pointer-events: none;
@@ -553,7 +553,7 @@ button { font-family: inherit; }
   cursor: pointer; transition: all var(--t-fast);
 }
 .page-btn:hover { border-color: var(--blue); color: var(--blue); }
-.page-btn.active { background: var(--text); border-color: var(--text); color: #fff; font-weight: 700; }
+.page-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Accuracy Badge */
