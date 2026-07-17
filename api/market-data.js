@@ -39,6 +39,7 @@ export default async function handler(req, res) {
       if (action === 'prices')          return handleTossPrices(req, res);
       if (action === 'rankings')        return handleTossRankings(req, res);
       if (action === 'investor-trading') return handleTossInvestorTrading(req, res);
+      if (action === 'fx')              return handleTossFx(req, res);
       return handleToss(req, res);
     }
     default:
@@ -228,6 +229,19 @@ async function handleTossInvestorTrading(req, res) {
   }));
 
   return res.status(200).json({ ok: true, source: 'toss', symbol, records });
+}
+
+// GET ?source=toss&action=fx — USD/KRW 환율만 가볍게 (미장 종목 페이지 원화 병기용,
+// handleToss 전체 번들을 부르는 것보다 훨씬 가벼움 + 자주 안 바뀌니 캐시도 더 길게).
+async function handleTossFx(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+
+  const data = await callTossProxy('/exchange-rate?baseCurrency=USD&quoteCurrency=KRW');
+  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+
+  return res.status(200).json({ ok: true, rate: data.result?.rate != null ? Number(data.result.rate) : null });
 }
 
 const SHARED_HEADERS = {

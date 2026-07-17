@@ -243,6 +243,7 @@ body {
 .current-price { font-size: 28px; font-weight: 700; transition: color 0.4s ease; }
 .current-price.price-flash-up { color: var(--green); }
 .current-price.price-flash-down { color: var(--red); }
+.current-price-krw { font-size: 14px; font-weight: 600; color: var(--text2); margin-top: 1px; font-family: var(--mono); }
 .price-change { font-size: 14px; font-weight: 600; margin-top: 2px; }
 .price-change.pos { color: var(--green); }
 .price-change.neg { color: var(--red); }
@@ -989,6 +990,17 @@ let _currentTicker = '';
 let _currentRange = '3mo';
 let _isKr = false;
 let _currentLivePrice = null;   // 애널리스트 컨센서스 상승여력% 계산에 재사용 (화면에 보이는 현재가와 일관성 유지)
+let _usdKrwRate = null;         // 미장 종목 원화 병기용
+
+async function loadUsdKrwRate() {
+  try {
+    const r = await fetch('/api/toss?action=fx');
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (j.ok && j.rate) _usdKrwRate = j.rate;
+    return _usdKrwRate;
+  } catch { return null; }
+}
 
 async function loadPrice(ticker) {
   try {
@@ -1175,9 +1187,10 @@ function buildQuoteCard(priceData) {
 function buildPriceBlock(priceData) {
   let priceHtml = '<span class="price-loading">주가 로딩 중...</span>';
   if (priceData && priceData.price) {
+    const isKrw = priceData.currency === 'KRW';
     const fmt = new Intl.NumberFormat('en-US', {
       style: 'currency', currency: priceData.currency || 'USD',
-      maximumFractionDigits: priceData.currency === 'KRW' ? 0 : 2
+      maximumFractionDigits: isKrw ? 0 : 2
     });
     const stateMap = {
       REGULAR: { label: '🟢 정규장', color: 'var(--green)' },
@@ -1187,31 +1200,42 @@ function buildPriceBlock(priceData) {
     };
     const st = stateMap[priceData.marketState] || stateMap.CLOSED;
     priceHtml = `<div style="font-size:11px;color:${st.color};font-weight:600;margin-bottom:3px">${st.label}</div>`;
-    priceHtml += `<div class="current-price">${fmt.format(priceData.price)}</div>`;
-    if (priceData.changePercent != null) {
-      const sign = priceData.changePercent >= 0 ? '+' : '';
-      const cls = priceData.changePercent >= 0 ? 'pos' : 'neg';
-      priceHtml += `<div class="price-change ${cls}">${sign}${Number(priceData.changePercent).toFixed(2)}% <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span></div>`;
-    }
-    // 시간외 호가 (프리/애프터) — 미장만
-    let ahLabel = null, ahPrice = null, ahPct = null, ahColor = 'var(--purple)';
+
+    // 시간외(프리/애프터) — 정규장 가격 대비 변동. 토스는 세션 구분 없이 통합가만 주므로
+    // (확인됨) 시간외 데이터는 계속 Yahoo 기준으로 표시.
+    let exLabel = null, exPrice = null, exChange = null, exPct = null;
     if (priceData.postMarketPrice != null && priceData.postMarketChangePercent != null) {
-      ahLabel = '애프터장'; ahPrice = priceData.postMarketPrice; ahPct = priceData.postMarketChangePercent; ahColor = 'var(--purple)';
+      exLabel = '애프터마켓'; exPrice = priceData.postMarketPrice; exChange = priceData.postMarketChange; exPct = priceData.postMarketChangePercent;
     } else if (priceData.preMarketPrice != null && priceData.preMarketChangePercent != null) {
-      ahLabel = '프리장'; ahPrice = priceData.preMarketPrice; ahPct = priceData.preMarketChangePercent; ahColor = 'var(--yellow)';
+      exLabel = '프리마켓'; exPrice = priceData.preMarketPrice; exChange = priceData.preMarketChange; exPct = priceData.preMarketChangePercent;
     }
-    if (ahLabel) {
-      const ahSign = ahPct >= 0 ? '+' : '';
-      const ahChgColor = ahPct >= 0 ? 'var(--green)' : 'var(--red)';
-      priceHtml += `
-        <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);text-align:right">
-          <div style="display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:${ahColor === 'var(--purple)' ? 'var(--purple-dim)' : 'var(--yellow-dim)'};color:${ahColor};margin-bottom:3px">⏱ ${ahLabel}</div>
-          <div style="font-size:18px;font-weight:700;color:var(--text);font-family:var(--font-mono,'SF Mono',monospace)">${fmt.format(ahPrice)}</div>
-          <div style="font-size:12px;font-weight:700;color:${ahChgColor}">${ahSign}${ahPct.toFixed(2)}%</div>
-        </div>`;
+
+    // 헤드라인 = 통합가(시간외 있으면 시간외가, 없으면 정규가) — 별도 장 구분 없이 계속 하나로 표시
+    const headlinePrice = exPrice != null ? exPrice : priceData.price;
+    priceHtml += `<div class="current-price">${fmt.format(headlinePrice)}</div>`;
+    if (!isKrw && _usdKrwRate) {
+      priceHtml += `<div class="current-price-krw">₩${Math.round(headlinePrice * _usdKrwRate).toLocaleString('ko-KR')}</div>`;
     }
+
+    if (priceData.changePercent != null) {
+      const sign = priceData.change >= 0 ? '+' : '-';
+      const cls = priceData.changePercent >= 0 ? 'pos' : 'neg';
+      const amtStr = priceData.change != null ? fmt.format(Math.abs(priceData.change)) : '';
+      if (exLabel) {
+        priceHtml += `<div class="price-change ${cls}">정규장 ${fmt.format(priceData.price)}으로 마감 ${sign}${amtStr}(${sign}${Math.abs(priceData.changePercent).toFixed(2)}%)</div>`;
+      } else {
+        priceHtml += `<div class="price-change ${cls}">${sign}${amtStr} (${sign}${Math.abs(priceData.changePercent).toFixed(2)}%) <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span></div>`;
+      }
+    }
+    if (exLabel) {
+      const exSign = exChange >= 0 ? '+' : '-';
+      const exCls = exPct >= 0 ? 'pos' : 'neg';
+      const exAmtStr = exChange != null ? fmt.format(Math.abs(exChange)) : '';
+      priceHtml += `<div class="price-change ${exCls}" style="margin-top:2px">${exLabel}에서 ${exSign}${exAmtStr}(${exSign}${Math.abs(exPct).toFixed(2)}%)</div>`;
+    }
+
     // 국내 종목: 토스증권 공식 실시간가 배지 자리 — startTossFastPriceSync()가 10초마다 채움
-    if (priceData.currency === 'KRW') {
+    if (isKrw) {
       priceHtml += `<div class="toss-live-price" id="tossLiveWrap" style="display:none"><span class="toss-live-dot"></span><span id="tossLiveVal"></span><span class="toss-live-tag">토스 공식 실시간</span></div>`;
     }
     _currentLivePrice = priceData.price;
@@ -2172,6 +2196,7 @@ async function init() {
       .select('upside_pct,confidence,rationale,actual_return_1d,is_accurate_1d,actual_return_7d,is_accurate_7d,entry_date,analyses(id,confidence_score,issues(id,title,published_at,source_name))')
       .eq('company_id', company.id)
       .order('entry_date', { ascending: false }),
+    _isKr ? Promise.resolve(null) : loadUsdKrwRate(),
   ]);
 
   renderPage(company, records || [], priceData);
