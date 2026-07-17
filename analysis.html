@@ -12,14 +12,14 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
 :root {
-  --bg: #ffffff; --bg2: #f6f6f8; --bg3: #ececf0; --bg4: #dededf;
-  --border: #e5e5ea; --border-strong: #c4c4c9; --border-soft: rgba(0,0,0,0.06);
-  --text: #0a0a0a; --text2: #4b4b52; --text3: #86868b;
-  --blue: #0066cc; --blue-dim: rgba(0,102,204,0.10);
-  --green: #00873a; --green-dim: rgba(0,135,58,0.10);
-  --red:   #e31937; --red-dim:   rgba(227,25,55,0.10);
-  --yellow:#b8860b; --purple:#7c3aed;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+  --bg: #15171e; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
+  --border: rgba(255,255,255,0.075); --border-strong: rgba(255,255,255,0.16); --border-soft: rgba(255,255,255,0.05);
+  --text: #f2f4f8; --text2: #a6adbb; --text3: #6c7385;
+  --blue: #4d8dff; --blue-dim: rgba(77,141,255,0.14);
+  --green: #3ddb7f; --green-dim: rgba(61,219,127,0.14);
+  --red:   #ff6b6b; --red-dim:   rgba(255,107,107,0.14);
+  --yellow:#f0b45e; --purple:#9d7bff;
+  --shadow-card: 0 10px 30px -14px rgba(0,0,0,0.55);
   --r-lg: 20px; --r-md: 14px; --r-sm: 10px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,7 +27,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(255,255,255,0.85); backdrop-filter: blur(12px) saturate(180%);
+  background: rgba(21,23,30,0.80); backdrop-filter: blur(12px) saturate(180%);
   border-bottom: 1px solid var(--border); padding: 0 24px;
 }
 .header-inner {
@@ -56,14 +56,14 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .issue-summary { font-size: 14px; color: var(--text2); line-height: 1.7; margin-bottom: 16px; }
 .issue-sectors { display: flex; gap: 6px; flex-wrap: wrap; }
 .sector-tag { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
-.tag-semi   { background: rgba(0,102,204,0.10); color: #0066cc; }
-.tag-ev     { background: rgba(0,135,58,0.10);  color: #00873a; }
-.tag-ai     { background: rgba(124,58,237,0.10);color: #7c3aed; }
-.tag-bio    { background: rgba(227,25,55,0.10); color: #e31937; }
-.tag-fin    { background: rgba(184,134,11,0.12);color: #b8860b; }
-.tag-cloud  { background: rgba(0,102,204,0.10); color: #0066cc; }
-.tag-robot  { background: rgba(124,58,237,0.10);color: #7c3aed; }
-.tag-energy { background: rgba(0,135,58,0.10);  color: #00873a; }
+.tag-semi   { background: rgba(0,102,204,0.10); color: #4d8dff; }
+.tag-ev     { background: rgba(0,135,58,0.10);  color: #3ddb7f; }
+.tag-ai     { background: rgba(124,58,237,0.10);color: #9d7bff; }
+.tag-bio    { background: rgba(227,25,55,0.10); color: #ff6b6b; }
+.tag-fin    { background: rgba(184,134,11,0.12);color: #f0b45e; }
+.tag-cloud  { background: rgba(0,102,204,0.10); color: #4d8dff; }
+.tag-robot  { background: rgba(124,58,237,0.10);color: #9d7bff; }
+.tag-energy { background: rgba(0,135,58,0.10);  color: #3ddb7f; }
 .tag-default { background: var(--bg3); color: var(--text2); }
 
 /* AI Summary Card — Tesla-light */
@@ -72,7 +72,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   background:
     radial-gradient(ellipse 80% 100% at 0% 0%, rgba(0,102,204,0.06), transparent 60%),
     radial-gradient(ellipse 70% 100% at 100% 100%, rgba(124,58,237,0.06), transparent 60%),
-    #ffffff;
+    #1e2129;
   border: 1px solid var(--border);
   border-radius: var(--r-lg, 20px);
   padding: 24px 26px;
@@ -134,7 +134,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   color: var(--text3); line-height: 1; padding: 2px; z-index: 2;
   transition: all 0.15s;
 }
-.card-star.active { color: #b8860b; }
+.card-star.active { color: #f0b45e; }
 .card-star:hover { transform: scale(1.2); }
 .company-ticker-link { text-decoration: none; }
 .company-ticker-link:hover .company-ticker { opacity: 0.8; }
@@ -180,7 +180,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 .chart-modal-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
 .chart-modal-ticker { font-family: 'SF Mono', monospace; font-size: 13px; font-weight: 700; }
-.chart-modal-ticker.kr { background: rgba(0,102,204,0.10); color: #0066cc; padding: 3px 8px; border-radius: 5px; }
+.chart-modal-ticker.kr { background: rgba(0,102,204,0.10); color: #4d8dff; padding: 3px 8px; border-radius: 5px; }
 .chart-modal-ticker.us { background: var(--bg3); color: var(--text2); padding: 3px 8px; border-radius: 5px; }
 .chart-modal-name { font-size: 18px; font-weight: 700; margin: 6px 0 2px; }
 .chart-modal-price { font-size: 24px; font-weight: 700; }
@@ -205,8 +205,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   font-size: 13px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
   background: var(--bg3); color: var(--text2); padding: 4px 10px; border-radius: 6px;
 }
-.company-ticker.kr { background: rgba(0,102,204,0.10); color: #0066cc; }
-.company-ticker.us { background: rgba(124,58,237,0.10); color: #7c3aed; }
+.company-ticker.kr { background: rgba(0,102,204,0.10); color: #4d8dff; }
+.company-ticker.us { background: rgba(124,58,237,0.10); color: #9d7bff; }
 .company-info { flex: 1; }
 .company-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
 .company-market { font-size: 11px; color: var(--text3); }
@@ -555,10 +555,10 @@ function renderChart(companies) {
         }
       },
       scales: {
-        x: { ticks: { color: '#4b4b52', font: { size: 11 } }, grid: { color: '#e5e5ea' } },
+        x: { ticks: { color: '#6c7385', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.06)' } },
         y: {
-          ticks: { color: '#4b4b52', font: { size: 11 }, callback: v => `${v}%` },
-          grid: { color: '#e5e5ea' },
+          ticks: { color: '#6c7385', font: { size: 11 }, callback: v => `${v}%` },
+          grid: { color: 'rgba(255,255,255,0.06)' },
         }
       }
     }
@@ -788,24 +788,24 @@ function renderLineChart(data) {
               return ' ' + fmt.format(v);
             }
           },
-          backgroundColor: '#ffffff', borderColor: '#e5e5ea', borderWidth: 1,
-          titleColor: '#4b4b52', bodyColor: '#0a0a0a',
+          backgroundColor: '#1e2129', borderColor: 'rgba(255,255,255,0.14)', borderWidth: 1,
+          titleColor: '#a6adbb', bodyColor: '#f2f4f8',
         }
       },
       scales: {
         x: {
           ticks: {
-            color: '#4b4b52', font: { size: 10 }, maxTicksLimit: 6,
+            color: '#6c7385', font: { size: 10 }, maxTicksLimit: 6,
             callback(val, i, ticks) { return labels[i]?.slice(5); }
           },
-          grid: { color: '#e5e5ea' }
+          grid: { color: 'rgba(255,255,255,0.06)' }
         },
         y: {
           ticks: {
-            color: '#4b4b52', font: { size: 10 },
+            color: '#6c7385', font: { size: 10 },
             callback: v => currency === 'KRW' ? v.toLocaleString('ko-KR') : v.toFixed(0)
           },
-          grid: { color: '#e5e5ea' }
+          grid: { color: 'rgba(255,255,255,0.06)' }
         }
       }
     }

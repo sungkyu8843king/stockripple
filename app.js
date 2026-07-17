@@ -1357,7 +1357,7 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
               <span style="font-size:24px;font-weight:800;color:var(--text3);min-width:28px">${i+1}</span>
               <div style="flex:1;min-width:0">
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
-                  <span style="font-family:var(--font-mono,'SF Mono',monospace);font-size:12px;font-weight:700;color:${isKr?'#0066cc':'#7c3aed'};background:${isKr?'rgba(0,102,204,0.10)':'rgba(124,58,237,0.10)'};padding:2px 8px;border-radius:5px">${escHtml(s.ticker)}</span>
+                  <span style="font-family:var(--font-mono,'SF Mono',monospace);font-size:12px;font-weight:700;color:${isKr?'#4d8dff':'#9d7bff'};background:${isKr?'rgba(0,102,204,0.10)':'rgba(124,58,237,0.10)'};padding:2px 8px;border-radius:5px">${escHtml(s.ticker)}</span>
                   <span style="font-size:15px;font-weight:700">${escHtml(s.name)}</span>
                 </div>
                 <div style="display:flex;gap:8px;font-size:10px;align-items:center;flex-wrap:wrap">
@@ -3069,8 +3069,8 @@ const hmCellOnClick = (t) => {
 };
 
 const HM_SESSION_BADGE = {
-  pre:  { label: '🟡 프리',   color: '#b8860b' },
-  post: { label: '🟣 애프터', color: '#7c3aed' },
+  pre:  { label: '🟡 프리',   color: '#f0b45e' },
+  post: { label: '🟣 애프터', color: '#9d7bff' },
 };
 
 function hmCellHtml(it) {
@@ -3512,10 +3512,10 @@ function heatmapColorFor(pct) {
   const v = Math.max(-5, Math.min(5, pct)) / 5;
   if (v >= 0) {
     const a = 0.18 + v * 0.78;
-    return { bg: `rgba(0,135,58,${a.toFixed(2)})`, fg: v > 0.35 ? '#fff' : '#0a3d1a' };
+    return { bg: `rgba(45,195,115,${a.toFixed(2)})`, fg: v > 0.35 ? '#fff' : '#c7ecd6' };
   } else {
     const a = 0.18 + (-v) * 0.78;
-    return { bg: `rgba(227,25,55,${a.toFixed(2)})`, fg: -v > 0.35 ? '#fff' : '#5a0a14' };
+    return { bg: `rgba(240,85,105,${a.toFixed(2)})`, fg: -v > 0.35 ? '#fff' : '#ffd4da' };
   }
 }
 
@@ -4129,10 +4129,10 @@ async function loadCorrelation() {
       const v = Math.max(-1, Math.min(1, c));
       if (v >= 0) {
         const a = 0.15 + v * 0.55;
-        return { bg: `rgba(0,135,58,${a.toFixed(2)})`, fg: v > 0.4 ? '#fff' : '#0a3d1a' };
+        return { bg: `rgba(45,195,115,${a.toFixed(2)})`, fg: v > 0.4 ? '#fff' : '#c7ecd6' };
       }
       const a = 0.15 + (-v) * 0.55;
-      return { bg: `rgba(227,25,55,${a.toFixed(2)})`, fg: -v > 0.4 ? '#fff' : '#5a0a14' };
+      return { bg: `rgba(240,85,105,${a.toFixed(2)})`, fg: -v > 0.4 ? '#fff' : '#ffd4da' };
     };
     let html = `<div style="overflow-x:auto"><table style="border-collapse:separate;border-spacing:2px;font-size:9.5px;margin:0 auto"><thead><tr><th style="width:36px"></th>${valid.map(a => `<th style="font-weight:600;color:var(--text2);padding:2px 1px;text-align:center;min-width:32px">${escHtml(a.n)}</th>`).join('')}</tr></thead><tbody>`;
     for (const a of valid) {
@@ -4267,7 +4267,7 @@ function escAttr(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,
 function computeMarketStatusFromData(market, domState, liveSession) {
   if (market === 'assets' || !domState) return computeMarketStatus(market);
   const isUs = market !== 'kr';
-  if (liveSession === 'kr-ot') return { label: '🟠 국장 시간외 (15:40–18:00)', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };
+  if (liveSession === 'kr-ot') return { label: '🟠 국장 시간외 (15:40–18:00)', bg: 'rgba(255,165,0,0.15)', fg: '#e0902e' };
   switch (domState) {
     case 'REGULAR':
       return { label: isUs ? '🟢 미국 정규장' : '🟢 정규장 진행 중', bg: 'var(--green-dim)', fg: 'var(--green)' };
@@ -4279,8 +4279,8 @@ function computeMarketStatusFromData(market, domState, liveSession) {
       return { label: '🟡 개장 전', bg: 'var(--yellow-dim)', fg: 'var(--yellow)' };
     case 'POST':
       return liveSession === 'post'
-        ? { label: '🟠 미국 애프터마켓 (시세 반영 중)', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' }
-        : { label: '🟠 미국 애프터마켓', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };
+        ? { label: '🟠 미국 애프터마켓 (시세 반영 중)', bg: 'rgba(255,165,0,0.15)', fg: '#e0902e' }
+        : { label: '🟠 미국 애프터마켓', bg: 'rgba(255,165,0,0.15)', fg: '#e0902e' };
     case 'POSTPOST':
       return { label: '⚪ 마감', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
     case 'CLOSED': {
@@ -4398,7 +4398,7 @@ function computeMarketStatus(market) {
     if (day === 0 || day === 6) return { label: '🔴 휴장', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
     if (minOfDay < 510)  return { label: `🟡 개장 전 (9:00 시작, ${510 - minOfDay}분 후)`, bg: 'var(--yellow-dim)', fg: 'var(--yellow)' };
     if (minOfDay < 930)  return { label: '🟢 정규장 진행 중', bg: 'var(--green-dim)', fg: 'var(--green)' };
-    if (minOfDay < 1080) return { label: '🟠 시간외', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };
+    if (minOfDay < 1080) return { label: '🟠 시간외', bg: 'rgba(255,165,0,0.15)', fg: '#e0902e' };
     return { label: '⚪ 마감', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
   }
   if (market === 'assets') {
@@ -4412,7 +4412,7 @@ function computeMarketStatus(market) {
   if (day === 0 || day === 6) return { label: '🔴 휴장 (주말)', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
   if (minOfDay >= 570 && minOfDay < 960) return { label: '🟢 미국 정규장', bg: 'var(--green-dim)', fg: 'var(--green)' };           // 9:30-16:00
   if (minOfDay >= 240 && minOfDay < 570) return { label: '🟡 미국 프리장', bg: 'var(--yellow-dim)', fg: 'var(--yellow)' };          // 4:00-9:30
-  if (minOfDay >= 960 && minOfDay < 1200) return { label: '🟠 미국 애프터', bg: 'rgba(255,165,0,0.15)', fg: '#cc6600' };           // 16:00-20:00
+  if (minOfDay >= 960 && minOfDay < 1200) return { label: '🟠 미국 애프터', bg: 'rgba(255,165,0,0.15)', fg: '#e0902e' };           // 16:00-20:00
   return { label: '⚪ 마감', bg: 'rgba(0,0,0,0.06)', fg: 'var(--text3)' };
 }
 
@@ -4486,7 +4486,7 @@ function openSearchPicker(query, matches) {
     const isKr = m.market === 'KR' || /\.K[SQ]$/i.test(m.ticker);
     const tickerStripped = m.ticker.replace(/\.(KS|KQ)$/i, '');
     const badgeColor = isKr ? 'rgba(0,102,204,0.10)' : 'rgba(124,58,237,0.10)';
-    const badgeText  = isKr ? '#0066cc' : '#7c3aed';
+    const badgeText  = isKr ? '#4d8dff' : '#9d7bff';
     return `<a href="/company.html?ticker=${encodeURIComponent(m.ticker)}" class="sp-card">
       <div class="sp-card-top">
         <span class="sp-ticker" style="background:${badgeColor};color:${badgeText}">${escHtml(tickerStripped)}</span>

@@ -12,37 +12,32 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
 :root {
-  /* 다크 콕핏 (2026-07 개편) — 종목 심층분석 몰입 화면 */
-  --bg: #0a0c12; --bg2: #12151f; --bg3: #191d2b; --bg4: #222840;
+  /* 소프트 핀테크 다크 (2026-07 전면 다크 전환) — 전체 사이트 톤 통일 */
+  --bg: #15171e; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
   --border: rgba(255,255,255,0.075); --border-strong: rgba(255,255,255,0.16); --border-soft: rgba(255,255,255,0.05);
-  --text: #eef1f8; --text2: #9aa4bf; --text3: #626b86;
-  --blue: #35e0cf; --blue-dim: rgba(53,224,207,0.12);   /* 시그니처 액센트: 틸-시안 */
-  --green: #3ddc84; --green-dim: rgba(61,220,132,0.14);
-  --red:   #ff5c72; --red-dim:   rgba(255,92,114,0.14);
-  --yellow:#ffbf47; --yellow-dim:rgba(255,191,71,0.14);
-  --purple:#8b8bff; --purple-dim:rgba(139,139,255,0.14);
-  --amber: #f0b45e; --amber-dim: rgba(240,180,94,0.14);
+  --text: #f2f4f8; --text2: #a6adbb; --text3: #6c7385;
+  --blue: #4d8dff; --blue-dim: rgba(77,141,255,0.14);   /* 시그니처 액센트: 소프트 블루 */
+  --green: #3ddb7f; --green-dim: rgba(61,219,127,0.14);
+  --red:   #ff6b6b; --red-dim:   rgba(255,107,107,0.14);
+  --yellow:#f0b45e; --yellow-dim:rgba(240,180,94,0.16);
+  --purple:#9d7bff; --purple-dim:rgba(157,123,255,0.16);
+  --amber: #f0b45e; --amber-dim: rgba(240,180,94,0.16);
   --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
-  --shadow-card: 0 1px 0 rgba(255,255,255,0.03) inset, 0 24px 60px -34px rgba(0,0,0,0.9);
+  --shadow-card: 0 10px 30px -14px rgba(0,0,0,0.55);
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
-  --shadow-pop: 0 20px 60px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
-  --shadow-focus: 0 0 0 3px rgba(53,224,207,0.22);
-  --r-lg: 20px; --r-md: 14px; --r-sm: 10px; --r-xs: 6px; --r-xl: 18px; --r-pill: 999px;
+  --shadow-pop: 0 20px 50px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-focus: 0 0 0 3px rgba(77,141,255,0.22);
+  --r-lg: 20px; --r-md: 16px; --r-sm: 12px; --r-xs: 7px; --r-xl: 20px; --r-pill: 999px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1); --t-fast: 120ms; --t-med: 200ms;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: 'Inter', sans-serif; color: var(--text); min-height: 100vh;
-  background:
-    radial-gradient(1000px 440px at 82% -12%, rgba(53,224,207,0.09), transparent 60%),
-    radial-gradient(760px 340px at 6% 2%, rgba(96,110,255,0.07), transparent 55%),
-    var(--bg);
-  background-attachment: fixed;
+  font-family: 'Inter', sans-serif; color: var(--text); min-height: 100vh; background: var(--bg);
 }
 
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(10,12,18,0.72); backdrop-filter: blur(14px) saturate(150%);
+  background: rgba(21,23,30,0.80); backdrop-filter: blur(14px) saturate(150%);
   border-bottom: 1px solid var(--border); padding: 0 24px;
 }
 .header-inner {
@@ -237,7 +232,7 @@ body {
   padding: 6px 14px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;
 }
 .ticker-badge { font-family: var(--mono); border: 1px solid var(--border); }
-.ticker-badge.kr { background: var(--blue-dim); color: var(--blue); border-color: rgba(53,224,207,0.30); }
+.ticker-badge.kr { background: var(--blue-dim); color: var(--blue); border-color: rgba(77,141,255,0.30); }
 .ticker-badge.us { background: var(--purple-dim); color: var(--purple); border-color: rgba(139,139,255,0.30); }
 .company-name-wrap { flex: 1; }
 .company-name-main { font-size: 28px; font-weight: 700; line-height: 1.2; margin-bottom: 4px; }
@@ -325,7 +320,7 @@ body {
   box-shadow: var(--shadow-card); position: relative; overflow: hidden;
 }
 .ai-summary-card::before { content:""; position:absolute; inset:0 0 auto 0; height:1px;
-  background:linear-gradient(90deg, transparent, rgba(53,224,207,0.30), transparent); }
+  background:linear-gradient(90deg, transparent, rgba(77,141,255,0.30), transparent); }
 .ai-badge-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .ai-badge { font-size: 11px; color: var(--blue); font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
 .ai-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 8px var(--blue); animation: pulse 2s infinite; }
@@ -457,7 +452,7 @@ body {
   box-shadow: var(--shadow-card); overflow: hidden; margin-bottom: 14px; position: relative;
 }
 .cmp-hero::before { content:""; position:absolute; inset:0 0 auto 0; height:1px;
-  background:linear-gradient(90deg, transparent, rgba(53,224,207,0.32), transparent); }
+  background:linear-gradient(90deg, transparent, rgba(77,141,255,0.32), transparent); }
 .cmp-hero-top { display: flex; align-items: center; gap: 15px; padding: 20px 24px; flex-wrap: wrap; }
 .cmp-hero-top .company-name-main { font-size: 23px; font-weight: 650; letter-spacing: -0.02em; margin: 0; }
 .cmp-hero-top .company-sub { letter-spacing: 0.01em; }
@@ -473,7 +468,7 @@ body {
   display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700;
   color: var(--bg); border-radius: var(--r-pill); padding: 8px 17px; white-space: nowrap;
 }
-.vbadge.buy { background: linear-gradient(135deg, var(--blue), #59f0c4); box-shadow: 0 0 22px -4px rgba(53,224,207,0.5); }
+.vbadge.buy { background: linear-gradient(135deg, var(--blue), #7aa9ff); box-shadow: 0 0 22px -4px rgba(77,141,255,0.5); }
 .vbadge.neutral { background: var(--bg4); color: var(--text); box-shadow: none; }
 .vbadge .spark { width: 7px; height: 7px; border-radius: 50%; background: var(--bg); opacity: 0.7; }
 .vmeta { display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 13px 20px; border-left: 1px solid var(--border); }
@@ -535,7 +530,7 @@ body {
 .ck-tbl td { padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .ck-tbl td:first-child { text-align: left; font-family: 'Inter', sans-serif; color: var(--text2); }
 .ck-tbl tbody tr:last-child td { border-bottom: none; }
-.ck-tbl tbody tr:hover td { background: rgba(53,224,207,0.035); }
+.ck-tbl tbody tr:hover td { background: rgba(77,141,255,0.05); }
 .ck-cell { display: inline-block; min-width: 62px; padding: 3px 9px; border-radius: 6px; font-weight: 600; font-size: 12px; }
 .ck-cell.p { color: var(--green); background: var(--green-dim); }
 .ck-cell.n { color: var(--red); background: var(--red-dim); }
@@ -569,7 +564,7 @@ body {
 .rr-lg b { font-family: var(--mono); font-weight: 600; }
 .rr-ranges { margin-left: auto; display: flex; gap: 3px; }
 .rr-rg { font-size: 11px; font-weight: 600; color: var(--text3); background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 9px; cursor: pointer; }
-.rr-rg.on { color: var(--blue); background: var(--blue-dim); border-color: rgba(53,224,207,0.3); }
+.rr-rg.on { color: var(--blue); background: var(--blue-dim); border-color: rgba(77,141,255,0.3); }
 .rr-box { position: relative; height: 230px; margin-top: 8px; }
 .rr-box svg { width: 100%; height: 100%; display: block; }
 
@@ -1470,7 +1465,7 @@ async function buildRelativeChart(baseTicker, baseName, peerTicker, peerName, ra
   const mn = Math.min(...all), mx = Math.max(...all), r = (mx - mn) || 1, pad = r * 0.08;
   const lo = mn - pad, hi = mx + pad, rr2 = (hi - lo) || 1;
   const y = v => H - ((v - lo) / rr2) * H;
-  const CA = '#35e0cf', CM = '#f0b45e';
+  const CA = '#4d8dff', CM = '#f0b45e';
   const line = (arr, color) => {
     const pts = arr.map((v, i) => `${(i / (arr.length - 1 || 1)) * W},${y(v)}`).join(' ');
     return `<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" points="${pts}"/><circle cx="${W}" cy="${y(arr[arr.length - 1])}" r="4" fill="${color}"/>`;
@@ -2256,7 +2251,7 @@ async function loadInvestorTrend(ticker) {
 function renderInvestorTrend(d) {
   const days = d.days;                 // 최신순 (0 = 오늘)
   const chron = [...days].reverse();   // 과거→현재 (차트용)
-  const CG = '#3ddc84', CR = '#ff5c72', CA = '#35e0cf', CM = '#f0b45e';
+  const CG = '#3ddc84', CR = '#ff5c72', CA = '#4d8dff', CM = '#f0b45e';
   const manju = v => Math.round((v || 0) / 10000);
   const latestClose = days[0]?.close || 0;
 

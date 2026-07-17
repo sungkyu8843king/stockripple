@@ -11,14 +11,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #ffffff; --bg2: #f6f6f8; --bg3: #ececf0; --bg4: #dededf;
-  --border: #e5e5ea; --border-strong: #c4c4c9; --border-soft: rgba(0,0,0,0.06);
-  --text: #0a0a0a; --text2: #4b4b52; --text3: #86868b;
-  --blue: #0066cc; --blue-dim: rgba(0,102,204,0.10);
-  --green: #00873a; --green-dim: rgba(0,135,58,0.10);
-  --red:   #e31937; --red-dim:   rgba(227,25,55,0.10);
-  --yellow:#b8860b; --purple:#7c3aed;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+  --bg: #15171e; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
+  --border: rgba(255,255,255,0.075); --border-strong: rgba(255,255,255,0.16); --border-soft: rgba(255,255,255,0.05);
+  --text: #f2f4f8; --text2: #a6adbb; --text3: #6c7385;
+  --blue: #4d8dff; --blue-dim: rgba(77,141,255,0.14);
+  --green: #3ddb7f; --green-dim: rgba(61,219,127,0.14);
+  --red:   #ff6b6b; --red-dim:   rgba(255,107,107,0.14);
+  --yellow:#f0b45e; --purple:#9d7bff;
+  --shadow-card: 0 10px 30px -14px rgba(0,0,0,0.55);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -26,7 +26,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 /* Header */
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(255,255,255,0.85); backdrop-filter: blur(12px) saturate(180%);
+  background: rgba(21,23,30,0.80); backdrop-filter: blur(12px) saturate(180%);
   border-bottom: 1px solid var(--border); padding: 0 24px;
 }
 .header-inner {
@@ -55,7 +55,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   width: 72px; height: 72px; border-radius: 50%;
   background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
   display: flex; align-items: center; justify-content: center;
-  font-size: 28px; font-weight: 700; color: #fff; flex-shrink: 0;
+  font-size: 28px; font-weight: 700; color: #f2f4f8; flex-shrink: 0;
   text-transform: uppercase;
 }
 .profile-info { flex: 1; }
@@ -105,8 +105,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   font-size: 12px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
   padding: 4px 10px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;
 }
-.ticker-badge.kr { background: rgba(0,102,204,0.10); color: #0066cc; }
-.ticker-badge.us { background: rgba(124,58,237,0.10); color: #7c3aed; }
+.ticker-badge.kr { background: rgba(0,102,204,0.10); color: #4d8dff; }
+.ticker-badge.us { background: rgba(124,58,237,0.10); color: #9d7bff; }
 .watchlist-name { flex: 1; font-size: 14px; font-weight: 500; }
 .watchlist-name a { color: var(--text); text-decoration: none; }
 .watchlist-name a:hover { color: var(--blue); }
@@ -138,12 +138,12 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .bookmark-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bookmark-date { font-size: 11px; color: var(--text3); }
 .sector-tag { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
-.tag-semi  { background: rgba(0,102,204,0.10); color: #0066cc; }
+.tag-semi  { background: rgba(0,102,204,0.10); color: #4d8dff; }
 .tag-ev    { background: rgba(0,135,58,0.10);  color: #00873a; }
-.tag-ai    { background: rgba(124,58,237,0.10);color: #7c3aed; }
+.tag-ai    { background: rgba(124,58,237,0.10);color: #9d7bff; }
 .tag-bio   { background: rgba(227,25,55,0.10); color: #e31937; }
 .tag-fin   { background: rgba(184,134,11,0.12);color: #b8860b; }
-.tag-cloud { background: rgba(0,102,204,0.10); color: #0066cc; }
+.tag-cloud { background: rgba(0,102,204,0.10); color: #4d8dff; }
 .tag-robot { background: #2a2040; color: #b06bff; }
 .tag-energy { background: #2a3a1a; color: #8bc34a; }
 .tag-default { background: var(--bg3); color: var(--text2); }
@@ -199,7 +199,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 
 .save-btn {
   display: inline-flex; align-items: center; gap: 7px;
-  background: var(--blue); color: #fff; border: none; border-radius: 8px;
+  background: var(--blue); color: #f2f4f8; border: none; border-radius: 8px;
   padding: 10px 20px; font-size: 14px; font-weight: 600;
   cursor: pointer; transition: background 0.15s;
 }
@@ -219,7 +219,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   color: var(--text3); padding: 9px 18px; font-size: 13px; font-weight: 500;
   cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
 }
-.delete-account-btn:hover { border-color: var(--red); color: #fff; background: var(--red); }
+.delete-account-btn:hover { border-color: var(--red); color: #f2f4f8; background: var(--red); }
 
 /* Empty state */
 .empty-state {

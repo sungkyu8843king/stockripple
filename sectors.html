@@ -9,21 +9,21 @@
 <title>섹터 파급 지도 — StockRipple</title>
 <style>
 :root {
-  --bg: #f6f7fa; --card: #ffffff; --border: #e5e8ee; --border2: #d3d8e2;
-  --text: #171b26; --text2: #4b5262; --text3: #8b93a5;
-  --blue: #3861f6; --green: #0f9d58; --red: #e5484d; --yellow: #c98a06;
-  --blue-dim: rgba(56,97,246,.09); --green-dim: rgba(15,157,88,.1); --red-dim: rgba(229,72,77,.1); --yellow-dim: rgba(201,138,6,.12);
+  --bg: #15171e; --card: #1e2129; --border: rgba(255,255,255,0.075); --border2: rgba(255,255,255,0.14);
+  --text: #f2f4f8; --text2: #a6adbb; --text3: #6c7385;
+  --blue: #4d8dff; --green: #3ddb7f; --red: #ff6b6b; --yellow: #f0b45e;
+  --blue-dim: rgba(77,141,255,.14); --green-dim: rgba(61,219,127,.14); --red-dim: rgba(255,107,107,.14); --yellow-dim: rgba(240,180,94,.16);
   /* 다른 페이지들과 공유하는 상단 메뉴바/티커/로그인 모달(app.js)이 참조하는 변수 —
      이 페이지 자체 컴포넌트는 위 --card/--border 등 기존 변수를 그대로 계속 사용 */
-  --bg2: #ffffff; --bg3: #f2f4f7; --bg4: #e7eaf0;
-  --border-strong: #c9cedb; --border-soft: #eceef3;
-  --purple: #6d3fe0; --purple-dim: rgba(109,63,224,0.08);
+  --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
+  --border-strong: rgba(255,255,255,0.16); --border-soft: rgba(255,255,255,0.05);
+  --purple: #9d7bff; --purple-dim: rgba(157,123,255,0.16);
   --r-xs: 6px; --r-sm: 8px; --r-md: 10px; --r-lg: 14px; --r-xl: 18px; --r-pill: 999px;
   --t-fast: 120ms; --t-med: 200ms; --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
-  --shadow-sm: 0 1px 2px rgba(19,23,34,0.04);
-  --shadow-pop: 0 16px 48px rgba(19,23,34,0.16), 0 4px 12px rgba(19,23,34,0.08);
-  --shadow-focus: 0 0 0 3px rgba(36,87,230,0.15);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-pop: 0 20px 50px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-focus: 0 0 0 3px rgba(77,141,255,0.22);
   --page-max: 1400px; --page-pad: 16px;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -40,7 +40,7 @@ h1 { font-size: 20px; font-weight: 800; }
 /* ── 상단 메뉴바 (다른 페이지들과 동일 — index.html/kr-market.html 등과 마크업 통일) ── */
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(255,255,255,0.88);
+  background: rgba(21,23,30,0.80);
   backdrop-filter: blur(14px) saturate(160%);
   border-bottom: 1px solid var(--border);
   padding: 0 var(--page-pad);
