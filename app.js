@@ -1016,6 +1016,9 @@ function renderMktStatus() {
 function renderMktStatusFromToss(krMarket, usMarket) {
   const el = document.getElementById('mktStatus');
   if (!el) return;
+  // 실데이터 우선권 표시 — loadIndices()가 나중에 끝나 renderMktStatus()(추정치)를 뒤늦게
+  // 호출해도 이 값이 이미 서 있으면 덮어쓰지 못하게 막는다(레이스 컨디션 수정).
+  el.dataset.rendered = 'toss';
   const now = new Date();
   const hhmm = iso => iso ? iso.slice(11, 16) : '';
   const within = sess => sess && now >= new Date(sess.startTime) && now < new Date(sess.endTime);
@@ -2420,7 +2423,10 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   loadEconomicCalendar();
   loadEarningsCalendar();
   loadAnalystRatings();
-  setInterval(loadIndices, 30000);
+  // 1초 폴링이지만 /api/indices는 전 사용자 공통 고정 심볼셋(사용자별로 다른 티커를
+  // 요청하는 /api/quotes와 달리)이라 엣지 캐시가 트래픽과 무관하게 오리진 호출을
+  // s-maxage(3초)로 묶어준다 — 접속자가 늘어도 야후 호출 빈도는 그대로.
+  setInterval(loadIndices, 1000);
   // 15초마다 시세 갱신 (마켓 상태는 카드에 표시) — 사용자마다 화면에 보이는 종목
   // 조합이 달라 edge cache 히트율이 낮음. 1초 간격은 실사용자 트래픽 증가 시
   // Yahoo Finance 레이트리밋을 유발한 원인 중 하나였음(히트맵 폴링과 동일 이슈).

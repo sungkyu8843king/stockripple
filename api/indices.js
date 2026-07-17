@@ -1,6 +1,9 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
+  // 홈 대시보드가 1초 간격으로 폴링하지만, 엣지 캐시가 접속자 수와 무관하게 오리진(야후) 호출을
+  // 3초에 1회로 묶어준다 — 2026-07-15 팬아웃 사고(quotes 엔드포인트, s-maxage 너무 낮게 잡아
+  // 트래픽 증가 시 초당 수십 회로 폭증)와 같은 실수를 반복하지 않도록 너무 낮추지 않을 것.
+  res.setHeader('Cache-Control', 'public, s-maxage=3, stale-while-revalidate=10');
 
   const SYMBOLS = [
     { id: 'sp500',  symbol: '^GSPC'  },
