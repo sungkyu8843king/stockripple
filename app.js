@@ -1036,10 +1036,14 @@ function renderMktStatus() {
   const mins = kst.getHours() * 60 + kst.getMinutes();
   const isWeekday = day >= 1 && day <= 5;
   const krOpen = isWeekday && mins >= 540 && mins < 930;       // 09:00–15:30
-  const dayMktOpen = isWeekday && mins >= 540 && mins < 1020;  // 09:00–17:00 (해외주식 데이마켓)
+  // 해외(미국) 정규장은 22:30(전날 밤)~05:00(당일 새벽)로 자정을 넘겨 이어진다 —
+  // 오늘 저녁에 새로 시작하거나(평일 저녁) 어제 밤 세션이 아직 진행 중인 경우(어제가 평일) 모두 포함.
+  const usEveningOpen = isWeekday && mins >= 1350;             // 22:30~24:00
+  const usMorningOpen = mins < 300 && day >= 2 && day <= 6;    // 00:00~05:00, 어제(day-1)가 평일
+  const usOpen = usEveningOpen || usMorningOpen;
   el.innerHTML = `
     <div class="mkt-status-item"><span class="mkt-status-dot ${krOpen ? 'live' : 'closed'}"></span>${!isWeekday ? '국내 휴장일' : (krOpen ? '국내 정규장' : '국내 장마감')}</div>
-    <div class="mkt-status-item"><span class="mkt-status-dot ${dayMktOpen ? 'live' : 'closed'}"></span>해외 데이마켓 09:00~17:00</div>
+    <div class="mkt-status-item"><span class="mkt-status-dot ${usOpen ? 'live' : 'closed'}"></span>해외 ${usOpen ? '정규장' : '장마감'} 22:30~05:00</div>
   `;
 }
 
@@ -1070,9 +1074,9 @@ function renderMktStatusFromToss(krMarket, usMarket) {
     if (usMarket.isHoliday) {
       usHtml = `<div class="mkt-status-item"><span class="mkt-status-dot closed"></span>해외 휴장일${usMarket.nextBusinessDay ? ` · 다음 개장 ${usMarket.nextBusinessDay.slice(5)}` : ''}</div>`;
     } else {
-      const dm = usMarket.dayMarket;
-      const open = within(dm);
-      usHtml = `<div class="mkt-status-item"><span class="mkt-status-dot ${open ? 'live' : 'closed'}"></span>해외 데이마켓${dm ? ` ${hhmm(dm.startTime)}~${hhmm(dm.endTime)}` : ''}${open ? ' 진행 중' : ''}</div>`;
+      const rm = usMarket.regularMarket;
+      const open = within(rm);
+      usHtml = `<div class="mkt-status-item"><span class="mkt-status-dot ${open ? 'live' : 'closed'}"></span>해외 ${open ? '정규장' : '장마감'}${rm ? ` ${hhmm(rm.startTime)}~${hhmm(rm.endTime)}` : ''}</div>`;
     }
   }
 

@@ -77,12 +77,22 @@ async function handleToss(req, res) {
   }
   const callProxy = callTossProxy;
 
+  // 미국 정규장은 한국시간 기준 22:30(전날 밤)~05:00(당일 새벽)로 자정을 넘겨 이어진다.
+  // Toss 캘린더는 세션을 그 세션이 "속한" 거래일(예: 금요일)에 키잉하므로, 오늘(KST) 날짜만
+  // 조회하면 "오늘 새로 시작하는 세션 없음" = 휴장으로 오판한다(토요일 새벽엔 실제로 금요일
+  // 세션이 아직 진행 중). 오늘 + 어제(KST) 캘린더를 모두 조회해서 현재 시각을 포함하거나
+  // 가장 최근/다음에 해당하는 세션을 고른다.
+  const kstNowMs = Date.now();
+  const kstToday = new Date(kstNowMs + 9 * 3600000).toISOString().slice(0, 10);
+  const kstYest = new Date(kstNowMs + 9 * 3600000 - 86400000).toISOString().slice(0, 10);
+
   const indicatorSymbols = 'KOSPI,KOSDAQ,KR_BOND_2Y,KR_BOND_3Y,KR_BOND_5Y,KR_BOND_10Y,KR_BOND_20Y,KR_BOND_30Y';
-  const [pricesData, fxData, krCal, usCal] = await Promise.all([
+  const [pricesData, fxData, krCal, usCalToday, usCalYest] = await Promise.all([
     callProxy(`/market-indicators/prices?symbols=${indicatorSymbols}`),
     callProxy(`/exchange-rate?baseCurrency=USD&quoteCurrency=KRW`),
     callProxy(`/market-calendar/KR`),
-    callProxy(`/market-calendar/US`),
+    callProxy(`/market-calendar/US?date=${kstToday}`),
+    callProxy(`/market-calendar/US?date=${kstYest}`),
   ]);
 
   if (!pricesData && !fxData) {
@@ -97,21 +107,25 @@ async function handleToss(req, res) {
   // 장 운영 캘린더 — 세션 객체를 그대로 넘기고(휴장이면 null), 실제 열려있는지 판단은
   // 프론트에서 now와 startTime/endTime을 비교(타임존 오프셋 포함된 ISO라 그대로 비교 가능).
   const kr = krCal?.result;
-  const us = usCal?.result;
+  const usToday = usCalToday?.result;
+  const usYest = usCalYest?.result;
   const krMarket = kr ? {
     isHoliday: !kr.today?.integrated,
     today: kr.today?.date ?? null,
     regularMarket: kr.today?.integrated?.regularMarket ?? null,
     nextBusinessDay: kr.nextBusinessDay?.date ?? null,
   } : null;
-  const usMarket = us ? {
-    isHoliday: !us.today?.dayMarket,
-    today: us.today?.date ?? null,
-    dayMarket: us.today?.dayMarket ?? null,
-    preMarket: us.today?.preMarket ?? null,
-    regularMarket: us.today?.regularMarket ?? null,
-    afterMarket: us.today?.afterMarket ?? null,
-    nextBusinessDay: us.nextBusinessDay?.date ?? null,
+
+  const withinSess = sess => sess && kstNowMs >= new Date(sess.startTime).getTime() && kstNowMs < new Date(sess.endTime).getTime();
+  const todaySess = usToday?.today?.regularMarket ?? null;
+  const yestSess = usYest?.today?.regularMarket ?? null;
+  // 어제 세션이 자정을 넘겨 아직 진행 중이면 그걸 쓰고, 아니면 오늘 세션(시작 전이어도) 사용
+  const regularMarket = withinSess(yestSess) ? yestSess : (todaySess ?? yestSess ?? null);
+  const usMarket = usToday ? {
+    isHoliday: !regularMarket,
+    today: usToday.today?.date ?? null,
+    regularMarket,
+    nextBusinessDay: usToday.nextBusinessDay?.date ?? null,
   } : null;
 
   return res.status(200).json({
