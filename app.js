@@ -948,6 +948,37 @@ function fmtIdx(val, fmt) {
   return Number(val).toLocaleString('ko-KR', {maximumFractionDigits: 2});
 }
 
+// ── 숫자 카운트업/다운 애니메이션 ──────────────────────────────
+// 지표/시세를 폴링마다 textContent로 그냥 스냅 교체하면 "깜빡"이는 느낌만 준다.
+// 이전 값 → 새 값을 부드럽게 보간(투표율 카운터 느낌)하고, 끝나는 시점에
+// flashCls([상승클래스, 하락클래스])를 넘기면 해당 클래스를 재트리거해 마무리 효과를 준다.
+function animateNumberText(el, toVal, formatFn, flashCls) {
+  if (!el || toVal == null || !isFinite(toVal)) return;
+  const fromVal = el.dataset.animVal != null ? parseFloat(el.dataset.animVal) : NaN;
+  el.dataset.animVal = toVal;
+  if (!isFinite(fromVal)) { el.textContent = formatFn(toVal); return; }
+  if (fromVal === toVal) return; // 값 변화 없으면 재렌더 생략 — 매초 폴링에도 깜빡이지 않게
+
+  if (el._animRAF) cancelAnimationFrame(el._animRAF);
+  const startTs = performance.now();
+  const duration = 500;
+  const ease = t => 1 - Math.pow(1 - t, 3);
+  const step = now => {
+    const t = Math.min(1, (now - startTs) / duration);
+    el.textContent = formatFn(fromVal + (toVal - fromVal) * ease(t));
+    if (t < 1) { el._animRAF = requestAnimationFrame(step); return; }
+    el._animRAF = null;
+    if (flashCls) {
+      const [upCls, dnCls] = flashCls;
+      el.classList.remove(upCls, dnCls);
+      void el.offsetWidth; // 리플로우 강제 — 애니메이션 재트리거
+      el.classList.add(toVal > fromVal ? upCls : dnCls);
+      setTimeout(() => el.classList.remove(upCls, dnCls), 900);
+    }
+  };
+  el._animRAF = requestAnimationFrame(step);
+}
+
 // 최근 세션(24h) 미니 차트 — 44×14 SVG path 생성
 function sparkPath(points) {
   if (!Array.isArray(points) || points.length < 2) return '';
@@ -1060,7 +1091,7 @@ function renderMarketDash(data) {
     const chgSign = nd.changePercent > 0 ? '+' : '';
     const valEl = document.getElementById('mktHeroVal');
     const chgEl = document.getElementById('mktHeroChg');
-    if (valEl) valEl.textContent = fmtIdx(nd.price, 'n');
+    if (valEl) animateNumberText(valEl, nd.price, v => fmtIdx(v, 'n'), ['flash-up', 'flash-down']);
     if (chgEl && nd.changePercent != null) {
       chgEl.innerHTML = `<span class="${chgClass}">${chgSign}${(nd.change ?? 0).toFixed(2)} (${chgSign}${nd.changePercent.toFixed(2)}%)</span>`;
     }
@@ -1110,7 +1141,7 @@ function renderMarketDash(data) {
     const chgSign = d.changePercent > 0 ? '+' : '';
     const valEl = document.getElementById(`mktCardVal-${it.id}`);
     const chgEl = document.getElementById(`mktCardChg-${it.id}`);
-    if (valEl) valEl.textContent = fmtIdx(d.price, it.fmt);
+    if (valEl) animateNumberText(valEl, d.price, v => fmtIdx(v, it.fmt), ['flash-up', 'flash-down']);
     if (chgEl && d.changePercent != null) {
       chgEl.textContent = `${chgSign}${d.changePercent.toFixed(2)}%`;
       chgEl.className = `mkt-card-chg ${chgClass}`;
@@ -1798,14 +1829,14 @@ async function refreshInsightQuotes() {
 
       // 포맷
       const cur = q.currency === 'KRW' ? '₩' : '$';
-      const priceStr = cur + Number(q.price).toLocaleString(q.currency === 'KRW' ? 'ko-KR' : 'en-US',
+      const priceFmt = v => cur + Number(v).toLocaleString(q.currency === 'KRW' ? 'ko-KR' : 'en-US',
         { maximumFractionDigits: q.currency === 'KRW' ? 0 : 2 });
       const cp = q.changePercent;
       const sign = cp != null && cp > 0 ? '+' : '';
       const chgStr = cp != null ? `${sign}${cp.toFixed(2)}%` : '—';
       const chgColor = cp == null ? 'var(--text3)' : cp > 0 ? 'var(--green)' : cp < 0 ? 'var(--red)' : 'var(--text2)';
 
-      if (priceEl) { priceEl.textContent = priceStr; priceEl.style.color = 'var(--text)'; }
+      if (priceEl) { priceEl.style.color = 'var(--text)'; animateNumberText(priceEl, q.price, priceFmt, ['flash-up', 'flash-down']); }
       if (chgEl)   { chgEl.textContent = chgStr; chgEl.style.color = chgColor; }
 
       // 시간외(프리/애프터) 호가 — 미장만 (Yahoo는 한국 NXT 미지원)
@@ -1847,20 +1878,14 @@ async function refreshInsightQuotes() {
         }
       }
 
-      // 시세가 변동했을 때만 flash 효과
+      // 시세가 변동했을 때만 배경 pulse 효과 (가격 숫자 자체의 flash는 animateNumberText가
+      // 카운트업/다운 애니메이션이 끝나는 시점에 맞춰 별도로 트리거함)
       if (direction) {
-        const upCls    = direction === 'up' ? 'tick-up'   : 'tick-down';
-        const priceCls = direction === 'up' ? 'flash-up'  : 'flash-down';
-        // 이전 애니메이션 클래스 제거 후 reflow → 다시 추가 (재트리거)
+        const upCls = direction === 'up' ? 'tick-up' : 'tick-down';
         node.classList.remove('tick-up', 'tick-down');
-        priceEl?.classList.remove('flash-up', 'flash-down');
         void node.offsetWidth;  // force reflow
         node.classList.add(upCls);
-        priceEl?.classList.add(priceCls);
-        setTimeout(() => {
-          node.classList.remove(upCls);
-          priceEl?.classList.remove(priceCls);
-        }, 1000);
+        setTimeout(() => node.classList.remove(upCls), 1000);
       }
     });
   } catch(e) {

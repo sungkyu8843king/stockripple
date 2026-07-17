@@ -370,7 +370,7 @@ button { font-family: inherit; }
   box-shadow: var(--shadow-sm);
 }
 .category-tabs {
-  display: flex; gap: 4px; overflow-x: auto;
+  display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
   scrollbar-width: none; padding-bottom: 0;
 }
 .category-tabs::-webkit-scrollbar { display: none; }

@@ -493,7 +493,7 @@ body {
 .cmp-chip b { font-family: var(--mono); font-weight: 600; color: var(--text); font-size: 12.5px; letter-spacing: -0.01em; }
 .cmp-chip b.pos { color: var(--green); } .cmp-chip b.neg { color: var(--red); }
 
-.cmp-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 24px; overflow-x: auto; }
+.cmp-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 24px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
 .cmp-tab {
   font-size: 13.5px; font-weight: 550; color: var(--text3); background: none; border: none;
   padding: 12px 15px; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px; letter-spacing: 0.01em;

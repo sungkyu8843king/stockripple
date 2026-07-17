@@ -355,7 +355,7 @@ button { font-family: inherit; }
   box-shadow: var(--shadow-sm);
 }
 .category-tabs {
-  display: flex; gap: 4px; overflow-x: auto;
+  display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
   scrollbar-width: none; padding-bottom: 0;
 }
 .category-tabs::-webkit-scrollbar { display: none; }
@@ -500,6 +500,8 @@ button { font-family: inherit; }
 .mkt-card.mkt-link:hover { border-color: var(--border-strong); }
 .mkt-card.mkt-link .mkt-card-name { color: var(--text); }
 .mkt-link-cta { font-size: 10.5px; color: var(--blue); font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.mkt-card-val.flash-up, .mkt-hero-val.flash-up { animation: priceFlashUp .9s ease-out; }
+.mkt-card-val.flash-down, .mkt-hero-val.flash-down { animation: priceFlashDown .9s ease-out; }
 .pos { color: var(--green); } .neg { color: var(--red); }
 .card-sectors { display: flex; flex-wrap: wrap; gap: 5px; }
 .sector-tag { font-size: 10.5px; padding: 3px 8px; border-radius: var(--r-xs); font-weight: 600; }
