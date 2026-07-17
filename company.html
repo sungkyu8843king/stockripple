@@ -991,6 +991,8 @@ let _currentRange = '3mo';
 let _isKr = false;
 let _currentLivePrice = null;   // 애널리스트 컨센서스 상승여력% 계산에 재사용 (화면에 보이는 현재가와 일관성 유지)
 let _usdKrwRate = null;         // 미장 종목 원화 병기용
+let _tossQuote = null;          // 미장 종목 헤드라인(통합가)+정규/시간외 변동 — Toss 공식 데이터 기반
+let _lastPriceData = null;      // buildPriceBlock에 마지막으로 넘겼던 Yahoo priceData — 토스 전용 재렌더용
 
 async function loadUsdKrwRate() {
   try {
@@ -999,6 +1001,16 @@ async function loadUsdKrwRate() {
     const j = await r.json();
     if (j.ok && j.rate) _usdKrwRate = j.rate;
     return _usdKrwRate;
+  } catch { return null; }
+}
+
+async function loadTossQuote(ticker) {
+  try {
+    const r = await fetch(`/api/toss?action=quote&symbol=${encodeURIComponent(ticker)}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (j.ok && j.lastPrice != null) _tossQuote = j;
+    return _tossQuote;
   } catch { return null; }
 }
 
@@ -1184,54 +1196,81 @@ function buildQuoteCard(priceData) {
 }
 
 // Price block — regular + pre/after-market. renderPage(최초)와 refreshLivePrice(폴링) 공용.
+// 미장 종목은 Toss 공식 API(_tossQuote, loadTossQuote()가 채움) 기준으로 헤드라인(통합가) +
+// 정규장/시간외 변동 분해를 계산 — Toss는 세션 구분 필드가 없어서(확인됨) 일별 캔들 종가를
+// "정규장 마감가" 기준점 삼아 서버(api/market-data.js handleTossQuote)에서 직접 계산한 값.
+// Toss 프록시가 아직 안 떴거나 실패했을 땐 Yahoo(priceData) 기준으로 폴백.
 function buildPriceBlock(priceData) {
   let priceHtml = '<span class="price-loading">주가 로딩 중...</span>';
   if (priceData && priceData.price) {
+    _lastPriceData = priceData;
     const isKrw = priceData.currency === 'KRW';
     const fmt = new Intl.NumberFormat('en-US', {
       style: 'currency', currency: priceData.currency || 'USD',
       maximumFractionDigits: isKrw ? 0 : 2
     });
-    const stateMap = {
+    const sessionMap = {
       REGULAR: { label: '🟢 정규장', color: 'var(--green)' },
       PRE:     { label: '🟡 프리장', color: 'var(--yellow)' },
       POST:    { label: '🟣 애프터장', color: 'var(--purple)' },
       CLOSED:  { label: '⚪ 마감',   color: 'var(--text3)' },
     };
-    const st = stateMap[priceData.marketState] || stateMap.CLOSED;
+    const tq = (!isKrw && _tossQuote && _tossQuote.lastPrice != null) ? _tossQuote : null;
+
+    const st = sessionMap[tq ? tq.session : priceData.marketState] || sessionMap.CLOSED;
     priceHtml = `<div style="font-size:11px;color:${st.color};font-weight:600;margin-bottom:3px">${st.label}</div>`;
 
-    // 시간외(프리/애프터) — 정규장 가격 대비 변동. 토스는 세션 구분 없이 통합가만 주므로
-    // (확인됨) 시간외 데이터는 계속 Yahoo 기준으로 표시.
-    let exLabel = null, exPrice = null, exChange = null, exPct = null;
-    if (priceData.postMarketPrice != null && priceData.postMarketChangePercent != null) {
-      exLabel = '애프터마켓'; exPrice = priceData.postMarketPrice; exChange = priceData.postMarketChange; exPct = priceData.postMarketChangePercent;
-    } else if (priceData.preMarketPrice != null && priceData.preMarketChangePercent != null) {
-      exLabel = '프리마켓'; exPrice = priceData.preMarketPrice; exChange = priceData.preMarketChange; exPct = priceData.preMarketChangePercent;
-    }
-
-    // 헤드라인 = 통합가(시간외 있으면 시간외가, 없으면 정규가) — 별도 장 구분 없이 계속 하나로 표시
-    const headlinePrice = exPrice != null ? exPrice : priceData.price;
-    priceHtml += `<div class="current-price">${fmt.format(headlinePrice)}</div>`;
-    if (!isKrw && _usdKrwRate) {
-      priceHtml += `<div class="current-price-krw">₩${Math.round(headlinePrice * _usdKrwRate).toLocaleString('ko-KR')}</div>`;
-    }
-
-    if (priceData.changePercent != null) {
-      const sign = priceData.change >= 0 ? '+' : '-';
-      const cls = priceData.changePercent >= 0 ? 'pos' : 'neg';
-      const amtStr = priceData.change != null ? fmt.format(Math.abs(priceData.change)) : '';
-      if (exLabel) {
-        priceHtml += `<div class="price-change ${cls}">정규장 ${fmt.format(priceData.price)}으로 마감 ${sign}${amtStr}(${sign}${Math.abs(priceData.changePercent).toFixed(2)}%)</div>`;
-      } else {
-        priceHtml += `<div class="price-change ${cls}">${sign}${amtStr} (${sign}${Math.abs(priceData.changePercent).toFixed(2)}%) <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span></div>`;
+    if (tq) {
+      priceHtml += `<div class="current-price">${fmt.format(tq.lastPrice)}</div>`;
+      if (_usdKrwRate) {
+        priceHtml += `<div class="current-price-krw">₩${Math.round(tq.lastPrice * _usdKrwRate).toLocaleString('ko-KR')}</div>`;
       }
-    }
-    if (exLabel) {
-      const exSign = exChange >= 0 ? '+' : '-';
-      const exCls = exPct >= 0 ? 'pos' : 'neg';
-      const exAmtStr = exChange != null ? fmt.format(Math.abs(exChange)) : '';
-      priceHtml += `<div class="price-change ${exCls}" style="margin-top:2px">${exLabel}에서 ${exSign}${exAmtStr}(${exSign}${Math.abs(exPct).toFixed(2)}%)</div>`;
+      if (tq.regularChangePercent != null) {
+        const sign = tq.regularChange >= 0 ? '+' : '-';
+        const cls = tq.regularChangePercent >= 0 ? 'pos' : 'neg';
+        const amtStr = fmt.format(Math.abs(tq.regularChange));
+        if (tq.exChangePercent != null && tq.regularClose != null) {
+          priceHtml += `<div class="price-change ${cls}">정규장 ${fmt.format(tq.regularClose)}으로 마감 ${sign}${amtStr}(${sign}${Math.abs(tq.regularChangePercent).toFixed(2)}%)</div>`;
+        } else {
+          priceHtml += `<div class="price-change ${cls}">${sign}${amtStr} (${sign}${Math.abs(tq.regularChangePercent).toFixed(2)}%) <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span></div>`;
+        }
+      }
+      if (tq.exChangePercent != null) {
+        const exLabel = tq.session === 'PRE' ? '프리마켓' : '애프터마켓';
+        const exSign = tq.exChange >= 0 ? '+' : '-';
+        const exCls = tq.exChangePercent >= 0 ? 'pos' : 'neg';
+        const exAmtStr = fmt.format(Math.abs(tq.exChange));
+        priceHtml += `<div class="price-change ${exCls}" style="margin-top:2px">${exLabel}에서 ${exSign}${exAmtStr}(${exSign}${Math.abs(tq.exChangePercent).toFixed(2)}%)</div>`;
+      }
+    } else {
+      // Toss 폴백 — Yahoo 기준 (Toss 프록시 미설정/일시 장애 시에만 탐)
+      let exLabel = null, exPrice = null, exChange = null, exPct = null;
+      if (priceData.postMarketPrice != null && priceData.postMarketChangePercent != null) {
+        exLabel = '애프터마켓'; exPrice = priceData.postMarketPrice; exChange = priceData.postMarketChange; exPct = priceData.postMarketChangePercent;
+      } else if (priceData.preMarketPrice != null && priceData.preMarketChangePercent != null) {
+        exLabel = '프리마켓'; exPrice = priceData.preMarketPrice; exChange = priceData.preMarketChange; exPct = priceData.preMarketChangePercent;
+      }
+      const headlinePrice = exPrice != null ? exPrice : priceData.price;
+      priceHtml += `<div class="current-price">${fmt.format(headlinePrice)}</div>`;
+      if (!isKrw && _usdKrwRate) {
+        priceHtml += `<div class="current-price-krw">₩${Math.round(headlinePrice * _usdKrwRate).toLocaleString('ko-KR')}</div>`;
+      }
+      if (priceData.changePercent != null) {
+        const sign = priceData.change >= 0 ? '+' : '-';
+        const cls = priceData.changePercent >= 0 ? 'pos' : 'neg';
+        const amtStr = priceData.change != null ? fmt.format(Math.abs(priceData.change)) : '';
+        if (exLabel) {
+          priceHtml += `<div class="price-change ${cls}">정규장 ${fmt.format(priceData.price)}으로 마감 ${sign}${amtStr}(${sign}${Math.abs(priceData.changePercent).toFixed(2)}%)</div>`;
+        } else {
+          priceHtml += `<div class="price-change ${cls}">${sign}${amtStr} (${sign}${Math.abs(priceData.changePercent).toFixed(2)}%) <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span></div>`;
+        }
+      }
+      if (exLabel) {
+        const exSign = exChange >= 0 ? '+' : '-';
+        const exCls = exPct >= 0 ? 'pos' : 'neg';
+        const exAmtStr = exChange != null ? fmt.format(Math.abs(exChange)) : '';
+        priceHtml += `<div class="price-change ${exCls}" style="margin-top:2px">${exLabel}에서 ${exSign}${exAmtStr}(${exSign}${Math.abs(exPct).toFixed(2)}%)</div>`;
+      }
     }
 
     // 국내 종목: 토스증권 공식 실시간가 배지 자리 — startTossFastPriceSync()가 10초마다 채움
@@ -1243,14 +1282,28 @@ function buildPriceBlock(priceData) {
   return priceHtml;
 }
 
-// 국내 종목 실시간가 고속 동기화(토스증권 공식 API, 10초 간격) — 기존 15초 Yahoo 폴링과
-// 별개로 헤드라인 숫자만 더 자주 갱신. day range/52주/거래량 등 나머지는 기존 주기 유지.
+// 종목 실시간가 고속 동기화(토스증권 공식 API, 10초 간격) — 기존 15초 Yahoo 폴링과 별개로
+// 헤드라인 숫자만 더 자주 갱신. day range/52주/거래량 등 나머지는 기존 주기 유지.
+// 국내: /prices만으로 충분(단순 가격 배지). 미장: /action=quote로 헤드라인+정규/시간외
+// 변동 분해까지 전부 다시 계산되므로 priceBlock 전체를 재렌더.
 let _tossFastTimer = null;
 let _lastTossPrice = null;
 function startTossFastPriceSync(ticker) {
   if (_tossFastTimer || !ticker) return;
   const fmtKrw = new Intl.NumberFormat('ko-KR');
-  const tick = async () => {
+
+  const flashCurrentPrice = (newPrice) => {
+    if (_lastTossPrice == null || newPrice === _lastTossPrice) { _lastTossPrice = newPrice; return; }
+    const cpEl = document.querySelector('.current-price');
+    if (cpEl) {
+      cpEl.classList.remove('price-flash-up', 'price-flash-down');
+      void cpEl.offsetWidth; // 리플로우 강제 — 애니메이션 재시작
+      cpEl.classList.add(newPrice > _lastTossPrice ? 'price-flash-up' : 'price-flash-down');
+    }
+    _lastTossPrice = newPrice;
+  };
+
+  const tickKr = async () => {
     if (document.hidden) return;
     try {
       const r = await fetch(`/api/toss?action=prices&symbols=${encodeURIComponent(ticker)}`);
@@ -1262,17 +1315,20 @@ function startTossFastPriceSync(ticker) {
       const valEl = document.getElementById('tossLiveVal');
       if (wrap) wrap.style.display = 'flex';
       if (valEl) valEl.textContent = fmtKrw.format(d.price) + '원';
-      if (_lastTossPrice != null && d.price !== _lastTossPrice) {
-        const cpEl = document.querySelector('.current-price');
-        if (cpEl) {
-          cpEl.classList.remove('price-flash-up', 'price-flash-down');
-          void cpEl.offsetWidth; // 리플로우 강제 — 애니메이션 재시작
-          cpEl.classList.add(d.price > _lastTossPrice ? 'price-flash-up' : 'price-flash-down');
-        }
-      }
-      _lastTossPrice = d.price;
+      flashCurrentPrice(d.price);
     } catch {}
   };
+
+  const tickUs = async () => {
+    if (document.hidden) return;
+    const q = await loadTossQuote(ticker);
+    if (!q || q.lastPrice == null) return;
+    const priceBlock = document.getElementById('priceBlock');
+    if (priceBlock) priceBlock.innerHTML = buildPriceBlock(_lastPriceData);
+    flashCurrentPrice(q.lastPrice);
+  };
+
+  const tick = _isKr ? tickKr : tickUs;
   tick();
   _tossFastTimer = setInterval(tick, 10000);
 }
@@ -2196,12 +2252,12 @@ async function init() {
       .select('upside_pct,confidence,rationale,actual_return_1d,is_accurate_1d,actual_return_7d,is_accurate_7d,entry_date,analyses(id,confidence_score,issues(id,title,published_at,source_name))')
       .eq('company_id', company.id)
       .order('entry_date', { ascending: false }),
-    _isKr ? Promise.resolve(null) : loadUsdKrwRate(),
+    _isKr ? Promise.resolve(null) : Promise.all([loadUsdKrwRate(), loadTossQuote(ticker)]),
   ]);
 
   renderPage(company, records || [], priceData);
   startLivePriceRefresh();
-  if (_isKr) startTossFastPriceSync(ticker);
+  startTossFastPriceSync(ticker);
 }
 
 init();
