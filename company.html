@@ -12,27 +12,37 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
 :root {
-  --bg: #ffffff; --bg2: #f6f6f8; --bg3: #ececf0; --bg4: #dededf;
-  --border: #e5e5ea; --border-strong: #c4c4c9; --border-soft: rgba(0,0,0,0.06);
-  --text: #0a0a0a; --text2: #4b4b52; --text3: #86868b;
-  --blue: #0066cc; --blue-dim: rgba(0,102,204,0.10);
-  --green: #00873a; --green-dim: rgba(0,135,58,0.10);
-  --red:   #e31937; --red-dim:   rgba(227,25,55,0.10);
-  --yellow:#b8860b; --yellow-dim:rgba(184,134,11,0.12);
-  --purple:#7c3aed; --purple-dim:rgba(124,58,237,0.10);
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
-  --shadow-sm: 0 1px 2px rgba(19,23,34,0.04);
-  --shadow-pop: 0 16px 48px rgba(19,23,34,0.16), 0 4px 12px rgba(19,23,34,0.08);
-  --shadow-focus: 0 0 0 3px rgba(36,87,230,0.15);
+  /* 다크 콕핏 (2026-07 개편) — 종목 심층분석 몰입 화면 */
+  --bg: #0a0c12; --bg2: #12151f; --bg3: #191d2b; --bg4: #222840;
+  --border: rgba(255,255,255,0.075); --border-strong: rgba(255,255,255,0.16); --border-soft: rgba(255,255,255,0.05);
+  --text: #eef1f8; --text2: #9aa4bf; --text3: #626b86;
+  --blue: #35e0cf; --blue-dim: rgba(53,224,207,0.12);   /* 시그니처 액센트: 틸-시안 */
+  --green: #3ddc84; --green-dim: rgba(61,220,132,0.14);
+  --red:   #ff5c72; --red-dim:   rgba(255,92,114,0.14);
+  --yellow:#ffbf47; --yellow-dim:rgba(255,191,71,0.14);
+  --purple:#8b8bff; --purple-dim:rgba(139,139,255,0.14);
+  --amber: #f0b45e; --amber-dim: rgba(240,180,94,0.14);
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+  --shadow-card: 0 1px 0 rgba(255,255,255,0.03) inset, 0 24px 60px -34px rgba(0,0,0,0.9);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-pop: 0 20px 60px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-focus: 0 0 0 3px rgba(53,224,207,0.22);
   --r-lg: 20px; --r-md: 14px; --r-sm: 10px; --r-xs: 6px; --r-xl: 18px; --r-pill: 999px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1); --t-fast: 120ms; --t-med: 200ms;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+body {
+  font-family: 'Inter', sans-serif; color: var(--text); min-height: 100vh;
+  background:
+    radial-gradient(1000px 440px at 82% -12%, rgba(53,224,207,0.09), transparent 60%),
+    radial-gradient(760px 340px at 6% 2%, rgba(96,110,255,0.07), transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+}
 
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(255,255,255,0.85); backdrop-filter: blur(12px) saturate(180%);
+  background: rgba(10,12,18,0.72); backdrop-filter: blur(14px) saturate(150%);
   border-bottom: 1px solid var(--border); padding: 0 24px;
 }
 .header-inner {
@@ -226,8 +236,9 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   font-size: 14px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
   padding: 6px 14px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;
 }
-.ticker-badge.kr { background: rgba(0,102,204,0.10); color: #0066cc; }
-.ticker-badge.us { background: rgba(124,58,237,0.10); color: #7c3aed; }
+.ticker-badge { font-family: var(--mono); border: 1px solid var(--border); }
+.ticker-badge.kr { background: var(--blue-dim); color: var(--blue); border-color: rgba(53,224,207,0.30); }
+.ticker-badge.us { background: var(--purple-dim); color: var(--purple); border-color: rgba(139,139,255,0.30); }
 .company-name-wrap { flex: 1; }
 .company-name-main { font-size: 28px; font-weight: 700; line-height: 1.2; margin-bottom: 4px; }
 .company-sub { font-size: 13px; color: var(--text3); }
@@ -308,23 +319,25 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 
 /* AI Summary */
 .ai-summary-card {
-  background: linear-gradient(135deg, rgba(0,102,204,0.06) 0%, rgba(0,102,204,0.015) 100%);
-  border: 1px solid rgba(0,102,204,0.20);
-  border-radius: var(--r-lg, 20px); padding: 22px; margin-bottom: 24px;
-  box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.04));
+  background: linear-gradient(180deg, var(--bg3), var(--bg2));
+  border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 22px; margin-bottom: 20px;
+  box-shadow: var(--shadow-card); position: relative; overflow: hidden;
 }
+.ai-summary-card::before { content:""; position:absolute; inset:0 0 auto 0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(53,224,207,0.30), transparent); }
 .ai-badge-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
-.ai-badge { font-size: 11px; color: #0066cc; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
-.ai-dot { width: 7px; height: 7px; border-radius: 50%; background: #0066cc; animation: pulse 2s infinite; }
+.ai-badge { font-size: 11px; color: var(--blue); font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+.ai-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 8px var(--blue); animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 .ai-block { margin-bottom: 16px; }
 .ai-block:last-child { margin-bottom: 0; }
 .ai-block-label { font-size: 12px; color: var(--text2); font-weight: 700; margin-bottom: 6px; letter-spacing: 0.2px; }
 .ai-block-text { font-size: 14px; line-height: 1.7; color: var(--text); }
 .ai-risks { display: flex; flex-direction: column; gap: 6px; }
-.ai-risk-item { font-size: 13.5px; color: #a25b00; line-height: 1.55; padding-left: 18px; position: relative; font-weight: 500; }
+.ai-risk-item { font-size: 13.5px; color: var(--yellow); line-height: 1.55; padding-left: 18px; position: relative; font-weight: 500; }
 .ai-risk-item::before { content: '⚠️'; position: absolute; left: -2px; }
-.ai-watch-item { font-size: 13.5px; color: #006b2e; line-height: 1.55; padding-left: 18px; position: relative; font-weight: 500; }
+.ai-watch-item { font-size: 13.5px; color: var(--green); line-height: 1.55; padding-left: 18px; position: relative; font-weight: 500; }
 .ai-watch-item::before { content: '👁'; position: absolute; left: -2px; }
 
 /* Trade box */
@@ -435,62 +448,139 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   .history-table th:nth-child(4), .history-table td:nth-child(4) { display: none; }
 }
 
-/* ═══ 2026-07 종목 페이지 개편: 판단 히어로 + 지표 칩 + 탭 ═══ */
+/* ═══ 2026-07 다크 콕핏: 판단 데크 + 게이지 + 수급 모듈 ═══ */
+.tabnum, .fund-val, .quote-stat-val, .range-endpoint-val, .vmeta .v { font-variant-numeric: tabular-nums; }
+
 .cmp-hero {
-  background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-lg);
-  box-shadow: var(--shadow-card); overflow: hidden; margin-bottom: 14px;
+  background: linear-gradient(180deg, var(--bg3), var(--bg2));
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--shadow-card); overflow: hidden; margin-bottom: 14px; position: relative;
 }
-.cmp-hero-top { display: flex; align-items: center; gap: 14px; padding: 18px 22px; flex-wrap: wrap; }
-.cmp-hero-top .company-name-main { font-size: 22px; margin: 0; }
+.cmp-hero::before { content:""; position:absolute; inset:0 0 auto 0; height:1px;
+  background:linear-gradient(90deg, transparent, rgba(53,224,207,0.32), transparent); }
+.cmp-hero-top { display: flex; align-items: center; gap: 15px; padding: 20px 24px; flex-wrap: wrap; }
+.cmp-hero-top .company-name-main { font-size: 23px; font-weight: 650; letter-spacing: -0.02em; margin: 0; }
+.cmp-hero-top .company-sub { letter-spacing: 0.01em; }
 .cmp-hero-top .price-block { margin-left: auto; }
+.cmp-hero-top .current-price { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.cmp-hero-top .price-change { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .cmp-verdict {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 13px 22px; border-top: 1px solid var(--border); background: var(--bg2);
+  display: flex; align-items: stretch; gap: 0; flex-wrap: wrap;
+  border-top: 1px solid var(--border); background: rgba(0,0,0,0.2);
 }
+.cmp-verdict > .vbadge { align-self: center; margin: 15px 20px; }
 .vbadge {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700;
-  color: #fff; border-radius: var(--r-pill); padding: 7px 16px; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700;
+  color: var(--bg); border-radius: var(--r-pill); padding: 8px 17px; white-space: nowrap;
 }
-.vbadge.buy { background: var(--green); }
-.vbadge.neutral { background: var(--text3); }
-.vmeta { display: flex; flex-direction: column; gap: 1px; }
-.vmeta .k { font-size: 11px; color: var(--text3); }
-.vmeta .v { font-size: 15px; font-weight: 700; font-family: 'SF Mono', monospace; }
+.vbadge.buy { background: linear-gradient(135deg, var(--blue), #59f0c4); box-shadow: 0 0 22px -4px rgba(53,224,207,0.5); }
+.vbadge.neutral { background: var(--bg4); color: var(--text); box-shadow: none; }
+.vbadge .spark { width: 7px; height: 7px; border-radius: 50%; background: var(--bg); opacity: 0.7; }
+.vmeta { display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 13px 20px; border-left: 1px solid var(--border); }
+.vmeta .k { font-size: 10.5px; color: var(--text3); letter-spacing: 0.02em; }
+.vmeta .v { font-size: 17px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.01em; }
 .vmeta .v.pos { color: var(--green); }
 .vmeta .v.neg { color: var(--red); }
-.vdivider { width: 1px; height: 30px; background: var(--border); }
-.cmp-cta { margin-left: auto; display: flex; gap: 8px; }
-.cmp-watch-btn {
-  font-size: 13px; font-weight: 700; color: #fff; background: var(--blue);
-  border: none; border-radius: var(--r-sm); padding: 9px 16px; cursor: pointer; white-space: nowrap;
-}
-.cmp-watch-btn.on { background: var(--bg3); color: var(--text2); }
+.vdivider { display: none; }
 
-.cmp-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; min-height: 34px; }
+.cmp-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; min-height: 34px; }
 .cmp-chip {
-  background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-pill);
-  padding: 7px 14px; font-size: 12.5px; color: var(--text2); display: flex; align-items: baseline; gap: 6px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-pill);
+  padding: 7px 13px; font-size: 12px; color: var(--text2); display: inline-flex; align-items: center; gap: 7px;
 }
-.cmp-chip b { font-family: 'SF Mono', monospace; font-weight: 700; color: var(--text); font-size: 13px; }
+.cmp-chip .cdot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+.cmp-chip b { font-family: var(--mono); font-weight: 600; color: var(--text); font-size: 12.5px; letter-spacing: -0.01em; }
 .cmp-chip b.pos { color: var(--green); } .cmp-chip b.neg { color: var(--red); }
 
-.cmp-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 22px; overflow-x: auto; }
+.cmp-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 24px; overflow-x: auto; }
 .cmp-tab {
-  font-size: 14px; font-weight: 600; color: var(--text3); background: none; border: none;
-  padding: 11px 16px; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  font-size: 13.5px; font-weight: 550; color: var(--text3); background: none; border: none;
+  padding: 12px 15px; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px; letter-spacing: 0.01em;
 }
-.cmp-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.cmp-tab.active { color: var(--text); border-bottom-color: var(--blue); }
 .cmp-tab:hover:not(.active) { color: var(--text2); }
 .cmp-panel { display: none; }
 .cmp-panel.active { display: block; animation: cmpFade 0.2s var(--ease); }
 @keyframes cmpFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .cmp-empty { text-align: center; color: var(--text3); font-size: 13px; padding: 40px 20px; }
+
+/* 섹션 헤더 (콕핏) */
+.ck-sec-head { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
+.ck-sec-head .tick { width: 3px; height: 14px; border-radius: 2px; background: var(--blue); flex-shrink: 0; }
+.ck-sec-head h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
+.ck-sec-head .note { margin-left: auto; font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+.ck-sec-head + .ck-sec-head, .cmp-panel .ck-sec-head:not(:first-child) { margin-top: 26px; }
+
+/* 게이지 타일 (펀더멘털 표 안 디자인) */
+.gtile { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 16px; }
+.gtile .glab { font-size: 11px; color: var(--text3); letter-spacing: 0.02em; margin-bottom: 9px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.gtag { font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+.gtag.g { color: var(--green); background: var(--green-dim); }
+.gtag.n { color: var(--blue); background: var(--blue-dim); }
+.gtag.w { color: var(--yellow); background: var(--yellow-dim); }
+.gtag.b { color: var(--red); background: var(--red-dim); }
+.gtile .gnum { font-family: var(--mono); font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.gtile .gnum small { font-size: 14px; color: var(--text2); font-weight: 500; }
+.gmeter { margin-top: 13px; }
+.gmeter-track { height: 5px; border-radius: 3px; background: var(--border); position: relative; overflow: hidden; }
+.gmeter-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 3px; }
+.gmeter-knob { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; transform: translate(-50%,-50%); border: 2.5px solid var(--bg2); }
+.gmeter-scale { display: flex; justify-content: space-between; margin-top: 6px; font-size: 9.5px; color: var(--text3); }
+
+/* 콕핏 데이터 테이블 */
+.ck-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset; }
+.ck-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ck-tbl thead th { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); font-weight: 600; text-align: right; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.ck-tbl thead th:first-child { text-align: left; }
+.ck-tbl td { padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.ck-tbl td:first-child { text-align: left; font-family: 'Inter', sans-serif; color: var(--text2); }
+.ck-tbl tbody tr:last-child td { border-bottom: none; }
+.ck-tbl tbody tr:hover td { background: rgba(53,224,207,0.035); }
+.ck-cell { display: inline-block; min-width: 62px; padding: 3px 9px; border-radius: 6px; font-weight: 600; font-size: 12px; }
+.ck-cell.p { color: var(--green); background: var(--green-dim); }
+.ck-cell.n { color: var(--red); background: var(--red-dim); }
+
+/* 수급 흐름 모듈 */
+.hold-bar { height: 26px; border-radius: 8px; overflow: hidden; display: flex; margin: 6px 0 10px; }
+.hold-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--bg); overflow: hidden; white-space: nowrap; }
+.hold-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--text2); }
+.hold-legend span { display: flex; align-items: center; gap: 6px; }
+.hold-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.hold-legend b { font-family: var(--mono); color: var(--text); }
+.flow-tiles { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 14px; }
+.ft { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 16px; }
+.ft-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.ft-name { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.ft-name i { width: 8px; height: 8px; border-radius: 50%; }
+.ft-arrow { font-size: 11px; font-weight: 700; font-family: var(--mono); padding: 2px 8px; border-radius: 6px; }
+.ft-net { font-family: var(--mono); font-size: 21px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.ft-sub { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+.ft-spark { height: 34px; margin-top: 10px; }
+.ft-spark svg { width: 100%; height: 100%; display: block; }
+.cum-box { position: relative; height: 150px; }
+.cum-box svg { width: 100%; height: 100%; display: block; }
+.zone-tag { position: absolute; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+
+/* 상대수익률 비교 차트 */
+.rr-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.rr-legend { display: flex; gap: 16px; flex-wrap: wrap; }
+.rr-lg { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text2); }
+.rr-lg .ln { width: 16px; height: 2.5px; border-radius: 2px; }
+.rr-lg b { font-family: var(--mono); font-weight: 600; }
+.rr-ranges { margin-left: auto; display: flex; gap: 3px; }
+.rr-rg { font-size: 11px; font-weight: 600; color: var(--text3); background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 9px; cursor: pointer; }
+.rr-rg.on { color: var(--blue); background: var(--blue-dim); border-color: rgba(53,224,207,0.3); }
+.rr-box { position: relative; height: 230px; margin-top: 8px; }
+.rr-box svg { width: 100%; height: 100%; display: block; }
+
+.flow-tiles-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+@media (max-width: 680px) { .flow-tiles, .flow-tiles-2 { grid-template-columns: 1fr; } }
+
 @media (max-width: 700px) {
   .cmp-hero-top { gap: 10px; padding: 16px; }
   .cmp-hero-top .price-block .current-price { font-size: 22px; }
-  .cmp-verdict { padding: 12px 16px; gap: 12px; }
-  .cmp-cta { margin-left: 0; width: 100%; }
-  .cmp-watch-btn { width: 100%; }
+  .cmp-verdict > .vbadge { margin: 12px 16px; }
+  .vmeta { padding: 12px 16px; }
 }
 </style>
 </head>
@@ -830,8 +920,8 @@ function openSearchPicker(query, matches) {
   grid.innerHTML = matches.map(m => {
     const isKr = m.market === 'KR' || /\.K[SQ]$/i.test(m.ticker);
     const tickerStripped = m.ticker.replace(/\.(KS|KQ)$/i, '');
-    const badgeColor = isKr ? 'rgba(0,102,204,0.10)' : 'rgba(124,58,237,0.10)';
-    const badgeText  = isKr ? '#0066cc' : '#7c3aed';
+    const badgeColor = isKr ? 'var(--blue-dim)' : 'var(--purple-dim)';
+    const badgeText  = isKr ? 'var(--blue)' : 'var(--purple)';
     return `<a href="/company.html?ticker=${encodeURIComponent(m.ticker)}" class="sp-card">
       <div class="sp-card-top">
         <span class="sp-ticker" style="background:${badgeColor};color:${badgeText}">${escHtml(tickerStripped)}</span>
@@ -905,7 +995,7 @@ function renderLineChart(data) {
   const first = values[0];
   const last = currentPrice || values[values.length - 1];
   const isUp = last >= first;
-  const lineColor = isUp ? '#00873a' : '#e31937';
+  const lineColor = isUp ? '#3ddc84' : '#ff5c72';
 
   if (_lineChart) { _lineChart.destroy(); _lineChart = null; }
   _lineChart = new Chart(ctx, {
@@ -921,8 +1011,8 @@ function renderLineChart(data) {
         fill: true,
         backgroundColor: (ctx2) => {
           const g = ctx2.chart.ctx.createLinearGradient(0, 0, 0, ctx2.chart.height);
-          g.addColorStop(0, isUp ? 'rgba(0,135,58,0.18)' : 'rgba(227,25,55,0.18)');
-          g.addColorStop(1, 'rgba(255,255,255,0)');
+          g.addColorStop(0, isUp ? 'rgba(61,220,132,0.22)' : 'rgba(255,92,114,0.22)');
+          g.addColorStop(1, 'rgba(10,12,18,0)');
           return g;
         },
       }]
@@ -943,24 +1033,24 @@ function renderLineChart(data) {
               return ' ' + fmt.format(v);
             }
           },
-          backgroundColor: '#ffffff', borderColor: '#e5e5ea', borderWidth: 1,
-          titleColor: '#4b4b52', bodyColor: '#0a0a0a',
+          backgroundColor: '#12151f', borderColor: 'rgba(255,255,255,0.14)', borderWidth: 1,
+          titleColor: '#9aa4bf', bodyColor: '#eef1f8',
         }
       },
       scales: {
         x: {
           ticks: {
-            color: '#4b4b52', font: { size: 10 }, maxTicksLimit: 6,
+            color: '#626b86', font: { size: 10 }, maxTicksLimit: 6,
             callback(val, i) { return labels[i]?.slice(5); }
           },
-          grid: { color: '#e5e5ea' }
+          grid: { color: 'rgba(255,255,255,0.05)' }
         },
         y: {
           ticks: {
-            color: '#4b4b52', font: { size: 10 },
+            color: '#626b86', font: { size: 10 },
             callback: v => currency === 'KRW' ? v.toLocaleString('ko-KR') : v.toFixed(0)
           },
-          grid: { color: '#e5e5ea' }
+          grid: { color: 'rgba(255,255,255,0.05)' }
         }
       }
     }
@@ -1124,6 +1214,7 @@ function renderPage(company, records, priceData) {
   const ticker = company.ticker;
   const name = company.name_ko || company.name_en || ticker;
   const sector = company.sector || '';
+  _coName = name;
 
   const priceHtml = buildPriceBlock(priceData);
 
@@ -1219,6 +1310,7 @@ function renderPage(company, records, priceData) {
 
     <!-- 차트·시세: 캔들(미장) + 라인 차트 -->
     <div class="cmp-panel" data-panel="chart">
+      <div id="relChartWrap"></div>
       ${isKr ? '' : `
       <div class="tv-wrap">
         <div class="tv-header">
@@ -1359,6 +1451,52 @@ function ensureChart() {
   }
 }
 
+// ── 상대수익률 비교 차트 (vs 피어, 기준일 0% 정규화) ──
+let _coName = '';
+let _relState = null;
+function relRange(rr) { if (_relState) buildRelativeChart(_relState.baseTicker, _relState.baseName, _relState.peerTicker, _relState.peerName, rr); }
+async function buildRelativeChart(baseTicker, baseName, peerTicker, peerName, range) {
+  const wrap = document.getElementById('relChartWrap');
+  if (!wrap) return;
+  range = range || _currentRange;
+  _relState = { baseTicker, baseName, peerTicker, peerName, range };
+  const [a, b] = await Promise.all([loadChartData(baseTicker, range), loadChartData(peerTicker, range)]);
+  if (!a?.points?.length || !b?.points?.length) { wrap.innerHTML = ''; return; }
+  const norm = pts => { const f = pts[0].close || 1; return pts.map(p => (p.close / f - 1) * 100); };
+  const na = norm(a.points), nb = norm(b.points);
+  const endA = na[na.length - 1], endB = nb[nb.length - 1];
+  const W = 1000, H = 210;
+  const all = [...na, ...nb, 0];
+  const mn = Math.min(...all), mx = Math.max(...all), r = (mx - mn) || 1, pad = r * 0.08;
+  const lo = mn - pad, hi = mx + pad, rr2 = (hi - lo) || 1;
+  const y = v => H - ((v - lo) / rr2) * H;
+  const CA = '#35e0cf', CM = '#f0b45e';
+  const line = (arr, color) => {
+    const pts = arr.map((v, i) => `${(i / (arr.length - 1 || 1)) * W},${y(v)}`).join(' ');
+    return `<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" points="${pts}"/><circle cx="${W}" cy="${y(arr[arr.length - 1])}" r="4" fill="${color}"/>`;
+  };
+  const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const rangeLabels = { '1mo': '1M', '3mo': '3M', '6mo': '6M', '1y': '1Y' };
+  const rangeBtns = ['1mo', '3mo', '6mo', '1y'].map(x => `<button class="rr-rg ${x === range ? 'on' : ''}" onclick="relRange('${x}')">${rangeLabels[x]}</button>`).join('');
+  wrap.innerHTML = `
+    <div class="ck-sec-head"><span class="tick"></span><h3>상대수익률 비교</h3><span class="note">기준일 = 0%</span></div>
+    <div class="ck-panel" style="padding:16px 18px;margin-bottom:20px">
+      <div class="rr-top">
+        <div class="rr-legend">
+          <div class="rr-lg"><span class="ln" style="background:${CA}"></span>${escHtml(baseName)} <b style="color:${endA >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtPct(endA)}</b></div>
+          <div class="rr-lg"><span class="ln" style="background:${CM}"></span>${escHtml(peerName)} <b style="color:${endB >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtPct(endB)}</b></div>
+        </div>
+        <div class="rr-ranges">${rangeBtns}</div>
+      </div>
+      <div class="rr-box" style="height:210px">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+          <line x1="0" y1="${y(0)}" x2="${W}" y2="${y(0)}" stroke="rgba(255,255,255,.14)" stroke-dasharray="4 5" stroke-width="1"/>
+          ${line(na, CA)}${line(nb, CM)}
+        </svg>
+      </div>
+    </div>`;
+}
+
 // ── 핵심 지표 칩 (기술지표·펀더멘털 로드 시 채워짐) ──────────
 let _chipData = {};
 function setChip(key, label, val, cls) {
@@ -1481,8 +1619,8 @@ function renderTradeBox(records) {
         <div class="trade-val sl">${trade.sl != null ? fmtP(trade.sl) : '—'}</div>
       </div>
     </div>
-    ${trade.th ? `<div style="font-size:13px;color:#00873a;margin-bottom:6px;line-height:1.55"><b>💡 매수 근거:</b> ${escHtml(trade.th)}</div>` : ''}
-    ${trade.rk ? `<div style="font-size:13px;color:#a25b00;margin-bottom:16px;line-height:1.55;font-weight:500"><b>⚠️ 리스크:</b> ${escHtml(trade.rk)}</div>` : ''}
+    ${trade.th ? `<div style="font-size:13px;color:var(--green);margin-bottom:6px;line-height:1.55"><b>💡 매수 근거:</b> ${escHtml(trade.th)}</div>` : ''}
+    ${trade.rk ? `<div style="font-size:13px;color:var(--yellow);margin-bottom:16px;line-height:1.55;font-weight:500"><b>⚠️ 리스크:</b> ${escHtml(trade.rk)}</div>` : ''}
   `;
 }
 
@@ -1501,7 +1639,7 @@ async function loadTechChips(ticker) {
     const sigMap = {
       strong_bullish: { label: '🟢 강세 추세',  color: 'var(--green)' },
       bullish:        { label: '🟢 상승',       color: 'var(--green)' },
-      oversold_bull:  { label: '🟢 과매도(매수기회)', color: '#00873a' },
+      oversold_bull:  { label: '🟢 과매도(매수기회)', color: 'var(--green)' },
       neutral:        { label: '⚪ 중립',       color: 'var(--text2)' },
       overbought:     { label: '🟡 과매수',     color: 'var(--yellow)' },
       oversold:       { label: '🟠 과매도',     color: 'var(--yellow)' },
@@ -1584,9 +1722,9 @@ async function loadAiSummary(ticker, displayName) {
         </div>` : ''}
 
         ${d.strategic_exposure && d.strategic_exposure.trim() ? `
-        <div class="ai-block" style="background:linear-gradient(135deg,rgba(124,58,237,0.06),rgba(0,102,204,0.04));border:1px solid rgba(124,58,237,0.20);border-radius:14px;padding:14px 16px;margin-top:4px">
-          <div class="ai-block-label" style="color:#7c3aed;display:flex;align-items:center;gap:6px">
-            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#7c3aed"></span>
+        <div class="ai-block" style="background:var(--purple-dim);border:1px solid rgba(139,139,255,0.28);border-radius:14px;padding:14px 16px;margin-top:4px">
+          <div class="ai-block-label" style="color:var(--purple);display:flex;align-items:center;gap:6px">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--purple)"></span>
             🌟 전략적 노출 · 선반영 논리
           </div>
           <div class="ai-block-text" style="margin-top:6px">${escHtml(d.strategic_exposure)}</div>
@@ -1698,6 +1836,24 @@ function renderFundamentals(wrap, f, ticker) {
   const currColor = f.currentRatio == null ? '' : f.currentRatio > 2 ? 'good' : f.currentRatio > 1 ? '' : 'bad';
   const revGrColor = f.revenueGrowthYoY == null ? '' : f.revenueGrowthYoY > 10 ? 'good' : f.revenueGrowthYoY > 0 ? '' : 'bad';
 
+  // ── 핵심 지표 게이지 타일 (숫자를 good→bad 계기판으로) ──
+  const clampPct = (v, lo = 3, hi = 100) => Math.max(lo, Math.min(hi, v));
+  const gaugeTile = (label, disp, pct, color, tag, tagCls, lo, hi) => `
+    <div class="gtile">
+      <div class="glab">${label}${tag ? `<span class="gtag ${tagCls}">${tag}</span>` : ''}</div>
+      <div class="gnum">${disp}</div>
+      <div class="gmeter">
+        <div class="gmeter-track"><div class="gmeter-fill" style="width:${pct}%;background:${color}"></div><div class="gmeter-knob" style="left:${pct}%;background:${color}"></div></div>
+        <div class="gmeter-scale"><span>${lo}</span><span>${hi}</span></div>
+      </div>
+    </div>`;
+  const gTiles = [];
+  if (f.pe != null) { const v = f.pe; const [c, tg, tc] = v < 15 ? ['var(--green)', '저평가', 'g'] : v < 30 ? ['var(--blue)', '보통', 'n'] : v < 50 ? ['var(--yellow)', '고평가', 'w'] : ['var(--red)', '고평가', 'b']; gTiles.push(gaugeTile('PER', Number(v).toFixed(1), clampPct(v / 50 * 100), c, tg, tc, '저평가', '고평가')); }
+  if (f.roe != null) { const v = f.roe; const [c, tg, tc] = v > 15 ? ['var(--green)', '우수', 'g'] : v > 5 ? ['var(--blue)', '양호', 'n'] : v > 0 ? ['var(--yellow)', '주의', 'w'] : ['var(--red)', '부진', 'b']; gTiles.push(gaugeTile('ROE', Number(v).toFixed(1) + '<small>%</small>', clampPct(v / 30 * 100), c, tg, tc, '0%', '30%+')); }
+  if (f.operatingMargin != null) { const v = f.operatingMargin; const [c, tg, tc] = v > 20 ? ['var(--green)', '우수', 'g'] : v > 5 ? ['var(--blue)', '양호', 'n'] : v > 0 ? ['var(--yellow)', '주의', 'w'] : ['var(--red)', '적자', 'b']; gTiles.push(gaugeTile('영업이익률', Number(v).toFixed(1) + '<small>%</small>', clampPct(v / 50 * 100), c, tg, tc, '0%', '50%+')); }
+  if (isKrw && f.debtRatioPct != null) { const v = f.debtRatioPct; const [c, tg, tc] = v < 100 ? ['var(--green)', '안전', 'g'] : v < 200 ? ['var(--blue)', '보통', 'n'] : v < 400 ? ['var(--yellow)', '높음', 'w'] : ['var(--red)', '위험', 'b']; gTiles.push(gaugeTile('부채비율', Math.round(v) + '<small>%</small>', clampPct(v / 200 * 100), c, tg, tc, '낮음(안전)', '200%+')); }
+  else if (!isKrw && f.debtToEquity != null) { const v = f.debtToEquity; const [c, tg, tc] = v < 0.5 ? ['var(--green)', '안전', 'g'] : v < 1.5 ? ['var(--blue)', '보통', 'n'] : v < 3 ? ['var(--yellow)', '높음', 'w'] : ['var(--red)', '위험', 'b']; gTiles.push(gaugeTile('부채비율 D/E', Number(v).toFixed(2), clampPct(v / 3 * 100), c, tg, tc, '낮음', '3.0+')); }
+
   const html = `
     <div class="fund-section">
       <div class="section-title">
@@ -1709,6 +1865,8 @@ function renderFundamentals(wrap, f, ticker) {
         ${f.source === 'naver' ? `<span style="font-size:10px;color:var(--green);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px">🇰🇷 네이버증권</span>` : ''}
         <button onclick="loadFundamentals('${escHtml(ticker)}', true)" style="margin-left:auto;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px" title="캐시 무시하고 FMP에서 최신 데이터 가져오기">🔄 새로고침</button>
       </div>
+
+      ${gTiles.length ? `<div class="fund-grid" style="margin-bottom:22px">${gTiles.join('')}</div>` : ''}
 
       <!-- 시총 / 밸류에이션 -->
       <div class="fund-group">
@@ -1850,6 +2008,11 @@ function renderFundamentals(wrap, f, ticker) {
 
   // 판단 히어로: 애널리스트 목표가 평균 · 상승여력 (KR 컨센서스가 있을 때만)
   if (isKrw && f.priceTargetMean != null) hydrateVerdictTarget(f.priceTargetMean);
+
+  // 상대수익률 비교 차트 — 피어(동종업계 1위)와 비교 (KR, 피어 있을 때)
+  if (Array.isArray(f.peers) && f.peers.length && f.peers[0].ticker) {
+    buildRelativeChart(ticker, _coName || ticker, f.peers[0].ticker, f.peers[0].name || f.peers[0].ticker, _currentRange);
+  }
 }
 
 // Yahoo Finance에서 정보 가져와 companies 테이블에 자동 등록
@@ -2091,70 +2254,102 @@ async function loadInvestorTrend(ticker) {
 }
 
 function renderInvestorTrend(d) {
-  const days = d.days;
-  const fmtNet = v => {
-    if (v == null) return '<span style="color:var(--text3)">—</span>';
-    const cls = v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text3)';
-    const sign = v > 0 ? '+' : '';
-    return `<span style="color:${cls};font-variant-numeric:tabular-nums">${sign}${v.toLocaleString()}</span>`;
-  };
-  const fmtClose = day => {
-    const ch = day.change;
-    const cls = ch > 0 ? 'var(--green)' : ch < 0 ? 'var(--red)' : 'var(--text3)';
-    const arrow = ch > 0 ? '▲' : ch < 0 ? '▼' : '—';
-    return `${day.close != null ? day.close.toLocaleString() : '—'}
-      <span style="color:${cls};font-size:11px">${arrow}${ch != null ? Math.abs(ch).toLocaleString() : ''}</span>`;
+  const days = d.days;                 // 최신순 (0 = 오늘)
+  const chron = [...days].reverse();   // 과거→현재 (차트용)
+  const CG = '#3ddc84', CR = '#ff5c72', CA = '#35e0cf', CM = '#f0b45e';
+  const manju = v => Math.round((v || 0) / 10000);
+  const latestClose = days[0]?.close || 0;
+
+  // SVG 스파크라인 (일별 순매수, +/−)
+  const spark = (vals, color, w = 200, h = 34) => {
+    if (!vals.length) return '';
+    const mn = Math.min(...vals), mx = Math.max(...vals), rng = (mx - mn) || 1;
+    const pts = vals.map((v, i) => `${(i / (vals.length - 1 || 1)) * w},${(h - 2) - ((v - mn) / rng) * (h - 4)}`).join(' ');
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" points="${pts}"/></svg>`;
   };
 
-  // 최근 5일 누적 순매수
+  // B2. 주체별 5일 누적 순매수 타일
   const sum5 = key => days.slice(0, 5).reduce((a, day) => a + (day[key] || 0), 0);
-  const chip = (label, v) => {
-    const cls = v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text3)';
-    const bg  = v > 0 ? 'var(--green-dim)' : v < 0 ? 'var(--red-dim)' : 'var(--bg3)';
-    return `<span style="background:${bg};color:${cls};padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600">
-      ${label} ${v > 0 ? '+' : ''}${v.toLocaleString()}주</span>`;
+  const recentDaily = key => chron.slice(-12).map(day => (day[key] || 0) / 10000);
+  const flowTile = (name, dotColor, key) => {
+    const net = sum5(key), mj = manju(net), buy = net >= 0;
+    const eok = Math.round(Math.abs(net) * latestClose / 1e8);
+    const col = buy ? 'var(--green)' : 'var(--red)';
+    const scol = buy ? CG : CR;
+    return `<div class="ft">
+      <div class="ft-top"><div class="ft-name"><i style="background:${dotColor}"></i>${name}</div>
+        <span class="ft-arrow" style="color:${col};background:${buy ? 'var(--green-dim)' : 'var(--red-dim)'}">${buy ? '순매수' : '순매도'}</span></div>
+      <div class="ft-net" style="color:${col}">${buy ? '+' : '−'}${Math.abs(mj).toLocaleString()}만주</div>
+      <div class="ft-sub">최근 5거래일 누적 · 약 ${buy ? '+' : '−'}${eok.toLocaleString()}억</div>
+      <div class="ft-spark">${spark(recentDaily(key), scol)}</div>
+    </div>`;
   };
 
-  const td = 'padding:7px 8px;border-bottom:1px solid var(--border);';
-  const rows = days.map(day => `
-    <tr>
-      <td style="${td}white-space:nowrap;color:var(--text2)">${day.date.slice(5)}</td>
-      <td style="${td}white-space:nowrap">${fmtClose(day)}</td>
-      <td style="${td}text-align:right">${fmtNet(day.individual)}</td>
-      <td style="${td}text-align:right">${fmtNet(day.institution)}</td>
-      <td style="${td}text-align:right">${fmtNet(day.foreign)}</td>
-      <td style="${td}text-align:right;color:var(--text2)">${day.foreignHoldRatio != null ? day.foreignHoldRatio.toFixed(2) + '%' : '—'}</td>
+  // B3. 누적 순매수 추세 (외국인 vs 기관) — 진입/이탈 구간이 선으로 드러남
+  let cf = 0, ci = 0; const cumF = [], cumI = [];
+  chron.forEach(day => { cf += (day.foreign || 0) / 10000; ci += (day.institution || 0) / 10000; cumF.push(cf); cumI.push(ci); });
+  const cumSvg = (() => {
+    const W = 1000, H = 150, all = [...cumF, ...cumI, 0];
+    const mn = Math.min(...all), mx = Math.max(...all), rng = (mx - mn) || 1;
+    const y = v => H - ((v - mn) / rng) * H;
+    const path = (arr, color) => {
+      const pts = arr.map((v, i) => `${(i / (arr.length - 1 || 1)) * W},${y(v)}`).join(' ');
+      return `<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" points="${pts}"/><circle cx="${W}" cy="${y(arr[arr.length - 1])}" r="3.5" fill="${color}"/>`;
+    };
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <line x1="0" y1="${y(0)}" x2="${W}" y2="${y(0)}" stroke="rgba(255,255,255,.12)" stroke-dasharray="4 5" stroke-width="1"/>
+      ${path(cumF, CA)}${path(cumI, CM)}</svg>`;
+  })();
+
+  // B4. 일자별 순매수 테이블
+  const cell = v => { const mj = manju(v), p = v >= 0; return `<span class="ck-cell ${p ? 'p' : 'n'}">${p ? '+' : '−'}${Math.abs(mj).toLocaleString()}만</span>`; };
+  const rows = days.map(day => `<tr>
+      <td>${day.date.slice(5)}</td>
+      <td>${cell(day.foreign)}</td>
+      <td>${cell(day.institution)}</td>
+      <td>${cell(day.individual)}</td>
+      <td style="color:var(--text3)">${day.foreignHoldRatio != null ? day.foreignHoldRatio.toFixed(2) + '%' : '—'}</td>
     </tr>`).join('');
 
-  return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:24px">
-    <div style="font-size:14px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      🧭 투자자별 매매동향
-      <span style="font-size:11px;color:var(--text3);font-weight:400">일별 순매수 · 주 단위 · 네이버증권</span>
+  // B1. 외국인 보유비중 추세 (기관/개인 보유% 는 소스에 없어 외국인만 정직 표기)
+  const holdVals = chron.map(dd => dd.foreignHoldRatio).filter(v => v != null);
+  const curHold = days[0]?.foreignHoldRatio;
+
+  return `
+    <div class="ck-sec-head"><span class="tick"></span><h3>수급 흐름 · 외국인 / 기관 / 개인</h3><span class="note">최근 ${days.length} 거래일 · 네이버증권</span></div>
+
+    ${curHold != null ? `
+    <div class="ck-panel" style="padding:16px 18px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">외국인 보유비중</div>
+          <div style="font-family:var(--mono);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums">${curHold.toFixed(2)}<small style="font-size:13px;color:var(--text2)">%</small></div></div>
+        <div style="flex:1;min-width:160px;height:38px;margin-left:auto">${spark(holdVals, CA, 320, 38)}</div>
+      </div>
+    </div>` : ''}
+
+    <div class="flow-tiles">
+      ${flowTile('외국인', CA, 'foreign')}
+      ${flowTile('기관', CM, 'institution')}
+      ${flowTile('개인', '#8b8bff', 'individual')}
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-      <span style="font-size:12px;color:var(--text3);align-self:center">최근 5일 누적:</span>
-      ${chip('개인', sum5('individual'))}
-      ${chip('기관', sum5('institution'))}
-      ${chip('외국인', sum5('foreign'))}
+
+    <div class="ck-panel" style="padding:16px 18px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px;flex-wrap:wrap">
+        <div style="font-size:12.5px;font-weight:600">누적 순매수 추세 <span style="color:var(--text3);font-weight:400;font-size:11px">· 어디서 들어왔나 / 나갔나</span></div>
+        <div class="rr-legend" style="margin-left:auto">
+          <div class="rr-lg"><span class="ln" style="background:${CA}"></span>외국인</div>
+          <div class="rr-lg"><span class="ln" style="background:${CM}"></span>기관</div>
+        </div>
+      </div>
+      <div class="cum-box">${cumSvg}</div>
     </div>
-    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;margin-top:12px">
-      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
-        <thead>
-          <tr style="color:var(--text3);font-size:11px;text-align:right">
-            <th style="text-align:left;padding:6px 8px;position:sticky;top:0;background:var(--bg2)">날짜</th>
-            <th style="text-align:left;padding:6px 8px;position:sticky;top:0;background:var(--bg2)">종가</th>
-            <th style="padding:6px 8px;position:sticky;top:0;background:var(--bg2)">개인</th>
-            <th style="padding:6px 8px;position:sticky;top:0;background:var(--bg2)">기관</th>
-            <th style="padding:6px 8px;position:sticky;top:0;background:var(--bg2)">외국인</th>
-            <th style="padding:6px 8px;position:sticky;top:0;background:var(--bg2)">외인보유율</th>
-          </tr>
-        </thead>
-        <tbody style="border-top:1px solid var(--border)">
-          ${rows}
-        </tbody>
+
+    <div class="ck-panel" style="padding:4px 6px;margin-bottom:24px">
+      <table class="ck-tbl">
+        <thead><tr><th>일자</th><th>외국인</th><th>기관</th><th>개인</th><th>외인보유율</th></tr></thead>
+        <tbody>${rows}</tbody>
       </table>
-    </div>
-  </div>`;
+    </div>`;
 }
 
 async function loadDartDetail(ticker) {
