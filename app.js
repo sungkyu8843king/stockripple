@@ -997,7 +997,8 @@ function renderMktStatus() {
   const el = document.getElementById('mktStatus');
   if (!el || el.dataset.rendered) return;
   el.dataset.rendered = '1';
-  // 브라우저 로컬 시각 → KST 오프셋 보정 (표시용 상태 뱃지, 초 단위 정밀도 불필요)
+  // 요일/시간 기반 1차 추정치 — 토스 장운영 캘린더(공휴일 포함 정확한 데이터)가 도착하면
+  // renderMktStatusFromToss()가 이 자리를 실데이터로 덮어쓴다. 그 전까지 보여줄 빠른 추정.
   const now = new Date();
   const kst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
   const day = kst.getDay();
@@ -1009,6 +1010,39 @@ function renderMktStatus() {
     <div class="mkt-status-item"><span class="mkt-status-dot ${krOpen ? 'live' : 'closed'}"></span>${!isWeekday ? '국내 휴장일' : (krOpen ? '국내 정규장' : '국내 장마감')}</div>
     <div class="mkt-status-item"><span class="mkt-status-dot ${dayMktOpen ? 'live' : 'closed'}"></span>해외 데이마켓 09:00~17:00</div>
   `;
+}
+
+// 토스 장운영 캘린더(공휴일 포함 정확한 데이터)로 #mktStatus를 덮어쓴다.
+function renderMktStatusFromToss(krMarket, usMarket) {
+  const el = document.getElementById('mktStatus');
+  if (!el) return;
+  const now = new Date();
+  const hhmm = iso => iso ? iso.slice(11, 16) : '';
+  const within = sess => sess && now >= new Date(sess.startTime) && now < new Date(sess.endTime);
+
+  let krHtml = '';
+  if (krMarket) {
+    if (krMarket.isHoliday) {
+      krHtml = `<div class="mkt-status-item"><span class="mkt-status-dot closed"></span>국내 휴장일${krMarket.nextBusinessDay ? ` · 다음 개장 ${krMarket.nextBusinessDay.slice(5)}` : ''}</div>`;
+    } else {
+      const rm = krMarket.regularMarket;
+      const open = within(rm);
+      krHtml = `<div class="mkt-status-item"><span class="mkt-status-dot ${open ? 'live' : 'closed'}"></span>국내 ${open ? '정규장' : '장마감'}${rm ? ` ${hhmm(rm.startTime)}~${hhmm(rm.endTime)}` : ''}</div>`;
+    }
+  }
+
+  let usHtml = '';
+  if (usMarket) {
+    if (usMarket.isHoliday) {
+      usHtml = `<div class="mkt-status-item"><span class="mkt-status-dot closed"></span>해외 휴장일${usMarket.nextBusinessDay ? ` · 다음 개장 ${usMarket.nextBusinessDay.slice(5)}` : ''}</div>`;
+    } else {
+      const dm = usMarket.dayMarket;
+      const open = within(dm);
+      usHtml = `<div class="mkt-status-item"><span class="mkt-status-dot ${open ? 'live' : 'closed'}"></span>해외 데이마켓${dm ? ` ${hhmm(dm.startTime)}~${hhmm(dm.endTime)}` : ''}${open ? ' 진행 중' : ''}</div>`;
+    }
+  }
+
+  if (krHtml || usHtml) el.innerHTML = krHtml + usHtml;
 }
 
 function renderMarketDash(data) {
@@ -1086,7 +1120,8 @@ function renderMarketDash(data) {
   });
 }
 
-// 🇰🇷 국고채 금리 스트립 — 홈 전용(mktBondStrip 없는 페이지는 no-op). 토스증권 공식 API.
+// 🇰🇷 국고채 금리 스트립 + 장운영 상태 — 홈 전용(관련 엘리먼트 없는 페이지는 no-op).
+// 토스증권 공식 API 하나로 두 가지를 같이 갱신(불필요한 중복 호출 방지).
 const BOND_TENORS = [
   { key: 'y2',  label: '2년' },
   { key: 'y3',  label: '3년' },
@@ -1097,20 +1132,27 @@ const BOND_TENORS = [
 ];
 async function loadBondStrip() {
   const wrap = document.getElementById('mktBondStrip');
-  if (!wrap) return;
+  const hasStatus = !!document.getElementById('mktStatus');
+  if (!wrap && !hasStatus) return;
   try {
     const bust = Math.floor(Date.now() / 60000);
     const r = await fetch(`/api/toss?_t=${bust}`);
     if (!r.ok) return;
     const j = await r.json();
-    if (!j.ok || !j.bonds) return;
-    const items = BOND_TENORS
-      .filter(t => j.bonds[t.key] != null)
-      .map(t => `<span class="mkt-bond-item"><small>${t.label}</small><b>${Number(j.bonds[t.key]).toFixed(2)}%</b></span>`)
-      .join('');
-    if (!items) return;
-    wrap.insertAdjacentHTML('beforeend', items);
-    wrap.style.display = '';
+    if (!j.ok) return;
+
+    if (j.krMarket || j.usMarket) renderMktStatusFromToss(j.krMarket, j.usMarket);
+
+    if (wrap && j.bonds) {
+      const items = BOND_TENORS
+        .filter(t => j.bonds[t.key] != null)
+        .map(t => `<span class="mkt-bond-item"><small>${t.label}</small><b>${Number(j.bonds[t.key]).toFixed(2)}%</b></span>`)
+        .join('');
+      if (items) {
+        wrap.insertAdjacentHTML('beforeend', items);
+        wrap.style.display = '';
+      }
+    }
   } catch {}
 }
 

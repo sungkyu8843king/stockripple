@@ -69,9 +69,11 @@ async function handleToss(req, res) {
   };
 
   const indicatorSymbols = 'KOSPI,KOSDAQ,KR_BOND_2Y,KR_BOND_3Y,KR_BOND_5Y,KR_BOND_10Y,KR_BOND_20Y,KR_BOND_30Y';
-  const [pricesData, fxData] = await Promise.all([
+  const [pricesData, fxData, krCal, usCal] = await Promise.all([
     callProxy(`/market-indicators/prices?symbols=${indicatorSymbols}`),
     callProxy(`/exchange-rate?baseCurrency=USD&quoteCurrency=KRW`),
+    callProxy(`/market-calendar/KR`),
+    callProxy(`/market-calendar/US`),
   ]);
 
   if (!pricesData && !fxData) {
@@ -82,6 +84,26 @@ async function handleToss(req, res) {
   for (const item of pricesData?.result || []) {
     byId[item.symbol] = item.lastPrice != null ? Number(item.lastPrice) : null;
   }
+
+  // 장 운영 캘린더 — 세션 객체를 그대로 넘기고(휴장이면 null), 실제 열려있는지 판단은
+  // 프론트에서 now와 startTime/endTime을 비교(타임존 오프셋 포함된 ISO라 그대로 비교 가능).
+  const kr = krCal?.result;
+  const us = usCal?.result;
+  const krMarket = kr ? {
+    isHoliday: !kr.today?.integrated,
+    today: kr.today?.date ?? null,
+    regularMarket: kr.today?.integrated?.regularMarket ?? null,
+    nextBusinessDay: kr.nextBusinessDay?.date ?? null,
+  } : null;
+  const usMarket = us ? {
+    isHoliday: !us.today?.dayMarket,
+    today: us.today?.date ?? null,
+    dayMarket: us.today?.dayMarket ?? null,
+    preMarket: us.today?.preMarket ?? null,
+    regularMarket: us.today?.regularMarket ?? null,
+    afterMarket: us.today?.afterMarket ?? null,
+    nextBusinessDay: us.nextBusinessDay?.date ?? null,
+  } : null;
 
   return res.status(200).json({
     ok: true,
@@ -97,6 +119,8 @@ async function handleToss(req, res) {
       y30: byId.KR_BOND_30Y ?? null,
     },
     usdkrw: fxData?.result?.rate != null ? Number(fxData.result.rate) : null,
+    krMarket,
+    usMarket,
     updatedAt: new Date().toISOString(),
   });
 }
