@@ -41,6 +41,12 @@ export default async function handler(req, res) {
       if (action === 'investor-trading') return handleTossInvestorTrading(req, res);
       if (action === 'fx')              return handleTossFx(req, res);
       if (action === 'quote')           return handleTossQuote(req, res);
+      if (action === 'probe') {         // 임시 — 프록시 경로 실측용, 확인 후 제거
+        const path = (req.query.path || '').toString();
+        if (!path.startsWith('/')) return res.status(400).json({ ok:false, error:'bad path' });
+        const d = await callTossProxy(path);
+        return res.status(200).json({ ok:true, path, data:d });
+      }
       return handleToss(req, res);
     }
     default:
