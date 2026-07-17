@@ -171,8 +171,6 @@ async function handleTossPrices(req, res) {
   const data = await callTossProxy(`/prices?symbols=${encodeURIComponent(tossSymbols.join(','))}`);
   if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
 
-  if (req.query.debug === '1') return res.status(200).json({ ok: true, debug: true, raw: data });
-
   const byBare = {};
   for (const item of data.result || []) {
     byBare[item.symbol] = { price: item.lastPrice != null ? Number(item.lastPrice) : null, timestamp: item.timestamp, currency: item.currency };
