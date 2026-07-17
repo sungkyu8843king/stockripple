@@ -128,6 +128,10 @@ async function handleToss(req, res) {
     nextBusinessDay: usToday.nextBusinessDay?.date ?? null,
   } : null;
 
+  if (req.query.debug === '1') {
+    return res.status(200).json({ ok: true, debug: true, kstToday, kstYest, usCalToday, usCalYest });
+  }
+
   return res.status(200).json({
     ok: true,
     source: 'toss',
