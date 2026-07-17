@@ -34,7 +34,13 @@ export default async function handler(req, res) {
     }
     case 'kr-overtime':  return handleKrOvertime(req, res);
     case 'us-market':    return handleUsMarket(req, res);
-    case 'toss':         return handleToss(req, res);
+    case 'toss': {
+      const action = (req.query.action || '').toString();
+      if (action === 'prices')          return handleTossPrices(req, res);
+      if (action === 'rankings')        return handleTossRankings(req, res);
+      if (action === 'investor-trading') return handleTossInvestorTrading(req, res);
+      return handleToss(req, res);
+    }
     default:
       return res.status(400).json({ ok: false, error: 'unknown source' });
   }
@@ -47,26 +53,29 @@ export default async function handler(req, res) {
 // 고정 IP를 가진 GCP e2-micro VM(허용목록 등록됨)에 프록시를 세워두고 그걸 경유한다.
 // 프록시 URL/시크릿은 TOSS_PROXY_URL/TOSS_PROXY_SECRET 환경변수. 60초 캐시.
 // ════════════════════════════════════════════════════════════════════════
+// 프록시(GCP VM, 고정 IP) 경유 공통 호출자 — 모든 toss 핸들러가 공유.
+function tossProxyConfigured() {
+  return !!(process.env.TOSS_PROXY_URL && process.env.TOSS_PROXY_SECRET);
+}
+async function callTossProxy(path) {
+  try {
+    const r = await fetch(`${process.env.TOSS_PROXY_URL}${path}`, {
+      headers: { 'x-proxy-secret': process.env.TOSS_PROXY_SECRET },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
 async function handleToss(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=180');
 
-  const proxyUrl = process.env.TOSS_PROXY_URL;
-  const proxySecret = process.env.TOSS_PROXY_SECRET;
-  if (!proxyUrl || !proxySecret) {
+  if (!tossProxyConfigured()) {
     return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
   }
-
-  const callProxy = async (path) => {
-    try {
-      const r = await fetch(`${proxyUrl}${path}`, {
-        headers: { 'x-proxy-secret': proxySecret },
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!r.ok) return null;
-      return await r.json();
-    } catch { return null; }
-  };
+  const callProxy = callTossProxy;
 
   const indicatorSymbols = 'KOSPI,KOSDAQ,KR_BOND_2Y,KR_BOND_3Y,KR_BOND_5Y,KR_BOND_10Y,KR_BOND_20Y,KR_BOND_30Y';
   const [pricesData, fxData, krCal, usCal] = await Promise.all([
@@ -123,6 +132,85 @@ async function handleToss(req, res) {
     usMarket,
     updatedAt: new Date().toISOString(),
   });
+}
+
+// GET ?source=toss&action=prices&symbols=005930,000660  — 개별 종목 실시간가(토스 공식).
+// KR 티커는 .KS/.KQ 접미사를 떼고 6자리 코드로 넘겨야 함(사이트 내부 표기와의 변환은
+// 여기서 처리). 짧은 캐시(10초)로 빠른 갱신 + 과호출 방지 둘 다 잡는다.
+async function handleTossPrices(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+
+  const raw = (req.query.symbols || '').toString();
+  if (!raw) return res.status(400).json({ ok: false, error: 'symbols required' });
+  const siteToToss = {};   // 'AAPL' or '005930.KS' -> 'AAPL' or '005930'
+  const tossSymbols = raw.split(',').map(s => s.trim()).filter(Boolean).map(s => {
+    const bare = s.replace(/\.(KS|KQ)$/i, '');
+    siteToToss[s] = bare;
+    return bare;
+  });
+
+  const data = await callTossProxy(`/prices?symbols=${encodeURIComponent(tossSymbols.join(','))}`);
+  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+
+  const byBare = {};
+  for (const item of data.result || []) {
+    byBare[item.symbol] = { price: item.lastPrice != null ? Number(item.lastPrice) : null, timestamp: item.timestamp, currency: item.currency };
+  }
+  const out = {};
+  for (const [site, bare] of Object.entries(siteToToss)) out[site] = byBare[bare] || null;
+
+  return res.status(200).json({ ok: true, source: 'toss', data: out, updatedAt: new Date().toISOString() });
+}
+
+// GET ?source=toss&action=rankings&type=TOP_GAINERS&marketCountry=KR&duration=1d&count=20
+async function handleTossRankings(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=90');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+
+  const { type = 'TOP_GAINERS', marketCountry = 'KR', duration = '1d', count = '20' } = req.query;
+  const data = await callTossProxy(`/rankings?type=${encodeURIComponent(type)}&marketCountry=${encodeURIComponent(marketCountry)}&duration=${encodeURIComponent(duration)}&count=${encodeURIComponent(count)}`);
+  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (data.error) return res.status(400).json({ ok: false, error: data.error.message || 'toss error' });
+
+  const rankings = (data.result?.rankings || []).map(r => ({
+    rank: r.rank,
+    symbol: r.symbol,
+    currency: r.currency,
+    price: r.price?.lastPrice != null ? Number(r.price.lastPrice) : null,
+    changePercent: r.price?.changeRate != null ? Number(r.price.changeRate) * 100 : null,
+    tradingVolume: r.tradingVolume != null ? Number(r.tradingVolume) : null,
+    tradingAmount: r.tradingAmount != null ? Number(r.tradingAmount) : null,
+  }));
+
+  return res.status(200).json({ ok: true, source: 'toss', rankedAt: data.result?.rankedAt ?? null, rankings });
+}
+
+// GET ?source=toss&action=investor-trading&symbol=KOSPI&count=10 — 투자자별 매매대금(공식).
+async function handleTossInvestorTrading(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+
+  const symbol = (req.query.symbol || 'KOSPI').toString().toUpperCase();
+  if (symbol !== 'KOSPI' && symbol !== 'KOSDAQ') return res.status(400).json({ ok: false, error: 'symbol must be KOSPI or KOSDAQ' });
+  const count = req.query.count || '20';
+
+  const data = await callTossProxy(`/market-indicators/${symbol}/investor-trading?interval=1d&count=${encodeURIComponent(count)}`);
+  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+
+  const net = amt => amt ? Number(amt.buyAmount) - Number(amt.sellAmount) : null;
+  const records = (data.result?.records || []).map(r => ({
+    date: r.date,
+    individual: net(r.individual),
+    foreigner: net(r.foreigner),
+    institution: net(r.institution),
+    otherCorporation: net(r.otherCorporation),
+  }));
+
+  return res.status(200).json({ ok: true, source: 'toss', symbol, records });
 }
 
 const SHARED_HEADERS = {
