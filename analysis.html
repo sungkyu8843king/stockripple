@@ -105,6 +105,25 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .conf-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--blue), var(--purple)); transition: width 1s var(--ease, ease); box-shadow: 0 0 8px rgba(0,102,204,0.25); }
 .conf-pct { font-size: 13px; font-weight: 800; color: var(--blue); font-family: var(--font-mono, monospace); }
 
+/* 투자 포인트 요약 */
+.invest-point { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg, 16px); padding: 16px 18px; margin-bottom: 24px; }
+.ip-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+.ip-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.ip-row:last-child { margin-bottom: 0; }
+.ip-tag { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.ip-tag.pos { color: var(--green); background: var(--green-dim); }
+.ip-tag.neg { color: var(--red); background: var(--red-dim); }
+.ip-names { font-size: 13.5px; color: var(--text); line-height: 1.6; font-weight: 500; }
+
+/* 관련 과거 이슈 타임라인 */
+.related-section { margin-top: 8px; }
+.related-list { display: flex; flex-direction: column; gap: 8px; }
+.related-item { display: flex; align-items: center; gap: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; text-decoration: none; color: var(--text); transition: border-color 0.12s; }
+.related-item:hover { border-color: var(--blue); }
+.related-date { font-size: 11.5px; color: var(--text3); font-family: var(--font-mono, monospace); white-space: nowrap; flex-shrink: 0; }
+.related-title { flex: 1; font-size: 13.5px; font-weight: 500; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.related-sectors { display: flex; gap: 4px; flex-shrink: 0; }
+
 /* Section Headers */
 .section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
 .section-title svg { color: var(--text3); }
@@ -341,6 +360,42 @@ async function loadStockPrice(ticker, el) {
   } catch(e) {}
 }
 
+// 관련 과거 이슈 — 같은 섹터의 최근 분석 이슈 (파급효과 추적)
+async function loadRelatedIssues(issue) {
+  const wrap = document.getElementById('relatedIssuesWrap');
+  if (!wrap) return;
+  const sectors = issue.sectors || [];
+  if (!sectors.length) return;
+  try {
+    const { data } = await sb.from('issues')
+      .select('id,title,published_at,sectors')
+      .overlaps('sectors', sectors)
+      .eq('is_analyzed', true)
+      .neq('id', issue.id)
+      .order('published_at', { ascending: false })
+      .limit(6);
+    if (!data || !data.length) return;
+    const rows = data.map(it => {
+      const dt = new Date(it.published_at);
+      const mmdd = `${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      const tags = (it.sectors || []).slice(0, 2).map(s => `<span class="sector-tag ${sectorColors[s] || 'tag-default'}" style="font-size:10px;padding:2px 7px">${escHtml(s)}</span>`).join('');
+      return `<a href="/analysis.html?id=${it.id}" class="related-item">
+        <span class="related-date">${mmdd}</span>
+        <span class="related-title">${escHtml(it.title)}</span>
+        <span class="related-sectors">${tags}</span>
+      </a>`;
+    }).join('');
+    wrap.innerHTML = `
+      <div class="related-section">
+        <div class="section-title">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          관련 과거 이슈 <span style="font-size:13px;color:var(--text2);font-weight:400">(같은 섹터 · ${data.length}건)</span>
+        </div>
+        <div class="related-list">${rows}</div>
+      </div>`;
+  } catch (e) { /* silent */ }
+}
+
 function renderPage(issue, analysis, companies) {
   const sectors = issue.sectors || [];
   const rippleEffects = analysis?.ripple_effects || [];
@@ -471,11 +526,41 @@ function renderPage(issue, analysis, companies) {
       </div>`;
   };
 
-  // 긍정 / 부정 영향 기업 분리
+  // 부정 기업용 간단 카드 (ripple_effects JSON의 피해 우려 기업 — 검증/시세 없이 표시)
+  const renderNegSimpleCard = (co) => {
+    const isKr = /\.K[SQ]$/i.test(co.ticker || '') || co.market === 'KR';
+    return `
+      <div class="company-card">
+        <div class="company-top">
+          <a href="/company.html?ticker=${encodeURIComponent(co.ticker)}" class="company-ticker-link" onclick="event.stopPropagation()"><span class="company-ticker ${isKr ? 'kr' : 'us'}">${escHtml(co.ticker)}</span></a>
+          <div class="company-info">
+            <div class="company-name">${escHtml(co.name_ko || co.name_en || co.ticker)}</div>
+            <div class="company-market">${isKr ? '한국 상장' : '미국 상장'}${co._sector ? ' · ' + escHtml(co._sector) : ''}</div>
+          </div>
+        </div>
+        ${co.rationale ? `<div class="company-rationale">${escHtml(co.rationale)}</div>` : ''}
+        ${co._sector ? `<div class="company-ripple">파급 섹터: <span>${escHtml(co._sector)}</span></div>` : ''}
+      </div>`;
+  };
+
+  // 긍정 영향 기업 = 검증된 매수 후보(analysis_companies)
   const posCompanies = companies.filter(c => c.companies && companyDir(c) === 'pos');
-  const negCompanies = companies.filter(c => c.companies && companyDir(c) === 'neg');
   const posCards = posCompanies.map(renderCoCard).join('');
-  const negCards = negCompanies.map(renderCoCard).join('');
+
+  // 부정 영향 기업 = analysis_companies(neg) + ripple_effects negative 섹터 기업 (티커 중복 제거)
+  const negFromTable = companies.filter(c => c.companies && companyDir(c) === 'neg');
+  const negTickers = new Set(negFromTable.map(c => (c.companies?.ticker || '').toUpperCase()).filter(Boolean));
+  const negFromRipple = [];
+  rippleEffects.filter(r => r.impact === 'negative').forEach(r => {
+    (r.companies || []).forEach(co => {
+      const tk = (co.ticker || '').toUpperCase();
+      if (!tk || negTickers.has(tk)) return;
+      negTickers.add(tk);
+      negFromRipple.push({ ...co, _sector: r.sector });
+    });
+  });
+  const negCount = negFromTable.length + negFromRipple.length;
+  const negCards = negFromTable.map(renderCoCard).join('') + negFromRipple.map(renderNegSimpleCard).join('');
 
   const html = `
     <div class="issue-header">
@@ -501,6 +586,13 @@ function renderPage(issue, analysis, companies) {
       </div>
     </div>` : ''}
 
+    ${(posCompanies.length || negCount) ? `
+    <div class="invest-point">
+      <div class="ip-title">💡 이 뉴스의 투자 포인트</div>
+      ${posCompanies.length ? `<div class="ip-row"><span class="ip-tag pos">수혜</span><span class="ip-names">${posCompanies.slice(0, 6).map(c => escHtml(c.companies?.name_ko || c.companies?.name_en || '')).filter(Boolean).join(' · ')}</span></div>` : ''}
+      ${negCount ? `<div class="ip-row"><span class="ip-tag neg">피해 우려</span><span class="ip-names">${[...negFromTable.map(c => c.companies?.name_ko || c.companies?.name_en), ...negFromRipple.map(co => co.name_ko || co.name_en)].filter(Boolean).slice(0, 6).map(escHtml).join(' · ')}</span></div>` : ''}
+    </div>` : ''}
+
     ${rippleEffects.length ? `
     <div class="ripple-section">
       <div class="section-title">
@@ -519,11 +611,11 @@ function renderPage(issue, analysis, companies) {
       <div class="companies-grid">${posCards}</div>
     </div>` : ''}
 
-    ${negCompanies.length ? `
+    ${negCount ? `
     <div class="companies-section">
       <div class="section-title">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--red-dim);color:var(--red);font-size:13px">▼</span>
-        부정 영향 기업 <span style="font-size:13px;color:var(--text2);font-weight:400">(${negCompanies.length}개 · 피해 우려)</span>
+        부정 영향 기업 <span style="font-size:13px;color:var(--text2);font-weight:400">(${negCount}개 · 피해 우려)</span>
       </div>
       <div class="companies-grid">${negCards}</div>
     </div>` : ''}
@@ -539,9 +631,14 @@ function renderPage(issue, analysis, companies) {
         <div class="chart-wrap"><canvas id="upsideChart"></canvas></div>
       </div>
     </div>` : ''}
+
+    <!-- 관련 과거 이슈 타임라인 (같은 섹터) -->
+    <div id="relatedIssuesWrap"></div>
   `;
 
   document.getElementById('pageWrap').innerHTML = html;
+
+  loadRelatedIssues(issue);
 
   document.querySelectorAll('[data-ticker]').forEach(el => {
     loadStockPrice(el.dataset.ticker, el);

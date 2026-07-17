@@ -242,6 +242,9 @@ async function enrichCandidates(analysis) {
   const corrections = [];
   const allCompanyTasks = [];
   for (const ripple of analysis.rippleEffects || []) {
+    // 부정(피해 우려) 섹터의 기업은 매수 후보가 아니므로 검증/decide(매수) 대상에서 제외.
+    // 표시는 analysis.ripple_effects JSON에서 직접 읽는다(analysis.html 부정 영향 기업 섹션).
+    if (ripple.impact === 'negative') continue;
     for (const co of ripple.companies || []) {
       allCompanyTasks.push({ ripple, co });
     }
@@ -1282,7 +1285,7 @@ const ANALYZE_STATIC_PROMPT = `당신은 글로벌 주식시장 리서치 애널
 - relevance_score < 40이면 rippleEffects는 빈 배열로 반환
 - rippleEffects는 2-4개, 각 섹터당 기업은 2-3개 (relevance_score >= 40인 경우만)
 - 한국 기업(KR)과 미국 기업(US)을 균형있게 포함
-- 하락이 예상되는 종목은 companies에 넣지 말 것 (impact:negative 섹터는 companies를 비워둘 것)
+- impact:negative(피해 우려) 섹터에도 이 뉴스로 하락 압력을 받는 대표 기업 1-2개를 companies에 넣을 것. 단 이들은 "매수 후보"가 아니라 "피해 우려" 종목이므로, rationale에는 왜 손실/하락 압력을 받는지(mechanism)를 명시할 것. (impact:positive 섹터의 기업 = 수혜/매수 후보, impact:negative 섹터의 기업 = 피해 우려. 티커 규칙은 동일하게 적용)
 - rationale에 3차 이상 간접 연결(뉴스→A→B→이 기업)은 금지. 최대 2차 파급까지만.
 
 티커 규칙:
