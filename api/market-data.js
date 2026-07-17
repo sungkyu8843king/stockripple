@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       if (action === 'rankings')        return handleTossRankings(req, res);
       if (action === 'investor-trading') return handleTossInvestorTrading(req, res);
       if (action === 'fx')              return handleTossFx(req, res);
-      if (action === 'candles-debug')   return handleTossCandlesDebug(req, res);
+      if (action === 'quote')           return handleTossQuote(req, res);
       return handleToss(req, res);
     }
     default:
@@ -245,16 +245,76 @@ async function handleTossFx(req, res) {
   return res.status(200).json({ ok: true, rate: data.result?.rate != null ? Number(data.result.rate) : null });
 }
 
-// 임시 디버그용 — 캔들 스키마(정규장만 반영하는지, 시간외 체결도 섞이는지) 실측 확인 후 제거.
-async function handleTossCandlesDebug(req, res) {
+// GET ?source=toss&action=quote&symbol=AAPL — 통합가(Toss lastPrice, 세션 구분 없이 하나) +
+// 정규장/시간외 변동 분해(전부 Toss 공식 데이터로 서버에서 계산). Toss /prices는 marketState나
+// pre/day/after 세션별 가격을 안 주므로(공식 스키마 확인됨), 일별 캔들의 종가를 "정규장 마감가"
+// 기준점으로 삼아 직접 계산한다 — 캔들 종가는 정규장만 반영(확인됨: 시간외 체결이 있어도
+// /prices의 lastPrice와 최근 완결 캔들 종가가 서로 다르게 나옴).
+async function handleTossQuote(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=45');
   if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
-  const symbol = (req.query.symbol || 'AAPL').toString().replace(/\.(KS|KQ)$/i, '');
-  const interval = (req.query.interval || '1d').toString();
-  const count = req.query.count || '5';
-  const data = await callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&count=${encodeURIComponent(count)}`);
-  const priceData = await callTossProxy(`/prices?symbols=${encodeURIComponent(symbol)}`);
-  return res.status(200).json({ ok: true, debug: true, candles: data, prices: priceData });
+
+  const rawSymbol = (req.query.symbol || '').toString();
+  if (!rawSymbol) return res.status(400).json({ ok: false, error: 'symbol required' });
+  const isKr = /\.(KS|KQ)$/i.test(rawSymbol);
+  const symbol = rawSymbol.replace(/\.(KS|KQ)$/i, '');
+
+  // 세션 라벨 판정에 자정 넘김 대응 필요(홈 시장지표와 동일 이유) — 오늘+어제(KST) 둘 다 조회.
+  const kstNowMs = Date.now();
+  const kstToday = new Date(kstNowMs + 9 * 3600000).toISOString().slice(0, 10);
+  const kstYest = new Date(kstNowMs + 9 * 3600000 - 86400000).toISOString().slice(0, 10);
+
+  const calls = [
+    callTossProxy(`/prices?symbols=${encodeURIComponent(symbol)}`),
+    callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=2`),
+  ];
+  if (!isKr) {
+    calls.push(callTossProxy(`/market-calendar/US?date=${kstToday}`));
+    calls.push(callTossProxy(`/market-calendar/US?date=${kstYest}`));
+  }
+  const [priceData, candleData, calToday, calYest] = await Promise.all(calls);
+
+  const p = priceData?.result?.[0];
+  if (!p) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  const lastPrice = p.lastPrice != null ? Number(p.lastPrice) : null;
+
+  const candles = candleData?.result?.candles || [];
+  const regularClose = candles[0]?.closePrice != null ? Number(candles[0].closePrice) : null;
+  const prevClose = candles[1]?.closePrice != null ? Number(candles[1].closePrice) : null;
+
+  // 세션 라벨 (미장만 — KR NXT는 세션 구분 데이터가 아예 없어 항상 CLOSED로 둠)
+  let session = 'CLOSED';
+  if (!isKr) {
+    const within = s => s && kstNowMs >= new Date(s.startTime).getTime() && kstNowMs < new Date(s.endTime).getTime();
+    for (const cal of [calYest?.result?.today, calToday?.result?.today]) {
+      if (!cal) continue;
+      if (within(cal.regularMarket)) { session = 'REGULAR'; break; }
+      if (within(cal.preMarket))     { session = 'PRE'; break; }
+      if (within(cal.afterMarket))   { session = 'POST'; break; }
+    }
+  }
+
+  // 정규장 중엔 당일 캔들이 아직 완결되지 않았을 수 있으므로 lastPrice를 기준가로,
+  // 그 외(프리/애프터/마감)엔 직전 완결 캔들 종가를 정규장 마감 기준가로 쓴다.
+  const dayRefPrice = session === 'REGULAR' ? lastPrice : regularClose;
+  let regularChange = null, regularChangePercent = null;
+  if (dayRefPrice != null && prevClose) {
+    regularChange = dayRefPrice - prevClose;
+    regularChangePercent = (regularChange / prevClose) * 100;
+  }
+  // 시간외 변동(정규장 마감가 대비)은 프리/애프터일 때만 의미가 있음
+  let exChange = null, exChangePercent = null;
+  if ((session === 'PRE' || session === 'POST') && lastPrice != null && regularClose) {
+    exChange = lastPrice - regularClose;
+    exChangePercent = (exChange / regularClose) * 100;
+  }
+
+  return res.status(200).json({
+    ok: true, symbol: rawSymbol, currency: p.currency, lastPrice, timestamp: p.timestamp,
+    regularClose, prevClose, regularChange, regularChangePercent,
+    exChange, exChangePercent, session,
+  });
 }
 
 const SHARED_HEADERS = {
