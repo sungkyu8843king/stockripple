@@ -1139,10 +1139,11 @@ button { font-family: inherit; }
               <button class="hm-tab kf-tab"        data-kf="KOSDAQ" onclick="switchKrFlowChart('KOSDAQ')">코스닥</button>
               <button class="hm-tab kf-tab"        data-kf="KPI200" onclick="switchKrFlowChart('KPI200')">코스피200</button>
             </div>
-            <div class="flow-chart-wrap">
+            <div class="flow-chart-wrap" id="krFlowChartWrap">
               <img id="krFlowChartImg" alt="투자자별 순매수 추이" style="width:100%;border-radius:8px;display:block">
+              <div id="krFlowDataWrap" style="display:none"></div>
             </div>
-            <div style="margin-top:6px;font-size:10px;color:var(--text3)">📡 데이터: 네이버 증권 · 개인·외국인·기관 누적 순매수 + 지수 추이(당일)</div>
+            <div style="margin-top:6px;font-size:10px;color:var(--text3)" id="krFlowSrcNote">📡 데이터: 네이버 증권 · 개인·외국인·기관 누적 순매수 + 지수 추이(당일)</div>
           </div>
           <div style="min-width:0">
             <div class="sh-title" style="font-size:13px;margin-bottom:8px">🔍 인기 검색 종목</div>

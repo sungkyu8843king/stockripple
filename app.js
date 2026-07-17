@@ -3399,11 +3399,51 @@ const KR_INDEX_DEFS = [
 const KR_FLOW_CHART_IMG = { KOSPI: 'siseMainKOSPI', KOSDAQ: 'siseMainKOSDAQ', KPI200: 'siseMainKPI200' };
 let _krFlowMkt = 'KOSPI';
 
+// 억원 단위 축약 포맷 (+/- 부호 포함)
+function fmtEok(v) {
+  if (v == null) return '—';
+  const sign = v >= 0 ? '+' : '−';
+  const eok = Math.abs(v) / 1e8;
+  return `${sign}${eok >= 10000 ? (eok / 10000).toFixed(1) + '조' : Math.round(eok).toLocaleString() + '억'}`;
+}
+
 function switchKrFlowChart(mkt) {
   _krFlowMkt = mkt;
   document.querySelectorAll('.kf-tab').forEach(b => b.classList.toggle('active', b.dataset.kf === mkt));
   const img = document.getElementById('krFlowChartImg');
-  if (img) img.src = `https://ssl.pstatic.net/imgfinance/chart/sise/${KR_FLOW_CHART_IMG[mkt]}.png?sid=${Date.now()}`;
+  const dataWrap = document.getElementById('krFlowDataWrap');
+  const srcNote = document.getElementById('krFlowSrcNote');
+
+  // 코스피200은 토스 투자자별 매매대금 API가 지원하지 않아(KOSPI/KOSDAQ만) 기존 네이버 이미지 유지
+  if (mkt === 'KPI200') {
+    if (img) { img.style.display = 'block'; img.src = `https://ssl.pstatic.net/imgfinance/chart/sise/${KR_FLOW_CHART_IMG[mkt]}.png?sid=${Date.now()}`; }
+    if (dataWrap) dataWrap.style.display = 'none';
+    if (srcNote) srcNote.textContent = '📡 데이터: 네이버 증권 · 개인·외국인·기관 누적 순매수 + 지수 추이(당일)';
+    return;
+  }
+
+  if (img) img.style.display = 'none';
+  if (dataWrap) {
+    dataWrap.style.display = 'block';
+    dataWrap.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:16px">로딩 중...</div>';
+  }
+  if (srcNote) srcNote.textContent = '📡 데이터: 토스증권 공식 API · 개인·외국인·기관 일별 순매수 (매수대금 − 매도대금)';
+
+  fetch(`/api/toss?action=investor-trading&symbol=${mkt}&count=6`)
+    .then(r => r.json())
+    .then(j => {
+      if (_krFlowMkt !== mkt || !dataWrap) return; // 탭이 그 사이 바뀌었으면 버림
+      if (!j.ok || !j.records?.length) { dataWrap.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:16px">데이터 없음</div>'; return; }
+      const rows = j.records.map(r => {
+        const cell = (label, v) => `<div style="text-align:center"><div style="font-size:9.5px;color:var(--text3);margin-bottom:2px">${label}</div><div style="font-size:11.5px;font-weight:700;font-family:var(--font-mono);color:${v >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtEok(v)}</div></div>`;
+        return `<div style="display:grid;grid-template-columns:52px repeat(3,1fr);gap:6px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--border-soft)">
+          <div style="font-size:10.5px;color:var(--text3)">${r.date.slice(5).replace('-', '/')}</div>
+          ${cell('개인', r.individual)}${cell('외국인', r.foreigner)}${cell('기관', r.institution)}
+        </div>`;
+      }).join('');
+      dataWrap.innerHTML = `<div style="display:grid;grid-template-columns:52px repeat(3,1fr);gap:6px;padding:0 4px 6px;font-size:9.5px;color:var(--text3);font-weight:700;text-transform:uppercase;border-bottom:1px solid var(--border)"><div></div><div style="text-align:center">개인</div><div style="text-align:center">외국인</div><div style="text-align:center">기관</div></div>${rows}`;
+    })
+    .catch(() => { if (dataWrap) dataWrap.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:16px">로드 실패</div>'; });
 }
 
 async function loadKrSummary() {
