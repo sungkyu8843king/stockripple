@@ -961,12 +961,140 @@ function sparkPath(points) {
   ).join('');
 }
 
+// 채워진 영역(area) 스파크라인 SVG — 시장 지표 대시보드 전용(홈 히어로/카드)
+function areaSparkSvg(points, w, h, color) {
+  if (!Array.isArray(points) || points.length < 2) return '';
+  const min = Math.min(...points), max = Math.max(...points);
+  const span = (max - min) || 1;
+  const step = w / (points.length - 1);
+  const coords = points.map((p, i) => [i * step, (h - 1) - ((p - min) / span) * (h - 2)]);
+  const linePath = coords.map((c, i) => `${i ? 'L' : 'M'}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join('');
+  const gid = 'msg' + Math.random().toString(36).slice(2, 9);
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${linePath} L${w},${h} L0,${h} Z" fill="url(#${gid})" stroke="none"/>
+    <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+// 🎯 지금 매수 후보 위 "시장 지표" 대시보드 — 홈 전용(mktDashGrid 없는 페이지는 no-op)
+const MKT_DASH_ITEMS = [
+  { id: 'sp500',  name: 'S&P 500',        fmt: 'n' },
+  { id: 'dow',    name: '다우존스',         fmt: 'n' },
+  { id: 'kospi',  name: '코스피',           fmt: 'n' },
+  { id: 'kosdaq', name: '코스닥',           fmt: 'n' },
+  { id: 'vix',    name: 'VIX',             fmt: 'n' },
+  { id: 'usdkrw', name: '달러환율',         fmt: 'n' },
+  { id: 'sox',    name: '필라델피아반도체',   fmt: 'n' },
+  { id: 'nq',     name: '나스닥100 선물',    fmt: 'n' },
+  { id: 'btc',    name: '비트코인',         fmt: '$' },
+  { id: 'gold',   name: '금',              fmt: '$' },
+];
+
+function renderMktStatus() {
+  const el = document.getElementById('mktStatus');
+  if (!el || el.dataset.rendered) return;
+  el.dataset.rendered = '1';
+  // 브라우저 로컬 시각 → KST 오프셋 보정 (표시용 상태 뱃지, 초 단위 정밀도 불필요)
+  const now = new Date();
+  const kst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
+  const day = kst.getDay();
+  const mins = kst.getHours() * 60 + kst.getMinutes();
+  const isWeekday = day >= 1 && day <= 5;
+  const krOpen = isWeekday && mins >= 540 && mins < 930;       // 09:00–15:30
+  const dayMktOpen = isWeekday && mins >= 540 && mins < 1020;  // 09:00–17:00 (해외주식 데이마켓)
+  el.innerHTML = `
+    <div class="mkt-status-item"><span class="mkt-status-dot ${krOpen ? 'live' : 'closed'}"></span>${!isWeekday ? '국내 휴장일' : (krOpen ? '국내 정규장' : '국내 장마감')}</div>
+    <div class="mkt-status-item"><span class="mkt-status-dot ${dayMktOpen ? 'live' : 'closed'}"></span>해외 데이마켓 09:00~17:00</div>
+  `;
+}
+
+function renderMarketDash(data) {
+  const grid = document.getElementById('mktDashGrid');
+  if (!grid || !data) return;
+  renderMktStatus();
+
+  // 나스닥 히어로
+  const nd = data.nasdaq;
+  if (nd?.price != null) {
+    const chgClass = nd.changePercent > 0 ? 'pos' : nd.changePercent < 0 ? 'neg' : '';
+    const chgSign = nd.changePercent > 0 ? '+' : '';
+    const valEl = document.getElementById('mktHeroVal');
+    const chgEl = document.getElementById('mktHeroChg');
+    if (valEl) valEl.textContent = fmtIdx(nd.price, 'n');
+    if (chgEl && nd.changePercent != null) {
+      chgEl.innerHTML = `<span class="${chgClass}">${chgSign}${(nd.change ?? 0).toFixed(2)} (${chgSign}${nd.changePercent.toFixed(2)}%)</span>`;
+    }
+    const chartEl = document.getElementById('mktHeroChart');
+    if (chartEl && Array.isArray(nd.spark) && nd.spark.length > 1) {
+      const color = nd.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
+      chartEl.innerHTML = areaSparkSvg(nd.spark, 300, 64, color);
+    }
+    if (nd.fiftyTwoWeekLow != null && nd.fiftyTwoWeekHigh != null) {
+      const wrap = document.getElementById('mktHero52w');
+      if (wrap) {
+        wrap.style.display = '';
+        const range = nd.fiftyTwoWeekHigh - nd.fiftyTwoWeekLow || 1;
+        const pos = Math.min(100, Math.max(0, ((nd.price - nd.fiftyTwoWeekLow) / range) * 100));
+        const dot = document.getElementById('mktHero52wDot');
+        if (dot) dot.style.left = pos + '%';
+        const lo = document.getElementById('mktHero52wLo'), hi = document.getElementById('mktHero52wHi');
+        if (lo) lo.textContent = fmtIdx(nd.fiftyTwoWeekLow, 'n');
+        if (hi) hi.textContent = fmtIdx(nd.fiftyTwoWeekHigh, 'n');
+      }
+    }
+  }
+
+  // 카드 DOM은 최초 1회만 생성, 이후엔 in-place 갱신
+  if (!grid.dataset.cardsBuilt) {
+    grid.dataset.cardsBuilt = '1';
+    const cardsHtml = MKT_DASH_ITEMS.map(it => `
+      <div class="mkt-card">
+        <div class="mkt-card-main">
+          <div class="mkt-card-name">${it.name}</div>
+          <div class="mkt-card-val" id="mktCardVal-${it.id}">—</div>
+          <div class="mkt-card-chg" id="mktCardChg-${it.id}">—</div>
+        </div>
+        <div class="mkt-card-spark" id="mktCardSpark-${it.id}"></div>
+      </div>`).join('') + `
+      <a class="mkt-card mkt-link" href="https://finance.naver.com/sise/sise_index.naver?code=FUT" target="_blank" rel="noopener">
+        <div class="mkt-card-main"><div class="mkt-card-name">코스피200 야간선물</div></div>
+        <span class="mkt-link-cta">실시간 시세 보기 →</span>
+      </a>`;
+    grid.insertAdjacentHTML('beforeend', cardsHtml);
+  }
+
+  MKT_DASH_ITEMS.forEach(it => {
+    const d = data[it.id];
+    if (!d?.price) return;
+    const chgClass = d.changePercent > 0 ? 'pos' : d.changePercent < 0 ? 'neg' : '';
+    const chgSign = d.changePercent > 0 ? '+' : '';
+    const valEl = document.getElementById(`mktCardVal-${it.id}`);
+    const chgEl = document.getElementById(`mktCardChg-${it.id}`);
+    if (valEl) valEl.textContent = fmtIdx(d.price, it.fmt);
+    if (chgEl && d.changePercent != null) {
+      chgEl.textContent = `${chgSign}${d.changePercent.toFixed(2)}%`;
+      chgEl.className = `mkt-card-chg ${chgClass}`;
+    }
+    const sparkEl = document.getElementById(`mktCardSpark-${it.id}`);
+    if (sparkEl && Array.isArray(d.spark) && d.spark.length > 1) {
+      const color = d.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
+      sparkEl.innerHTML = areaSparkSvg(d.spark, 46, 28, color);
+    }
+  });
+}
+
 async function loadIndices() {
   try {
     const r = await fetch('/api/indices');
     if (!r.ok) throw new Error('indices API failed');
     const { data } = await r.json();
     if (!data) return;
+
+    renderMarketDash(data);
 
     INDICES.forEach(idx => {
       const d = data[idx.id];

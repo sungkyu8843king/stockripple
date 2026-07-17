@@ -446,6 +446,48 @@ button { font-family: inherit; }
 .card-title { font-size: 14.5px; font-weight: 700; line-height: 1.45; margin-bottom: 7px; letter-spacing: -0.01em; }
 .card-ai-summary { font-size: 12.5px; color: var(--text2); line-height: 1.6; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .card-flow-label { font-size: 9.5px; font-weight: 700; color: var(--text3); letter-spacing: .03em; margin: 10px 0 4px; }
+
+/* ═══ 📊 시장 지표 대시보드 (2026-07 추가) — 지금 매수 후보 위에 표시 ═══ */
+.mkt-status { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; color: var(--text2); }
+.mkt-status-item { display: flex; align-items: center; gap: 6px; }
+.mkt-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+.mkt-status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.mkt-status-dot.closed { background: var(--text3); }
+.mkt-dash-grid { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); grid-auto-flow: dense; gap: 10px; }
+@media (max-width: 900px) { .mkt-dash-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+@media (max-width: 520px) { .mkt-dash-grid { grid-template-columns: minmax(0,1fr); } }
+
+.mkt-hero {
+  grid-row: span 2; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 16px 18px; display: flex; flex-direction: column; box-shadow: var(--shadow-card);
+}
+.mkt-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.mkt-hero-name { font-size: 13px; font-weight: 700; }
+.mkt-hero-tag { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+.mkt-hero-val { font-size: 24px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.02em; margin-top: 10px; font-variant-numeric: tabular-nums; }
+.mkt-hero-chg { font-size: 13px; font-weight: 700; font-family: var(--font-mono); margin-top: 2px; }
+.mkt-hero-chart { flex: 1; min-height: 64px; margin: 12px 0 4px; }
+.mkt-hero-chart svg { width: 100%; height: 100%; display: block; }
+.mkt-52w { margin-top: 6px; }
+.mkt-52w-label { font-size: 10px; color: var(--text3); margin-bottom: 5px; display: flex; justify-content: space-between; }
+.mkt-52w-track { height: 4px; border-radius: 3px; background: var(--bg4); position: relative; }
+.mkt-52w-dot { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); border: 2px solid var(--bg2); transform: translate(-50%,-50%); }
+
+.mkt-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 11px 13px; display: flex; align-items: center; gap: 10px; min-width: 0;
+}
+.mkt-card-main { flex: 1; min-width: 0; }
+.mkt-card-name { font-size: 11px; color: var(--text2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mkt-card-val { font-size: 14px; font-weight: 700; font-family: var(--font-mono); margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mkt-card-chg { font-size: 10.5px; font-weight: 700; font-family: var(--font-mono); margin-top: 1px; }
+.mkt-card-spark { width: 46px; height: 28px; flex-shrink: 0; }
+.mkt-card-spark svg { width: 100%; height: 100%; display: block; }
+.mkt-card.mkt-link { color: var(--text2); text-decoration: none; cursor: pointer; justify-content: space-between; }
+.mkt-card.mkt-link:hover { border-color: var(--border-strong); }
+.mkt-card.mkt-link .mkt-card-name { color: var(--text); }
+.mkt-link-cta { font-size: 10.5px; color: var(--blue); font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.pos { color: var(--green); } .neg { color: var(--red); }
 .card-sectors { display: flex; flex-wrap: wrap; gap: 5px; }
 .sector-tag { font-size: 10.5px; padding: 3px 8px; border-radius: var(--r-xs); font-weight: 600; }
 .tag-semi   { background: var(--blue-dim);   color: var(--blue); }
@@ -1106,6 +1148,35 @@ button { font-family: inherit; }
 <div class="layout-with-sidebar">
   <!-- 메인 피드 -->
   <div id="mainCol">
+
+    <!-- 📊 시장 지표 대시보드 -->
+    <div id="mktDashSection" class="section-block">
+      <div class="section-head">
+        <div class="section-head-l">
+          <span class="sh-mark"></span>
+          <span class="sh-title">시장 지표</span>
+        </div>
+      </div>
+      <div class="mkt-status" id="mktStatus"></div>
+      <div class="mkt-dash-grid" id="mktDashGrid">
+        <div class="mkt-hero" id="mktHero">
+          <div class="mkt-hero-top">
+            <div><div class="mkt-hero-name">나스닥</div><div class="mkt-hero-tag">NASDAQ Composite</div></div>
+            <div style="text-align:right">
+              <div class="mkt-hero-val" id="mktHeroVal">—</div>
+              <div class="mkt-hero-chg" id="mktHeroChg">—</div>
+            </div>
+          </div>
+          <div class="mkt-hero-chart" id="mktHeroChart"></div>
+          <div class="mkt-52w" id="mktHero52w" style="display:none">
+            <div class="mkt-52w-label"><span>52주 최저</span><span>52주 최고</span></div>
+            <div class="mkt-52w-track"><div class="mkt-52w-dot" id="mktHero52wDot"></div></div>
+            <div class="mkt-52w-label" style="margin-top:5px"><span id="mktHero52wLo"></span><span id="mktHero52wHi"></span></div>
+          </div>
+        </div>
+        <!-- 나머지 카드는 JS(renderMarketDash)가 채움 -->
+      </div>
+    </div>
 
     <!-- 🎯 지금 매수 후보 -->
     <div id="insightsSection" class="section-block" style="display:none">

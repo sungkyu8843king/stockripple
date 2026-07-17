@@ -18,6 +18,8 @@ export default async function handler(req, res) {
     { id: 'eth',    symbol: 'ETH-USD' },
     { id: 'nikkei', symbol: '^N225'  },
     { id: 'hsi',    symbol: '^HSI'   },
+    { id: 'sox',    symbol: '^SOX'   },  // 필라델피아 반도체 지수
+    { id: 'nq',     symbol: 'NQ=F'   },  // 나스닥100 선물
   ];
 
   const headers = {
@@ -84,7 +86,11 @@ export default async function handler(req, res) {
         spark = spark.map(v => Number(Number(v).toPrecision(6)));
       }
 
-      return { id, price, changePercent, change, prevClose, currency: meta.currency, spark };
+      return {
+        id, price, changePercent, change, prevClose, currency: meta.currency, spark,
+        fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? null,
+        fiftyTwoWeekLow: meta.fiftyTwoWeekLow ?? null,
+      };
     } catch {
       return { id, price: null, changePercent: null, change: null };
     }
