@@ -342,7 +342,6 @@ function renderIssueCard(issue) {
     return `<div class="mini-company">
       <span class="mini-ticker">${co.ticker}</span>
       <span class="mini-name">${escHtml(co.name_ko || co.name_en || '')}</span>
-      ${upPct != null ? `<span class="mini-upside ${cls}">${sign}${upPct}%</span>` : ''}
       <button class="star-btn${isWL ? ' active' : ''}" data-wl-ticker="${escHtml(co.ticker)}" data-wl-name="${escHtml(co.name_ko||co.name_en||co.ticker)}" data-wl-market="${co.market||'US'}" onclick="toggleWatch(event,this)" title="관심종목 ${isWL?'제거':'추가'}">${isWL ? '★' : '☆'}</button>
     </div>`;
   }).join('');

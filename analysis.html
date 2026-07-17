@@ -42,6 +42,14 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .back-btn:hover { background: var(--bg3); color: var(--text); }
 .logo-sm { font-size: 14px; font-weight: 700; color: var(--text2); }
 .logo-sm span { color: var(--blue); }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
+.logo-icon { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--blue), var(--purple)); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; }
+.logo-text { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
+.header-nav { display: flex; gap: 2px; margin-left: auto; align-items: center; flex-wrap: wrap; }
+.nav-btn { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 500; background: none; border: none; color: var(--text2); cursor: pointer; text-decoration: none; white-space: nowrap; transition: all 0.12s; }
+.nav-btn:hover { background: var(--bg3); color: var(--text); }
+.nav-btn-primary { background: var(--blue); color: #fff; padding: 7px 15px; border-radius: 999px; font-size: 13px; font-weight: 600; text-decoration: none; margin-left: 4px; white-space: nowrap; }
+@media (max-width: 680px) { .logo-text { display: none; } .nav-btn { padding: 6px 9px; font-size: 12px; } }
 
 .page-wrap { max-width: 1100px; margin: 0 auto; padding: 32px 24px 60px; }
 
@@ -252,11 +260,15 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 
 <header class="header">
   <div class="header-inner">
-    <a href="/" class="back-btn">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      피드로 돌아가기
-    </a>
-    <span class="logo-sm">Stock<span>Ripple</span></span>
+    <a href="/" class="logo"><span class="logo-icon">〜</span><span class="logo-text">StockRipple</span></a>
+    <nav class="header-nav">
+      <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
+      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
+      <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
+      <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
+      <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
+      <a href="/account.html" class="nav-btn-primary">로그인</a>
+    </nav>
   </div>
 </header>
 
@@ -375,13 +387,21 @@ function renderPage(issue, analysis, companies) {
   };
   const tfLabel = { '1w':'단기 1주', '1m':'중기 1개월', '3m':'중장기 3개월', '6m':'장기 6개월' };
 
-  const companyCards = companies.map(c => {
+  // 기업 방향(긍정/부정) 판정: 매칭되는 파급섹터 impact 우선, 없으면 예상 상승률 부호
+  const _rippleImpactBySector = {};
+  rippleEffects.forEach(r => { if (r.sector) _rippleImpactBySector[r.sector] = r.impact; });
+  const companyDir = (c) => {
+    const imp = _rippleImpactBySector[c.ripple_sector];
+    if (imp === 'positive') return 'pos';
+    if (imp === 'negative') return 'neg';
+    if (c.upside_pct != null) return c.upside_pct >= 0 ? 'pos' : 'neg';
+    return 'pos';
+  };
+
+  const renderCoCard = (c) => {
     const co = c.companies;
     if (!co) return '';
     const isKr = co.market === 'KR';
-    const upsidePct = c.upside_pct;
-    const sign = upsidePct >= 0 ? '+' : '';
-    const upsideClass = upsidePct >= 0 ? 'upside-pos' : 'upside-neg';
     const confColor = getConfColor(c.confidence || 50);
     const parsed = parseTradeMeta(c.rationale);
     const trade  = parsed.trade;
@@ -436,7 +456,6 @@ function renderPage(issue, analysis, companies) {
             <div class="company-name">${escHtml(co.name_ko || co.name_en || co.ticker)}</div>
             <div class="company-market">${isKr ? '한국 상장' : '미국 상장'} · ${escHtml(co.sector || c.ripple_sector || '')}</div>
           </div>
-          ${upsidePct != null ? `<div class="upside-badge ${upsideClass}">${sign}${upsidePct}%</div>` : ''}
         </div>
         <div class="company-rationale">${escHtml(parsed.reason || '')}</div>
         ${techChips}
@@ -450,7 +469,13 @@ function renderPage(issue, analysis, companies) {
           </div>
         </div>
       </div>`;
-  }).join('');
+  };
+
+  // 긍정 / 부정 영향 기업 분리
+  const posCompanies = companies.filter(c => c.companies && companyDir(c) === 'pos');
+  const negCompanies = companies.filter(c => c.companies && companyDir(c) === 'neg');
+  const posCards = posCompanies.map(renderCoCard).join('');
+  const negCards = negCompanies.map(renderCoCard).join('');
 
   const html = `
     <div class="issue-header">
@@ -485,15 +510,25 @@ function renderPage(issue, analysis, companies) {
       <div class="ripple-grid">${rippleCards}</div>
     </div>` : ''}
 
-    ${companies.length ? `
+    ${posCompanies.length ? `
     <div class="companies-section">
       <div class="section-title">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
-        수혜 기업 분석 <span style="font-size:13px;color:var(--text2);font-weight:400">(${companies.length}개 기업)</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--green-dim);color:var(--green);font-size:13px">▲</span>
+        긍정 영향 기업 <span style="font-size:13px;color:var(--text2);font-weight:400">(${posCompanies.length}개 · 수혜 예상)</span>
       </div>
-      <div class="companies-grid">${companyCards}</div>
-    </div>
+      <div class="companies-grid">${posCards}</div>
+    </div>` : ''}
 
+    ${negCompanies.length ? `
+    <div class="companies-section">
+      <div class="section-title">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--red-dim);color:var(--red);font-size:13px">▼</span>
+        부정 영향 기업 <span style="font-size:13px;color:var(--text2);font-weight:400">(${negCompanies.length}개 · 피해 우려)</span>
+      </div>
+      <div class="companies-grid">${negCards}</div>
+    </div>` : ''}
+
+    ${companies.length ? `
     <div class="chart-section">
       <div class="section-title">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
