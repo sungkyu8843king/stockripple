@@ -40,6 +40,7 @@ export default async function handler(req, res) {
       if (action === 'rankings')        return handleTossRankings(req, res);
       if (action === 'investor-trading') return handleTossInvestorTrading(req, res);
       if (action === 'fx')              return handleTossFx(req, res);
+      if (action === 'candles-debug')   return handleTossCandlesDebug(req, res);
       return handleToss(req, res);
     }
     default:
@@ -242,6 +243,18 @@ async function handleTossFx(req, res) {
   if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
 
   return res.status(200).json({ ok: true, rate: data.result?.rate != null ? Number(data.result.rate) : null });
+}
+
+// 임시 디버그용 — 캔들 스키마(정규장만 반영하는지, 시간외 체결도 섞이는지) 실측 확인 후 제거.
+async function handleTossCandlesDebug(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+  const symbol = (req.query.symbol || 'AAPL').toString().replace(/\.(KS|KQ)$/i, '');
+  const interval = (req.query.interval || '1d').toString();
+  const count = req.query.count || '5';
+  const data = await callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&count=${encodeURIComponent(count)}`);
+  const priceData = await callTossProxy(`/prices?symbols=${encodeURIComponent(symbol)}`);
+  return res.status(200).json({ ok: true, debug: true, candles: data, prices: priceData });
 }
 
 const SHARED_HEADERS = {
