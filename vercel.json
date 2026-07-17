@@ -34,6 +34,7 @@
     { "source": "/api/earnings",     "destination": "/api/market-data?source=earnings" },
     { "source": "/api/market-pulse", "destination": "/api/market-data?source=market-pulse" },
     { "source": "/api/kr-overtime",  "destination": "/api/market-data?source=kr-overtime" },
-    { "source": "/api/us-market",    "destination": "/api/market-data?source=us-market" }
+    { "source": "/api/us-market",    "destination": "/api/market-data?source=us-market" },
+    { "source": "/api/toss",         "destination": "/api/market-data?source=toss" }
   ]
 }

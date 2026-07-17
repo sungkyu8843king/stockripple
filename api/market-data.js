@@ -34,9 +34,71 @@ export default async function handler(req, res) {
     }
     case 'kr-overtime':  return handleKrOvertime(req, res);
     case 'us-market':    return handleUsMarket(req, res);
+    case 'toss':         return handleToss(req, res);
     default:
       return res.status(400).json({ ok: false, error: 'unknown source' });
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// toss — GET ?source=toss
+// 코스피/코스닥/국고채금리(2·3·5·10·20·30년)/원달러환율 — 토스증권 공식 REST API.
+// 토스는 IP 화이트리스트를 요구해서 Vercel(고정 IP 없음)에서 직접 호출 불가 —
+// 고정 IP를 가진 GCP e2-micro VM(허용목록 등록됨)에 프록시를 세워두고 그걸 경유한다.
+// 프록시 URL/시크릿은 TOSS_PROXY_URL/TOSS_PROXY_SECRET 환경변수. 60초 캐시.
+// ════════════════════════════════════════════════════════════════════════
+async function handleToss(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=180');
+
+  const proxyUrl = process.env.TOSS_PROXY_URL;
+  const proxySecret = process.env.TOSS_PROXY_SECRET;
+  if (!proxyUrl || !proxySecret) {
+    return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+  }
+
+  const callProxy = async (path) => {
+    try {
+      const r = await fetch(`${proxyUrl}${path}`, {
+        headers: { 'x-proxy-secret': proxySecret },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  };
+
+  const indicatorSymbols = 'KOSPI,KOSDAQ,KR_BOND_2Y,KR_BOND_3Y,KR_BOND_5Y,KR_BOND_10Y,KR_BOND_20Y,KR_BOND_30Y';
+  const [pricesData, fxData] = await Promise.all([
+    callProxy(`/market-indicators/prices?symbols=${indicatorSymbols}`),
+    callProxy(`/exchange-rate?baseCurrency=USD&quoteCurrency=KRW`),
+  ]);
+
+  if (!pricesData && !fxData) {
+    return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  }
+
+  const byId = {};
+  for (const item of pricesData?.result || []) {
+    byId[item.symbol] = item.lastPrice != null ? Number(item.lastPrice) : null;
+  }
+
+  return res.status(200).json({
+    ok: true,
+    source: 'toss',
+    kospi: byId.KOSPI ?? null,
+    kosdaq: byId.KOSDAQ ?? null,
+    bonds: {
+      y2: byId.KR_BOND_2Y ?? null,
+      y3: byId.KR_BOND_3Y ?? null,
+      y5: byId.KR_BOND_5Y ?? null,
+      y10: byId.KR_BOND_10Y ?? null,
+      y20: byId.KR_BOND_20Y ?? null,
+      y30: byId.KR_BOND_30Y ?? null,
+    },
+    usdkrw: fxData?.result?.rate != null ? Number(fxData.result.rate) : null,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 const SHARED_HEADERS = {
