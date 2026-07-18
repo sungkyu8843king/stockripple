@@ -45,6 +45,7 @@ export default async function handler(req, res) {
       if (action === 'orderbook')       return handleTossOrderbook(req, res);
       if (action === 'meta')            return handleTossMeta(req, res);
       if (action === 'daily')           return handleTossDaily(req, res);
+      if (action === 'candles')         return handleTossCandles(req, res);
       return handleToss(req, res);
     }
     default:
@@ -474,6 +475,31 @@ async function handleTossDaily(req, res) {
     });
   }
   return res.status(200).json({ ok: true, symbol, currency: candles[0]?.currency ?? null, rows });
+}
+
+// GET ?source=toss&action=candles&symbol=005930[.KS]&interval=1d|1w|1mo&count=120
+// 고도화 캔들차트(lightweight-charts)용 OHLCV. 오름차순(옛→최신)으로 정렬해 반환.
+async function handleTossCandles(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+  const symbol = (req.query.symbol || '').toString().replace(/\.(KS|KQ)$/i, '');
+  if (!symbol) return res.status(400).json({ ok: false, error: 'symbol required' });
+  const allowed = ['1d', '1w', '1mo'];
+  const interval = allowed.includes((req.query.interval || '').toString()) ? req.query.interval : '1d';
+  const count = Math.min(Math.max(parseInt(req.query.count) || 120, 5), 400);
+
+  const data = await callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&count=${count}`);
+  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  const num = v => v != null ? Number(v) : null;
+  // Toss는 최신순(내림차순) → 차트용으로 오름차순 뒤집기
+  const candles = (data.result?.candles || []).slice().reverse().map(c => ({
+    date: c.timestamp ? c.timestamp.slice(0, 10) : null,
+    open: num(c.openPrice), high: num(c.highPrice), low: num(c.lowPrice), close: num(c.closePrice),
+    volume: num(c.volume),
+  })).filter(c => c.date && c.close != null);
+
+  return res.status(200).json({ ok: true, symbol, interval, currency: data.result?.candles?.[0]?.currency ?? null, candles });
 }
 
 const SHARED_HEADERS = {
