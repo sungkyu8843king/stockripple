@@ -1026,9 +1026,10 @@ const MKT_DASH_ITEMS = [
 ];
 
 // 시장 개장 여부(KST 휴리스틱) — 시장지표 카드의 초록 동그라미 포인트용.
+// KST = UTC+9. epoch에 9h 더한 뒤 getUTC*로 읽으면 브라우저 타임존과 무관하게 정확한 KST 벽시계.
 function mktIsOpen(mk){
-  const now = new Date(); const kst = new Date(now.getTime() + (9*60 - now.getTimezoneOffset())*60000);
-  const day = kst.getDay(), mins = kst.getHours()*60 + kst.getMinutes(), weekday = day>=1 && day<=5;
+  const kst = new Date(Date.now() + 9*3600000);
+  const day = kst.getUTCDay(), mins = kst.getUTCHours()*60 + kst.getUTCMinutes(), weekday = day>=1 && day<=5;
   if (mk === 'crypto') return true;
   if (mk === 'kr') return weekday && mins>=540 && mins<930;                       // 09:00~15:30
   if (mk === 'us') return (weekday && mins>=1350) || (mins<300 && day>=2 && day<=6); // 22:30~05:00 KST

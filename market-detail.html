@@ -70,8 +70,8 @@ function fmtVal(v, fmt){ if(v==null) return '—'; return fmt==='$' ? '$'+Number
 
 // 시장 개장 여부(KST 휴리스틱). 초록 동그라미 포인트용.
 function marketOpen(mk){
-  const now=new Date(); const kst=new Date(now.getTime()+(9*60-now.getTimezoneOffset())*60000);
-  const day=kst.getDay(), mins=kst.getHours()*60+kst.getMinutes(), weekday=day>=1&&day<=5;
+  const kst=new Date(Date.now()+9*3600000); // KST 벽시계: epoch+9h를 getUTC*로 읽음(TZ 무관)
+  const day=kst.getUTCDay(), mins=kst.getUTCHours()*60+kst.getUTCMinutes(), weekday=day>=1&&day<=5;
   if(mk==='crypto') return true;
   if(mk==='kr') return weekday && mins>=540 && mins<930;              // 09:00~15:30
   if(mk==='us') return (weekday && mins>=1350) || (mins<300 && day>=2&&day<=6); // 22:30~05:00
