@@ -92,13 +92,16 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;',
 function chgCls(v){ return v==null?'flat':v>0?'up':v<0?'dn':'flat'; }
 function fmtChg(v){ if(v==null) return '—'; const s=v>0?'+':''; return `${s}${v.toFixed(2)}%`; }
 function fmtPx(v,cur){ if(v==null) return '—'; return cur==='KRW' ? '₩'+Math.round(v).toLocaleString('ko-KR') : (cur==='USD'?'$':'')+Number(v).toLocaleString('en-US',{maximumFractionDigits:2}); }
-// 일부 피드(구글뉴스 등)의 summary는 HTML(<a href=긴URL>)을 담고 있어 태그·URL을 벗겨 정제.
-function cleanSum(s){
+// 일부 피드(구글뉴스 등)의 summary는 (이스케이프된) HTML을 담고 있어 정제한다.
+// 순서 중요: 엔티티 디코드 → 태그 제거 → URL 제거. (반대로 하면 &lt;a&gt;가 태그로 되살아남)
+function cleanSum(s, title){
   if(!s) return '';
-  let t = String(s).replace(/<[^>]*>/g,' ')
-    .replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#3[49];/g,"'")
-    .replace(/https?:\/\/\S+/g,'').replace(/\s+/g,' ').trim();
-  return t.length < 12 ? '' : t;
+  let t = String(s)
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#3[49];/g,"'").replace(/&nbsp;/g,' ')
+    .replace(/<[^>]*>/g,' ').replace(/https?:\/\/\S+/g,'').replace(/\s+/g,' ').trim();
+  if(t.length < 12) return '';
+  if(title && t.slice(0,18).toLowerCase() === title.slice(0,18).toLowerCase()) return ''; // 제목과 거의 동일하면 생략
+  return t;
 }
 
 function renderTabs(){
@@ -167,7 +170,7 @@ async function loadTimeline(topic){
       return `<a class="tl-item" href="${esc(href)}"${ext}>
         <div class="tl-meta"><span class="tl-date">${fmtDate(it.published_at)}</span><span class="tl-src">${esc(it.source_name||'')}</span></div>
         <div class="tl-title">${esc(it.title)}</div>
-        ${cleanSum(it.summary) ? `<div class="tl-sum">${esc(cleanSum(it.summary))}</div>` : ''}
+        ${cleanSum(it.summary, it.title) ? `<div class="tl-sum">${esc(cleanSum(it.summary, it.title))}</div>` : ''}
       </a>`;
     }).join('') + '</div>';
   }catch(e){ tl.innerHTML = '<div class="empty">뉴스를 불러올 수 없어요.</div>'; }
