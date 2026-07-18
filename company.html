@@ -1269,8 +1269,9 @@ function buildQuoteCard(priceData) {
 function fmtMoneyShort(v, isKrw) {
   if (v == null) return '—';
   if (isKrw) {
-    if (v >= 1e12) return (v / 1e12).toFixed(1) + '조원';
-    if (v >= 1e8)  return Math.round(v / 1e8).toLocaleString() + '억원';
+    if (v >= 1e13) return Math.round(v / 1e12).toLocaleString() + '조';   // 10조+ 는 정수(예: 1,491조)
+    if (v >= 1e12) return (v / 1e12).toFixed(1) + '조';
+    if (v >= 1e8)  return Math.round(v / 1e8).toLocaleString() + '억';
     return Math.round(v).toLocaleString() + '원';
   }
   if (v >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
