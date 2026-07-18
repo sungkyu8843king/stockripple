@@ -107,6 +107,10 @@ const RSS_FEEDS = [
   { url: 'https://www.hankyung.com/feed/finance',               name: '한국경제',     sectors: ['금융', '경제'],   isKorean: true },
   { url: 'https://www.edaily.co.kr/rss/rss.asp?sitetype=stock', name: '이데일리',     sectors: ['증권', '주식'],   isKorean: true },
   { url: 'https://www.mk.co.kr/rss/30000001/',                  name: '매일경제',     sectors: ['증권', '주식'],   isKorean: true },
+  // 국내 증시 보강 — Google News 한국판 검색 RSS(코스피/코스닥/증시). 개별 언론사 RSS가
+  // 자주 죽거나(서울경제 404 등) UA 차단되는 걸 우회해 국장 이슈 유입량을 안정적으로 늘림.
+  // (국장 종목이 최근 뉴스에 거의 안 잡히던 gap 보강, 2026-07 — 삼성전자가 7/7 이후 매칭 0건이던 문제)
+  { url: 'https://news.google.com/rss/search?q=when:1d%20%EC%BD%94%EC%8A%A4%ED%94%BC%20OR%20%EC%BD%94%EC%8A%A4%EB%8B%A5%20OR%20%EC%A6%9D%EC%8B%9C%20OR%20%EB%B0%98%EB%8F%84%EC%B2%B4&hl=ko&gl=KR&ceid=KR:ko', name: '구글뉴스 증시', sectors: ['증권', '주식'], isKorean: true },
 
   // 국내 바이오·제약 전문지 — 일반 경제지가 놓치는 K-bio 임상/FDA/IPO 뉴스 커버
   // (HLB 리보세라닙 FDA 재심사 등 대형 catalyst가 issues에 전혀 안 잡히던 gap 보강, 2026-07)
@@ -126,6 +130,10 @@ const RSS_FEEDS = [
   { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', name: 'CNBC Markets', sectors: ['글로벌', '주식'] },
   { url: 'https://www.cnbc.com/id/15839135/device/rss/rss.html', name: 'CNBC Top',    sectors: ['글로벌', '경제'] },
   { url: 'https://seekingalpha.com/feed.xml',                    name: 'SeekingAlpha',sectors: ['주식', '분석'] },
+  // Reuters — 공식 feeds.reuters.com 폐쇄 후 Google News의 source:Reuters 검색 RSS로 대체.
+  { url: 'https://news.google.com/rss/search?q=when:2d%20source:Reuters&hl=en-US&gl=US&ceid=US:en', name: 'Reuters', sectors: ['글로벌', '주식'] },
+  // FinancialJuice — 실시간 매크로/지표/중앙은행 헤드라인(시장 변동성 유발 이벤트 커버).
+  { url: 'https://www.financialjuice.com/feed.ashx?xml=rss',     name: 'FinancialJuice', sectors: ['경제', '글로벌'] },
   { url: 'https://truthsocial.com/@realDonaldTrump.rss',         name: 'Truth Social',sectors: ['정치·외교', '트럼프'], isTrump: true },
 ];
 

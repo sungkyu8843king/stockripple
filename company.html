@@ -552,6 +552,7 @@ body {
 
 /* 🌊 파급효과 */
 .ripple-intro { font-size: 12.5px; color: var(--text2); line-height: 1.6; margin: 0 0 14px; }
+.ripple-stale { font-size: 12px; color: var(--yellow); background: var(--yellow-dim); border: 1px solid rgba(217,164,6,0.3); border-radius: 10px; padding: 9px 13px; margin-bottom: 12px; line-height: 1.5; }
 .ripple-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
 .ripple-card { display: block; background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--blue); border-radius: 12px; padding: 14px 16px; text-decoration: none; color: var(--text); transition: border-color var(--t-fast); }
 .ripple-card:hover { border-color: var(--border-strong); border-left-color: var(--blue); }
@@ -1475,10 +1476,14 @@ function renderPage(company, records, priceData) {
   const priceHtml = buildPriceBlock(priceData);
 
   // 🌊 파급효과 카드 — 이 종목에 영향을 줄 수 있는(줬던) 뉴스 이슈. 예측 수치 없이 정성적 연결만.
+  const daysAgoOf = dt => dt == null ? null : Math.floor((Date.now() - new Date(dt).getTime()) / 86400000);
+  const agoLabel = n => n == null ? '' : n <= 0 ? '오늘' : n === 1 ? '어제' : `${n}일 전`;
   const rippleCards = (records || []).slice(0, 6).map(r => {
     const issue = r.analyses?.issues;
     const issueTitle = issue?.title || '(제목 없음)';
-    const date = fmtMDW(r.entry_date || issue?.published_at);
+    const dt = r.entry_date || issue?.published_at;
+    const date = fmtMDW(dt);
+    const ago = agoLabel(daysAgoOf(dt));
     // rationale에서 예측 JSON([TRADE]/[FUND]) 뒷부분 잘라내고 정성적 추론 텍스트만
     const reason = (r.rationale || '').split('[TRADE]')[0].split('[FUND]')[0].trim();
     const issueId = issue?.id || r.analyses?.id;
@@ -1486,13 +1491,21 @@ function renderPage(company, records, priceData) {
     return `
       <a href="${escHtml(issueHref)}" class="ripple-card">
         <div class="ripple-card-top">
-          <span class="ripple-date">${date}</span>
+          <span class="ripple-date">${date}${ago ? ` · ${ago}` : ''}</span>
           ${issue?.source_name ? `<span class="ripple-src">${escHtml(issue.source_name)}</span>` : ''}
         </div>
         <div class="ripple-title">${escHtml(issueTitle)}</div>
         ${reason ? `<div class="ripple-reason">${escHtml(reason)}</div>` : ''}
       </a>`;
   }).join('');
+
+  // 최신 연결 이슈가 오래됐으면 정직하게 안내 (예측·최신성 오해 방지)
+  const latestDt = (records || []).map(r => r.entry_date || r.analyses?.issues?.published_at).filter(Boolean)
+    .map(d => new Date(d).getTime()).sort((a, b) => b - a)[0];
+  const latestDaysAgo = latestDt ? Math.floor((Date.now() - latestDt) / 86400000) : null;
+  const rippleStaleNote = (latestDaysAgo != null && latestDaysAgo >= 5)
+    ? `<div class="ripple-stale">최근 ${latestDaysAgo}일간 새로 연결된 뉴스 이슈가 없어요. 아래는 과거에 이 종목과 연결됐던 이슈입니다.</div>`
+    : '';
 
   const statBarHtml = buildStatBar(priceData);
 
@@ -1558,6 +1571,7 @@ function renderPage(company, records, priceData) {
     <section class="cmp-sec">
       <div class="ck-sec-head"><span class="tick"></span><h3>🌊 왜 움직였나 · 파급효과</h3><span class="note">뉴스 → 이 종목</span></div>
       <p class="ripple-intro">이런 뉴스 이슈가 <b>${escHtml(name)}</b>에 영향을 줄 수 있어요. StockRipple이 뉴스의 파급효과를 분석해 연결한 종목입니다.</p>
+      ${rippleStaleNote}
       <div class="ripple-list">${rippleCards || '<div class="cmp-empty">아직 이 종목과 연결된 뉴스 이슈가 없어요.</div>'}</div>
       <div id="aiSummaryWrap"></div>
     </section>
