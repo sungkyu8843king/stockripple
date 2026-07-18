@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시장 지표 상세 — StockRipple</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15171e; --bg2:#1e2129; --bg3:#262a34; --bg4:#2f333f;
+  --border:rgba(255,255,255,0.075); --border-strong:rgba(255,255,255,0.16);
+  --text:#f2f4f8; --text2:#a6adbb; --text3:#6c7385;
+  --red:#ff6b6b; --green:#3ddb7f; --blue:#4d8dff; --yellow:#f0b45e;
+  --mono:'SF Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
+.wrap{max-width:1100px;margin:0 auto;padding:18px 20px 60px}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg2)}
+.back:hover{border-color:var(--border-strong);color:var(--text)}
+.brand{font-size:15px;font-weight:800;letter-spacing:-0.02em;margin-left:auto}
+.brand a{color:var(--text);text-decoration:none}
+.hero{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:22px 24px;margin-bottom:16px}
+.hero-name{display:flex;align-items:center;gap:9px;font-size:22px;font-weight:750;letter-spacing:-0.02em}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 1.4s infinite;display:none}
+.live-dot.on{display:inline-block}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.hero-sub{font-size:12px;color:var(--text3);margin-top:3px}
+.hero-price{font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-0.02em;margin-top:14px}
+.hero-chg{font-size:15px;font-weight:700;font-family:var(--mono);margin-top:3px}
+.hero-chg.up{color:var(--green)}.hero-chg.dn{color:var(--red)}.hero-chg.flat{color:var(--text3)}
+.status-line{display:flex;gap:8px;margin-top:12px;font-size:12px;color:var(--text2)}
+.status-item{display:flex;align-items:center;gap:6px;background:var(--bg3);padding:5px 11px;border-radius:999px}
+.status-item .d{width:6px;height:6px;border-radius:50%;background:var(--text3)}
+.status-item .d.open{background:var(--green);box-shadow:0 0 6px var(--green)}
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:8px;overflow:hidden}
+.tv-frame{width:100%;height:560px;border:0;display:block;border-radius:10px}
+.loading{padding:40px;text-align:center;color:var(--text3);font-size:13px}
+@media (max-width:640px){ .hero-price{font-size:28px} .tv-frame{height:420px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="/index.html">← 홈</a>
+    <span class="brand"><a href="/index.html">StockRipple</a></span>
+  </div>
+  <div id="content"><div class="loading">불러오는 중...</div></div>
+</div>
+
+<script>
+const MKT = {
+  nasdaq:{name:'나스닥 종합', sub:'NASDAQ Composite', tv:'NASDAQ:IXIC', fmt:'n', mk:'us'},
+  sp500: {name:'S&P 500', sub:'S&P 500 Index', tv:'FOREXCOM:SPXUSD', fmt:'n', mk:'us'},
+  dow:   {name:'다우존스', sub:'Dow Jones Industrial', tv:'FOREXCOM:DJI', fmt:'n', mk:'us'},
+  kospi: {name:'코스피', sub:'KOSPI', tv:'KRX:KOSPI', fmt:'n', mk:'kr'},
+  kosdaq:{name:'코스닥', sub:'KOSDAQ', tv:'KRX:KOSDAQ', fmt:'n', mk:'kr'},
+  vix:   {name:'VIX 변동성지수', sub:'CBOE Volatility Index', tv:'TVC:VIX', fmt:'n', mk:'us'},
+  usdkrw:{name:'원/달러 환율', sub:'USD/KRW', tv:'FX_IDC:USDKRW', fmt:'n', mk:'fx'},
+  sox:   {name:'필라델피아 반도체', sub:'PHLX Semiconductor', tv:'NASDAQ:SOX', fmt:'n', mk:'us'},
+  nq:    {name:'나스닥100 선물', sub:'Nasdaq 100 Futures', tv:'CME_MINI:NQ1!', fmt:'n', mk:'us'},
+  btc:   {name:'비트코인', sub:'BTC/USD', tv:'BITSTAMP:BTCUSD', fmt:'$', mk:'crypto'},
+  gold:  {name:'금 (Gold)', sub:'Gold Spot', tv:'TVC:GOLD', fmt:'$', mk:'commodity'},
+  oil:   {name:'WTI 원유', sub:'Crude Oil WTI', tv:'TVC:USOIL', fmt:'$', mk:'commodity'},
+};
+
+function fmtVal(v, fmt){ if(v==null) return '—'; return fmt==='$' ? '$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:2}) : Number(v).toLocaleString('ko-KR',{maximumFractionDigits:2}); }
+
+// 시장 개장 여부(KST 휴리스틱). 초록 동그라미 포인트용.
+function marketOpen(mk){
+  const now=new Date(); const kst=new Date(now.getTime()+(9*60-now.getTimezoneOffset())*60000);
+  const day=kst.getDay(), mins=kst.getHours()*60+kst.getMinutes(), weekday=day>=1&&day<=5;
+  if(mk==='crypto') return true;
+  if(mk==='kr') return weekday && mins>=540 && mins<930;              // 09:00~15:30
+  if(mk==='us') return (weekday && mins>=1350) || (mins<300 && day>=2&&day<=6); // 22:30~05:00
+  if(mk==='fx'||mk==='commodity') return weekday || (day===0 && mins>=360); // 대략 월~금 + 일 저녁 재개
+  return false;
+}
+function statusLabel(mk, open){
+  const m={us:'미국장',kr:'국내장',fx:'외환시장',commodity:'상품선물',crypto:'가상자산'}[mk]||'';
+  return `${m} ${mk==='crypto'?'24시간':open?'개장 중':'휴장'}`;
+}
+
+async function init(){
+  const sym=(new URLSearchParams(location.search).get('sym')||'').toLowerCase();
+  const cfg=MKT[sym];
+  const c=document.getElementById('content');
+  if(!cfg){ c.innerHTML='<div class="loading">알 수 없는 지표입니다. <a href="/index.html" style="color:var(--blue)">홈으로</a></div>'; return; }
+  document.title=`${cfg.name} — StockRipple`;
+  const open=marketOpen(cfg.mk);
+  const tvUrl=`https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(cfg.tv)}&interval=D&theme=dark&style=1&timezone=Asia%2FSeoul&locale=kr&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=0&save_image=0`;
+  c.innerHTML=`
+    <div class="hero">
+      <div class="hero-name"><span class="live-dot ${open?'on':''}"></span>${cfg.name}</div>
+      <div class="hero-sub">${cfg.sub}</div>
+      <div class="hero-price" id="price">—</div>
+      <div class="hero-chg" id="chg">—</div>
+      <div class="status-line"><span class="status-item"><span class="d ${open||cfg.mk==='crypto'?'open':''}"></span>${statusLabel(cfg.mk,open)}</span></div>
+    </div>
+    <div class="chart-card"><iframe class="tv-frame" src="${tvUrl}" loading="lazy"></iframe></div>`;
+  // 현재가/등락률 — /api/indices
+  try{
+    const r=await fetch('/api/indices'); const j=await r.json(); const d=j?.data?.[sym];
+    if(d&&d.price!=null){
+      document.getElementById('price').textContent=fmtVal(d.price,cfg.fmt);
+      const cp=d.changePercent; const el=document.getElementById('chg');
+      if(cp!=null){ const cls=cp>0?'up':cp<0?'dn':'flat'; const sign=cp>0?'+':''; el.className='hero-chg '+cls;
+        el.textContent=`${sign}${(d.change??0).toLocaleString('en-US',{maximumFractionDigits:2})} (${sign}${cp.toFixed(2)}%)`; }
+    }
+  }catch{}
+}
+init();
+</script>
+</body>
+</html>

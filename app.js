@@ -1012,17 +1012,37 @@ function areaSparkSvg(points, w, h, color) {
 
 // 🎯 지금 매수 후보 위 "시장 지표" 대시보드 — 홈 전용(mktDashGrid 없는 페이지는 no-op)
 const MKT_DASH_ITEMS = [
-  { id: 'sp500',  name: 'S&P 500',        fmt: 'n' },
-  { id: 'dow',    name: '다우존스',         fmt: 'n' },
-  { id: 'kospi',  name: '코스피',           fmt: 'n' },
-  { id: 'kosdaq', name: '코스닥',           fmt: 'n' },
-  { id: 'vix',    name: 'VIX',             fmt: 'n' },
-  { id: 'usdkrw', name: '달러환율',         fmt: 'n' },
-  { id: 'sox',    name: '필라델피아반도체',   fmt: 'n' },
-  { id: 'nq',     name: '나스닥100 선물',    fmt: 'n' },
-  { id: 'btc',    name: '비트코인',         fmt: '$' },
-  { id: 'gold',   name: '금',              fmt: '$' },
+  { id: 'sp500',  name: 'S&P 500',        fmt: 'n', mk: 'us' },
+  { id: 'dow',    name: '다우존스',         fmt: 'n', mk: 'us' },
+  { id: 'kospi',  name: '코스피',           fmt: 'n', mk: 'kr' },
+  { id: 'kosdaq', name: '코스닥',           fmt: 'n', mk: 'kr' },
+  { id: 'vix',    name: 'VIX',             fmt: 'n', mk: 'us' },
+  { id: 'usdkrw', name: '달러환율',         fmt: 'n', mk: 'fx' },
+  { id: 'sox',    name: '필라델피아반도체',   fmt: 'n', mk: 'us' },
+  { id: 'nq',     name: '나스닥100 선물',    fmt: 'n', mk: 'us' },
+  { id: 'btc',    name: '비트코인',         fmt: '$', mk: 'crypto' },
+  { id: 'gold',   name: '금',              fmt: '$', mk: 'commodity' },
+  { id: 'oil',    name: 'WTI 원유',         fmt: '$', mk: 'commodity' },
 ];
+
+// 시장 개장 여부(KST 휴리스틱) — 시장지표 카드의 초록 동그라미 포인트용.
+function mktIsOpen(mk){
+  const now = new Date(); const kst = new Date(now.getTime() + (9*60 - now.getTimezoneOffset())*60000);
+  const day = kst.getDay(), mins = kst.getHours()*60 + kst.getMinutes(), weekday = day>=1 && day<=5;
+  if (mk === 'crypto') return true;
+  if (mk === 'kr') return weekday && mins>=540 && mins<930;                       // 09:00~15:30
+  if (mk === 'us') return (weekday && mins>=1350) || (mins<300 && day>=2 && day<=6); // 22:30~05:00 KST
+  if (mk === 'fx' || mk === 'commodity') return weekday || (day===0 && mins>=360);  // 대략 월~금 + 일 저녁
+  return false;
+}
+function updateMktDots(){
+  MKT_DASH_ITEMS.forEach(it => {
+    const dot = document.getElementById(`mktDot-${it.id}`);
+    if (dot) dot.classList.toggle('on', mktIsOpen(it.mk));
+  });
+  const heroDot = document.getElementById('mktDot-nasdaq');
+  if (heroDot) heroDot.classList.toggle('on', mktIsOpen('us'));
+}
 
 function renderMktStatus() {
   const el = document.getElementById('mktStatus');
@@ -1123,20 +1143,21 @@ function renderMarketDash(data) {
   if (!grid.dataset.cardsBuilt) {
     grid.dataset.cardsBuilt = '1';
     const cardsHtml = MKT_DASH_ITEMS.map(it => `
-      <div class="mkt-card">
+      <a class="mkt-card mkt-card-link" href="/market-detail.html?sym=${it.id}">
         <div class="mkt-card-main">
-          <div class="mkt-card-name">${it.name}</div>
+          <div class="mkt-card-name"><span class="mkt-live-dot" id="mktDot-${it.id}"></span>${it.name}</div>
           <div class="mkt-card-val" id="mktCardVal-${it.id}">—</div>
           <div class="mkt-card-chg" id="mktCardChg-${it.id}">—</div>
         </div>
         <div class="mkt-card-spark" id="mktCardSpark-${it.id}"></div>
-      </div>`).join('') + `
+      </a>`).join('') + `
       <a class="mkt-card mkt-link" href="https://finance.naver.com/sise/sise_index.naver?code=FUT" target="_blank" rel="noopener">
         <div class="mkt-card-main"><div class="mkt-card-name">코스피200 야간선물</div></div>
         <span class="mkt-link-cta">실시간 시세 보기 →</span>
       </a>`;
     grid.insertAdjacentHTML('beforeend', cardsHtml);
   }
+  updateMktDots();
 
   MKT_DASH_ITEMS.forEach(it => {
     const d = data[it.id];

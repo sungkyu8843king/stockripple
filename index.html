@@ -500,6 +500,13 @@ button { font-family: inherit; }
 .mkt-card.mkt-link:hover { border-color: var(--border-strong); }
 .mkt-card.mkt-link .mkt-card-name { color: var(--text); }
 .mkt-link-cta { font-size: 10.5px; color: var(--blue); font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+/* 클릭 가능한 시장지표 카드 + 장열림 초록 동그라미 */
+.mkt-card-link { text-decoration: none; color: inherit; cursor: pointer; transition: border-color var(--t-fast), transform var(--t-fast); }
+.mkt-card-link:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.mkt-live-dot { display: none; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); margin-right: 5px; vertical-align: middle; }
+.mkt-live-dot.on { display: inline-block; animation: mktDotPulse 1.5s infinite; }
+@keyframes mktDotPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.mkt-hero.mkt-card-link .mkt-hero-name { display: flex; align-items: center; }
 .mkt-card-val.flash-up, .mkt-hero-val.flash-up { animation: priceFlashUp .9s ease-out; }
 .mkt-card-val.flash-down, .mkt-hero-val.flash-down { animation: priceFlashDown .9s ease-out; }
 .pos { color: var(--green); } .neg { color: var(--red); }
@@ -1201,9 +1208,9 @@ button { font-family: inherit; }
       </div>
       <div class="mkt-status" id="mktStatus"></div>
       <div class="mkt-dash-grid" id="mktDashGrid">
-        <div class="mkt-hero" id="mktHero">
+        <a class="mkt-hero mkt-card-link" id="mktHero" href="/market-detail.html?sym=nasdaq">
           <div class="mkt-hero-top">
-            <div><div class="mkt-hero-name">나스닥</div><div class="mkt-hero-tag">NASDAQ Composite</div></div>
+            <div><div class="mkt-hero-name"><span class="mkt-live-dot" id="mktDot-nasdaq"></span>나스닥</div><div class="mkt-hero-tag">NASDAQ Composite</div></div>
             <div style="text-align:right">
               <div class="mkt-hero-val" id="mktHeroVal">—</div>
               <div class="mkt-hero-chg" id="mktHeroChg">—</div>
@@ -1215,7 +1222,7 @@ button { font-family: inherit; }
             <div class="mkt-52w-track"><div class="mkt-52w-dot" id="mktHero52wDot"></div></div>
             <div class="mkt-52w-label" style="margin-top:5px"><span id="mktHero52wLo"></span><span id="mktHero52wHi"></span></div>
           </div>
-        </div>
+        </a>
         <!-- 나머지 카드 + 코스피200 야간선물 링크는 JS(renderMarketDash)가 채움 -->
         <div class="mkt-bond-strip" id="mktBondStrip" style="display:none">
           <span class="mkt-bond-label">🇰🇷 국고채 금리</span>
