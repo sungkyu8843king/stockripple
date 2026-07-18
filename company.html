@@ -525,6 +525,75 @@ body {
 .hist-title { font-size: 14.5px; font-weight: 650; line-height: 1.45; letter-spacing: -0.01em; margin-bottom: 6px; }
 .hist-reason { font-size: 13px; color: var(--text2); line-height: 1.65; }
 
+/* ── 단일 스크롤 섹션 ── */
+.cmp-sec { margin-top: 30px; }
+.cmp-sec:first-of-type { margin-top: 20px; }
+
+/* 히어로 경고/상태 뱃지 */
+.meta-badges { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 24px; margin: -4px 0 4px; }
+.meta-badges:empty { display: none; }
+.mbadge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
+.mbadge.danger { background: var(--red-dim); color: var(--red); border-color: rgba(220,47,62,0.35); }
+.mbadge.warn { background: var(--yellow-dim); color: var(--yellow); border-color: rgba(217,164,6,0.35); }
+.mbadge.ok { background: var(--blue-dim); color: var(--blue); border-color: rgba(77,141,255,0.30); }
+.mbadge.muted { background: var(--bg3); color: var(--text3); }
+
+/* Toss식 가로 스탯바 */
+.stat-bar { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 1px; background: var(--border); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-top: 12px; }
+.stat-cell { background: var(--bg2); padding: 12px 14px; min-width: 0; }
+.stat-k { font-size: 10.5px; color: var(--text3); margin-bottom: 4px; white-space: nowrap; }
+.stat-v { font-size: 13px; font-weight: 700; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-range { padding: 14px 24px 4px; }
+.stat-range-track { position: relative; height: 5px; background: var(--bg4); border-radius: 3px; }
+.stat-range-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--blue); opacity: 0.35; border-radius: 3px; }
+.stat-range-dot { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; background: var(--blue); border: 2px solid var(--bg2); transform: translate(-50%,-50%); }
+.stat-range-ends { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10.5px; color: var(--text3); font-family: var(--mono); }
+@media (max-width: 640px) { .stat-bar { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+
+/* 🌊 파급효과 */
+.ripple-intro { font-size: 12.5px; color: var(--text2); line-height: 1.6; margin: 0 0 14px; }
+.ripple-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.ripple-card { display: block; background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--blue); border-radius: 12px; padding: 14px 16px; text-decoration: none; color: var(--text); transition: border-color var(--t-fast); }
+.ripple-card:hover { border-color: var(--border-strong); border-left-color: var(--blue); }
+.ripple-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.ripple-date { font-size: 11.5px; font-family: var(--mono); color: var(--text3); }
+.ripple-src { font-size: 10.5px; color: var(--text3); background: var(--bg3); padding: 1px 7px; border-radius: 5px; }
+.ripple-title { font-size: 14px; font-weight: 650; line-height: 1.45; margin-bottom: 6px; }
+.ripple-reason { font-size: 12.5px; color: var(--text2); line-height: 1.6; }
+
+/* 📊 호가창 */
+.ob-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 8px 10px; }
+.ob-ladder { display: flex; flex-direction: column; }
+.ob-row { display: grid; grid-template-columns: 1fr 90px 1fr; align-items: center; height: 26px; }
+.ob-price { text-align: center; font-family: var(--mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ob-price.ask { color: var(--red); }
+.ob-price.bid { color: var(--green); }
+.ob-vol { display: flex; align-items: center; gap: 6px; min-width: 0; height: 100%; }
+.ob-vol.ask { justify-content: flex-end; }
+.ob-vol.bid { justify-content: flex-start; }
+.ob-vnum { font-size: 10.5px; font-family: var(--mono); color: var(--text3); flex-shrink: 0; }
+.ob-bar { height: 15px; border-radius: 3px; min-width: 2px; }
+.ob-bar.ask { background: rgba(220,47,62,0.22); }
+.ob-bar.bid { background: rgba(10,135,84,0.22); }
+.ob-spread { display: flex; justify-content: space-between; padding: 5px 12px; margin: 3px 0; border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
+.ob-spread-lbl { font-size: 10px; color: var(--text3); font-weight: 600; letter-spacing: 0.05em; }
+.ob-tot { display: flex; justify-content: space-between; padding: 9px 12px 4px; font-size: 11.5px; color: var(--text2); font-family: var(--mono); }
+.ob-tot em { font-style: normal; font-size: 10px; color: var(--text3); margin-right: 4px; }
+.ob-tot em.ask { color: var(--red); } .ob-tot em.bid { color: var(--green); }
+
+/* 📅 일별 시세 표 */
+.dt-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--bg2); }
+.dt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.dt-table th { font-size: 10.5px; color: var(--text3); font-weight: 600; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; background: var(--bg2); }
+.dt-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.dt-table tr:last-child td { border-bottom: none; }
+.dt-num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.dt-date { color: var(--text2); font-family: var(--mono); }
+.dt-close { font-weight: 700; }
+.dt-dim { color: var(--text3); }
+.dt-num.pos { color: var(--green); }
+.dt-num.neg { color: var(--red); }
+
 /* 게이지 타일 (펀더멘털 표 안 디자인) */
 .gtile { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 16px; }
 .gtile .glab { font-size: 11px; color: var(--text3); letter-spacing: 0.02em; margin-bottom: 9px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -993,6 +1062,7 @@ let _currentLivePrice = null;   // 애널리스트 컨센서스 상승여력% �
 let _usdKrwRate = null;         // 미장 종목 원화 병기용
 let _tossQuote = null;          // 미장 종목 헤드라인(통합가)+정규/시간외 변동 — Toss 공식 데이터 기반
 let _lastPriceData = null;      // buildPriceBlock에 마지막으로 넘겼던 Yahoo priceData — 토스 전용 재렌더용
+let _tossMeta = null;           // 종목 마스터(상장주식수→시총, NXT/정리매매/경고) — Toss 공식
 
 async function loadUsdKrwRate() {
   try {
@@ -1188,11 +1258,54 @@ function buildQuoteCard(priceData) {
       ${yearRange}
       <div class="quote-stat-grid">
         <div class="quote-stat"><div class="quote-stat-label">당일 거래량</div><div class="quote-stat-val">${fmtVol(priceData.volume)}${isKrw ? '주' : ''}</div></div>
-        <div class="quote-stat"><div class="quote-stat-label">당일 거래대금 (추정)</div><div class="quote-stat-val">${fmtMoneyShort(tradingValue)}</div></div>
+        <div class="quote-stat"><div class="quote-stat-label">당일 거래대금 (추정)</div><div class="quote-stat-val">${fmtMoneyShort(tradingValue, isKrw)}</div></div>
         <div class="quote-stat"><div class="quote-stat-label">상장일</div><div class="quote-stat-val" style="font-size:12.5px">${priceData.firstTradeDate ? fmtDate(priceData.firstTradeDate) : '—'}</div></div>
         <div class="quote-stat"><div class="quote-stat-label">거래소</div><div class="quote-stat-val" style="font-size:12.5px">${escHtml(priceData.exchangeName || '—')}</div></div>
       </div>
     </div>`;
+}
+
+// 통화 축약 (원/달러). 모듈 레벨 — statBar·시총·거래대금 공용.
+function fmtMoneyShort(v, isKrw) {
+  if (v == null) return '—';
+  if (isKrw) {
+    if (v >= 1e12) return (v / 1e12).toFixed(1) + '조원';
+    if (v >= 1e8)  return Math.round(v / 1e8).toLocaleString() + '억원';
+    return Math.round(v).toLocaleString() + '원';
+  }
+  if (v >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
+  if (v >= 1e9)  return '$' + (v / 1e9).toFixed(2) + 'B';
+  if (v >= 1e6)  return '$' + (v / 1e6).toFixed(1) + 'M';
+  return '$' + Math.round(v).toLocaleString();
+}
+
+// Toss식 가로 스탯바 + 52주 범위. 시가(#statOpen)/시총(#statMktCap)은 Toss 로더가 채움.
+function buildStatBar(priceData) {
+  if (!priceData || priceData.price == null) return '';
+  const isKrw = priceData.currency === 'KRW';
+  const cur = isKrw ? '₩' : '$';
+  const fmtP = v => v == null ? '—' : (isKrw ? Math.round(v).toLocaleString('ko-KR') : Number(v).toFixed(2));
+  const fmtVol = v => { if (v == null) return '—'; if (v >= 1e8) return (v/1e8).toFixed(1)+'억'; if (v >= 1e4) return Math.round(v/1e4).toLocaleString()+'만'; return v.toLocaleString(); };
+  const tradingValue = priceData.volume != null ? priceData.volume * priceData.price : null;
+  const cells = [
+    ['거래량', fmtVol(priceData.volume) + (isKrw ? '주' : '')],
+    ['거래대금', fmtMoneyShort(tradingValue, isKrw)],
+    ['시가', '<span id="statOpen">—</span>'],
+    ['1일 최저', priceData.dayLow != null ? cur + fmtP(priceData.dayLow) : '—'],
+    ['1일 최고', priceData.dayHigh != null ? cur + fmtP(priceData.dayHigh) : '—'],
+    ['시가총액', '<span id="statMktCap">—</span>'],
+  ];
+  const statCells = cells.map(([k, v]) => `<div class="stat-cell"><div class="stat-k">${k}</div><div class="stat-v">${v}</div></div>`).join('');
+  let yr = '';
+  const lo = priceData.fiftyTwoWeekLow, hi = priceData.fiftyTwoWeekHigh;
+  if (lo != null && hi != null && hi > lo) {
+    const pos = Math.min(100, Math.max(0, ((priceData.price - lo) / (hi - lo)) * 100));
+    yr = `<div class="stat-range">
+      <div class="stat-range-track"><div class="stat-range-fill" style="width:${pos}%"></div><div class="stat-range-dot" style="left:${pos}%"></div></div>
+      <div class="stat-range-ends"><span>52주 최저 ${cur}${fmtP(lo)}</span><span>최고 ${cur}${fmtP(hi)}</span></div>
+    </div>`;
+  }
+  return `<div class="stat-bar">${statCells}</div>${yr}`;
 }
 
 // Price block — regular + pre/after-market. renderPage(최초)와 refreshLivePrice(폴링) 공용.
@@ -1360,103 +1473,50 @@ function renderPage(company, records, priceData) {
 
   const priceHtml = buildPriceBlock(priceData);
 
-  // 오늘의 시세 (당일 레인지 · 거래량 · 52주 범위 · 상장일) — priceData(=/api/quotes)에 이미 다 있음
-  const quoteCardHtml = buildQuoteCard(priceData);
-
-  // Stats
-  const totalCount = records.length;
-  const upsides = records.filter(r => r.upside_pct != null).map(r => r.upside_pct);
-  const avgUpside = upsides.length ? (upsides.reduce((a,b) => a+b, 0) / upsides.length).toFixed(1) : null;
-  const acc1dList = records.filter(r => r.is_accurate_1d != null);
-  const acc7dList = records.filter(r => r.is_accurate_7d != null);
-  const acc1dPct = acc1dList.length ? Math.round(acc1dList.filter(r => r.is_accurate_1d).length / acc1dList.length * 100) : null;
-  const acc7dPct = acc7dList.length ? Math.round(acc7dList.filter(r => r.is_accurate_7d).length / acc7dList.length * 100) : null;
-
-  // 분석 이력 카드 (최근 5건) — 제목 + AI 분석 내용
-  const historyCards = records.slice(0, 5).map(r => {
+  // 🌊 파급효과 카드 — 이 종목에 영향을 줄 수 있는(줬던) 뉴스 이슈. 예측 수치 없이 정성적 연결만.
+  const rippleCards = (records || []).slice(0, 6).map(r => {
     const issue = r.analyses?.issues;
-    const analysisId = r.analyses?.id;
     const issueTitle = issue?.title || '(제목 없음)';
     const date = fmtMDW(r.entry_date || issue?.published_at);
-    const upside = r.upside_pct != null ? r.upside_pct : null;
-    const upsideText = upside != null ? `${upside >= 0 ? '+' : ''}${upside}%` : null;
-    // AI 분석 내용: rationale에서 [TRADE] JSON 앞부분(추론 텍스트)만
-    const reason = (r.rationale || '').split('[TRADE]')[0].trim();
-    const returnBadge = buildReturnCell(r.actual_return_1d, r.is_accurate_1d, r.actual_return_7d, r.is_accurate_7d);
-    const issueHref = analysisId ? `analysis.html?id=${encodeURIComponent(issue?.id || analysisId)}` : '#';
+    // rationale에서 예측 JSON([TRADE]/[FUND]) 뒷부분 잘라내고 정성적 추론 텍스트만
+    const reason = (r.rationale || '').split('[TRADE]')[0].split('[FUND]')[0].trim();
+    const issueId = issue?.id || r.analyses?.id;
+    const issueHref = issueId ? `analysis.html?id=${encodeURIComponent(issueId)}` : '#';
     return `
-      <a href="${escHtml(issueHref)}" class="hist-card">
-        <div class="hist-card-top">
-          <span class="hist-date">${date}</span>
-          ${upsideText ? `<span class="hist-upside ${upside >= 0 ? 'pos' : 'neg'}">예상 ${upsideText}</span>` : ''}
-          ${returnBadge}
+      <a href="${escHtml(issueHref)}" class="ripple-card">
+        <div class="ripple-card-top">
+          <span class="ripple-date">${date}</span>
+          ${issue?.source_name ? `<span class="ripple-src">${escHtml(issue.source_name)}</span>` : ''}
         </div>
-        <div class="hist-title">${escHtml(issueTitle)}</div>
-        ${reason ? `<div class="hist-reason">${escHtml(reason)}</div>` : ''}
+        <div class="ripple-title">${escHtml(issueTitle)}</div>
+        ${reason ? `<div class="ripple-reason">${escHtml(reason)}</div>` : ''}
       </a>`;
   }).join('');
 
-  // 판단 배지 (동기 산출): [TRADE] 마커 있으면 매수 후보, 아니면 평균 예상 상승률로 판단
-  const hasTradeMarker = (records || []).some(r => (r.rationale || '').includes('[TRADE]'));
-  let verdictLabel, verdictClass;
-  if (hasTradeMarker) { verdictLabel = '🎯 매수 후보'; verdictClass = 'buy'; }
-  else if (avgUpside != null && avgUpside > 0) { verdictLabel = '📈 상승 기대'; verdictClass = 'buy'; }
-  else { verdictLabel = '📊 분석 이력 보유'; verdictClass = 'neutral'; }
+  const statBarHtml = buildStatBar(priceData);
 
   const html = `
-    <!-- 1. 핵심 판단 히어로 -->
+    <!-- 히어로 -->
     <div class="cmp-hero">
       <div class="cmp-hero-top">
         <span class="ticker-badge ${isKr ? 'kr' : 'us'}">${escHtml(ticker)}</span>
         <div class="company-name-wrap">
           <div class="company-name-main">${escHtml(name)}</div>
-          <div class="company-sub">${isKr ? '한국 상장' : '미국 상장'}${sector ? ' · ' + escHtml(sector) : ''}</div>
+          <div class="company-sub">${isKr ? '🇰🇷 한국 상장' : '🇺🇸 미국 상장'}${sector ? ' · ' + escHtml(sector) : ''}</div>
         </div>
         <div class="price-block" id="priceBlock">${priceHtml}</div>
         <button class="share-icon-btn" style="align-self:center" data-share-title="${escHtml(`${name} (${ticker}) — StockRipple`)}" data-share-url="${escHtml(location.href)}" onclick="shareContent(event, this)" title="공유하기">🔗</button>
       </div>
-      <div class="cmp-verdict">
-        <span class="vbadge ${verdictClass}">${verdictLabel}</span>
-        <div class="vmeta" id="verdictTargetWrap" style="display:none">
-          <span class="k">AI 목표가 평균</span><span class="v" id="verdictTarget">—</span>
-        </div>
-        <div class="vdivider" id="verdictDiv1" style="display:none"></div>
-        <div class="vmeta" id="verdictUpsideWrap" style="display:none">
-          <span class="k">상승여력</span><span class="v" id="verdictUpside">—</span>
-        </div>
-        <div class="vdivider"></div>
-        <div class="vmeta">
-          <span class="k">분석 등장 · 1일 적중</span>
-          <span class="v">${totalCount}회 · ${acc1dPct != null ? acc1dPct + '%' : '—'}</span>
-        </div>
-      </div>
+      <div class="meta-badges" id="metaBadges"></div>
+      <div id="statBarWrap">${statBarHtml}</div>
     </div>
 
-    <!-- 2. 핵심 지표 칩 (기술지표·펀더멘털 로드되면 채워짐) -->
+    <!-- 지표 칩 (RSI·추세·밸류에이션 — 사실 지표) -->
     <div class="cmp-chips" id="cmpChips"></div>
+    <div id="techChipsWrap"></div>
 
-    <!-- 2.5 오늘의 시세 (개요 카테고리 위로 — 항상 노출) -->
-    <div id="quoteCardWrap">${quoteCardHtml}</div>
-
-    <!-- 3. 탭 -->
-    <div class="cmp-tabs">
-      <button class="cmp-tab active" data-tab="overview" onclick="switchCompanyTab('overview',this)">개요</button>
-      <button class="cmp-tab" data-tab="chart" onclick="switchCompanyTab('chart',this)">차트·시세</button>
-      <button class="cmp-tab" data-tab="fundamentals" onclick="switchCompanyTab('fundamentals',this)">펀더멘털</button>
-      <button class="cmp-tab" data-tab="flow" onclick="switchCompanyTab('flow',this)">${isKr ? '수급·공시' : '옵션·공시'}</button>
-      <button class="cmp-tab" data-tab="history" onclick="switchCompanyTab('history',this)">분석 이력</button>
-    </div>
-
-    <!-- 개요: AI 종합분석 + 매매정보 + 기술지표 -->
-    <div class="cmp-panel active" data-panel="overview">
-      <div id="aiSummaryWrap"></div>
-      <div id="tradeBoxWrap"></div>
-      <div id="techChipsWrap"></div>
-    </div>
-
-    <!-- 차트·시세: 캔들(미장) + 라인 차트 -->
-    <div class="cmp-panel" data-panel="chart">
-      <div id="relChartWrap"></div>
+    <!-- 📈 차트 -->
+    <section class="cmp-sec">
       ${isKr ? '' : `
       <div class="tv-wrap">
         <div class="tv-header">
@@ -1477,7 +1537,7 @@ function renderPage(company, records, priceData) {
       <div class="chart-section" style="margin-bottom:0">
         <div class="section-title">
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          라인 차트 (Yahoo)
+          ${isKr ? '주가 차트' : '라인 차트 (Yahoo)'}
         </div>
         <div class="chart-container">
           <div class="chart-range-btns">
@@ -1491,35 +1551,49 @@ function renderPage(company, records, priceData) {
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 펀더멘털 (밸류에이션/수익성/안정성/실적/배당 + 애널리스트 컨센서스 + 동종업계) -->
-    <div class="cmp-panel" data-panel="fundamentals">
+    <!-- 🌊 왜 움직였나 · 파급효과 (StockRipple 시그니처) -->
+    <section class="cmp-sec">
+      <div class="ck-sec-head"><span class="tick"></span><h3>🌊 왜 움직였나 · 파급효과</h3><span class="note">뉴스 → 이 종목</span></div>
+      <p class="ripple-intro">이런 뉴스 이슈가 <b>${escHtml(name)}</b>에 영향을 줄 수 있어요. StockRipple이 뉴스의 파급효과를 분석해 연결한 종목입니다.</p>
+      <div class="ripple-list">${rippleCards || '<div class="cmp-empty">아직 이 종목과 연결된 뉴스 이슈가 없어요.</div>'}</div>
+      <div id="aiSummaryWrap"></div>
+    </section>
+
+    <!-- 📊 호가 -->
+    <section class="cmp-sec">
+      <div class="ck-sec-head"><span class="tick"></span><h3>📊 호가</h3><span class="note">토스 공식</span></div>
+      <div id="orderbookWrap"><div class="cmp-empty">호가 불러오는 중...</div></div>
+    </section>
+    ${isKr ? `
+    <!-- 👥 수급 -->
+    <section class="cmp-sec">
+      <div class="ck-sec-head"><span class="tick"></span><h3>👥 투자자 매매동향</h3></div>
+      <div id="investorTrendWrap"></div>
+    </section>` : ''}
+
+    <!-- 📅 일별 시세 -->
+    <section class="cmp-sec">
+      <div class="ck-sec-head"><span class="tick"></span><h3>📅 일별 시세</h3><span class="note">토스 공식</span></div>
+      <div id="dailyTableWrap"><div class="cmp-empty">불러오는 중...</div></div>
+    </section>
+
+    <!-- 📈 펀더멘털·컨센서스 -->
+    <section class="cmp-sec">
       <div id="fundamentalsWrap"></div>
-    </div>
+    </section>
 
-    <!-- 수급·공시 (국장: DART+투자자동향 / 미장: SEC+옵션) -->
-    <div class="cmp-panel" data-panel="flow">
-      ${isKr
-        ? '<div id="investorTrendWrap"></div><div id="dartDetailWrap"></div>'
-        : '<div id="secFilingsWrap"></div><div id="optionsWrap"></div>'}
-    </div>
-
-    <!-- 분석 이력 (최근 5건 · 제목 + AI 분석 내용) -->
-    <div class="cmp-panel" data-panel="history">
-      <div class="ck-sec-head"><span class="tick"></span><h3>분석 이력</h3><span class="note">최근 5건 · 총 ${totalCount}건</span></div>
-      <div class="hist-list">
-        ${historyCards || '<div class="cmp-empty">분석 이력이 없습니다.</div>'}
-      </div>
-    </div>
+    <!-- 📜 공시 / 옵션 -->
+    <section class="cmp-sec">
+      ${isKr ? '<div id="dartDetailWrap"></div>' : '<div id="secFilingsWrap"></div><div id="optionsWrap"></div>'}
+    </section>
   `;
 
   document.getElementById('pageWrap').innerHTML = html;
 
-  // 지표 칩 초기화 + 동기 산출 가능한 칩(평균 예상 상승률) 먼저 표시
   _chipData = {};
-  if (avgUpside != null) setChip('avgUpside', '평균 예상', (avgUpside >= 0 ? '+' : '') + avgUpside + '%', avgUpside >= 0 ? 'pos' : 'neg');
-  else renderCmpChips();
+  renderCmpChips();
 
   // TradingView 차트 로드 (미장만 — KRX는 TradingView 무료 임베드에서 미지원)
   if (!isKr) {
@@ -1527,32 +1601,27 @@ function renderPage(company, records, priceData) {
     loadTradingView('D');
   }
 
-  // 매매 정보 (rationale [TRADE] 마커)
-  renderTradeBox(records);
-
-  // 기술 지표
+  // 사실 지표 · AI 종합분석 · 펀더멘털
   loadTechChips(ticker);
-
-  // AI 종합 분석 (병렬)
-  loadAiSummary(ticker, company.name_ko || company.name_en || ticker);
-
-  // 펀더멘털 (병렬)
+  loadAiSummary(ticker, name);
   loadFundamentals(ticker);
 
-  // KR 종목: DART 상세 데이터 + 투자자별 매매동향 로드
+  // Toss 공식: 종목마스터(시총·경고 뱃지) · 호가 · 일별 시세
+  loadStockMeta(ticker);
+  loadOrderbook(ticker);
+  loadDailyTable(ticker);
+
   if (isKr) {
     loadDartDetail(ticker);
     loadInvestorTrend(ticker);
-  }
-  // US 종목: SEC 공시 + 옵션 체인 로드
-  if (!isKr) {
+  } else {
     loadSecFilings(ticker);
     loadOptionsChain(ticker);
   }
 
-  // 라인 차트는 "차트·시세" 탭이 처음 열릴 때 그린다 — 숨겨진(display:none) 컨테이너에
-  // Chart.js를 그리면 너비 0으로 렌더되는 문제 때문. ensureChart()가 최초 1회 로드.
+  // 차트는 이제 항상 보이는 섹션 안에 있으므로 즉시 로드(더 이상 탭 lazy 아님).
   _chartRequested = false;
+  ensureChart();
 }
 
 // ── 탭 전환 ──────────────────────────────────────────────
@@ -1751,6 +1820,131 @@ function renderTradeBox(records) {
     ${trade.th ? `<div style="font-size:13px;color:var(--green);margin-bottom:6px;line-height:1.55"><b>💡 매수 근거:</b> ${escHtml(trade.th)}</div>` : ''}
     ${trade.rk ? `<div style="font-size:13px;color:var(--yellow);margin-bottom:16px;line-height:1.55;font-weight:500"><b>⚠️ 리스크:</b> ${escHtml(trade.rk)}</div>` : ''}
   `;
+}
+
+// ── Toss 종목 마스터: 시가총액 + 경고/상태 뱃지 ───────────────
+async function loadStockMeta(ticker) {
+  try {
+    const r = await fetch(`/api/toss?action=meta&symbol=${encodeURIComponent(ticker)}`);
+    if (!r.ok) return;
+    const m = await r.json();
+    if (!m.ok) return;
+    _tossMeta = m;
+    const isKrw = m.currency === 'KRW';
+
+    // 정확한 시가총액 = 상장주식수 × 현재가(통합가 우선)
+    const px = (_tossQuote && _tossQuote.lastPrice != null) ? _tossQuote.lastPrice : _currentLivePrice;
+    const capEl = document.getElementById('statMktCap');
+    if (capEl && m.sharesOutstanding != null && px != null) capEl.innerHTML = fmtMoneyShort(m.sharesOutstanding * px, isKrw);
+
+    // 경고/상태 뱃지
+    const badges = [];
+    if (m.krxTradingSuspended || m.nxtTradingSuspended) badges.push(['⛔ 거래정지', 'danger']);
+    if (m.liquidationTrading) badges.push(['⚠️ 정리매매', 'danger']);
+    (m.warnings || []).forEach(w => {
+      const label = typeof w === 'string' ? w : (w.name || w.type || w.label || '투자유의');
+      badges.push(['⚠️ ' + label, 'warn']);
+    });
+    if (m.status && m.status !== 'ACTIVE') badges.push([m.status, 'warn']);
+    if (m.nxtSupported) badges.push(['NXT 거래 지원', 'ok']);
+    if (isKrw && m.upperLimitPrice != null) badges.push([`상한 ₩${Math.round(m.upperLimitPrice).toLocaleString('ko-KR')}`, 'muted']);
+    if (isKrw && m.lowerLimitPrice != null) badges.push([`하한 ₩${Math.round(m.lowerLimitPrice).toLocaleString('ko-KR')}`, 'muted']);
+    const el = document.getElementById('metaBadges');
+    if (el) el.innerHTML = badges.map(([t, c]) => `<span class="mbadge ${c}">${escHtml(t)}</span>`).join('');
+  } catch {}
+}
+
+// ── Toss 호가창 (10단 매도/매수 + 잔량 막대) ───────────────────
+async function loadOrderbook(ticker) {
+  const wrap = document.getElementById('orderbookWrap');
+  if (!wrap) return;
+  try {
+    const r = await fetch(`/api/toss?action=orderbook&symbol=${encodeURIComponent(ticker)}`);
+    if (!r.ok) { wrap.innerHTML = '<div class="cmp-empty">호가 정보를 불러올 수 없어요.</div>'; return; }
+    const d = await r.json();
+    if (!d.ok || (!d.asks.length && !d.bids.length)) { wrap.innerHTML = '<div class="cmp-empty">지금은 호가 데이터가 없어요 (장 마감·휴장 시엔 표시되지 않아요).</div>'; return; }
+    wrap.innerHTML = renderOrderbook(d);
+  } catch { wrap.innerHTML = '<div class="cmp-empty">호가 정보를 불러올 수 없어요.</div>'; }
+}
+function renderOrderbook(d) {
+  const isKrw = d.currency === 'KRW';
+  const fmtP = v => isKrw ? Math.round(v).toLocaleString('ko-KR') : Number(v).toFixed(2);
+  const fmtV = v => v >= 1e4 ? Math.round(v / 1e4).toLocaleString() + '만' : Math.round(v).toLocaleString();
+  const all = [...d.asks, ...d.bids].map(x => x.volume);
+  const maxVol = Math.max(1, ...all);
+  const asks = [...d.asks].reverse(); // 높은 가격이 위로
+  const askRows = asks.map(a => `
+    <div class="ob-row">
+      <div class="ob-vol ask"><span class="ob-vnum">${fmtV(a.volume)}</span><div class="ob-bar ask" style="width:${(a.volume / maxVol * 100).toFixed(1)}%"></div></div>
+      <div class="ob-price ask">${fmtP(a.price)}</div>
+      <div class="ob-vol"></div>
+    </div>`).join('');
+  const bidRows = d.bids.map(b => `
+    <div class="ob-row">
+      <div class="ob-vol"></div>
+      <div class="ob-price bid">${fmtP(b.price)}</div>
+      <div class="ob-vol bid"><div class="ob-bar bid" style="width:${(b.volume / maxVol * 100).toFixed(1)}%"></div><span class="ob-vnum">${fmtV(b.volume)}</span></div>
+    </div>`).join('');
+  const totAsk = d.asks.reduce((s, a) => s + a.volume, 0);
+  const totBid = d.bids.reduce((s, b) => s + b.volume, 0);
+  return `
+    <div class="ob-card">
+      <div class="ob-ladder">
+        ${askRows}
+        <div class="ob-spread"><span class="ob-spread-lbl">매도호가</span><span class="ob-spread-lbl">매수호가</span></div>
+        ${bidRows}
+      </div>
+      <div class="ob-tot">
+        <span><em class="ask">매도잔량</em> ${fmtV(totAsk)}</span>
+        <span><em class="bid">매수잔량</em> ${fmtV(totBid)}</span>
+      </div>
+    </div>`;
+}
+
+// ── Toss 일별 시세 표 (일자/종가/전일대비/등락률/거래량/시가/고가/저가) ──
+async function loadDailyTable(ticker) {
+  const wrap = document.getElementById('dailyTableWrap');
+  if (!wrap) return;
+  try {
+    const r = await fetch(`/api/toss?action=daily&symbol=${encodeURIComponent(ticker)}&count=20`);
+    if (!r.ok) { wrap.innerHTML = '<div class="cmp-empty">일별 시세를 불러올 수 없어요.</div>'; return; }
+    const d = await r.json();
+    if (!d.ok || !d.rows.length) { wrap.innerHTML = '<div class="cmp-empty">일별 시세가 없어요.</div>'; return; }
+    const isKrw = d.currency === 'KRW';
+    // 스탯바 '시가'를 최신일 시가로 채움
+    const openEl = document.getElementById('statOpen');
+    if (openEl && d.rows[0].open != null) openEl.textContent = (isKrw ? '₩' : '$') + (isKrw ? Math.round(d.rows[0].open).toLocaleString('ko-KR') : d.rows[0].open.toFixed(2));
+    wrap.innerHTML = renderDailyTable(d);
+  } catch { wrap.innerHTML = '<div class="cmp-empty">일별 시세를 불러올 수 없어요.</div>'; }
+}
+function renderDailyTable(d) {
+  const isKrw = d.currency === 'KRW';
+  const fmtP = v => v == null ? '—' : (isKrw ? Math.round(v).toLocaleString('ko-KR') : Number(v).toFixed(2));
+  const fmtV = v => { if (v == null) return '—'; if (v >= 1e8) return (v / 1e8).toFixed(1) + '억'; if (v >= 1e4) return Math.round(v / 1e4).toLocaleString() + '만'; return v.toLocaleString(); };
+  const rows = d.rows.map(r => {
+    const cls = r.changePercent == null ? '' : r.changePercent > 0 ? 'pos' : r.changePercent < 0 ? 'neg' : '';
+    const sign = r.change > 0 ? '+' : '';
+    const chgStr = r.change == null ? '—' : `${sign}${fmtP(Math.abs(r.change) * (r.change < 0 ? -1 : 1))}`;
+    const pctStr = r.changePercent == null ? '' : `${sign}${r.changePercent.toFixed(2)}%`;
+    return `
+      <tr>
+        <td class="dt-date">${r.date ? r.date.slice(5).replace('-', '.') : '—'}</td>
+        <td class="dt-num dt-close">${fmtP(r.close)}</td>
+        <td class="dt-num ${cls}">${chgStr}</td>
+        <td class="dt-num ${cls}">${pctStr}</td>
+        <td class="dt-num dt-dim">${fmtV(r.volume)}</td>
+        <td class="dt-num dt-dim">${fmtP(r.open)}</td>
+        <td class="dt-num dt-dim">${fmtP(r.high)}</td>
+        <td class="dt-num dt-dim">${fmtP(r.low)}</td>
+      </tr>`;
+  }).join('');
+  return `
+    <div class="dt-wrap">
+      <table class="dt-table">
+        <thead><tr><th>일자</th><th class="dt-num">종가</th><th class="dt-num">전일대비</th><th class="dt-num">등락률</th><th class="dt-num">거래량</th><th class="dt-num">시가</th><th class="dt-num">고가</th><th class="dt-num">저가</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 // ── 기술 지표 chip ────────────────────────────────────────
