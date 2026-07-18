@@ -485,9 +485,9 @@ async function handleTossCandles(req, res) {
   if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
   const symbol = (req.query.symbol || '').toString().replace(/\.(KS|KQ)$/i, '');
   if (!symbol) return res.status(400).json({ ok: false, error: 'symbol required' });
-  const allowed = ['1d', '1w', '1mo'];
-  const interval = allowed.includes((req.query.interval || '').toString()) ? req.query.interval : '1d';
-  const count = Math.min(Math.max(parseInt(req.query.count) || 120, 5), 400);
+  // Toss /candles는 실측상 일봉(1d)만 안정 지원(주/월봉 interval은 에러) + 최대 200개.
+  const interval = '1d';
+  const count = Math.min(Math.max(parseInt(req.query.count) || 120, 5), 200);
 
   const data = await callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&count=${count}`);
   if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
