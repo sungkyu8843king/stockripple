@@ -248,6 +248,8 @@ button { font-family: inherit; }
 }
 .nav-btn:hover { background: var(--bg3); color: var(--text); }
 .nav-btn.active { background: var(--blue); color: #fff; font-weight: 600; }
+.nav-new { position: relative; }
+.nav-new::after { content: ""; position: absolute; top: 2px; right: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px var(--bg), 0 0 6px var(--red); }
 .nav-btn-primary {
   background: var(--blue); color: #fff; padding: 7px 16px; margin-left: 6px;
   border-radius: var(--r-md); font-size: 13px; font-weight: 600;
@@ -1059,6 +1061,7 @@ button { font-family: inherit; }
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
       <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
       <a href="/kr-market.html" class="nav-btn active">📊 시장 현황</a>
+      <a href="/talks.html" class="nav-btn nav-new">💬 말말말</a>
       <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
       <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
       <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>

@@ -17,11 +17,26 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.55}
 a{color:inherit}
+/* 메인 사이트 헤더와 통일 */
+.header{position:sticky;top:0;z-index:100;background:rgba(21,23,30,0.80);backdrop-filter:blur(14px) saturate(150%);border-bottom:1px solid var(--border);padding:0 24px}
+.header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px;height:56px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
+.logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--blue) 0%,var(--purple) 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;box-shadow:0 3px 10px rgba(36,87,230,0.30)}
+.logo-text{font-size:17px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
+.logo-sub{font-size:10px;color:var(--text3);font-weight:500;margin-top:1px}
+.header-nav{display:flex;gap:2px;margin-left:auto;align-items:center}
+.nav-btn{padding:7px 13px;border-radius:10px;font-size:13px;font-weight:500;background:none;border:none;color:var(--text2);cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px;transition:all .12s;white-space:nowrap}
+.nav-btn:hover{background:var(--bg3);color:var(--text)}
+.nav-btn.active{background:var(--blue);color:#fff;font-weight:600}
+.nav-btn-primary{background:var(--blue);color:#fff;padding:7px 16px;margin-left:6px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none}
+.nav-btn-primary:hover{background:#1e4ccc}
+.nav-new{position:relative}
+.nav-new::after{content:"";position:absolute;top:2px;right:1px;width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--bg),0 0 6px var(--red)}
+@media (max-width:900px){ .header-nav{flex-wrap:wrap;row-gap:4px} }
+@media (max-width:680px){ .logo-sub{display:none} .nav-btn{padding:6px 9px;font-size:12px} }
 .wrap{max-width:920px;margin:0 auto;padding:18px 20px 70px}
-.top{display:flex;align-items:center;gap:12px;margin-bottom:18px}
-.back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg2)}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);margin-bottom:18px}
 .back:hover{border-color:var(--border-strong);color:var(--text)}
-.brand{font-size:15px;font-weight:800;letter-spacing:-.02em;margin-left:auto}.brand a{color:var(--text);text-decoration:none}
 .page-title{font-size:25px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:9px}
 .page-sub{font-size:13px;color:var(--text3);margin:5px 0 20px}
 .topic-tabs{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
@@ -54,11 +69,27 @@ a{color:inherit}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <a class="back" href="/index.html">← 홈</a>
-    <span class="brand"><a href="/index.html">StockRipple</a></span>
+<header class="header">
+  <div class="header-inner">
+    <a href="/index.html" class="logo">
+      <div class="logo-icon">〜</div>
+      <div>
+        <div class="logo-text">StockRipple</div>
+        <div class="logo-sub">파급효과 주식 전망</div>
+      </div>
+    </a>
+    <nav class="header-nav">
+      <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
+      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
+      <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
+      <a href="/talks.html" class="nav-btn active">💬 말말말</a>
+      <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
+      <a href="/account.html" class="nav-btn-primary">로그인</a>
+    </nav>
   </div>
+</header>
+<div class="wrap">
+  <a class="back" href="/index.html">← 홈</a>
   <div class="page-title">💬 말말말</div>
   <div class="page-sub">지금 시장을 흔드는 주제를 타임라인으로. 헤드라인·출처·한줄 상황과 연관 지수·종목의 움직임까지.</div>
   <div class="topic-tabs" id="topicTabs"></div>
