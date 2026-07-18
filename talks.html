@@ -46,9 +46,9 @@ a{color:inherit}
 .tl-meta{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
 .tl-date{font-size:11.5px;font-family:var(--mono);color:var(--text3);font-variant-numeric:tabular-nums}
 .tl-src{font-size:10.5px;color:var(--text3);background:var(--bg3);padding:1px 8px;border-radius:6px}
-.tl-title{font-size:14.5px;font-weight:650;line-height:1.5;color:var(--text)}
+.tl-title{font-size:14.5px;font-weight:650;line-height:1.5;color:var(--text);overflow-wrap:anywhere;word-break:break-word}
 .tl-item:hover .tl-title{color:var(--blue)}
-.tl-sum{font-size:12.5px;color:var(--text2);line-height:1.65;margin-top:5px}
+.tl-sum{font-size:12.5px;color:var(--text2);line-height:1.65;margin-top:5px;overflow-wrap:anywhere;word-break:break-word}
 .loading,.empty{padding:34px;text-align:center;color:var(--text3);font-size:13px}
 @media (max-width:560px){ .page-title{font-size:21px} .rel-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
 </style>
@@ -92,6 +92,14 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;',
 function chgCls(v){ return v==null?'flat':v>0?'up':v<0?'dn':'flat'; }
 function fmtChg(v){ if(v==null) return '—'; const s=v>0?'+':''; return `${s}${v.toFixed(2)}%`; }
 function fmtPx(v,cur){ if(v==null) return '—'; return cur==='KRW' ? '₩'+Math.round(v).toLocaleString('ko-KR') : (cur==='USD'?'$':'')+Number(v).toLocaleString('en-US',{maximumFractionDigits:2}); }
+// 일부 피드(구글뉴스 등)의 summary는 HTML(<a href=긴URL>)을 담고 있어 태그·URL을 벗겨 정제.
+function cleanSum(s){
+  if(!s) return '';
+  let t = String(s).replace(/<[^>]*>/g,' ')
+    .replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#3[49];/g,"'")
+    .replace(/https?:\/\/\S+/g,'').replace(/\s+/g,' ').trim();
+  return t.length < 12 ? '' : t;
+}
 
 function renderTabs(){
   document.getElementById('topicTabs').innerHTML = TOPICS.map(t =>
@@ -159,7 +167,7 @@ async function loadTimeline(topic){
       return `<a class="tl-item" href="${esc(href)}"${ext}>
         <div class="tl-meta"><span class="tl-date">${fmtDate(it.published_at)}</span><span class="tl-src">${esc(it.source_name||'')}</span></div>
         <div class="tl-title">${esc(it.title)}</div>
-        ${it.summary ? `<div class="tl-sum">${esc(it.summary)}</div>` : ''}
+        ${cleanSum(it.summary) ? `<div class="tl-sum">${esc(cleanSum(it.summary))}</div>` : ''}
       </a>`;
     }).join('') + '</div>';
   }catch(e){ tl.innerHTML = '<div class="empty">뉴스를 불러올 수 없어요.</div>'; }
