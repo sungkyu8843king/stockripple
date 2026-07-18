@@ -38,6 +38,7 @@ export default async function handler(req, res) {
       const action = (req.query.action || '').toString();
       if (action === 'prices')          return handleTossPrices(req, res);
       if (action === 'rankings')        return handleTossRankings(req, res);
+      if (action === 'rankings-all')    return handleTossRankingsAll(req, res);
       if (action === 'investor-trading') return handleTossInvestorTrading(req, res);
       if (action === 'fx')              return handleTossFx(req, res);
       if (action === 'quote')           return handleTossQuote(req, res);
@@ -208,6 +209,67 @@ async function handleTossRankings(req, res) {
   }));
 
   return res.status(200).json({ ok: true, source: 'toss', rankedAt: data.result?.rankedAt ?? null, rankings });
+}
+
+// GET ?source=toss&action=rankings-all&market=KR|US&count=12 — 메인 페이지 실시간 랭킹.
+// 5개 카테고리(인기/거래대금/거래량/급상승/급하락)를 한 번에 + 종목명 배치 해석.
+// 랭킹 아이템엔 name이 없어(코드만) /stocks로 이름·시장을 함께 조회해 병합한다.
+// realtime/1d 전략: 인기·거래대금·거래량은 realtime(장 마감이어도 마지막 정규장 반환),
+// 급상승·급하락은 realtime 미지원이라 1d(= 마지막 정규장 세션 기준).
+async function handleTossRankingsAll(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 모든 방문자가 동일 페이로드(시장별 고정 요청) → edge 캐시가 origin 호출을 흡수(레이트리밋 방어).
+  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=90');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+
+  const market = (req.query.market || 'KR').toString().toUpperCase();
+  if (market !== 'KR' && market !== 'US') return res.status(400).json({ ok: false, error: 'market must be KR or US' });
+  const count = Math.min(Math.max(parseInt(req.query.count) || 12, 1), 30);
+
+  const CATS = [
+    { key: 'popular', type: 'TOSS_SECURITIES_TRADING_AMOUNT', duration: 'realtime' },
+    { key: 'amount',  type: 'MARKET_TRADING_AMOUNT',          duration: 'realtime' },
+    { key: 'volume',  type: 'MARKET_TRADING_VOLUME',          duration: 'realtime' },
+    { key: 'gainers', type: 'TOP_GAINERS',                    duration: '1d' },
+    { key: 'losers',  type: 'TOP_LOSERS',                     duration: '1d' },
+  ];
+
+  const raw = await Promise.all(CATS.map(c =>
+    callTossProxy(`/rankings?type=${c.type}&marketCountry=${market}&duration=${c.duration}&count=${count}`)
+  ));
+  if (raw.every(d => !d)) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+
+  // 종목명·시장 배치 해석 (랭킹 아이템엔 이름이 없음)
+  const symSet = new Set();
+  raw.forEach(d => (d?.result?.rankings || []).forEach(r => { if (r.symbol) symSet.add(r.symbol); }));
+  const nameMap = {};
+  const symList = [...symSet];
+  if (symList.length) {
+    const stocks = await callTossProxy(`/stocks?symbols=${encodeURIComponent(symList.join(','))}`);
+    for (const s of stocks?.result || []) nameMap[s.symbol] = { name: s.name || s.englishName || s.symbol, market: s.market || null };
+  }
+
+  const suffix = mk => mk === 'KOSDAQ' ? '.KQ' : '.KS';
+  const categories = {};
+  CATS.forEach((c, i) => {
+    const rankings = raw[i]?.result?.rankings || [];
+    categories[c.key] = rankings.map(r => {
+      const meta = nameMap[r.symbol] || {};
+      return {
+        rank: r.rank,
+        symbol: r.symbol,
+        name: meta.name || r.symbol,
+        linkTicker: market === 'KR' ? r.symbol + suffix(meta.market) : r.symbol,
+        currency: r.currency,
+        price: r.price?.lastPrice != null ? Number(r.price.lastPrice) : null,
+        changePercent: r.price?.changeRate != null ? Number(r.price.changeRate) * 100 : null,
+        tradingAmount: r.tradingAmount != null ? Number(r.tradingAmount) : null,
+        tradingVolume: r.tradingVolume != null ? Number(r.tradingVolume) : null,
+      };
+    });
+  });
+
+  return res.status(200).json({ ok: true, market, categories, updatedAt: new Date().toISOString() });
 }
 
 // GET ?source=toss&action=investor-trading&symbol=KOSPI&count=10 — 투자자별 매매대금(공식).
