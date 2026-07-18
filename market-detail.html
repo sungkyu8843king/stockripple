@@ -6,6 +6,7 @@
 <title>시장 지표 상세 — StockRipple</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 :root{
   --bg:#15171e; --bg2:#1e2129; --bg3:#262a34; --bg4:#2f333f;
@@ -16,8 +17,9 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
-.wrap{max-width:1100px;margin:0 auto;padding:18px 20px 60px}
-.top{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.topbar{position:sticky;top:0;z-index:50;background:rgba(21,23,30,0.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+.topbar-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:12px}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 20px 60px}
 .back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg2)}
 .back:hover{border-color:var(--border-strong);color:var(--text)}
 .brand{font-size:15px;font-weight:800;letter-spacing:-0.02em;margin-left:auto}
@@ -31,51 +33,64 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webk
 .hero-price{font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-0.02em;margin-top:14px}
 .hero-chg{font-size:15px;font-weight:700;font-family:var(--mono);margin-top:3px}
 .hero-chg.up{color:var(--green)}.hero-chg.dn{color:var(--red)}.hero-chg.flat{color:var(--text3)}
-.status-line{display:flex;gap:8px;margin-top:12px;font-size:12px;color:var(--text2)}
+.status-line{display:flex;gap:8px;margin-top:12px;font-size:12px;color:var(--text2);flex-wrap:wrap}
 .status-item{display:flex;align-items:center;gap:6px;background:var(--bg3);padding:5px 11px;border-radius:999px}
 .status-item .d{width:6px;height:6px;border-radius:50%;background:var(--text3)}
 .status-item .d.open{background:var(--green);box-shadow:0 0 6px var(--green)}
-.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:8px;overflow:hidden}
-.tv-frame{width:100%;height:560px;border:0;display:block;border-radius:10px}
-.loading{padding:40px;text-align:center;color:var(--text3);font-size:13px}
-@media (max-width:640px){ .hero-price{font-size:28px} .tv-frame{height:420px} }
+.w52{margin-top:16px}
+.w52-label{font-size:10.5px;color:var(--text3);display:flex;justify-content:space-between;margin-bottom:6px}
+.w52-track{position:relative;height:5px;background:var(--bg4);border-radius:3px}
+.w52-fill{position:absolute;top:0;left:0;height:100%;background:var(--blue);opacity:.35;border-radius:3px}
+.w52-dot{position:absolute;top:50%;width:10px;height:10px;border-radius:50%;background:var(--blue);border:2px solid var(--bg2);transform:translate(-50%,-50%)}
+.sec{margin-bottom:16px}
+.sec-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sec-head .tick{width:3px;height:14px;border-radius:2px;background:var(--blue)}
+.sec-head h3{font-size:13px;font-weight:700}
+.range-btns{display:flex;gap:6px;margin-left:auto}
+.range-btn{border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:8px;cursor:pointer}
+.range-btn.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:14px}
+.chart-box{width:100%;height:400px}
+.loading{padding:60px;text-align:center;color:var(--text3);font-size:13px}
+@media (max-width:640px){ .hero-price{font-size:28px} .chart-box{height:300px} }
 </style>
 </head>
 <body>
+<div class="topbar"><div class="topbar-inner">
+  <a class="back" href="/index.html">← 홈</a>
+  <span class="brand"><a href="/index.html">StockRipple</a></span>
+</div></div>
 <div class="wrap">
-  <div class="top">
-    <a class="back" href="/index.html">← 홈</a>
-    <span class="brand"><a href="/index.html">StockRipple</a></span>
-  </div>
   <div id="content"><div class="loading">불러오는 중...</div></div>
 </div>
 
 <script>
 const MKT = {
-  nasdaq:{name:'나스닥 종합', sub:'NASDAQ Composite', tv:'NASDAQ:IXIC', fmt:'n', mk:'us'},
-  sp500: {name:'S&P 500', sub:'S&P 500 Index', tv:'FOREXCOM:SPXUSD', fmt:'n', mk:'us'},
-  dow:   {name:'다우존스', sub:'Dow Jones Industrial', tv:'FOREXCOM:DJI', fmt:'n', mk:'us'},
-  kospi: {name:'코스피', sub:'KOSPI', tv:'KRX:KOSPI', fmt:'n', mk:'kr'},
-  kosdaq:{name:'코스닥', sub:'KOSDAQ', tv:'KRX:KOSDAQ', fmt:'n', mk:'kr'},
-  vix:   {name:'VIX 변동성지수', sub:'CBOE Volatility Index', tv:'TVC:VIX', fmt:'n', mk:'us'},
-  usdkrw:{name:'원/달러 환율', sub:'USD/KRW', tv:'FX_IDC:USDKRW', fmt:'n', mk:'fx'},
-  sox:   {name:'필라델피아 반도체', sub:'PHLX Semiconductor', tv:'NASDAQ:SOX', fmt:'n', mk:'us'},
-  nq:    {name:'나스닥100 선물', sub:'Nasdaq 100 Futures', tv:'CME_MINI:NQ1!', fmt:'n', mk:'us'},
-  btc:   {name:'비트코인', sub:'BTC/USD', tv:'BITSTAMP:BTCUSD', fmt:'$', mk:'crypto'},
-  gold:  {name:'금 (Gold)', sub:'Gold Spot', tv:'TVC:GOLD', fmt:'$', mk:'commodity'},
-  oil:   {name:'WTI 원유', sub:'Crude Oil WTI', tv:'TVC:USOIL', fmt:'$', mk:'commodity'},
+  nasdaq:{name:'나스닥 종합', sub:'NASDAQ Composite', fmt:'n', mk:'us'},
+  sp500: {name:'S&P 500', sub:'S&P 500 Index', fmt:'n', mk:'us'},
+  dow:   {name:'다우존스', sub:'Dow Jones Industrial', fmt:'n', mk:'us'},
+  kospi: {name:'코스피', sub:'KOSPI', fmt:'n', mk:'kr'},
+  kosdaq:{name:'코스닥', sub:'KOSDAQ', fmt:'n', mk:'kr'},
+  vix:   {name:'VIX 변동성지수', sub:'CBOE Volatility Index', fmt:'n', mk:'us'},
+  usdkrw:{name:'원/달러 환율', sub:'USD/KRW', fmt:'n', mk:'fx'},
+  sox:   {name:'필라델피아 반도체', sub:'PHLX Semiconductor', fmt:'n', mk:'us'},
+  nq:    {name:'나스닥100 선물', sub:'Nasdaq 100 Futures', fmt:'n', mk:'us'},
+  btc:   {name:'비트코인', sub:'BTC/USD', fmt:'$', mk:'crypto'},
+  gold:  {name:'금 (Gold)', sub:'Gold Spot', fmt:'$', mk:'commodity'},
+  oil:   {name:'WTI 원유', sub:'Crude Oil WTI', fmt:'$', mk:'commodity'},
 };
+let _sym = '', _range = '6mo', _chart = null, _resizeObs = null;
 
 function fmtVal(v, fmt){ if(v==null) return '—'; return fmt==='$' ? '$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:2}) : Number(v).toLocaleString('ko-KR',{maximumFractionDigits:2}); }
 
-// 시장 개장 여부(KST 휴리스틱). 초록 동그라미 포인트용.
+// 시장 개장 여부(KST 벽시계 — epoch+9h를 getUTC*로 읽어 브라우저 타임존과 무관하게 계산)
 function marketOpen(mk){
-  const kst=new Date(Date.now()+9*3600000); // KST 벽시계: epoch+9h를 getUTC*로 읽음(TZ 무관)
+  const kst=new Date(Date.now()+9*3600000);
   const day=kst.getUTCDay(), mins=kst.getUTCHours()*60+kst.getUTCMinutes(), weekday=day>=1&&day<=5;
   if(mk==='crypto') return true;
-  if(mk==='kr') return weekday && mins>=540 && mins<930;              // 09:00~15:30
-  if(mk==='us') return (weekday && mins>=1350) || (mins<300 && day>=2&&day<=6); // 22:30~05:00
-  if(mk==='fx'||mk==='commodity') return weekday || (day===0 && mins>=360); // 대략 월~금 + 일 저녁 재개
+  if(mk==='kr') return weekday && mins>=540 && mins<930;
+  if(mk==='us') return (weekday && mins>=1350) || (mins<300 && day>=2&&day<=6);
+  if(mk==='fx'||mk==='commodity') return weekday || (day===0 && mins>=360);
   return false;
 }
 function statusLabel(mk, open){
@@ -84,13 +99,12 @@ function statusLabel(mk, open){
 }
 
 async function init(){
-  const sym=(new URLSearchParams(location.search).get('sym')||'').toLowerCase();
-  const cfg=MKT[sym];
+  _sym=(new URLSearchParams(location.search).get('sym')||'').toLowerCase();
+  const cfg=MKT[_sym];
   const c=document.getElementById('content');
   if(!cfg){ c.innerHTML='<div class="loading">알 수 없는 지표입니다. <a href="/index.html" style="color:var(--blue)">홈으로</a></div>'; return; }
   document.title=`${cfg.name} — StockRipple`;
   const open=marketOpen(cfg.mk);
-  const tvUrl=`https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(cfg.tv)}&interval=D&theme=dark&style=1&timezone=Asia%2FSeoul&locale=kr&withdateranges=1&hide_side_toolbar=0&allow_symbol_change=0&save_image=0`;
   c.innerHTML=`
     <div class="hero">
       <div class="hero-name"><span class="live-dot ${open?'on':''}"></span>${cfg.name}</div>
@@ -98,19 +112,90 @@ async function init(){
       <div class="hero-price" id="price">—</div>
       <div class="hero-chg" id="chg">—</div>
       <div class="status-line"><span class="status-item"><span class="d ${open||cfg.mk==='crypto'?'open':''}"></span>${statusLabel(cfg.mk,open)}</span></div>
+      <div class="w52" id="w52" style="display:none">
+        <div class="w52-label"><span>52주 최저</span><span>52주 최고</span></div>
+        <div class="w52-track"><div class="w52-fill" id="w52Fill"></div><div class="w52-dot" id="w52Dot"></div></div>
+        <div class="w52-label" style="margin-top:6px"><span id="w52Lo"></span><span id="w52Hi"></span></div>
+      </div>
     </div>
-    <div class="chart-card"><iframe class="tv-frame" src="${tvUrl}" loading="lazy"></iframe></div>`;
-  // 현재가/등락률 — /api/indices
+    <div class="sec">
+      <div class="sec-head">
+        <span class="tick"></span><h3>📈 차트</h3>
+        <div class="range-btns" id="rangeBtns">
+          <button class="range-btn" data-r="1mo" onclick="setRange('1mo',this)">1개월</button>
+          <button class="range-btn active" data-r="6mo" onclick="setRange('6mo',this)">6개월</button>
+          <button class="range-btn" data-r="1y" onclick="setRange('1y',this)">1년</button>
+        </div>
+      </div>
+      <div class="chart-card"><div class="chart-box" id="chartBox"><div class="loading">차트 불러오는 중...</div></div></div>
+    </div>`;
+  loadPrice(cfg);
+  loadChart(_range);
+}
+
+async function loadPrice(cfg){
   try{
-    const r=await fetch('/api/indices'); const j=await r.json(); const d=j?.data?.[sym];
+    const r=await fetch('/api/indices'); const j=await r.json(); const d=j?.data?.[_sym];
     if(d&&d.price!=null){
       document.getElementById('price').textContent=fmtVal(d.price,cfg.fmt);
       const cp=d.changePercent; const el=document.getElementById('chg');
       if(cp!=null){ const cls=cp>0?'up':cp<0?'dn':'flat'; const sign=cp>0?'+':''; el.className='hero-chg '+cls;
         el.textContent=`${sign}${(d.change??0).toLocaleString('en-US',{maximumFractionDigits:2})} (${sign}${cp.toFixed(2)}%)`; }
+      if(d.fiftyTwoWeekLow!=null && d.fiftyTwoWeekHigh!=null && d.fiftyTwoWeekHigh>d.fiftyTwoWeekLow){
+        const wrap=document.getElementById('w52'); wrap.style.display='';
+        const pos=Math.min(100,Math.max(0,((d.price-d.fiftyTwoWeekLow)/(d.fiftyTwoWeekHigh-d.fiftyTwoWeekLow))*100));
+        document.getElementById('w52Fill').style.width=pos+'%';
+        document.getElementById('w52Dot').style.left=pos+'%';
+        document.getElementById('w52Lo').textContent=fmtVal(d.fiftyTwoWeekLow,cfg.fmt);
+        document.getElementById('w52Hi').textContent=fmtVal(d.fiftyTwoWeekHigh,cfg.fmt);
+      }
     }
   }catch{}
 }
+
+async function setRange(r, btn){
+  _range=r;
+  document.querySelectorAll('#rangeBtns .range-btn').forEach(b=>b.classList.toggle('active',b===btn));
+  loadChart(r);
+}
+
+async function loadChart(range){
+  const box=document.getElementById('chartBox');
+  if(!box) return;
+  try{
+    const r=await fetch(`/api/indices?chart=${encodeURIComponent(_sym)}&range=${range}`);
+    if(!r.ok) throw new Error('http '+r.status);
+    const j=await r.json();
+    if(!j.ok || !j.candles?.length) throw new Error('no data');
+    renderChart(box, j.candles);
+  }catch(e){ box.innerHTML='<div class="loading" style="color:var(--red)">차트 데이터를 불러올 수 없어요.</div>'; }
+}
+
+function renderChart(box, candles){
+  box.innerHTML='';
+  if(_chart){ try{_chart.remove();}catch{} _chart=null; }
+  if(_resizeObs){ try{_resizeObs.disconnect();}catch{} _resizeObs=null; }
+  const up = candles[candles.length-1].close >= candles[0].close;
+  const lineColor = up ? '#3ddb7f' : '#ff6b6b';
+  const chart = LightweightCharts.createChart(box, {
+    width: box.clientWidth || 600, height: box.clientHeight || 400,
+    layout:{ background:{type:'solid',color:'transparent'}, textColor:'#6c7385', fontFamily:'Inter, sans-serif', fontSize:11 },
+    grid:{ vertLines:{color:'rgba(255,255,255,0.06)'}, horzLines:{color:'rgba(255,255,255,0.06)'} },
+    rightPriceScale:{ borderColor:'rgba(255,255,255,0.06)' },
+    timeScale:{ borderColor:'rgba(255,255,255,0.06)', rightOffset:4 },
+    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal },
+  });
+  const series = chart.addAreaSeries({
+    lineColor, topColor: lineColor+'33', bottomColor: lineColor+'00', lineWidth:2,
+    priceFormat:{ type:'price', precision: candles[0].close < 100 ? 2 : (candles[0].close < 10000 ? 2 : 0) },
+  });
+  series.setData(candles.map(c=>({ time:c.date, value:c.close })));
+  chart.timeScale().fitContent();
+  _chart=chart;
+  _resizeObs=new ResizeObserver(()=>{ if(_chart) _chart.applyOptions({width:box.clientWidth, height:box.clientHeight}); });
+  _resizeObs.observe(box);
+}
+
 init();
 </script>
 </body>

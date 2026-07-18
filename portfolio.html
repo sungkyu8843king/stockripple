@@ -277,7 +277,7 @@ function pfSwitchMode(mode) {
   _pfAuthMode = mode;
   const isSignIn = mode === 'signin';
   document.getElementById('pfAuthTitle').textContent = isSignIn ? '로그인' : '회원가입';
-  document.getElementById('pfPassLabel').textContent = isSignIn ? '비밀번호' : '비밀번호 (6자 이상)';
+  document.getElementById('pfPassLabel').textContent = isSignIn ? '비밀번호' : '비밀번호 (영문·숫자·특수문자 포함 8자 이상)';
   document.getElementById('pf_pw').setAttribute('autocomplete', isSignIn ? 'current-password' : 'new-password');
   document.getElementById('pfSubmitBtn').textContent = isSignIn ? '로그인' : '가입하기';
   document.getElementById('pfSwitchText').innerHTML = isSignIn
@@ -288,12 +288,24 @@ function pfSwitchMode(mode) {
 async function pfSignInGoogle() {
   await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + '/portfolio.html' } });
 }
+// 회원가입 비밀번호 규칙 — 영문+숫자+특수문자 조합, 8자 이상. signin에는 적용 안 함(기존 계정 보호).
+function validateSignupPassword(pw) {
+  if (pw.length < 8) return '비밀번호는 8자 이상이어야 합니다.';
+  if (!/[a-zA-Z]/.test(pw)) return '비밀번호에 영문자를 포함해주세요.';
+  if (!/[0-9]/.test(pw)) return '비밀번호에 숫자를 포함해주세요.';
+  if (!/[^a-zA-Z0-9]/.test(pw)) return '비밀번호에 특수문자를 포함해주세요.';
+  return null;
+}
 async function doLogin() {
   const email = document.getElementById('pf_email').value.trim();
   const pw    = document.getElementById('pf_pw').value;
   const err   = document.getElementById('pf_err');
   err.textContent = '';
   if (!email || !pw) { err.textContent = '이메일/비밀번호를 입력하세요'; return; }
+  if (_pfAuthMode === 'signup') {
+    const pwErr = validateSignupPassword(pw);
+    if (pwErr) { err.textContent = pwErr; return; }
+  }
   const { error } = _pfAuthMode === 'signin'
     ? await sb.auth.signInWithPassword({ email, password: pw })
     : await sb.auth.signUp({ email, password: pw });

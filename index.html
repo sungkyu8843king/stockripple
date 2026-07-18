@@ -460,19 +460,6 @@ button { font-family: inherit; }
 @media (max-width: 900px) { .mkt-dash-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
 @media (max-width: 520px) { .mkt-dash-grid { grid-template-columns: minmax(0,1fr); } }
 
-/* 코스피200 야간선물 카드(row4col1, dense 패킹으로 자동 배치)와 같은 행의 남은 3칸을
-   국고채 스트립이 채운다. order:999로 밀어서 — 이 엘리먼트가 DOM상 히어로 바로 다음(JS가
-   나머지 카드를 append하기 전)에 있어도, 그리드 auto-placement가 순서상 반드시 "마지막"으로
-   취급하게 강제(order는 grid auto-placement 순서에도 영향을 준다) — 그래야 row1~3이 카드로
-   전부 채워진 뒤에야 이 요소가 배치되어 야간선물과 같은 4행에 남은 3칸으로 들어간다. */
-.mkt-bond-strip { order: 999; grid-column: 2 / -1; display: flex; align-items: center; gap: 6px 18px; flex-wrap: wrap; padding: 12px 18px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md); }
-.mkt-bond-label { font-size: 11.5px; font-weight: 700; color: var(--text2); flex-shrink: 0; display: flex; align-items: center; gap: 5px; padding-right: 16px; border-right: 1px solid var(--border); }
-.mkt-bond-item { display: flex; align-items: baseline; gap: 6px; }
-.mkt-bond-item small { font-size: 11px; color: var(--text3); font-weight: 600; }
-.mkt-bond-item b { font-family: var(--font-mono); font-size: 13.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-@media (max-width: 900px) { .mkt-bond-strip { grid-column: 1 / -1; } }
-@media (max-width: 600px) { .mkt-bond-strip { gap: 8px 14px; padding: 11px 14px; } .mkt-bond-label { padding-right: 12px; } }
-
 .mkt-hero {
   grid-row: span 2; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
   padding: 16px 18px; display: flex; flex-direction: column; box-shadow: var(--shadow-card);
@@ -1231,10 +1218,6 @@ button { font-family: inherit; }
           </div>
         </a>
         <!-- 나머지 카드 + 코스피200 야간선물 링크는 JS(renderMarketDash)가 채움 -->
-        <div class="mkt-bond-strip" id="mktBondStrip" style="display:none">
-          <span class="mkt-bond-label">🇰🇷 국고채 금리</span>
-          <!-- 만기별 항목은 JS(loadBondStrip)가 채움 -->
-        </div>
       </div>
     </div>
 

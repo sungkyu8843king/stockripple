@@ -1,5 +1,45 @@
+// id → Yahoo 심볼 매핑 (핸들러 본문의 SYMBOLS와 동일한 값 — 차트 히스토리 브랜치가 별도로 참조)
+const SYMBOL_MAP = {
+  sp500: '^GSPC', nasdaq: '^IXIC', dow: '^DJI', kospi: '^KS11', kosdaq: '^KQ11',
+  btc: 'BTC-USD', gold: 'GC=F', oil: 'CL=F', usdkrw: 'KRW=X', vix: '^VIX',
+  us10y: '^TNX', dxy: 'DX-Y.NYB', eth: 'ETH-USD', nikkei: '^N225', hsi: '^HSI',
+  sox: '^SOX', nq: 'NQ=F',
+};
+
+// GET /api/indices?chart=nasdaq&range=6mo — 단일 지표의 일봉 히스토리(시장지표 상세페이지 차트용).
+// TradingView 무료 임베드가 IXIC/KOSPI/KOSDAQ/VIX/SOX/NQ 등 절반 가까이 심볼을 지원 안 해서
+// (2026-07 실측 확인) 자체 차트로 대체 — 이미 신뢰하는 Yahoo 소스라 별도 검증 불필요.
+async function handleChartHistory(id, range, res) {
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+  const symbol = SYMBOL_MAP[id];
+  if (!symbol) return res.status(400).json({ ok: false, error: 'unknown symbol' });
+  const safeRange = ['1mo', '3mo', '6mo', '1y'].includes(range) ? range : '6mo';
+  try {
+    const r = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${safeRange}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'application/json' }, signal: AbortSignal.timeout(8000) }
+    );
+    if (!r.ok) throw new Error(`yahoo http ${r.status}`);
+    const j = await r.json();
+    const result = j?.chart?.result?.[0];
+    const ts = result?.timestamp || [];
+    const q = result?.indicators?.quote?.[0] || {};
+    const candles = [];
+    for (let i = 0; i < ts.length; i++) {
+      const c = q.close?.[i];
+      if (c == null) continue;
+      candles.push({ date: new Date(ts[i] * 1000).toISOString().slice(0, 10), close: c });
+    }
+    return res.status(200).json({ ok: true, id, symbol, candles });
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: e.message });
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.query.chart) return handleChartHistory(req.query.chart, req.query.range, res);
+
   // 홈 대시보드가 1초 간격으로 폴링하지만, 엣지 캐시가 접속자 수와 무관하게 오리진(야후) 호출을
   // 3초에 1회로 묶어준다 — 2026-07-15 팬아웃 사고(quotes 엔드포인트, s-maxage 너무 낮게 잡아
   // 트래픽 증가 시 초당 수십 회로 폭증)와 같은 실수를 반복하지 않도록 너무 낮추지 않을 것.
