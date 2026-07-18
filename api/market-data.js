@@ -41,12 +41,9 @@ export default async function handler(req, res) {
       if (action === 'investor-trading') return handleTossInvestorTrading(req, res);
       if (action === 'fx')              return handleTossFx(req, res);
       if (action === 'quote')           return handleTossQuote(req, res);
-      if (action === 'probe') {         // 임시 — 프록시 경로 실측용, 확인 후 제거
-        const path = (req.query.path || '').toString();
-        if (!path.startsWith('/')) return res.status(400).json({ ok:false, error:'bad path' });
-        const d = await callTossProxy(path);
-        return res.status(200).json({ ok:true, path, data:d });
-      }
+      if (action === 'orderbook')       return handleTossOrderbook(req, res);
+      if (action === 'meta')            return handleTossMeta(req, res);
+      if (action === 'daily')           return handleTossDaily(req, res);
       return handleToss(req, res);
     }
     default:
@@ -321,6 +318,100 @@ async function handleTossQuote(req, res) {
     regularClose, prevClose, regularChange, regularChangePercent,
     exChange, exChangePercent, session,
   });
+}
+
+// GET ?source=toss&action=orderbook&symbol=005930[.KS] — 호가창(10단 매도/매수 + 잔량).
+async function handleTossOrderbook(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=5, stale-while-revalidate=15');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+  const symbol = (req.query.symbol || '').toString().replace(/\.(KS|KQ)$/i, '');
+  if (!symbol) return res.status(400).json({ ok: false, error: 'symbol required' });
+
+  const data = await callTossProxy(`/orderbook?symbol=${encodeURIComponent(symbol)}`);
+  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  const r = data.result || {};
+  const num = v => v != null ? Number(v) : null;
+  return res.status(200).json({
+    ok: true, symbol, currency: r.currency, timestamp: r.timestamp,
+    asks: (r.asks || []).map(a => ({ price: num(a.price), volume: num(a.volume) })),
+    bids: (r.bids || []).map(b => ({ price: num(b.price), volume: num(b.volume) })),
+  });
+}
+
+// GET ?source=toss&action=meta&symbol=005930[.KS] — 종목 마스터(정확한 상장주식수→시총) +
+// 투자유의 경고 + 상/하한가(KR). 히어로 뱃지/시총용으로 한 번에 묶어 조회.
+async function handleTossMeta(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+  const rawSymbol = (req.query.symbol || '').toString();
+  const isKr = /\.(KS|KQ)$/i.test(rawSymbol);
+  const symbol = rawSymbol.replace(/\.(KS|KQ)$/i, '');
+  if (!symbol) return res.status(400).json({ ok: false, error: 'symbol required' });
+
+  const calls = [
+    callTossProxy(`/stocks?symbols=${encodeURIComponent(symbol)}`),
+    callTossProxy(`/stocks/${encodeURIComponent(symbol)}/warnings`),
+  ];
+  if (isKr) calls.push(callTossProxy(`/price-limits?symbol=${encodeURIComponent(symbol)}`));
+  const [stockData, warnData, limitData] = await Promise.all(calls);
+
+  const s = stockData?.result?.[0];
+  if (!s) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  const km = s.koreanMarketDetail || null;
+  const num = v => v != null ? Number(v) : null;
+
+  return res.status(200).json({
+    ok: true,
+    symbol: rawSymbol,
+    name: s.name ?? null,
+    market: s.market ?? null,
+    currency: s.currency ?? null,
+    status: s.status ?? null,                       // ACTIVE / ...
+    listDate: s.listDate ?? null,
+    sharesOutstanding: num(s.sharesOutstanding),    // 정확한 시총 계산용
+    // KR 전용 플래그
+    liquidationTrading: km?.liquidationTrading ?? null,   // 정리매매
+    nxtSupported: km?.nxtSupported ?? null,               // NXT 거래 지원
+    krxTradingSuspended: km?.krxTradingSuspended ?? null, // 거래정지
+    nxtTradingSuspended: km?.nxtTradingSuspended ?? null,
+    warnings: warnData?.result || [],               // 투자유의 배열(빈 배열=정상)
+    upperLimitPrice: limitData?.result?.upperLimitPrice != null ? Number(limitData.result.upperLimitPrice) : null,
+    lowerLimitPrice: limitData?.result?.lowerLimitPrice != null ? Number(limitData.result.lowerLimitPrice) : null,
+  });
+}
+
+// GET ?source=toss&action=daily&symbol=005930[.KS]&count=20 — 일별 시세 표(OHLCV + 전일대비).
+async function handleTossDaily(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+  const symbol = (req.query.symbol || '').toString().replace(/\.(KS|KQ)$/i, '');
+  if (!symbol) return res.status(400).json({ ok: false, error: 'symbol required' });
+  const count = Math.min(Math.max(parseInt(req.query.count) || 20, 1), 60);
+
+  // 전일대비 계산 위해 요청 개수 + 1개 더 받아 마지막 기준점 확보
+  const data = await callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=${count + 1}`);
+  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  const candles = data.result?.candles || [];   // 최신순(내림차순)
+  const num = v => v != null ? Number(v) : null;
+  const rows = [];
+  for (let i = 0; i < candles.length && rows.length < count; i++) {
+    const c = candles[i];
+    const prev = candles[i + 1];   // 하루 이전
+    const close = num(c.closePrice);
+    const prevClose = prev ? num(prev.closePrice) : null;
+    rows.push({
+      date: c.timestamp ? c.timestamp.slice(0, 10) : null,
+      close,
+      open: num(c.openPrice), high: num(c.highPrice), low: num(c.lowPrice),
+      volume: num(c.volume),
+      change: prevClose != null ? close - prevClose : null,
+      changePercent: prevClose ? ((close - prevClose) / prevClose) * 100 : null,
+    });
+  }
+  return res.status(200).json({ ok: true, symbol, currency: candles[0]?.currency ?? null, rows });
 }
 
 const SHARED_HEADERS = {
