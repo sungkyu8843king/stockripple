@@ -1772,7 +1772,7 @@ document.addEventListener('keydown', e => {
 // ═══ 📊 실시간 랭킹 (토스 공식) — index.html 전용 ═══
 // 인기(TOSS_SECURITIES_거래대금)/거래대금/거래량은 realtime, 급상승/급하락은 1d.
 // 장 마감이어도 마지막 정규장 데이터가 나온다(서버 handleTossRankingsAll에서 처리).
-const RK_CAT_METRIC = { popular:'amount', amount:'amount', volume:'volume', gainers:null, losers:null };
+const RK_CAT_METRIC = { popular:null, amount:'amount', volume:'volume', gainers:null, losers:null };
 let _rkMarket = 'all', _rkCat = 'popular';
 const _rkCache = { kr:null, us:null };
 let _rkTimer = null;
@@ -1800,18 +1800,19 @@ function _rkList(items, cat){
   }).join('') + '</div>';
 }
 
+// 캐시가 아직 없으면(로딩/실패) 빈 '데이터 없음' 대신 로딩 표시 — 초기 콜드로드 시
+// 한쪽 시장만 늦게 오는 경우 사용자가 빈 컬럼을 오인하지 않게.
+function _rkColInner(cache, cat){ return cache ? _rkList(cache.categories?.[cat] || [], cat) : '<div class="rk-loading">불러오는 중...</div>'; }
 function _rkRender(){
   const body = document.getElementById('rankingsBody');
   if(!body) return;
-  const krItems = _rkCache.kr?.categories?.[_rkCat] || [];
-  const usItems = _rkCache.us?.categories?.[_rkCat] || [];
   if(_rkMarket==='all'){
     body.innerHTML = `<div class="rk-cols">
-      <div><div class="rk-col-head">🇰🇷 국장</div>${_rkList(krItems,_rkCat)}</div>
-      <div><div class="rk-col-head">🇺🇸 해외</div>${_rkList(usItems,_rkCat)}</div>
+      <div><div class="rk-col-head">🇰🇷 국장</div>${_rkColInner(_rkCache.kr,_rkCat)}</div>
+      <div><div class="rk-col-head">🇺🇸 해외</div>${_rkColInner(_rkCache.us,_rkCat)}</div>
     </div>`;
   } else {
-    body.innerHTML = `<div class="rk-cols single">${_rkList(_rkMarket==='kr'?krItems:usItems,_rkCat)}</div>`;
+    body.innerHTML = `<div class="rk-cols single">${_rkColInner(_rkMarket==='kr'?_rkCache.kr:_rkCache.us,_rkCat)}</div>`;
   }
   const upd = document.getElementById('rankingsUpdated');
   const ts = _rkCache.kr?.updatedAt || _rkCache.us?.updatedAt;
@@ -1822,8 +1823,13 @@ function setRkMarket(m, btn){ _rkMarket=m; document.querySelectorAll('.rk-mkt').
 function setRkCat(c, btn){ _rkCat=c; document.querySelectorAll('.rk-cat').forEach(b=>b.classList.toggle('active',b===btn)); _rkRender(); }
 
 async function _rkFetch(market){
-  try { const r = await fetch(`/api/toss?action=rankings-all&market=${market}&count=12`); if(!r.ok) return null; const j = await r.json(); return j.ok ? j : null; }
-  catch { return null; }
+  // 콜드 스타트 시 첫 호출이 느려 실패할 수 있어 1회 재시도.
+  for(let attempt=0; attempt<2; attempt++){
+    try { const r = await fetch(`/api/toss?action=rankings-all&market=${market}&count=12`); if(r.ok){ const j = await r.json(); if(j.ok) return j; } }
+    catch {}
+    if(attempt===0) await new Promise(res=>setTimeout(res,900));
+  }
+  return null;
 }
 // 현재 필터에 필요한 시장만 로드(캐시에 없으면). 전체=kr+us, 국장=kr, 해외=us.
 async function _rkEnsure(force){
