@@ -1095,6 +1095,33 @@ button { font-family: inherit; }
   .nav-btn { padding: 6px 9px; font-size: 12px; }
 }
 
+/* ═══ 📊 실시간 랭킹 (토스) ═══ */
+.rk-controls { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.rk-markets { display: inline-flex; gap: 2px; background: var(--bg3); border-radius: 10px; padding: 3px; align-self: flex-start; }
+.rk-mkt { border: none; background: transparent; color: var(--text2); font-size: 13px; font-weight: 700; padding: 7px 18px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.rk-mkt.active { background: var(--blue); color: #fff; }
+.rk-cats { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; scrollbar-width: none; }
+.rk-cats::-webkit-scrollbar { display: none; }
+.rk-cat { border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 12.5px; font-weight: 600; padding: 7px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+.rk-cat.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.rk-cols { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+.rk-cols.single { grid-template-columns: minmax(0,1fr); }
+.rk-col-head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text2); margin-bottom: 8px; padding-left: 2px; }
+.rk-list { display: flex; flex-direction: column; }
+.rk-item { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: 10px; text-decoration: none; color: var(--text); transition: background var(--t-fast); }
+.rk-item:hover { background: var(--bg2); }
+.rk-rank { width: 20px; text-align: center; font-size: 13px; font-weight: 800; color: var(--text3); font-family: var(--font-mono); flex-shrink: 0; }
+.rk-item:nth-child(-n+3) .rk-rank { color: var(--blue); }
+.rk-main { flex: 1; min-width: 0; }
+.rk-name { font-size: 13.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rk-sub { font-size: 10.5px; color: var(--text3); margin-top: 1px; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rk-price { text-align: right; flex-shrink: 0; }
+.rk-px { font-size: 13px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rk-chg { font-size: 12px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 1px; }
+.rk-chg.up { color: var(--green); } .rk-chg.dn { color: var(--red); } .rk-chg.flat { color: var(--text3); }
+.rk-loading, .rk-empty { text-align: center; color: var(--text3); font-size: 13px; padding: 30px 20px; }
+@media (max-width: 640px) { .rk-cols { grid-template-columns: minmax(0,1fr); } }
+
 </style>
 </head>
 <body>
@@ -1197,19 +1224,33 @@ button { font-family: inherit; }
       </div>
     </div>
 
-    <!-- 🎯 지금 매수 후보 -->
-    <div id="insightsSection" class="section-block" style="display:none">
+    <!-- 📊 실시간 랭킹 (토스 공식) -->
+    <div id="rankingsSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
           <span class="sh-mark"></span>
-          <span class="sh-title">지금 매수 후보</span>
-          <span class="sh-desc">AI 예측 · 기술 시그널 · 수급 · 펀더멘털 통합 랭킹</span>
+          <span class="sh-title">실시간 랭킹</span>
+          <span class="sh-desc">토스 공식 · 장 마감 시 마지막 정규장 기준</span>
         </div>
         <div class="section-head-r">
-          <span style="font-size:11px;color:var(--text3)" id="insightsUpdated">—</span>
+          <span style="font-size:11px;color:var(--text3)" id="rankingsUpdated">—</span>
         </div>
       </div>
-      <div id="insightsPanel"></div>
+      <div class="rk-controls">
+        <div class="rk-markets" id="rkMarkets">
+          <button class="rk-mkt active" data-mkt="all" onclick="setRkMarket('all',this)">전체</button>
+          <button class="rk-mkt" data-mkt="kr" onclick="setRkMarket('kr',this)">국장</button>
+          <button class="rk-mkt" data-mkt="us" onclick="setRkMarket('us',this)">해외</button>
+        </div>
+        <div class="rk-cats" id="rkCats">
+          <button class="rk-cat active" data-cat="popular" onclick="setRkCat('popular',this)">🔥 인기</button>
+          <button class="rk-cat" data-cat="amount" onclick="setRkCat('amount',this)">💰 거래대금</button>
+          <button class="rk-cat" data-cat="volume" onclick="setRkCat('volume',this)">📊 거래량</button>
+          <button class="rk-cat" data-cat="gainers" onclick="setRkCat('gainers',this)">🚀 급상승</button>
+          <button class="rk-cat" data-cat="losers" onclick="setRkCat('losers',this)">📉 급하락</button>
+        </div>
+      </div>
+      <div id="rankingsBody"><div class="rk-loading">불러오는 중...</div></div>
     </div>
 
     <!-- 📢 피드 광고 (2026-07 개편: 매수 후보 아래로 이동) -->
@@ -1727,6 +1768,77 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && document.getElementById('indexChartModal').style.display === 'flex')
     closeIndexChart();
 });
+
+// ═══ 📊 실시간 랭킹 (토스 공식) — index.html 전용 ═══
+// 인기(TOSS_SECURITIES_거래대금)/거래대금/거래량은 realtime, 급상승/급하락은 1d.
+// 장 마감이어도 마지막 정규장 데이터가 나온다(서버 handleTossRankingsAll에서 처리).
+const RK_CAT_METRIC = { popular:'amount', amount:'amount', volume:'volume', gainers:null, losers:null };
+let _rkMarket = 'all', _rkCat = 'popular';
+const _rkCache = { kr:null, us:null };
+let _rkTimer = null;
+
+function _rkEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _rkPrice(v,cur){ if(v==null) return '—'; return cur==='KRW' ? '₩'+Math.round(v).toLocaleString('ko-KR') : '$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:2}); }
+function _rkAmount(v,cur){ if(v==null) return ''; if(cur==='KRW'){ if(v>=1e12) return (v/1e12).toFixed(1)+'조'; if(v>=1e8) return Math.round(v/1e8).toLocaleString()+'억'; return Math.round(v).toLocaleString(); } if(v>=1e9) return '$'+(v/1e9).toFixed(1)+'B'; if(v>=1e6) return '$'+(v/1e6).toFixed(0)+'M'; return '$'+Math.round(v).toLocaleString(); }
+function _rkVol(v){ if(v==null) return ''; if(v>=1e8) return (v/1e8).toFixed(1)+'억'; if(v>=1e4) return Math.round(v/1e4).toLocaleString()+'만'; return Math.round(v).toLocaleString(); }
+
+function _rkList(items, cat){
+  if(!items || !items.length) return '<div class="rk-empty">데이터가 없어요.</div>';
+  const metric = RK_CAT_METRIC[cat];
+  return '<div class="rk-list">' + items.map(it => {
+    const cls = it.changePercent==null ? 'flat' : it.changePercent>0 ? 'up' : it.changePercent<0 ? 'dn' : 'flat';
+    const sign = it.changePercent>0 ? '+' : '';
+    const chg = it.changePercent==null ? '—' : `${sign}${it.changePercent.toFixed(2)}%`;
+    let sub = it.symbol;
+    if (metric==='amount') sub += ' · 거래대금 ' + _rkAmount(it.tradingAmount, it.currency);
+    else if (metric==='volume') sub += ' · 거래량 ' + _rkVol(it.tradingVolume);
+    return `<a class="rk-item" href="/company.html?ticker=${encodeURIComponent(it.linkTicker)}">
+      <span class="rk-rank">${it.rank}</span>
+      <div class="rk-main"><div class="rk-name">${_rkEsc(it.name)}</div><div class="rk-sub">${_rkEsc(sub)}</div></div>
+      <div class="rk-price"><div class="rk-px">${_rkPrice(it.price,it.currency)}</div><div class="rk-chg ${cls}">${chg}</div></div>
+    </a>`;
+  }).join('') + '</div>';
+}
+
+function _rkRender(){
+  const body = document.getElementById('rankingsBody');
+  if(!body) return;
+  const krItems = _rkCache.kr?.categories?.[_rkCat] || [];
+  const usItems = _rkCache.us?.categories?.[_rkCat] || [];
+  if(_rkMarket==='all'){
+    body.innerHTML = `<div class="rk-cols">
+      <div><div class="rk-col-head">🇰🇷 국장</div>${_rkList(krItems,_rkCat)}</div>
+      <div><div class="rk-col-head">🇺🇸 해외</div>${_rkList(usItems,_rkCat)}</div>
+    </div>`;
+  } else {
+    body.innerHTML = `<div class="rk-cols single">${_rkList(_rkMarket==='kr'?krItems:usItems,_rkCat)}</div>`;
+  }
+  const upd = document.getElementById('rankingsUpdated');
+  const ts = _rkCache.kr?.updatedAt || _rkCache.us?.updatedAt;
+  if(upd && ts) upd.textContent = new Date(ts).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit'}) + ' 기준';
+}
+
+function setRkMarket(m, btn){ _rkMarket=m; document.querySelectorAll('.rk-mkt').forEach(b=>b.classList.toggle('active',b===btn)); _rkEnsure().then(_rkRender); }
+function setRkCat(c, btn){ _rkCat=c; document.querySelectorAll('.rk-cat').forEach(b=>b.classList.toggle('active',b===btn)); _rkRender(); }
+
+async function _rkFetch(market){
+  try { const r = await fetch(`/api/toss?action=rankings-all&market=${market}&count=12`); if(!r.ok) return null; const j = await r.json(); return j.ok ? j : null; }
+  catch { return null; }
+}
+// 현재 필터에 필요한 시장만 로드(캐시에 없으면). 전체=kr+us, 국장=kr, 해외=us.
+async function _rkEnsure(force){
+  const need = _rkMarket==='all' ? ['kr','us'] : [_rkMarket];
+  const load = force ? need : need.filter(m => !_rkCache[m]);
+  await Promise.all(load.map(async m => { const d = await _rkFetch(m==='kr'?'KR':'US'); if(d) _rkCache[m]=d; }));
+}
+async function initRankings(){
+  if(!document.getElementById('rankingsSection')) return;
+  await _rkEnsure();
+  _rkRender();
+  if(_rkTimer) clearInterval(_rkTimer);
+  _rkTimer = setInterval(async () => { if(document.hidden) return; await _rkEnsure(true); _rkRender(); }, 30000);
+}
+initRankings();
 </script>
 </body>
 </html>
