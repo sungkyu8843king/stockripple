@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>말말말 — StockRipple</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15171e; --bg2:#1e2129; --bg3:#262a34; --bg4:#2f333f;
+  --border:rgba(255,255,255,0.075); --border-strong:rgba(255,255,255,0.16);
+  --text:#f2f4f8; --text2:#a6adbb; --text3:#6c7385;
+  --red:#ff6b6b; --green:#3ddb7f; --blue:#4d8dff; --yellow:#f0b45e; --purple:#9d7bff;
+  --blue-dim:rgba(77,141,255,0.14);
+  --mono:'SF Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.55}
+a{color:inherit}
+.wrap{max-width:920px;margin:0 auto;padding:18px 20px 70px}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg2)}
+.back:hover{border-color:var(--border-strong);color:var(--text)}
+.brand{font-size:15px;font-weight:800;letter-spacing:-.02em;margin-left:auto}.brand a{color:var(--text);text-decoration:none}
+.page-title{font-size:25px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:9px}
+.page-sub{font-size:13px;color:var(--text3);margin:5px 0 20px}
+.topic-tabs{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.topic-tab{border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:14px;font-weight:700;padding:11px 18px;border-radius:12px;cursor:pointer;white-space:nowrap}
+.topic-tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.topic-hero{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px 22px;margin-bottom:22px}
+.th-title{font-size:19px;font-weight:750;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.th-intro{font-size:13.5px;color:var(--text2);line-height:1.7;margin-top:10px}
+.rel-label{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.06em;margin:18px 0 10px;text-transform:uppercase}
+.rel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px}
+.rel-card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 13px;text-decoration:none;display:block;transition:border-color .15s,transform .15s}
+.rel-card:hover{border-color:var(--border-strong);transform:translateY(-1px)}
+.rel-name{font-size:12px;color:var(--text2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rel-px{font-size:16px;font-weight:800;font-family:var(--mono);letter-spacing:-.02em;margin-top:5px;font-variant-numeric:tabular-nums}
+.rel-chg{font-size:12px;font-weight:700;font-family:var(--mono);margin-top:1px}
+.rel-chg.up{color:var(--green)}.rel-chg.dn{color:var(--red)}.rel-chg.flat{color:var(--text3)}
+.tl-label{font-size:14px;font-weight:750;margin:4px 0 13px;display:flex;align-items:center;gap:7px}
+.timeline{position:relative;padding-left:20px}
+.timeline::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:var(--border)}
+.tl-item{display:block;position:relative;padding:0 0 18px 8px;text-decoration:none}
+.tl-item::before{content:"";position:absolute;left:-19px;top:5px;width:9px;height:9px;border-radius:50%;background:var(--blue);border:2px solid var(--bg)}
+.tl-meta{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+.tl-date{font-size:11.5px;font-family:var(--mono);color:var(--text3);font-variant-numeric:tabular-nums}
+.tl-src{font-size:10.5px;color:var(--text3);background:var(--bg3);padding:1px 8px;border-radius:6px}
+.tl-title{font-size:14.5px;font-weight:650;line-height:1.5;color:var(--text)}
+.tl-item:hover .tl-title{color:var(--blue)}
+.tl-sum{font-size:12.5px;color:var(--text2);line-height:1.65;margin-top:5px}
+.loading,.empty{padding:34px;text-align:center;color:var(--text3);font-size:13px}
+@media (max-width:560px){ .page-title{font-size:21px} .rel-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="/index.html">← 홈</a>
+    <span class="brand"><a href="/index.html">StockRipple</a></span>
+  </div>
+  <div class="page-title">💬 말말말</div>
+  <div class="page-sub">지금 시장을 흔드는 주제를 타임라인으로. 헤드라인·출처·한줄 상황과 연관 지수·종목의 움직임까지.</div>
+  <div class="topic-tabs" id="topicTabs"></div>
+  <div id="topicBody"><div class="loading">불러오는 중...</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const sb = supabase.createClient('https://nmvfffzpkqyzztiobwtt.supabase.co', 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f');
+
+const TOPICS = [
+  {
+    id:'iran', emoji:'🛢️', title:'미·이란 전쟁',
+    intro:'미국과 이란의 군사 충돌이 중동 정세를 흔들고 있어요. 호르무즈 해협·원유 공급 우려가 커지면 유가·금·방산주가 출렁이고, 항공·해운은 비용 압박을 받습니다.',
+    keywords:['Iran','이란','Israel','이스라엘','Hormuz','호르무즈','중동','Middle East','Tehran','테헤란','Kuwait','Strait'],
+    indices:[{sym:'oil',name:'WTI 원유'},{sym:'gold',name:'금'}],
+    stocks:[{t:'012450.KS',name:'한화에어로스페이스'},{t:'079550.KS',name:'LIG넥스원'},{t:'003490.KS',name:'대한항공'}],
+  },
+  {
+    id:'lev', emoji:'📈', title:'코스피 레버리지 상품',
+    intro:'증시 급락 속에서도 개인 투자자들이 레버리지·인버스 상품에 대규모로 베팅하며, 위험 경고와 매수 문턱 인상 논의가 나오고 있어요. 지수 방향에 2배로 연동돼 변동성이 큽니다.',
+    keywords:['레버리지','인버스','곱버스'],
+    indices:[{sym:'kospi',name:'코스피'},{sym:'kosdaq',name:'코스닥'}],
+    stocks:[{t:'122630.KS',name:'KODEX 레버리지'},{t:'252670.KS',name:'KODEX 200선물인버스2X'},{t:'005930.KS',name:'삼성전자'},{t:'000660.KS',name:'SK하이닉스'}],
+  },
+];
+let _topic = TOPICS[0].id;
+
+function fmtDate(iso){ return iso ? iso.slice(5,10).replace('-','.') : ''; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function chgCls(v){ return v==null?'flat':v>0?'up':v<0?'dn':'flat'; }
+function fmtChg(v){ if(v==null) return '—'; const s=v>0?'+':''; return `${s}${v.toFixed(2)}%`; }
+function fmtPx(v,cur){ if(v==null) return '—'; return cur==='KRW' ? '₩'+Math.round(v).toLocaleString('ko-KR') : (cur==='USD'?'$':'')+Number(v).toLocaleString('en-US',{maximumFractionDigits:2}); }
+
+function renderTabs(){
+  document.getElementById('topicTabs').innerHTML = TOPICS.map(t =>
+    `<button class="topic-tab ${t.id===_topic?'active':''}" onclick="selectTopic('${t.id}')">${t.emoji} ${esc(t.title)}</button>`).join('');
+}
+function selectTopic(id){ _topic = id; renderTabs(); loadTopic(); }
+
+async function loadTopic(){
+  const topic = TOPICS.find(t=>t.id===_topic);
+  const body = document.getElementById('topicBody');
+  body.innerHTML = `
+    <div class="topic-hero">
+      <div class="th-title">${topic.emoji} ${esc(topic.title)}</div>
+      <div class="th-intro">${esc(topic.intro)}</div>
+      <div class="rel-label">📊 연관 지수·종목 현황</div>
+      <div class="rel-grid" id="relGrid"><div class="loading" style="grid-column:1/-1">시세 불러오는 중...</div></div>
+    </div>
+    <div class="tl-label">🕒 이슈 타임라인</div>
+    <div id="timeline"><div class="loading">뉴스 불러오는 중...</div></div>`;
+  loadRelated(topic);
+  loadTimeline(topic);
+}
+
+async function loadRelated(topic){
+  const grid = document.getElementById('relGrid');
+  try{
+    const [idxJson, qJson] = await Promise.all([
+      fetch('/api/indices').then(r=>r.ok?r.json():null).catch(()=>null),
+      topic.stocks.length ? fetch('/api/quotes?tickers='+topic.stocks.map(s=>encodeURIComponent(s.t)).join(',')).then(r=>r.ok?r.json():null).catch(()=>null) : null,
+    ]);
+    const idxData = idxJson?.data || {};
+    const qData = qJson?.data || {};
+    const cards = [];
+    for(const i of topic.indices){
+      const d = idxData[i.sym];
+      cards.push(`<a class="rel-card" href="/market-detail.html?sym=${i.sym}"><div class="rel-name">${esc(i.name)}</div><div class="rel-px">${fmtPx(d?.price, i.sym==='oil'||i.sym==='gold'?'USD':'')}</div><div class="rel-chg ${chgCls(d?.changePercent)}">${fmtChg(d?.changePercent)}</div></a>`);
+    }
+    for(const s of topic.stocks){
+      const d = qData[s.t];
+      cards.push(`<a class="rel-card" href="/company.html?ticker=${encodeURIComponent(s.t)}"><div class="rel-name">${esc(s.name)}</div><div class="rel-px">${fmtPx(d?.price, d?.currency||'KRW')}</div><div class="rel-chg ${chgCls(d?.changePercent)}">${fmtChg(d?.changePercent)}</div></a>`);
+    }
+    grid.innerHTML = cards.join('');
+  }catch{ grid.innerHTML = '<div class="empty" style="grid-column:1/-1">시세를 불러올 수 없어요.</div>'; }
+}
+
+async function loadTimeline(topic){
+  const tl = document.getElementById('timeline');
+  try{
+    const orClause = topic.keywords.map(k=>`title.ilike.%${k}%`).join(',');
+    const { data, error } = await sb.from('issues')
+      .select('id,title,summary,source_url,source_name,published_at')
+      .or(orClause).order('published_at',{ascending:false}).limit(30);
+    if(error) throw error;
+    // 같은 사건 중복(매체별) 제거 — 제목 앞부분 기준
+    const seen = new Set(); const items = [];
+    for(const it of (data||[])){
+      const key = (it.title||'').replace(/["'“”‘’]/g,'').slice(0,24).toLowerCase();
+      if(seen.has(key)) continue; seen.add(key);
+      items.push(it); if(items.length>=15) break;
+    }
+    if(!items.length){ tl.innerHTML = '<div class="empty">아직 이 주제의 뉴스가 없어요.</div>'; return; }
+    tl.innerHTML = '<div class="timeline">' + items.map(it=>{
+      const href = it.source_url || `/analysis.html?id=${it.id}`;
+      const ext = it.source_url ? ' target="_blank" rel="noopener"' : '';
+      return `<a class="tl-item" href="${esc(href)}"${ext}>
+        <div class="tl-meta"><span class="tl-date">${fmtDate(it.published_at)}</span><span class="tl-src">${esc(it.source_name||'')}</span></div>
+        <div class="tl-title">${esc(it.title)}</div>
+        ${it.summary ? `<div class="tl-sum">${esc(it.summary)}</div>` : ''}
+      </a>`;
+    }).join('') + '</div>';
+  }catch(e){ tl.innerHTML = '<div class="empty">뉴스를 불러올 수 없어요.</div>'; }
+}
+
+renderTabs();
+loadTopic();
+</script>
+</body>
+</html>
