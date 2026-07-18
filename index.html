@@ -1831,16 +1831,23 @@ async function _rkFetch(market){
   }
   return null;
 }
-// 현재 필터에 필요한 시장만 로드(캐시에 없으면). 전체=kr+us, 국장=kr, 해외=us.
+// 현재 필터에 필요한 시장만 로드. 전체=kr+us, 국장=kr, 해외=us.
+// 시장을 '순차' 로드해 콜드 프록시에 몰리는 동시 Toss 콜을 절반으로 줄이고(12→6),
+// 각 시장이 준비될 때마다 즉시 렌더(점진 표시).
 async function _rkEnsure(force){
   const need = _rkMarket==='all' ? ['kr','us'] : [_rkMarket];
-  const load = force ? need : need.filter(m => !_rkCache[m]);
-  await Promise.all(load.map(async m => { const d = await _rkFetch(m==='kr'?'KR':'US'); if(d) _rkCache[m]=d; }));
+  for(const m of need){
+    if(!force && _rkCache[m]) continue;
+    const d = await _rkFetch(m==='kr'?'KR':'US');
+    if(d) { _rkCache[m] = d; _rkRender(); }
+  }
 }
 async function initRankings(){
   if(!document.getElementById('rankingsSection')) return;
   await _rkEnsure();
   _rkRender();
+  // 콜드 스타트 시 첫 응답의 일부 카테고리가 빌 수 있어(프록시 워밍업) 3초 뒤 한 번 더 강제 갱신.
+  setTimeout(async () => { await _rkEnsure(true); _rkRender(); }, 3000);
   if(_rkTimer) clearInterval(_rkTimer);
   _rkTimer = setInterval(async () => { if(document.hidden) return; await _rkEnsure(true); _rkRender(); }, 30000);
 }
