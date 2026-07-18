@@ -249,6 +249,23 @@ async function handleTossRankingsAll(req, res) {
     const stocks = await callTossProxy(`/stocks?symbols=${encodeURIComponent(symList.join(','))}`);
     for (const s of stocks?.result || []) nameMap[s.symbol] = { name: s.name || s.englishName || s.symbol, market: s.market || null };
   }
+  // 미장 소형 레버리지/인버스 ETF 등은 Toss가 한글명이 없어 티커를 그대로 name으로 줌
+  // (예: KOLD) — 이런 것만 골라 Yahoo shortName(정식 영문명)으로 보강. 완전 실패해도 티커 유지.
+  if (market === 'US') {
+    const needFallback = symList.filter(s => !nameMap[s]?.name || nameMap[s].name === s);
+    if (needFallback.length) {
+      await mapWithConcurrency(needFallback, 6, async (sym) => {
+        try {
+          const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`,
+            { headers: SHARED_HEADERS, signal: AbortSignal.timeout(5000) });
+          if (!r.ok) return;
+          const j = await r.json();
+          const short = j?.chart?.result?.[0]?.meta?.shortName;
+          if (short) nameMap[sym] = { ...(nameMap[sym] || {}), name: short };
+        } catch {}
+      });
+    }
+  }
 
   const suffix = mk => mk === 'KOSDAQ' ? '.KQ' : '.KS';
   const categories = {};
