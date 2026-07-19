@@ -448,7 +448,10 @@ async function handleTossQuote(req, res) {
     const isHoliday = !calA?.result?.today?.integrated;
     if (!isHoliday) {
       const kstMinutes = (m => m.getUTCHours() * 60 + m.getUTCMinutes())(new Date(kstNowMs + 9 * 3600000));
-      if (kstMinutes >= 8 * 60 && kstMinutes < 8 * 60 + 50) session = 'PRE';
+      // NXT는 08:50-09:00·15:20-15:30에 실제 주문체결이 멈추지만(휴장), 사용자 입장에선 그
+      // 짧은 공백까지 "마감"으로 보이면 혼란스러우므로(정규장 시작 10분 전을 마감이라 부를 수 없음)
+      // 라벨은 그 공백을 각각 앞뒤 세션(프리장/정규장)에 붙여 09:00 개장 전엔 계속 프리장으로 둔다.
+      if (kstMinutes >= 8 * 60 && kstMinutes < 9 * 60) session = 'PRE';
       else if (kstMinutes >= 9 * 60 && kstMinutes < 15 * 60 + 30) session = 'REGULAR';
       else if (kstMinutes >= 15 * 60 + 30 && kstMinutes < 20 * 60) session = 'POST';
     }

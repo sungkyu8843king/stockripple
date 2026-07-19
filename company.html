@@ -1389,12 +1389,19 @@ function buildStatBar(priceData) {
   const fmtP = v => v == null ? '—' : (isKrw ? Math.round(v).toLocaleString('ko-KR') : Number(v).toFixed(2));
   const fmtVol = v => { if (v == null) return '—'; if (v >= 1e8) return (v/1e8).toFixed(1)+'억'; if (v >= 1e4) return Math.round(v/1e4).toLocaleString()+'만'; return v.toLocaleString(); };
   const tradingValue = priceData.volume != null ? priceData.volume * priceData.price : null;
+  const volFallback = fmtVol(priceData.volume) + (isKrw ? '주' : '');
+  const amtFallback = fmtMoneyShort(tradingValue, isKrw);
+  const lowFallback = priceData.dayLow != null ? cur + fmtP(priceData.dayLow) : '—';
+  const highFallback = priceData.dayHigh != null ? cur + fmtP(priceData.dayHigh) : '—';
   const cells = [
-    ['거래량', fmtVol(priceData.volume) + (isKrw ? '주' : '')],
-    ['거래대금', fmtMoneyShort(tradingValue, isKrw)],
+    // Yahoo 값을 초깃값으로 먼저 보여주고, loadDailyTable()이 Toss 일별시세(오늘/최근 거래일 실측
+    // 거래량·시가·고저)로 곧바로 덮어씀 — 국내 종목은 NXT 프리/애프터장에 Yahoo가 0을 주는 경우가
+    // 많아(2026-07 실측) Toss가 사실상 항상 최종값이 된다. Toss 실패 시엔 Yahoo 값이 그대로 남음.
+    ['거래량', `<span id="statVolume">${volFallback}</span>`],
+    ['거래대금', `<span id="statAmount">${amtFallback}</span>`],
     ['시가', '<span id="statOpen">—</span>'],
-    ['1일 최저', priceData.dayLow != null ? cur + fmtP(priceData.dayLow) : '—'],
-    ['1일 최고', priceData.dayHigh != null ? cur + fmtP(priceData.dayHigh) : '—'],
+    ['1일 최저', `<span id="statLow">${lowFallback}</span>`],
+    ['1일 최고', `<span id="statHigh">${highFallback}</span>`],
     ['시가총액', '<span id="statMktCap">—</span>'],
   ];
   const statCells = cells.map(([k, v]) => `<div class="stat-cell"><div class="stat-k">${k}</div><div class="stat-v">${v}</div></div>`).join('');
@@ -1988,9 +1995,18 @@ async function loadDailyTable(ticker) {
     const d = await r.json();
     if (!d.ok || !d.rows.length) { wrap.innerHTML = '<div class="cmp-empty">일별 시세가 없어요.</div>'; return; }
     const isKrw = d.currency === 'KRW';
-    // 스탯바 '시가'를 최신일 시가로 채움
-    const openEl = document.getElementById('statOpen');
-    if (openEl && d.rows[0].open != null) openEl.textContent = (isKrw ? '₩' : '$') + (isKrw ? Math.round(d.rows[0].open).toLocaleString('ko-KR') : d.rows[0].open.toFixed(2));
+    const cur = isKrw ? '₩' : '$';
+    const fmtP = v => v == null ? '—' : (isKrw ? Math.round(v).toLocaleString('ko-KR') : Number(v).toFixed(2));
+    const fmtVol = v => { if (v == null) return '—'; if (v >= 1e8) return (v/1e8).toFixed(1)+'억'; if (v >= 1e4) return Math.round(v/1e4).toLocaleString()+'만'; return v.toLocaleString(); };
+    // 스탯바 시가/거래량/거래대금/1일 최저·최고를 최신 거래일(Toss 일별시세) 값으로 덮어씀 —
+    // Yahoo는 국내 종목 NXT 프리/애프터장에 0을 주는 경우가 많아(2026-07 실측) 초깃값일 뿐임.
+    const today = d.rows[0];
+    const setStat = (id, text) => { const el = document.getElementById(id); if (el && text != null) el.textContent = text; };
+    setStat('statOpen', today.open != null ? cur + fmtP(today.open) : null);
+    setStat('statVolume', today.volume != null ? fmtVol(today.volume) + (isKrw ? '주' : '') : null);
+    setStat('statAmount', (today.volume != null && today.close != null) ? fmtMoneyShort(today.volume * today.close, isKrw) : null);
+    setStat('statLow', today.low != null ? cur + fmtP(today.low) : null);
+    setStat('statHigh', today.high != null ? cur + fmtP(today.high) : null);
     wrap.innerHTML = renderDailyTable(d);
   } catch { wrap.innerHTML = '<div class="cmp-empty">일별 시세를 불러올 수 없어요.</div>'; }
 }
