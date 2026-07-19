@@ -33,7 +33,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } catch {}
 })();
 
-const PAGE_SIZE = 8;   // 홈 미리보기 노출량 축소 (기존 20 → 8, 페이지네이션으로 더 보기)
+const PAGE_SIZE = 9;   // 홈 미리보기 노출량 축소(기존 20 → 8) 후 3열 그리드에서 8개면 마지막 줄이 비어 보여 9로 조정(3x3 꽉 참)
 let currentPage = 1;
 let currentSector = 'all';
 let searchQuery = '';

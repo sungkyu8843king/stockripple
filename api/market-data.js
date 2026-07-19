@@ -240,6 +240,16 @@ async function handleTossRankingsAll(req, res) {
   ));
   if (raw.every(d => !d)) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
 
+  // realtime이 빈 배열을 주는 경우가 실측됨(장 마감 시간대의 US 마켓에서 특히 자주) — 주석의
+  // "장 마감이어도 마지막 정규장 반환"이 실제론 시장/카테고리에 따라 보장되지 않으므로,
+  // gainers/losers가 애초에 1d를 쓰는 것과 같은 이유로 1d 폴백을 추가한다.
+  await Promise.all(CATS.map(async (c, i) => {
+    if (c.duration === 'realtime' && !(raw[i]?.result?.rankings?.length)) {
+      const fallback = await callTossProxy(`/rankings?type=${c.type}&marketCountry=${market}&duration=1d&count=${count}`);
+      if (fallback?.result?.rankings?.length) raw[i] = fallback;
+    }
+  }));
+
   // 종목명·시장 배치 해석 (랭킹 아이템엔 이름이 없음)
   const symSet = new Set();
   raw.forEach(d => (d?.result?.rankings || []).forEach(r => { if (r.symbol) symSet.add(r.symbol); }));

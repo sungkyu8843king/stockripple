@@ -101,6 +101,7 @@ export default async function handler(req, res) {
   if (action === 'dart-upload-corp-codes') return handleDartUploadCorpCodes(req, res);
   if (action === 'verify-kr-names') return handleVerifyKrNames(req, res);
   if (action === 'fix-kr-broken-names') return handleFixKrBrokenNames(req, res);
+  if (action === 'fix-broken-titles') return handleFixBrokenTitles(req, res);
   if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
   if (action === 'daily-report') return handleDailyReportPost(req, res);
   if (action === 'weekly-schedule') return handleWeeklySchedulePost(req, res);
@@ -2146,6 +2147,47 @@ async function handleFixKrBrokenNames(req, res) {
     brokenFound: broken.length,
     fixed: results.filter(r => r.ok).length,
     results,
+  });
+}
+
+// 구글뉴스 RSS 등이 title/summary에 <a>/<font> 태그 + &nbsp; 등 엔티티를 실어보내는 버그로
+// 저장된 과거 이슈 일괄 정리 (근본 수정은 api/fetch.js — 이건 이미 저장된 데이터용).
+async function handleFixBrokenTitles(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const dryRun = !!req.body?.dry_run;
+
+  const { data: issues, error } = await supabase
+    .from('issues')
+    .select('id, title, summary')
+    .or('title.ilike.%<a href%,title.ilike.%&nbsp;%,title.ilike.%<font%,summary.ilike.%<a href%,summary.ilike.%&nbsp;%,summary.ilike.%<font%');
+  if (error) return res.status(500).json({ error: error.message });
+
+  const clean = s => {
+    if (!s) return s;
+    const decoded = s
+      .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/&apos;/gi, "'");
+    return decoded.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  };
+
+  const results = [];
+  for (const it of issues || []) {
+    const newTitle = clean(it.title);
+    const newSummary = clean(it.summary);
+    if (newTitle === it.title && newSummary === it.summary) continue;
+    if (!dryRun) {
+      const { error: upErr } = await supabase.from('issues').update({ title: newTitle, summary: newSummary }).eq('id', it.id);
+      if (upErr) { results.push({ id: it.id, ok: false, error: upErr.message }); continue; }
+    }
+    results.push({ id: it.id, ok: true, before: it.title, after: newTitle });
+  }
+
+  return res.status(200).json({
+    ok: true,
+    dryRun,
+    scanned: issues?.length || 0,
+    fixed: results.filter(r => r.ok).length,
+    results: results.slice(0, 50),
   });
 }
 

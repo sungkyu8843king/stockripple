@@ -179,10 +179,20 @@ async function handleRss(res) {
       const { data: exists } = await supabase.from('issues').select('id').eq('source_url', item.link).limit(1);
       if (exists?.length) continue;
       results.fetched++;
-      const cleanText = s => s ? s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : null;
+      // 순서 중요: 엔티티 디코드 → 태그 제거. 구글뉴스 RSS 등은 title/description에
+      // <a href="...">본문</a>&nbsp;&nbsp;<font color="#6f6f6f">출처</font> 식으로 실제 HTML
+      // 태그+엔티티를 실어보낸다 — 태그 제거를 먼저 하면 엔티티로 인코딩된 태그(있는 경우)가
+      // 안 잡히므로 디코드를 먼저 한다.
+      const cleanText = s => {
+        if (!s) return null;
+        const decoded = s
+          .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
+          .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/&apos;/gi, "'");
+        return decoded.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      };
       const title = feed.isTrump
         ? `[트럼프] ${cleanText(item.description || item.title)?.slice(0, 120) || item.title.slice(0, 120)}`
-        : item.title.slice(0, 300);
+        : (cleanText(item.title) || item.title).slice(0, 300);
       const { error } = await supabase.from('issues').insert({
         title,
         summary: cleanText(item.description)?.slice(0, 800) || null,
