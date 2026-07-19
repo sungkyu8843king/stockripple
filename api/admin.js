@@ -102,6 +102,7 @@ export default async function handler(req, res) {
   if (action === 'verify-kr-names') return handleVerifyKrNames(req, res);
   if (action === 'fix-kr-broken-names') return handleFixKrBrokenNames(req, res);
   if (action === 'fix-broken-titles') return handleFixBrokenTitles(req, res);
+  if (action === 'crawl-etf-holdings') return handleCrawlEtfHoldings(req, res);
   if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
   if (action === 'daily-report') return handleDailyReportPost(req, res);
   if (action === 'weekly-schedule') return handleWeeklySchedulePost(req, res);
@@ -2188,6 +2189,73 @@ async function handleFixBrokenTitles(req, res) {
     scanned: issues?.length || 0,
     fixed: results.filter(r => r.ok).length,
     results: results.slice(0, 50),
+  });
+}
+
+// ETF 보유종목 역인덱스 크롤 — 네이버 ETF 전체 목록의 각 ETF 상위10 구성종목(국내 티커)을
+// 긁어 etf_holdings 테이블에 적재(upsert). "이 종목을 담은 ETF"(company.html 역조회)용.
+// 1146개 ETF를 한 번(60s)에 다 못 돌 수 있으므로 start 오프셋으로 이어받기(resumable).
+// body: { start?: number, limit?: number } — 응답의 nextStart로 재호출하면 전량 커버.
+async function handleCrawlEtfHoldings(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const t0 = Date.now();
+  const TIME_BUDGET_MS = 45000;
+  const start = Math.max(0, parseInt(req.body?.start) || 0);
+  const limit = Math.min(Math.max(parseInt(req.body?.limit) || 500, 1), 1200);
+
+  const NAVER_H = {
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+    'Referer': 'https://m.stock.naver.com/', 'Accept': 'application/json, */*',
+  };
+
+  // 전체 목록(EUC-KR 디코드)
+  let list;
+  try {
+    const r = await fetch('https://finance.naver.com/api/sise/etfItemList.nhn', { headers: NAVER_H, signal: AbortSignal.timeout(8000) });
+    const buf = await r.arrayBuffer();
+    let text; try { text = new TextDecoder('euc-kr').decode(buf); } catch { text = new TextDecoder('utf-8').decode(buf); }
+    list = JSON.parse(text)?.result?.etfItemList || [];
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: 'etf list fetch failed: ' + e.message });
+  }
+
+  const slice = list.slice(start, start + limit);
+  const num = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isFinite(n) ? n : null; };
+
+  let processed = 0, rowsUpserted = 0, timedOut = false;
+  const errors = [];
+  let idx = 0;
+  async function worker() {
+    while (idx < slice.length) {
+      if (Date.now() - t0 > TIME_BUDGET_MS) { timedOut = true; return; }
+      const e = slice[idx++];
+      try {
+        const r = await fetch(`https://m.stock.naver.com/api/stock/${e.itemcode}/etfAnalysis`, { headers: NAVER_H, signal: AbortSignal.timeout(7000) });
+        if (!r.ok) { errors.push(`${e.itemcode}:HTTP${r.status}`); continue; }
+        const j = await r.json();
+        const holdings = (j?.etfTop10MajorConstituentAssets || [])
+          .filter(h => /^\d{6}$/.test(h.itemCode || ''))   // 국내 티커만(해외 종목은 itemCode 비어있음)
+          .map(h => ({
+            etf_code: e.itemcode, etf_name: j.itemName || e.itemname, etf_tab_code: e.etfTabCode,
+            stock_code: h.itemCode, stock_name: h.itemName, weight: num(h.etfWeight), seq: h.seq,
+          }));
+        processed++;
+        if (holdings.length) {
+          const { error } = await supabase.from('etf_holdings').upsert(holdings, { onConflict: 'etf_code,stock_code' });
+          if (error) errors.push(`${e.itemcode}:${error.message}`);
+          else rowsUpserted += holdings.length;
+        }
+      } catch (err) { errors.push(`${e.itemcode}:${err.message}`); }
+    }
+  }
+  await Promise.all(Array.from({ length: 8 }, worker));
+
+  const consumed = start + processed;
+  const nextStart = timedOut ? consumed : (start + slice.length < list.length ? start + slice.length : null);
+  return res.status(200).json({
+    ok: true, totalEtfs: list.length, start, processed, rowsUpserted,
+    timedOut, nextStart, done: nextStart == null,
+    elapsedMs: Date.now() - t0, errorSample: errors.slice(0, 10),
   });
 }
 

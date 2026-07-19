@@ -34,6 +34,13 @@ export default async function handler(req, res) {
     }
     case 'kr-overtime':  return handleKrOvertime(req, res);
     case 'us-market':    return handleUsMarket(req, res);
+    case 'etf': {
+      const action = (req.query.action || 'list').toString();
+      if (action === 'list')    return handleEtfList(req, res);
+      if (action === 'detail')  return handleEtfDetail(req, res);
+      if (action === 'holders') return handleEtfHolders(req, res);
+      return res.status(400).json({ ok: false, error: 'unknown etf action' });
+    }
     case 'toss': {
       const action = (req.query.action || '').toString();
       if (action === 'prices')          return handleTossPrices(req, res);
@@ -1512,5 +1519,156 @@ async function handleUsMarket(req, res) {
     return res.status(200).json({ ok: true, items, ts: Date.now() });
   } catch (err) {
     return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// etf — GET ?source=etf&action=list|detail|holders  (전부 네이버, 키 불필요)
+//  list    : 전체 ETF 목록(카테고리·등락률·수익률·거래대금) — etf.html 목록
+//  detail  : 개별 ETF 상세(보수·추적오차·기간수익률·자산/국가/섹터 배분·상위10 구성종목·순유입) — etf.html 상세
+//  holders : 특정 종목을 담은 ETF 역조회 — company.html "이 종목이 포함된 ETF"(저장된 etf_holdings 인덱스)
+// ════════════════════════════════════════════════════════════════════════
+export const ETF_CATEGORIES = {
+  1: '국내 시장지수', 2: '국내 업종·테마', 3: '국내 파생',
+  4: '해외 주식', 5: '원자재', 6: '채권·금리', 7: '기타',
+};
+const ETF_LABELS = {
+  // 자산배분 detailTypeCode
+  EQUITY: '주식', STOCK: '주식', BOND: '채권', CASH: '현금성', COMMODITY: '원자재',
+  REIT: '리츠', ETF: 'ETF', FUND: '펀드', DERIVATIVE: '파생', ETC: '기타', OTHER: '기타',
+  // 국가 detailTypeCode(ISO2)
+  US: '미국', KR: '한국', CN: '중국', JP: '일본', HK: '홍콩', TW: '대만', IN: '인도',
+  DE: '독일', GB: '영국', FR: '프랑스', VN: '베트남', EU: '유럽',
+  // 섹터 detailTypeCode
+  IT: 'IT', FINANCE: '금융', HEALTHCARE: '헬스케어', HEALTH_CARE: '헬스케어',
+  ENERGY: '에너지', MATERIALS: '소재', MATERIAL: '소재', INDUSTRIALS: '산업재', INDUSTRIAL: '산업재',
+  CONSUMER: '소비재', CONSUMER_STAPLES: '필수소비재', CONSUMER_DISCRETIONARY: '경기소비재',
+  COMMUNICATION: '커뮤니케이션', UTILITIES: '유틸리티', UTILITY: '유틸리티', REAL_ESTATE: '부동산',
+};
+const etfLabel = code => ETF_LABELS[code] || ETF_LABELS[String(code || '').toUpperCase()] || code || '기타';
+
+const NAVER_ETF_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+  'Referer': 'https://m.stock.naver.com/',
+  'Accept': 'application/json, */*',
+};
+
+// 네이버 ETF 전체 목록 — 응답이 EUC-KR 인코딩이라 arrayBuffer로 받아 직접 디코드한다
+// (UTF-8로 그냥 읽으면 종목명이 깨짐 — 실측 확인됨).
+async function fetchNaverEtfList() {
+  const r = await fetch('https://finance.naver.com/api/sise/etfItemList.nhn', {
+    headers: NAVER_ETF_HEADERS, signal: AbortSignal.timeout(8000),
+  });
+  if (!r.ok) throw new Error(`naver etf list HTTP ${r.status}`);
+  const buf = await r.arrayBuffer();
+  let text;
+  try { text = new TextDecoder('euc-kr').decode(buf); }
+  catch { text = new TextDecoder('utf-8').decode(buf); }
+  const j = JSON.parse(text);
+  return j?.result?.etfItemList || [];
+}
+
+async function handleEtfList(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+  try {
+    const list = await fetchNaverEtfList();
+    const items = list.map(e => ({
+      code: e.itemcode,
+      name: e.itemname,
+      tabCode: e.etfTabCode,
+      category: ETF_CATEGORIES[e.etfTabCode] || '기타',
+      price: e.nowVal ?? null,
+      changeRate: e.changeRate ?? null,
+      nav: e.nav ?? null,
+      ret3m: e.threeMonthEarnRate ?? null,   // 최근 3개월 수익률(%)
+      volume: e.quant ?? null,               // 거래량(주)
+      amount: e.amonut != null ? e.amonut * 1e6 : null,  // 거래대금(원) — 원본은 백만원 단위(실측)
+    }));
+    return res.status(200).json({ ok: true, count: items.length, items, ts: Date.now() });
+  } catch (err) {
+    return res.status(502).json({ ok: false, error: err.message });
+  }
+}
+
+async function handleEtfDetail(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+  const code = (req.query.code || '').toString().replace(/[^0-9A-Za-z]/g, '');
+  if (!code) return res.status(400).json({ ok: false, error: 'code required' });
+  try {
+    const r = await fetch(`https://m.stock.naver.com/api/stock/${code}/etfAnalysis`, {
+      headers: NAVER_ETF_HEADERS, signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return res.status(502).json({ ok: false, error: `naver HTTP ${r.status}` });
+    const j = await r.json();
+    if (!j || !j.itemCode) return res.status(404).json({ ok: false, error: 'not an ETF or no data' });
+
+    const num = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isFinite(n) ? n : null; };
+    const mapReturns = arr => (arr || []).map(x => ({ period: x.periodTypeCode, value: x.value }));
+    const mapBreakdown = arr => (arr || []).map(x => ({ code: x.detailTypeCode, label: etfLabel(x.detailTypeCode), weight: x.weight }));
+
+    return res.status(200).json({
+      ok: true,
+      code: j.itemCode,
+      name: j.itemName,
+      summary: j.etfSummary || null,
+      issuer: j.issuerName || null,
+      baseIndex: j.etfBaseIndex || null,
+      listedDate: j.listedDate || null,
+      totalFee: num(j.totalFee),               // 총보수(%)
+      trackingError: num(j.chaseErrorRate),    // 추적오차(%)
+      deviationRate: num(j.deviationRate),     // 괴리율(%)
+      marketValue: num(j.marketValue),         // 순자산총액(원)
+      nav: num(j.nav),
+      totalNav: num(j.totalNav),
+      taxationType: j.taxationTypeCode || null,
+      dividend: j.dividend || null,
+      returns: mapReturns(j.returnPerformanceList),        // 시장가 기간수익률
+      navReturns: mapReturns(j.navPerformanceList),        // NAV 기간수익률
+      assetBreakdown: mapBreakdown(j.assetPortfolioList),
+      countryBreakdown: mapBreakdown(j.countryPortfolioList),
+      sectorBreakdown: mapBreakdown(j.sectorPortfolioList),
+      netInflows: (j.cumulativeNetInflowList || []).map(x => ({ period: x.periodTypeCode, value: x.value })),
+      holdings: (j.etfTop10MajorConstituentAssets || []).map(h => ({
+        seq: h.seq,
+        code: h.itemCode || null,
+        name: h.itemName,
+        shares: h.stockCount || null,
+        weight: num(h.etfWeight),
+      })),
+      ts: Date.now(),
+    });
+  } catch (err) {
+    return res.status(502).json({ ok: false, error: err.message });
+  }
+}
+
+// 역조회: 특정 종목을 상위10 구성으로 담은 ETF 목록(저장된 인덱스에서 조회).
+async function handleEtfHolders(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+  const raw = (req.query.ticker || '').toString().trim().toUpperCase();
+  // 005930.KS / 005930.KQ / 005930 모두 허용 — 6자리 코드만 추출
+  const m = raw.match(/(\d{6})/);
+  if (!m) return res.status(200).json({ ok: true, ticker: raw, etfs: [] });
+  const stockCode = m[1];
+  try {
+    const { data, error } = await supabase
+      .from('etf_holdings')
+      .select('etf_code, etf_name, etf_tab_code, weight, seq, updated_at')
+      .eq('stock_code', stockCode)
+      .order('weight', { ascending: false })
+      .limit(40);
+    if (error) return res.status(200).json({ ok: true, ticker: stockCode, etfs: [], note: error.message });
+    const etfs = (data || []).map(r => ({
+      code: r.etf_code, name: r.etf_name,
+      category: ETF_CATEGORIES[r.etf_tab_code] || '기타',
+      weight: r.weight, seq: r.seq,
+    }));
+    const updatedAt = data?.[0]?.updated_at || null;
+    return res.status(200).json({ ok: true, ticker: stockCode, count: etfs.length, etfs, updatedAt });
+  } catch (err) {
+    return res.status(200).json({ ok: true, ticker: stockCode, etfs: [], note: err.message });
   }
 }

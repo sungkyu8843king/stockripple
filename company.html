@@ -74,6 +74,8 @@ body {
   transition: all var(--t-fast) var(--ease); white-space: nowrap;
 }
 .nav-btn:hover { background: var(--bg3); color: var(--text); }
+.nav-new { position: relative; }
+.nav-new::after { content: ""; position: absolute; top: 2px; right: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px var(--bg), 0 0 6px var(--red); }
 .nav-btn-primary {
   background: var(--blue); color: #fff; padding: 7px 16px; margin-left: 6px;
   border-radius: var(--r-md); font-size: 13px; font-weight: 600;
@@ -710,6 +712,7 @@ body {
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
       <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
       <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
+      <a href="/etf.html" class="nav-btn nav-new">🧺 ETF</a>
       <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
       <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
       <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
@@ -1669,6 +1672,12 @@ function renderPage(company, records, priceData) {
     <section class="cmp-sec">
       <div class="ck-sec-head"><span class="tick"></span><h3>👥 투자자 매매동향</h3></div>
       <div id="investorTrendWrap"></div>
+    </section>
+
+    <!-- 🧺 이 종목을 담은 ETF -->
+    <section class="cmp-sec">
+      <div class="ck-sec-head"><span class="tick"></span><h3>🧺 이 종목을 담은 ETF</h3><span class="note">주요 보유 기준</span></div>
+      <div id="etfHoldersWrap"><div class="cmp-empty">불러오는 중...</div></div>
     </section>` : ''}
 
     <!-- 📅 일별 시세 -->
@@ -1706,6 +1715,7 @@ function renderPage(company, records, priceData) {
   if (isKr) {
     loadDartDetail(ticker);
     loadInvestorTrend(ticker);
+    loadEtfHolders(ticker);
   } else {
     loadSecFilings(ticker);
     loadOptionsChain(ticker);
@@ -2667,6 +2677,57 @@ async function loadInvestorTrend(ticker) {
   } catch (e) {
     wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:12px;color:var(--red)">투자자별 매매동향 로드 실패: ${escHtml(e.message)}</div>`;
   }
+}
+
+// ── 🧺 이 종목을 담은 ETF (역조회, KR 전용) ──────────────
+// 저장된 etf_holdings 인덱스(각 ETF 상위10 구성종목)에서 이 종목을 담은 ETF를 찾아 보여준다.
+// "내 종목이 어떤 ETF에 들어가 있나"는 레퍼런스 사이트에도 잘 없는 정보 — 역방향 탐색 가치.
+async function loadEtfHolders(ticker) {
+  const wrap = document.getElementById('etfHoldersWrap');
+  if (!wrap) return;
+  try {
+    const r = await fetch('/api/etf?action=holders&ticker=' + encodeURIComponent(ticker));
+    const d = await r.json();
+    if (!d.ok || !d.etfs?.length) {
+      wrap.innerHTML = `<div class="cmp-empty">이 종목을 상위 구성으로 담은 ETF가 아직 인덱스에 없어요.<br><span style="font-size:11px;color:var(--text3)">(주요 대형주는 지수·테마 ETF에서 곧 채워집니다)</span></div>`;
+      return;
+    }
+    wrap.innerHTML = renderEtfHolders(d);
+  } catch (e) {
+    wrap.innerHTML = `<div class="cmp-empty">ETF 역조회 실패: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderEtfHolders(d) {
+  const maxW = Math.max(...d.etfs.map(e => e.weight || 0), 1);
+  const rows = d.etfs.map(e => `
+    <a class="etfh-row" href="/etf.html?code=${escHtml(e.code)}">
+      <div class="etfh-name">
+        <span class="etfh-nm">${escHtml(e.name)}</span>
+        <span class="etfh-cat">${escHtml(e.category)}</span>
+      </div>
+      <div class="etfh-bar"><i style="width:${Math.max(4, (e.weight || 0) / maxW * 100)}%"></i></div>
+      <div class="etfh-w">${e.weight != null ? e.weight.toFixed(2) + '%' : '—'}</div>
+    </a>`).join('');
+  return `
+    <style>
+      .etfh-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:8px 16px 14px;margin-bottom:24px}
+      .etfh-row{display:grid;grid-template-columns:1fr 110px 62px;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit}
+      .etfh-row:last-child{border-bottom:none}
+      .etfh-row:hover .etfh-nm{color:var(--blue)}
+      .etfh-name{min-width:0}
+      .etfh-nm{font-size:13px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .1s}
+      .etfh-cat{font-size:10px;color:var(--text3);margin-top:2px;display:inline-block}
+      .etfh-bar{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
+      .etfh-bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--purple));border-radius:3px}
+      .etfh-w{font-size:12.5px;font-weight:700;font-family:var(--font-mono,monospace);text-align:right;color:var(--text2)}
+      .etfh-head{font-size:11.5px;color:var(--text3);padding:10px 0 4px;display:flex;justify-content:space-between}
+      @media (max-width:560px){ .etfh-row{grid-template-columns:1fr 56px} .etfh-bar{display:none} }
+    </style>
+    <div class="etfh-wrap">
+      <div class="etfh-head"><span>이 종목을 주요 보유한 ETF ${d.etfs.length}개</span><span>ETF 내 비중</span></div>
+      ${rows}
+    </div>`;
 }
 
 function renderInvestorTrend(d) {
