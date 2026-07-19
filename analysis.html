@@ -102,8 +102,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .header-search input::placeholder { color: var(--text3); }
 @media (max-width: 900px) { .header-search { display: none; } }
 @media (max-width: 760px) {
-  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; }
+  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; position: relative; }
   .header-nav { flex-wrap: wrap; row-gap: 4px; }
+  /* 로그인/유저메뉴는 로고와 같은 첫 줄 우측 끝에 고정 — 아래로 줄바꿈되는 네비 목록과 분리 */
+  #loginBtn, .user-menu { position: absolute; top: 8px; right: 0; margin-left: 0; }
 }
 @media (max-width: 680px) { .logo-text { display: none; } .nav-btn { padding: 6px 9px; font-size: 12px; } }
 .sp-card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; text-decoration: none; color: var(--text); transition: transform .12s var(--ease), border-color .12s, box-shadow .12s; }

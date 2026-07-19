@@ -246,8 +246,10 @@ h1 { font-size: 20px; font-weight: 800; }
 .toast.error { box-shadow: 0 0 0 1.5px var(--red), var(--shadow-pop); }
 
 @media (max-width: 700px) {
-  .header-inner { gap: 10px; flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; }
+  .header-inner { gap: 10px; flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; position: relative; }
   .header-nav { flex-wrap: wrap; row-gap: 4px; }
+  /* 로그인/유저메뉴는 로고와 같은 첫 줄 우측 끝에 고정 — 아래로 줄바꿈되는 네비 목록과 분리 */
+  #loginBtn, .user-menu { position: absolute; top: 8px; right: 0; margin-left: 0; }
   .logo-sub { display: none; }
   .nav-btn { padding: 6px 9px; font-size: 12px; }
   .nav-btn span, .nav-btn { white-space: nowrap; }

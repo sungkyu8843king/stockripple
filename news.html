@@ -1001,8 +1001,10 @@ button { font-family: inherit; }
 @media (max-width: 760px) {
   /* 헤더 네비가 좁은 화면에서 잘리지 않고 줄바꿈되도록 — 페이지 전체 가로
      스크롤이 생겨 모바일 브라우저가 레이아웃을 축소 렌더링하는 문제 방지 */
-  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; }
+  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; position: relative; }
   .header-nav { flex-wrap: wrap; row-gap: 4px; }
+  /* 로그인/유저메뉴는 로고와 같은 첫 줄 우측 끝에 고정 — 아래로 줄바꿈되는 네비 목록과 분리 */
+  #loginBtn, .user-menu { position: absolute; top: 8px; right: 0; margin-left: 0; }
 
   /* "지금 매수 후보" 카드 그리드가 minmax(420px,...)라서 375px 화면에서 넘쳐
      모바일 브라우저가 페이지 전체를 축소 렌더링하던 문제 — 위와 같은 원인.

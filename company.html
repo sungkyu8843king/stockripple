@@ -213,8 +213,10 @@ body {
 /* 헤더 네비가 좁은 화면에서 잘리지 않고 줄바꿈되도록 (index.html과 동일 패턴 —
    min-width:auto 콘텐츠가 트랙을 강제로 넓혀 모바일 가로스크롤을 유발하는 문제 방지) */
 @media (max-width: 760px) {
-  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; }
+  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; position: relative; }
   .header-nav { flex-wrap: wrap; row-gap: 4px; }
+  /* 로그인/유저메뉴는 로고와 같은 첫 줄 우측 끝에 고정 — 아래로 줄바꿈되는 네비 목록과 분리 */
+  #loginBtn, .user-menu { position: absolute; top: 8px; right: 0; margin-left: 0; }
 }
 /* index.html과 동일 — 버튼 자체를 줄여야 실제로 한 줄에 들어맞음(위 wrap만으로는
    header-nav의 고유 너비(콘텐츠 기준)가 줄지 않아 375px 등 좁은 화면에서 가로스크롤 발생 확인) */
