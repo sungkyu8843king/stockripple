@@ -180,7 +180,7 @@ const SHELL_HTML = `
               <tr><td>1</td><td>뉴스분석</td><td>AI 시장종합(일반) + 주간일정 업데이트(매일 — 지표 실제 발표치 반영용)</td></tr>
               <tr><td>3</td><td>뉴스분석</td><td>종목분석(5개)</td></tr>
               <tr><td>5</td><td>뉴스분석</td><td>종목분석(5개)</td></tr>
-              <tr><td>7</td><td style="color:var(--text3)">—</td><td>미장 데일리(실적발표 위주) — 평일+토요일만(일요일 스킵)</td></tr>
+              <tr><td>7</td><td style="color:var(--text3)">—</td><td>미장 데일리(실적발표 위주) — 화~토요일만(월·일 스킵. 월요일은 토요일에 이미 금요일 세션을 커버해 중복이라 2026-07-19 제외)</td></tr>
               <tr><td>9</td><td>뉴스분석</td><td>AI 시장종합(일반)</td></tr>
               <tr><td>11</td><td>뉴스분석</td><td>종목분석(5개)</td></tr>
               <tr><td>13</td><td>뉴스분석</td><td>전략적 투자 추출</td></tr>
