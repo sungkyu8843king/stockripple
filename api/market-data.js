@@ -1616,12 +1616,12 @@ async function handleEtfDetail(req, res) {
       issuer: j.issuerName || null,
       baseIndex: j.etfBaseIndex || null,
       listedDate: j.listedDate || null,
-      totalFee: num(j.totalFee),               // 총보수(%)
+      totalFee: num(j.totalFee),               // 총보수(%) — 이미 % 단위 숫자(예: 0.15 = 0.15%)
       trackingError: num(j.chaseErrorRate),    // 추적오차(%)
       deviationRate: num(j.deviationRate),     // 괴리율(%)
-      marketValue: num(j.marketValue),         // 순자산총액(원)
+      marketValue: j.marketValue || null,      // 순자산총액 — 네이버가 "11조 5,043억"처럼 이미 포맷된 문자열로 줌
       nav: num(j.nav),
-      totalNav: num(j.totalNav),
+      totalNav: j.totalNav || null,            // 순자산총액(총) — 역시 포맷 문자열
       taxationType: j.taxationTypeCode || null,
       dividend: j.dividend || null,
       returns: mapReturns(j.returnPerformanceList),        // 시장가 기간수익률

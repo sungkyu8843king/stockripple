@@ -327,10 +327,10 @@ function renderDetail(d){
       : `<div class="hold-row">${inner}</div>`;
   }).join('');
 
-  const fee = d.totalFee!=null ? d.totalFee.toFixed(3)+'%' : '—';
+  const fee = d.totalFee!=null ? (+d.totalFee)+'%' : '—';        // 이미 % 단위(예: 0.0068% 초저보수도 그대로)
   const te = d.trackingError!=null ? d.trackingError.toFixed(2)+'%' : '—';
   const dev = d.deviationRate!=null ? d.deviationRate.toFixed(2)+'%' : '—';
-  const aum = d.marketValue!=null ? fmtAmount(d.marketValue) : '—';
+  const aum = d.marketValue || '—';                              // 네이버 포맷 문자열("11조 5,043억")
 
   document.getElementById('content').innerHTML = `
     <a class="back" href="/etf.html">← ETF 목록</a>
