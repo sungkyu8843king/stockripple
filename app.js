@@ -1003,8 +1003,9 @@ function sparkPath(points) {
   ).join('');
 }
 
-// 채워진 영역(area) 스파크라인 SVG — 시장 지표 대시보드 전용(홈 히어로/카드)
-function areaSparkSvg(points, w, h, color) {
+// 채워진 영역(area) 스파크라인 SVG — 시장 지표 대시보드 전용(홈 히어로/카드).
+// baseline(전일 종가 등 기준가)이 주어지면 그 위치에 옅은 점선을 그려 등락폭을 감으로 알 수 있게 한다.
+function areaSparkSvg(points, w, h, color, baseline) {
   if (!Array.isArray(points) || points.length < 2) return '';
   const min = Math.min(...points), max = Math.max(...points);
   const span = (max - min) || 1;
@@ -1012,12 +1013,18 @@ function areaSparkSvg(points, w, h, color) {
   const coords = points.map((p, i) => [i * step, (h - 1) - ((p - min) / span) * (h - 2)]);
   const linePath = coords.map((c, i) => `${i ? 'L' : 'M'}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join('');
   const gid = 'msg' + Math.random().toString(36).slice(2, 9);
+  let baseLine = '';
+  if (typeof baseline === 'number' && isFinite(baseline)) {
+    const by = Math.min(h - 0.5, Math.max(0.5, (h - 1) - ((baseline - min) / span) * (h - 2)));
+    baseLine = `<line x1="0" y1="${by.toFixed(1)}" x2="${w}" y2="${by.toFixed(1)}" stroke-width="1" style="stroke:var(--text3);stroke-dasharray:3,3;opacity:.5"/>`;
+  }
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
     <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="${color}" stop-opacity="0.32"/>
       <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
     </linearGradient></defs>
     <path d="${linePath} L${w},${h} L0,${h} Z" fill="url(#${gid})" stroke="none"/>
+    ${baseLine}
     <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
   </svg>`;
 }
@@ -1071,8 +1078,8 @@ function heroMarketMeta(){
 }
 function subMarketMeta(){
   return heroMarketMeta().key === 'kospi'
-    ? { key: 'nasdaq', name: '나스닥', mk: 'us', sym: 'nasdaq' }
-    : { key: 'kospi',  name: '코스피', mk: 'kr', sym: 'kospi' };
+    ? { key: 'nasdaq', name: '나스닥', tag: 'NASDAQ Composite', mk: 'us', sym: 'nasdaq' }
+    : { key: 'kospi',  name: '코스피', tag: 'KOSPI Composite',  mk: 'kr', sym: 'kospi' };
 }
 
 // "더 많은 지표 보기" 토글 — 모바일 전용(데스크톱은 CSS가 버튼을 숨기고 항상 펼침 상태로 강제)
@@ -1174,7 +1181,7 @@ function renderMarketDash(data) {
     const chartEl = document.getElementById('mktHeroChart');
     if (chartEl && Array.isArray(nd.spark) && nd.spark.length > 1) {
       const color = nd.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
-      chartEl.innerHTML = areaSparkSvg(nd.spark, 300, 64, color);
+      chartEl.innerHTML = areaSparkSvg(nd.spark, 300, 64, color, nd.prevClose);
     }
     if (nd.fiftyTwoWeekLow != null && nd.fiftyTwoWeekHigh != null) {
       const wrap = document.getElementById('mktHero52w');
@@ -1191,14 +1198,16 @@ function renderMarketDash(data) {
     }
   }
 
-  // 서브 히어로(소형) — 히어로의 반대 지수
+  // 서브 히어로 — 히어로의 반대 지수, 이제 히어로와 동일한 정보(차트+52주 범위)를 보여준다
   const subMeta = subMarketMeta();
   const subA = document.getElementById('mktHeroSub');
   if (subA && subA.dataset.subKey !== subMeta.key) {
     subA.dataset.subKey = subMeta.key;
     subA.href = `/market-detail.html?sym=${subMeta.sym}`;
     const subNameEl = document.getElementById('mktHeroSubName');
+    const subTagEl = document.getElementById('mktHeroSubTag');
     if (subNameEl) subNameEl.textContent = subMeta.name;
+    if (subTagEl) subTagEl.textContent = subMeta.tag;
   }
   const sd = data[subMeta.key];
   if (sd?.price != null) {
@@ -1208,12 +1217,25 @@ function renderMarketDash(data) {
     const subChgEl = document.getElementById('mktHeroSubChg');
     if (subValEl) animateNumberText(subValEl, sd.price, v => fmtIdx(v, 'n'), ['flash-up', 'flash-down']);
     if (subChgEl && sd.changePercent != null) {
-      subChgEl.innerHTML = `<span class="${chgClass}">${chgSign}${sd.changePercent.toFixed(2)}%</span>`;
+      subChgEl.innerHTML = `<span class="${chgClass}">${chgSign}${(sd.change ?? 0).toFixed(2)} (${chgSign}${sd.changePercent.toFixed(2)}%)</span>`;
     }
-    const subSparkEl = document.getElementById('mktHeroSubSpark');
-    if (subSparkEl && Array.isArray(sd.spark) && sd.spark.length > 1) {
+    const subChartEl = document.getElementById('mktHeroSubChart');
+    if (subChartEl && Array.isArray(sd.spark) && sd.spark.length > 1) {
       const color = sd.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
-      subSparkEl.innerHTML = areaSparkSvg(sd.spark, 76, 44, color);
+      subChartEl.innerHTML = areaSparkSvg(sd.spark, 300, 64, color, sd.prevClose);
+    }
+    if (sd.fiftyTwoWeekLow != null && sd.fiftyTwoWeekHigh != null) {
+      const wrap = document.getElementById('mktHeroSub52w');
+      if (wrap) {
+        wrap.style.display = '';
+        const range = sd.fiftyTwoWeekHigh - sd.fiftyTwoWeekLow || 1;
+        const pos = Math.min(100, Math.max(0, ((sd.price - sd.fiftyTwoWeekLow) / range) * 100));
+        const dot = document.getElementById('mktHeroSub52wDot');
+        if (dot) dot.style.left = pos + '%';
+        const lo = document.getElementById('mktHeroSub52wLo'), hi = document.getElementById('mktHeroSub52wHi');
+        if (lo) lo.textContent = fmtIdx(sd.fiftyTwoWeekLow, 'n');
+        if (hi) hi.textContent = fmtIdx(sd.fiftyTwoWeekHigh, 'n');
+      }
     }
   }
 
@@ -1252,7 +1274,7 @@ function renderMarketDash(data) {
     const sparkEl = document.getElementById(`mktCardSpark-${it.id}`);
     if (sparkEl && Array.isArray(d.spark) && d.spark.length > 1) {
       const color = d.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
-      sparkEl.innerHTML = areaSparkSvg(d.spark, 46, 28, color);
+      sparkEl.innerHTML = areaSparkSvg(d.spark, 46, 28, color, d.prevClose);
     }
   });
 }
