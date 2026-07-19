@@ -1053,8 +1053,19 @@ function updateMktDots(){
     const dot = document.getElementById(`mktDot-${it.id}`);
     if (dot) dot.classList.toggle('on', mktIsOpen(it.mk));
   });
-  const heroDot = document.getElementById('mktDot-nasdaq');
-  if (heroDot) heroDot.classList.toggle('on', mktIsOpen('us'));
+  const heroDot = document.getElementById('mktHeroDot');
+  if (heroDot) heroDot.classList.toggle('on', mktIsOpen(heroMarketMeta().mk));
+}
+
+// 홈 "시장 지표" 히어로 카드 — 평일 08:50~18:00 KST는 코스피, 그 외(평일 저녁·밤·주말)는
+// 나스닥을 보여준다(국내 장중에는 국내 지수가, 그 외 시간대는 미국 지수가 더 유용하다는 판단).
+function heroMarketMeta(){
+  const kst = new Date(Date.now() + 9*3600000);
+  const day = kst.getUTCDay(), mins = kst.getUTCHours()*60 + kst.getUTCMinutes();
+  const isKrWindow = day>=1 && day<=5 && mins>=530 && mins<1080; // 08:50~18:00
+  return isKrWindow
+    ? { key: 'kospi',  name: '코스피',  tag: 'KOSPI Composite',  mk: 'kr', sym: 'kospi' }
+    : { key: 'nasdaq', name: '나스닥',  tag: 'NASDAQ Composite', mk: 'us', sym: 'nasdaq' };
 }
 
 function renderMktStatus() {
@@ -1121,8 +1132,18 @@ function renderMarketDash(data) {
   if (!grid || !data) return;
   renderMktStatus();
 
-  // 나스닥 히어로
-  const nd = data.nasdaq;
+  // 히어로 카드 — 시간대에 따라 코스피/나스닥 전환
+  const heroMeta = heroMarketMeta();
+  const heroA = document.getElementById('mktHero');
+  if (heroA && heroA.dataset.heroKey !== heroMeta.key) {
+    heroA.dataset.heroKey = heroMeta.key;
+    heroA.href = `/market-detail.html?sym=${heroMeta.sym}`;
+    const nameEl = document.getElementById('mktHeroName');
+    const tagEl = document.getElementById('mktHeroTag');
+    if (nameEl) nameEl.textContent = heroMeta.name;
+    if (tagEl) tagEl.textContent = heroMeta.tag;
+  }
+  const nd = data[heroMeta.key];
   if (nd?.price != null) {
     const chgClass = nd.changePercent > 0 ? 'pos' : nd.changePercent < 0 ? 'neg' : '';
     const chgSign = nd.changePercent > 0 ? '+' : '';
