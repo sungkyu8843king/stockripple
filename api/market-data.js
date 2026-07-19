@@ -236,7 +236,8 @@ async function tossRankingsCacheFallback(res, market) {
       .eq('market', market)
       .maybeSingle();
     if (cached?.categories) {
-      res.setHeader('Cache-Control', 'no-store');
+      // 프록시가 오래 다운되면 이 폴백이 방문자 수만큼 반복 호출되므로 짧게라도 캐시(no-store였던 것 수정).
+      res.setHeader('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=120');
       res.status(200).json({ ok: true, market, categories: cached.categories, updatedAt: cached.updated_at, stale: true });
       return true;
     }
@@ -977,7 +978,11 @@ const ECON_CACHE_TTL_MS = 30 * 60 * 1000;
 
 async function handleEconomic(res, limit = 30) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'no-store');
+  // 응답 자체는 no-store였지만 내부적으로 30분짜리 DB 캐시(econ_calendar_cache)를 그대로
+  // 읽어서 돌려주는 경우가 대부분 — 그런데도 매 요청마다 Supabase를 직접 때려서, 트래픽이
+  // 몰리면(2026-07-19 커뮤니티 유입 때 실제로 이 테이블 포함 여러 곳이 함께 무너짐) 방문자
+  // 수만큼 그대로 DB 부하가 됨. 짧게라도 엣지캐시 걸어서 흡수.
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
 
   let cachedRow = null;
   try {

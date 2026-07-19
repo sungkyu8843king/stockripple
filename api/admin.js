@@ -244,7 +244,10 @@ async function handleTrack(req, res) {
       if (referrer) {
         try { referrer_host = new URL(referrer).hostname.replace(/^www\./, '').slice(0, 100); } catch {}
       }
-      await supabase.from('page_views').insert({
+      // insert였던 걸 upsert+ignoreDuplicates로 변경 — 같은 view_id가 중복 전송되면(더블 파이어,
+      // 뒤로가기 재방문 등) 매번 "duplicate key" 에러가 나면서 불필요한 재시도/오류 로그가 쌓였음
+      // (2026-07-19 트래픽 급증 때 실제로 이 에러가 반복 관측됨). 멱등하게 그냥 무시.
+      await supabase.from('page_views').upsert({
         view_id: String(view_id).slice(0, 100),
         session_id: String(session_id).slice(0, 100),
         path: String(path).slice(0, 300),
@@ -253,7 +256,7 @@ async function handleTrack(req, res) {
         utm_source: utm_source ? String(utm_source).slice(0, 100) : null,
         utm_medium: utm_medium ? String(utm_medium).slice(0, 100) : null,
         utm_campaign: utm_campaign ? String(utm_campaign).slice(0, 100) : null,
-      });
+      }, { onConflict: 'view_id', ignoreDuplicates: true });
     } else if (event === 'leave') {
       if (!view_id || dwell_ms == null) return res.status(200).json({ ok: false });
       const clamped = Math.max(0, Math.min(Number(dwell_ms) || 0, 3 * 3600 * 1000)); // 최대 3시간으로 클램프(비정상값 방지)
@@ -491,8 +494,11 @@ async function handleBanUser(req, res) {
 // ════════════════════════════════════════════════════════════
 async function handleGetAnnouncement(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  // 긴급 안내라는 목적상 즉시 반영돼야 함 — 캐시 없음 (조회 1건짜리 가벼운 쿼리라 비용 부담 없음)
-  res.setHeader('Cache-Control', 'no-store');
+  // "조회 1건짜리라 비용 부담 없음"이 트래픽 급증 시 깨짐 — 매 페이지(사이트 전체)가 호출하는
+  // 엔드포인트라 no-store면 방문자 수만큼 그대로 Supabase에 꽂힌다(2026-07-19 커뮤니티 유입
+  // 트래픽에서 실제로 site_announcement 포함 여러 엔드포인트가 한꺼번에 522/57014로 무너짐,
+  // 이 함수가 유력 용의자 중 하나). 15초 캐시로 긴급 배너 반영 지연은 미미하게 감수.
+  res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=60');
   const { data, error } = await supabase
     .from('site_announcement')
     .select('active, message, updated_at, source, auto_expires_at')
