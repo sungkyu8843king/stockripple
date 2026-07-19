@@ -119,6 +119,18 @@ const TOPICS = [
 let _topic = TOPICS[0].id;
 
 function fmtDate(iso){ return iso ? iso.slice(5,10).replace('-','.') : ''; }
+// 발행 일시(날짜+시간, KST) — published_at은 UTC로 저장되므로 +9시간 보정해서 표시
+function fmtDateTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  const k = new Date(d.getTime() + 9*60*60*1000);
+  const mm = String(k.getUTCMonth()+1).padStart(2,'0');
+  const dd = String(k.getUTCDate()).padStart(2,'0');
+  const hh = String(k.getUTCHours()).padStart(2,'0');
+  const mi = String(k.getUTCMinutes()).padStart(2,'0');
+  return `${mm}.${dd} ${hh}:${mi}`;
+}
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function chgCls(v){ return v==null?'flat':v>0?'up':v<0?'dn':'flat'; }
 function fmtChg(v){ if(v==null) return '—'; const s=v>0?'+':''; return `${s}${v.toFixed(2)}%`; }
@@ -184,24 +196,27 @@ async function loadTimeline(topic){
   try{
     const orClause = topic.keywords.map(k=>`title.ilike.%${k}%`).join(',');
     const { data, error } = await sb.from('issues')
-      .select('id,title,summary,source_url,source_name,published_at')
-      .or(orClause).order('published_at',{ascending:false}).limit(30);
+      .select('id,title,summary,source_url,source_name,published_at,analyses(ai_summary)')
+      .or(orClause).order('published_at',{ascending:false}).limit(40);
     if(error) throw error;
     // 같은 사건 중복(매체별) 제거 — 제목 앞부분 기준
     const seen = new Set(); const items = [];
     for(const it of (data||[])){
       const key = (it.title||'').replace(/["'“”‘’]/g,'').slice(0,24).toLowerCase();
       if(seen.has(key)) continue; seen.add(key);
-      items.push(it); if(items.length>=15) break;
+      items.push(it); if(items.length>=20) break;
     }
     if(!items.length){ tl.innerHTML = '<div class="empty">아직 이 주제의 뉴스가 없어요.</div>'; return; }
     tl.innerHTML = '<div class="timeline">' + items.map(it=>{
       const href = it.source_url || `/analysis.html?id=${it.id}`;
       const ext = it.source_url ? ' target="_blank" rel="noopener"' : '';
+      // Claude가 분석한 한국어 요약(ai_summary)을 우선 쓰고, 아직 분석 전이면 원문 피드 요약을 정제해 대체
+      const aiSum = (it.analyses && it.analyses[0] && it.analyses[0].ai_summary) ? it.analyses[0].ai_summary.trim() : '';
+      const sum = aiSum || cleanSum(it.summary, it.title);
       return `<a class="tl-item" href="${esc(href)}"${ext}>
-        <div class="tl-meta"><span class="tl-date">${fmtDate(it.published_at)}</span><span class="tl-src">${esc(it.source_name||'')}</span></div>
+        <div class="tl-meta"><span class="tl-date">${fmtDateTime(it.published_at)}</span><span class="tl-src">${esc(it.source_name||'')}</span></div>
         <div class="tl-title">${esc(it.title)}</div>
-        ${cleanSum(it.summary, it.title) ? `<div class="tl-sum">${esc(cleanSum(it.summary, it.title))}</div>` : ''}
+        ${sum ? `<div class="tl-sum">${esc(sum)}</div>` : ''}
       </a>`;
     }).join('') + '</div>';
   }catch(e){ tl.innerHTML = '<div class="empty">뉴스를 불러올 수 없어요.</div>'; }
