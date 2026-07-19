@@ -101,6 +101,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .header-search input { flex: 1; min-width: 0; border: none; outline: none; background: none; font-size: 13px; color: var(--text); font-family: inherit; }
 .header-search input::placeholder { color: var(--text3); }
 @media (max-width: 900px) { .header-search { display: none; } }
+@media (max-width: 760px) {
+  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; }
+  .header-nav { flex-wrap: wrap; row-gap: 4px; }
+}
 @media (max-width: 680px) { .logo-text { display: none; } .nav-btn { padding: 6px 9px; font-size: 12px; } }
 .sp-card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; text-decoration: none; color: var(--text); transition: transform .12s var(--ease), border-color .12s, box-shadow .12s; }
 .sp-card:hover { transform: translateY(-2px); border-color: var(--blue); box-shadow: 0 8px 24px rgba(0,102,204,0.10); }
@@ -367,6 +371,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
              onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
     </div>
     <nav class="header-nav" id="headerNav">
+      <a href="/news.html" class="nav-btn nav-new">📰 뉴스</a>
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
       <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
       <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>

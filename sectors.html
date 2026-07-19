@@ -246,7 +246,8 @@ h1 { font-size: 20px; font-weight: 800; }
 .toast.error { box-shadow: 0 0 0 1.5px var(--red), var(--shadow-pop); }
 
 @media (max-width: 700px) {
-  .header-inner { gap: 10px; }
+  .header-inner { gap: 10px; flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; }
+  .header-nav { flex-wrap: wrap; row-gap: 4px; }
   .logo-sub { display: none; }
   .nav-btn { padding: 6px 9px; font-size: 12px; }
   .nav-btn span, .nav-btn { white-space: nowrap; }
@@ -368,6 +369,7 @@ h1 { font-size: 20px; font-weight: 800; }
              onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
     </div>
     <nav class="header-nav" id="headerNav">
+      <a href="/news.html" class="nav-btn nav-new">📰 뉴스</a>
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
       <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
       <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>

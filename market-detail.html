@@ -31,6 +31,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webk
 .nav-btn-primary:hover{background:#1e4ccc}
 .nav-new{position:relative}
 .nav-new::after{content:"";position:absolute;top:2px;right:1px;width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--bg),0 0 6px var(--red)}
+@media (max-width:760px){ .header-inner{flex-wrap:wrap;height:auto;padding:8px 0;row-gap:6px} }
 @media (max-width:900px){ .header-nav{flex-wrap:wrap;row-gap:4px} }
 @media (max-width:680px){ .logo-sub{display:none} .nav-btn{padding:6px 9px;font-size:12px} }
 .wrap{max-width:1100px;margin:0 auto;padding:20px 20px 60px}
@@ -78,6 +79,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webk
       </div>
     </a>
     <nav class="header-nav">
+      <a href="/news.html" class="nav-btn nav-new">📰 뉴스</a>
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
       <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
       <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>

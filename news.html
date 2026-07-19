@@ -7,8 +7,8 @@
 <script src="/announcement-bar.js" defer></script>
 <script src="/sr-pulse.js" defer></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
-<title>마켓 히트맵 — StockRipple</title>
-<meta name="description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<title>뉴스 — StockRipple</title>
+<meta name="description" content="뉴스 → 파급 섹터 → 수혜 기업. 분석된 최신 이슈를 한눈에 모아봅니다.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1038,9 +1038,9 @@ button { font-family: inherit; }
              onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
     </div>
     <nav class="header-nav" id="headerNav">
-      <a href="/news.html" class="nav-btn nav-new">📰 뉴스</a>
+      <a href="/news.html" class="nav-btn active">📰 뉴스</a>
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
-      <a href="/heatmap.html" class="nav-btn active">🔥 히트맵</a>
+      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
       <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
       <a href="/talks.html" class="nav-btn nav-new">💬 말말말</a>
       <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
@@ -1086,47 +1086,75 @@ button { font-family: inherit; }
 </div>
 
 <div class="hero" id="heroSection">
-  <h1 class="hero-title"><span>마켓 히트맵</span></h1>
-  <p class="hero-sub">미장/국장/섹터/ETF/자산 실시간 등락률 — 섹터별로 보거나 전체 종목을 한눈에</p>
+  <h1 class="hero-title">
+    📰 <span>뉴스</span>
+  </h1>
+  <p class="hero-sub">뉴스 → 파급 섹터 → 수혜 기업. Claude가 분석한 최신 이슈를 모아봅니다</p>
 </div>
 
 
 <main class="main-content">
-  <div style="max-width:var(--page-max);margin:0 auto;padding:22px var(--page-pad) 48px;display:flex;flex-direction:column;gap:24px">
-    <div id="heatmapSection" class="section-block">
+  <div style="max-width:var(--page-max);margin:0 auto;padding:22px var(--page-pad) 48px">
+    <div id="issuesSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--red)"></span>
-          <span class="sh-title">마켓 히트맵</span>
-          <span id="heatmapUpdatedAt" class="sh-desc">—</span>
-          <span id="heatmapMarketStatus" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px"></span>
+          <span class="sh-mark" style="background:var(--purple)"></span>
+          <span class="sh-title">전체 뉴스</span>
+          <span class="sh-desc">뉴스 → 파급 섹터 → 수혜 기업 분석</span>
+          <span id="feedLiveTag" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
         </div>
-        <div class="section-head-r">
-          <button onclick="loadHeatmap()" title="수동 새로고침" class="icon-btn">🔄</button>
-          <div class="seg">
-            <button class="hm-tab hm-mkt active" data-mkt="us"     onclick="switchHeatmap('us', null)">🇺🇸 미장</button>
-            <button class="hm-tab hm-mkt"        data-mkt="sector" onclick="switchHeatmap('sector', null)">📊 섹터</button>
-            <button class="hm-tab hm-mkt"        data-mkt="etf"    onclick="switchHeatmap('etf', null)">⚡ ETF</button>
-            <button class="hm-tab hm-mkt"        data-mkt="assets" onclick="switchHeatmap('assets', null)">🌍 자산</button>
-            <button class="hm-tab hm-mkt"        data-mkt="kr"     onclick="switchHeatmap('kr', null)">🇰🇷 국장</button>
-          </div>
-          <div class="seg">
-            <button class="hm-tab hm-range active" data-range="1d"  onclick="switchHeatmap(null, '1d')">일간</button>
-            <button class="hm-tab hm-range"        data-range="1mo" onclick="switchHeatmap(null, '1mo')">월간</button>
-          </div>
-          <div class="seg" id="heatmapViewToggle">
-            <button class="hm-tab hm-view active" data-view="sector" onclick="switchHeatmapView('sector')">🧩 섹터별</button>
-            <button class="hm-tab hm-view"        data-view="all"    onclick="switchHeatmapView('all')">📋 개별종목 전체</button>
-          </div>
+        <span style="font-size:11px;color:var(--text3)" id="issuesCount"></span>
+      </div>
+
+      <!-- 카테고리 + 섹터 필터 + 검색 (이슈 피드 전용 툴바) -->
+      <div class="feed-toolbar">
+        <div class="category-tabs" id="categoryTabs">
+          <button class="cat-tab active" data-cat="all">🔥 전체</button>
+          <button class="cat-tab" data-cat="earnings">📊 실적발표</button>
+          <button class="cat-tab" data-cat="politics">🌐 정세·외교</button>
+          <button class="cat-tab" data-cat="economy">📈 경제지표</button>
+          <button class="cat-tab" data-cat="tech">💻 AI·반도체</button>
+          <button class="cat-tab" data-cat="bio">🧬 바이오</button>
+          <button class="cat-tab" data-cat="ev">🔋 전기차·배터리</button>
+          <button class="cat-tab" data-cat="energy">⚡ 에너지</button>
+          <button class="cat-tab" data-cat="defense">🚀 방산·우주</button>
+          <button class="cat-tab" data-cat="game">🎮 게임·엔터</button>
+          <button class="cat-tab" data-cat="crypto">🪙 크립토</button>
+        </div>
+        <div class="filters">
+          <span class="filter-label">섹터</span>
+          <button class="filter-chip active" data-sector="all">전체</button>
+          <button class="filter-chip" data-sector="AI">AI</button>
+          <button class="filter-chip" data-sector="반도체">반도체</button>
+          <button class="filter-chip" data-sector="전기차">전기차</button>
+          <button class="filter-chip" data-sector="배터리">배터리</button>
+          <button class="filter-chip" data-sector="바이오">바이오</button>
+          <button class="filter-chip" data-sector="에너지">에너지</button>
+          <button class="filter-chip" data-sector="핀테크">핀테크</button>
+          <button class="filter-chip" data-sector="금융">금융</button>
+          <button class="filter-chip" data-sector="클라우드">클라우드</button>
+          <button class="filter-chip" data-sector="로봇">로봇</button>
+          <button class="filter-chip" data-sector="방산·우주">방산·우주</button>
+          <button class="filter-chip" data-sector="게임">게임</button>
+          <button class="filter-chip" data-sector="크립토">크립토</button>
+          <button class="filter-chip" data-sector="자동차">자동차</button>
+          <button class="filter-chip" data-sector="물류·운송">물류·운송</button>
         </div>
       </div>
-      <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;min-height:80px">
-        <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
+
+      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:12.5px;font-weight:700;text-align:center">
+        🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
       </div>
-      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--text3)">
-        <span>📡 데이터: Yahoo Finance (실시간 ~15분 지연 가능) · 환율·금리·원자재는 지수 기준</span>
-        <span id="heatmapItemCount"></span>
-      </div>
+
+      <div id="issuesContainer">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>이슈 불러오는 중...</p>
+        </div>
+      </div><!-- issuesContainer end -->
+
+      <!-- Pagination -->
+      <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:24px;padding-bottom:8px"></div>
     </div>
   </div>
 </main>
