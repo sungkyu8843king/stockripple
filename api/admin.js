@@ -1589,9 +1589,8 @@ const ISSUES_CAT_FILTERS = {
 };
 async function handleIssuesFeed(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  // 45초 캐시 — 새 분석은 크론/에이전트가 시간 단위로 채우므로 45초 지연은 체감상 문제없고,
-  // 트래픽이 몰려도(뽐뿌 등 홍보 유입) 45초당 origin 1회로 Supabase 부하를 흡수한다.
-  res.setHeader('Cache-Control', 'public, s-maxage=45, stale-while-revalidate=300');
+  // Cache-Control은 성공 응답에만 길게(45초) 건다 — 앞에서 무조건 걸어두면 일시적 실패(ok:false)
+  // 응답까지 엣지에 캐싱돼 DB가 바로 회복해도 45초 동안 전체 방문자가 에러를 보게 된다.
 
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const sector = (req.query.sector || 'all').toString();
@@ -1607,6 +1606,17 @@ async function handleIssuesFeed(req, res) {
     return out;
   };
 
+  // 이 쿼리(특히 analyses/analysis_companies/companies 중첩 조인)가 Postgres 플래너 상태에
+  // 따라 간헐적으로 수십 초씩 걸리는 게 실측으로 확인됨(count:'estimated' 전환 후에도 재발) —
+  // 근본 원인이 뭐든(테이블 통계 갱신 주기, 플랜 캐시 등) 함수가 Vercel의 60초 하드킬까지
+  // 가서 504로 죽는 최악의 경우만은 절대 피해야 하므로, 쿼리별 하드 타임아웃을 걸어 무조건
+  // 몇 초 안에 응답한다 — 느리면 그냥 실패로 처리하고 클라이언트가 "다시 시도" 버튼을 보여준다.
+  const withTimeout = (query, ms) => {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), ms);
+    return query.abortSignal(ac.signal).then(r => { clearTimeout(timer); return r; }, e => { clearTimeout(timer); throw e; });
+  };
+
   try {
     const dataQuery = applyFilters(
       supabase.from('issues').select(`
@@ -1620,16 +1630,27 @@ async function handleIssuesFeed(req, res) {
     ).range((page - 1) * pageSize, page * pageSize - 1);
 
     // count:'exact'는 Postgres가 매칭 행을 실제로 다 세야 해서(대형/블로트된 테이블일수록)
-    // 느림 — 실측 결과 이 테이블에서 60초 넘게 걸려 타임아웃까지 났다(진단 로그로 count 쪽만
-    // 느린 것 확인됨). 페이지네이션 UI는 정확한 숫자가 필요 없으므로 Postgres 통계 기반 빠른
-    // 추정치인 count:'estimated'로 전환 — PostgREST가 EXPLAIN 결과의 planner row estimate를
-    // 반환해 필터 조건은 반영하면서도 실제 스캔 없이 즉시 응답한다.
+    // 느림 — 페이지네이션 UI는 정확한 숫자가 필요 없으므로 통계 기반 추정치인 count:'estimated' 사용.
     const countQuery = applyFilters(supabase.from('issues').select('id', { count: 'estimated', head: true }));
 
-    const [{ data, error }, { count }] = await Promise.all([dataQuery, countQuery]);
-    if (error) return res.status(200).json({ ok: false, error: error.message, data: [], totalCount: 0 });
-    return res.status(200).json({ ok: true, data: data || [], totalCount: count ?? 0, page, pageSize });
+    const [dataRes, countRes] = await Promise.allSettled([
+      withTimeout(dataQuery, 8000),
+      withTimeout(countQuery, 5000),
+    ]);
+
+    if (dataRes.status === 'rejected' || dataRes.value?.error) {
+      const msg = dataRes.status === 'rejected' ? String(dataRes.reason?.message || dataRes.reason) : dataRes.value.error.message;
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ ok: false, error: msg, data: [], totalCount: 0 });
+    }
+    const data = dataRes.value.data || [];
+    // count는 부가정보(페이지 표시용)라 실패해도 본문 데이터는 그대로 응답 — 실패 시 이번 페이지
+    // 데이터 길이로 대충 채워서 페이지네이션 버튼이 완전히 사라지진 않게 한다.
+    const count = (countRes.status === 'fulfilled' && !countRes.value?.error) ? (countRes.value.count ?? data.length) : data.length;
+    res.setHeader('Cache-Control', 'public, s-maxage=45, stale-while-revalidate=300');
+    return res.status(200).json({ ok: true, data, totalCount: count, page, pageSize });
   } catch (e) {
+    res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ ok: false, error: e.message, data: [], totalCount: 0 });
   }
 }
