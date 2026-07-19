@@ -417,8 +417,10 @@ async function handleTossQuote(req, res) {
   if (!isKr) {
     calls.push(callTossProxy(`/market-calendar/US?date=${kstToday}`));
     calls.push(callTossProxy(`/market-calendar/US?date=${kstYest}`));
+  } else {
+    calls.push(callTossProxy(`/market-calendar/KR`));
   }
-  const [priceData, candleData, calToday, calYest] = await Promise.all(calls);
+  const [priceData, candleData, calA, calB] = await Promise.all(calls);
 
   const p = priceData?.result?.[0];
   if (!p) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
@@ -428,15 +430,27 @@ async function handleTossQuote(req, res) {
   const regularClose = candles[0]?.closePrice != null ? Number(candles[0].closePrice) : null;
   const prevClose = candles[1]?.closePrice != null ? Number(candles[1].closePrice) : null;
 
-  // 세션 라벨 (미장만 — KR NXT는 세션 구분 데이터가 아예 없어 항상 CLOSED로 둠)
+  // 세션 라벨
   let session = 'CLOSED';
   if (!isKr) {
     const within = s => s && kstNowMs >= new Date(s.startTime).getTime() && kstNowMs < new Date(s.endTime).getTime();
-    for (const cal of [calYest?.result?.today, calToday?.result?.today]) {
+    for (const cal of [calB?.result?.today, calA?.result?.today]) {
       if (!cal) continue;
       if (within(cal.regularMarket)) { session = 'REGULAR'; break; }
       if (within(cal.preMarket))     { session = 'PRE'; break; }
       if (within(cal.afterMarket))   { session = 'POST'; break; }
+    }
+  } else {
+    // 넥스트레이드(NXT) 고정 시간대(사용자 확인, 토스 앱 "국내주식 거래 시간 안내" 기준):
+    // 프리마켓 08:00-08:50, 정규장(KRX 마감 15:30까지 포함) 09:00-15:30, 애프터마켓 15:30-20:00.
+    // 미장과 달리 KRX/NXT는 서머타임이 없고 휴장일 캘린더만 필요해 시각 계산이 단순함.
+    // 휴일(주말·공휴일) 여부만 /market-calendar/KR로 확인 — 프록시 실패 시 안전하게 휴장(CLOSED) 취급.
+    const isHoliday = !calA?.result?.today?.integrated;
+    if (!isHoliday) {
+      const kstMinutes = (m => m.getUTCHours() * 60 + m.getUTCMinutes())(new Date(kstNowMs + 9 * 3600000));
+      if (kstMinutes >= 8 * 60 && kstMinutes < 8 * 60 + 50) session = 'PRE';
+      else if (kstMinutes >= 9 * 60 && kstMinutes < 15 * 60 + 30) session = 'REGULAR';
+      else if (kstMinutes >= 15 * 60 + 30 && kstMinutes < 20 * 60) session = 'POST';
     }
   }
 
