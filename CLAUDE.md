@@ -75,9 +75,15 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 - **전체 목록**: `finance.naver.com/api/sise/etfItemList.nhn` — **응답이 EUC-KR 인코딩**이라 `arrayBuffer` → `new TextDecoder('euc-kr')`로 디코드해야 종목명이 안 깨짐(UTF-8로 그냥 읽으면 깨짐, 실측). 필드: nowVal, changeRate, nav, threeMonthEarnRate, quant(거래량), amonut(거래대금, **백만원 단위**), etfTabCode(1 국내지수/2 업종·테마/3 파생/4 해외주식/5 원자재/6 채권·금리/7 기타).
 - **개별 상세**: `m.stock.naver.com/api/stock/{code}/etfAnalysis` — UTF-8. 총보수·추적오차·괴리율·기간수익률(returnPerformanceList: D1/W1/M1/M3/M6/YTD/Y1/Y3/Y5/Y10)·자산/국가/섹터 배분·상위10 구성종목(etfTop10MajorConstituentAssets)·순유입.
   - **단위 함정(네이버 특유)**: `totalFee`/`chaseErrorRate`/`deviationRate`는 이미 **% 단위 숫자**(예 0.15=0.15%; 미국지수 ETF는 수수료 전쟁으로 0.0068% 같은 초저보수가 실제값). `marketValue`/`totalNav`는 숫자가 아니라 **이미 포맷된 문자열**("11조 5,043억") — `parseFloat` 하면 "115043"로 뭉개짐, 문자열 그대로 표시할 것. `cumulativeNetInflowList`는 **배열이 아니라 객체**(기간별 "136억" 문자열 필드).
-  - 구성종목: 국내 종목만 `itemCode`(6자리)·`etfWeight`가 채워짐. 해외주식(4)·원자재(5) ETF는 비어있음 → 역인덱스 크롤 시 이 카테고리는 스킵.
+  - 구성종목: 국내 종목만 `itemCode`(6자리)·`etfWeight`가 채워짐(해외주식(4)·원자재(5) ETF는 비어있음 — 역인덱스엔 자연히 기여 안 하지만, 총보수·순자산 등은 이 카테고리도 유의미해서 크롤 자체는 전 카테고리 대상으로 돈다).
 
-**역조회(`etf_holdings` 테이블)**: "이 종목을 담은 ETF"는 각 ETF의 상위10 구성종목을 미리 크롤해 적재해둔 인덱스에서 조회(라이브 역조회는 불가능 — 종목→ETF API가 없음). `db/etf-holdings.sql`로 테이블 생성 후 `POST /api/admin?action=crawl-etf-holdings`(멱등 upsert, 국내보유 ETF만 ~750개, concurrency 12로 1회 완료). 매일 cron-daily가 fire-and-forget로 갱신. **상위10만 담으므로 "주요 보유" 신호**(소수 비중은 미포함) — KRX PDF(전체 구성내역)는 스크래핑 차단이라 안 씀.
+**역조회(`etf_holdings` 테이블)**: "이 종목을 담은 ETF"는 각 ETF의 상위10 구성종목을 미리 크롤해 적재해둔 인덱스에서 조회(라이브 역조회는 불가능 — 종목→ETF API가 없음). `db/etf-holdings.sql`로 테이블 생성 후 `POST /api/admin?action=crawl-etf-holdings`(멱등 upsert, concurrency 12) — 어드민 패널 "전략투자 관리" 탭의 "🧺 ETF 보유종목 크롤" 버튼이 done:true 될 때까지 자동으로 이어서 호출한다(resumable, start/nextStart). 매일 cron-daily가 fire-and-forget로도 갱신. **상위10만 담으므로 "주요 보유" 신호**(소수 비중은 미포함) — KRX PDF(전체 구성내역)는 스크래핑 차단이라 안 씀.
+
+**스냅샷(`etf_snapshot` 테이블)**: 목록 API엔 없는 총보수·추적오차·순자산·1일/1주 누적순유입을 저장 — crawl-etf-holdings가 종목당 이미 부르는 etfAnalysis 응답에서 추가 필드만 더 뽑아 같이 upsert(별도 API 호출 없음). 랭킹(`action=rankings`: 자금유입 상위/최저보수/순자산최대)에 사용. `marketValue`/`netInflow` 파싱은 `krwToNumber()`("11조 5,043억" → 숫자, admin.js)로 처리.
+
+**etf.html 랭킹 섹션**: 오늘 급등/급락·3개월수익률·거래대금 4종은 이미 로드된 목록 데이터에서 **클라이언트가 즉시 계산**(추가 호출 없음), 자금유입·최저보수 2종만 `action=rankings`로 서버 조회(스냅샷 없으면 "아직 데이터가 없어요"로 우아하게 표시).
+
+**종목 검색(`action=holders&q=`)**: 티커 6자리면 바로 역조회, 아니면 `etf_holdings.stock_name` ILIKE로 후보 제안(자동완성) 후 선택 시 역조회. 역조회 결과는 편입비중뿐 아니라 그 ETF의 실시간 등락률·3개월수익률까지 목록 API와 조인해 같이 반환 — etf.html("종목으로 ETF 찾기")과 company.html(해당 종목 페이지) 둘 다 이 enriched 응답을 쓴다.
 
 ## ⚠️ CSS Grid/Flex 아이템 `min-width:auto` 함정 — 모바일 가로스크롤의 반복 원인
 
