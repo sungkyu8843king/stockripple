@@ -465,12 +465,15 @@ button { font-family: inherit; }
 .mkt-hero-row .mkt-hero { flex: 1.6 1 0; }
 .mkt-hero-sub {
   flex: 1 1 0; min-width: 0; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
-  padding: 14px 16px; display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  padding: 14px 16px; display: flex; align-items: center; gap: 10px;
   box-shadow: var(--shadow-card); text-decoration: none; color: inherit;
 }
+.mkt-hero-sub-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
 .mkt-hero-sub-top { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text2); }
 .mkt-hero-sub-val { font-size: 18px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .mkt-hero-sub-chg { font-size: 12px; font-weight: 700; font-family: var(--font-mono); }
+.mkt-hero-sub-spark { width: 76px; height: 44px; flex-shrink: 0; }
+.mkt-hero-sub-spark svg { width: 100%; height: 100%; display: block; }
 @media (max-width: 640px) { .mkt-hero-row { flex-direction: column; } }
 
 /* "더 많은 지표 보기" 토글 — 모바일에서만 기본 접힘, 데스크톱은 버튼을 숨기고 항상 펼침 */
@@ -1258,9 +1261,12 @@ button { font-family: inherit; }
           </div>
         </a>
         <a class="mkt-hero-sub mkt-card-link" id="mktHeroSub" href="/market-detail.html?sym=kospi">
-          <div class="mkt-hero-sub-top"><span class="mkt-live-dot" id="mktHeroSubDot"></span><span id="mktHeroSubName">코스피</span></div>
-          <div class="mkt-hero-sub-val" id="mktHeroSubVal">—</div>
-          <div class="mkt-hero-sub-chg" id="mktHeroSubChg">—</div>
+          <div class="mkt-hero-sub-main">
+            <div class="mkt-hero-sub-top"><span class="mkt-live-dot" id="mktHeroSubDot"></span><span id="mktHeroSubName">코스피</span></div>
+            <div class="mkt-hero-sub-val" id="mktHeroSubVal">—</div>
+            <div class="mkt-hero-sub-chg" id="mktHeroSubChg">—</div>
+          </div>
+          <div class="mkt-hero-sub-spark" id="mktHeroSubSpark"></div>
         </a>
       </div>
       <button type="button" class="mkt-more-toggle" id="mktMoreToggle" onclick="toggleMktMore()">

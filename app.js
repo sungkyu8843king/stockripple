@@ -1210,6 +1210,11 @@ function renderMarketDash(data) {
     if (subChgEl && sd.changePercent != null) {
       subChgEl.innerHTML = `<span class="${chgClass}">${chgSign}${sd.changePercent.toFixed(2)}%</span>`;
     }
+    const subSparkEl = document.getElementById('mktHeroSubSpark');
+    if (subSparkEl && Array.isArray(sd.spark) && sd.spark.length > 1) {
+      const color = sd.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
+      subSparkEl.innerHTML = areaSparkSvg(sd.spark, 76, 44, color);
+    }
   }
 
   // 카드 DOM은 최초 1회만 생성, 이후엔 in-place 갱신
