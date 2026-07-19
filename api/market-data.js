@@ -36,9 +36,10 @@ export default async function handler(req, res) {
     case 'us-market':    return handleUsMarket(req, res);
     case 'etf': {
       const action = (req.query.action || 'list').toString();
-      if (action === 'list')    return handleEtfList(req, res);
-      if (action === 'detail')  return handleEtfDetail(req, res);
-      if (action === 'holders') return handleEtfHolders(req, res);
+      if (action === 'list')      return handleEtfList(req, res);
+      if (action === 'detail')   return handleEtfDetail(req, res);
+      if (action === 'holders')  return handleEtfHolders(req, res);
+      if (action === 'rankings') return handleEtfRankings(req, res);
       return res.status(400).json({ ok: false, error: 'unknown etf action' });
     }
     case 'toss': {
@@ -1657,27 +1658,84 @@ async function handleEtfDetail(req, res) {
 async function handleEtfHolders(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
-  const raw = (req.query.ticker || '').toString().trim().toUpperCase();
-  // 005930.KS / 005930.KQ / 005930 모두 허용 — 6자리 코드만 추출
-  const m = raw.match(/(\d{6})/);
-  if (!m) return res.status(200).json({ ok: true, ticker: raw, etfs: [] });
+  const rawTicker = (req.query.ticker || '').toString().trim().toUpperCase();
+  const rawQ = (req.query.q || '').toString().trim();
+  const raw = rawTicker || rawQ.toUpperCase();
+  const m = raw.match(/(\d{6})/);   // 005930.KS / 005930.KQ / 005930 모두 허용 — 6자리 코드만 추출
+
+  // 6자리 티커가 없고 q(자유텍스트, 종목명)만 있으면 → 후보 종목 제안(자동완성)
+  if (!m && rawQ) {
+    try {
+      const { data, error } = await supabase
+        .from('etf_holdings')
+        .select('stock_code, stock_name')
+        .ilike('stock_name', `%${rawQ}%`)
+        .limit(200);
+      if (error) return res.status(200).json({ ok: true, mode: 'suggest', matches: [], note: error.message });
+      const seen = new Map();
+      for (const r of data || []) if (!seen.has(r.stock_code)) seen.set(r.stock_code, r.stock_name);
+      const matches = [...seen.entries()].map(([code, name]) => ({ code, name })).slice(0, 12);
+      return res.status(200).json({ ok: true, mode: 'suggest', matches });
+    } catch (err) {
+      return res.status(200).json({ ok: true, mode: 'suggest', matches: [], note: err.message });
+    }
+  }
+  if (!m) return res.status(200).json({ ok: true, mode: 'holders', ticker: raw, etfs: [] });
   const stockCode = m[1];
+
   try {
     const { data, error } = await supabase
       .from('etf_holdings')
-      .select('etf_code, etf_name, etf_tab_code, weight, seq, updated_at')
+      .select('etf_code, etf_name, etf_tab_code, stock_name, weight, seq, updated_at')
       .eq('stock_code', stockCode)
       .order('weight', { ascending: false })
       .limit(40);
-    if (error) return res.status(200).json({ ok: true, ticker: stockCode, etfs: [], note: error.message });
-    const etfs = (data || []).map(r => ({
-      code: r.etf_code, name: r.etf_name,
-      category: ETF_CATEGORIES[r.etf_tab_code] || '기타',
-      weight: r.weight, seq: r.seq,
-    }));
+    if (error) return res.status(200).json({ ok: true, mode: 'holders', ticker: stockCode, etfs: [], note: error.message });
+
+    // 편입비중만으로는 부족 — 각 ETF의 실시간 등락률·3개월수익률·거래대금을 붙여 "정리된" 결과로.
+    let liveByCode = {};
+    try { (await fetchNaverEtfList()).forEach(e => { liveByCode[e.itemcode] = e; }); } catch {}
+
+    const etfs = (data || []).map(r => {
+      const live = liveByCode[r.etf_code];
+      return {
+        code: r.etf_code, name: r.etf_name,
+        category: ETF_CATEGORIES[r.etf_tab_code] || '기타',
+        weight: r.weight, seq: r.seq,
+        price: live?.nowVal ?? null,
+        changeRate: live?.changeRate ?? null,
+        ret3m: live?.threeMonthEarnRate ?? null,
+        amount: live?.amonut != null ? live.amonut * 1e6 : null,
+      };
+    });
     const updatedAt = data?.[0]?.updated_at || null;
-    return res.status(200).json({ ok: true, ticker: stockCode, count: etfs.length, etfs, updatedAt });
+    const stockName = data?.[0]?.stock_name || null;
+    return res.status(200).json({ ok: true, mode: 'holders', ticker: stockCode, stockName, count: etfs.length, etfs, updatedAt });
   } catch (err) {
-    return res.status(200).json({ ok: true, ticker: stockCode, etfs: [], note: err.message });
+    return res.status(200).json({ ok: true, mode: 'holders', ticker: stockCode, etfs: [], note: err.message });
+  }
+}
+
+// 자금유입 상위 / 최저보수 / 순자산 최대 랭킹 — etf_snapshot(크롤 적재분)에서 조회.
+// 목록 API엔 없는 필드라(총보수·순자산·자금유입) 저장된 스냅샷을 쓴다.
+async function handleEtfRankings(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 5, 1), 20);
+  try {
+    const [inflow1d, lowFee, bigAum] = await Promise.all([
+      supabase.from('etf_snapshot').select('code,name,tab_code,net_inflow_1d_won').not('net_inflow_1d_won', 'is', null).order('net_inflow_1d_won', { ascending: false }).limit(limit),
+      supabase.from('etf_snapshot').select('code,name,tab_code,total_fee').not('total_fee', 'is', null).gt('total_fee', 0).order('total_fee', { ascending: true }).limit(limit),
+      supabase.from('etf_snapshot').select('code,name,tab_code,market_value_won').not('market_value_won', 'is', null).order('market_value_won', { ascending: false }).limit(limit),
+    ]);
+    const shape = (r, field) => (r.data || []).map(x => ({ code: x.code, name: x.name, category: ETF_CATEGORIES[x.tab_code] || '기타', value: x[field] }));
+    return res.status(200).json({
+      ok: true,
+      netInflow1d: shape(inflow1d, 'net_inflow_1d_won'),
+      lowestFee: shape(lowFee, 'total_fee'),
+      largestAum: shape(bigAum, 'market_value_won'),
+    });
+  } catch (err) {
+    return res.status(200).json({ ok: true, netInflow1d: [], lowestFee: [], largestAum: [], note: err.message });
   }
 }

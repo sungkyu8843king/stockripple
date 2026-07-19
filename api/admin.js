@@ -2196,29 +2196,41 @@ async function handleFixBrokenTitles(req, res) {
 // 긁어 etf_holdings 테이블에 적재(upsert). "이 종목을 담은 ETF"(company.html 역조회)용.
 // 1146개 ETF를 한 번(60s)에 다 못 돌 수 있으므로 start 오프셋으로 이어받기(resumable).
 // body: { start?: number, limit?: number } — 응답의 nextStart로 재호출하면 전량 커버.
+// "11조 5,043억"/"-101억" 같은 네이버 포맷 문자열 → 숫자(원). 랭킹 정렬용.
+function krwToNumber(s) {
+  if (s == null) return null;
+  if (typeof s === 'number') return isFinite(s) ? s : null;
+  const str = String(s).replace(/,/g, '').trim();
+  let total = 0, found = false, m;
+  if ((m = str.match(/(-?\d+(?:\.\d+)?)\s*조/))) { total += parseFloat(m[1]) * 1e12; found = true; }
+  if ((m = str.match(/(-?\d+(?:\.\d+)?)\s*억/))) { total += parseFloat(m[1]) * 1e8; found = true; }
+  if (!found && (m = str.match(/(-?\d+(?:\.\d+)?)\s*만/))) { total += parseFloat(m[1]) * 1e4; found = true; }
+  if (found) return total;
+  const n = parseFloat(str);
+  return isFinite(n) ? n : null;
+}
+
 async function handleCrawlEtfHoldings(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const t0 = Date.now();
   const TIME_BUDGET_MS = 55000;
   const start = Math.max(0, parseInt(req.body?.start) || 0);
   const limit = Math.min(Math.max(parseInt(req.body?.limit) || 1200, 1), 1200);
-  // 해외주식(4)·원자재(5) ETF는 국내 종목을 담지 않아(구성종목 itemCode 비어있음) 역인덱스에
-  // 기여하지 못함 — 기본적으로 건너뛰어 한 번의 호출로 국내보유 ETF 전체를 커버한다.
-  const includeAll = !!req.body?.includeAll;
-  const SKIP_TABS = includeAll ? new Set() : new Set([4, 5]);
 
   const NAVER_H = {
     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
     'Referer': 'https://m.stock.naver.com/', 'Accept': 'application/json, */*',
   };
 
-  // 전체 목록(EUC-KR 디코드)
+  // 전체 목록(EUC-KR 디코드). 해외주식/원자재 ETF도 총보수·순자산·자금유입 랭킹(etf_snapshot)엔
+  // 기여하므로 더 이상 카테고리로 거르지 않는다 — 구성종목 인덱스(etf_holdings)만 국내 종목이
+  // 없으면 자연히 빈 배열이 되어 기록되지 않는다(아래 filter).
   let list;
   try {
     const r = await fetch('https://finance.naver.com/api/sise/etfItemList.nhn', { headers: NAVER_H, signal: AbortSignal.timeout(8000) });
     const buf = await r.arrayBuffer();
     let text; try { text = new TextDecoder('euc-kr').decode(buf); } catch { text = new TextDecoder('utf-8').decode(buf); }
-    list = (JSON.parse(text)?.result?.etfItemList || []).filter(e => !SKIP_TABS.has(e.etfTabCode));
+    list = JSON.parse(text)?.result?.etfItemList || [];
   } catch (e) {
     return res.status(502).json({ ok: false, error: 'etf list fetch failed: ' + e.message });
   }
@@ -2226,7 +2238,7 @@ async function handleCrawlEtfHoldings(req, res) {
   const slice = list.slice(start, start + limit);
   const num = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isFinite(n) ? n : null; };
 
-  let processed = 0, rowsUpserted = 0, timedOut = false;
+  let processed = 0, rowsUpserted = 0, snapshotsUpserted = 0, timedOut = false;
   const errors = [];
   let idx = 0;
   async function worker() {
@@ -2237,18 +2249,34 @@ async function handleCrawlEtfHoldings(req, res) {
         const r = await fetch(`https://m.stock.naver.com/api/stock/${e.itemcode}/etfAnalysis`, { headers: NAVER_H, signal: AbortSignal.timeout(7000) });
         if (!r.ok) { errors.push(`${e.itemcode}:HTTP${r.status}`); continue; }
         const j = await r.json();
+        processed++;
+
+        // ① 국내 구성종목 → 역인덱스(해외주식/원자재 ETF는 itemCode가 없어 자연히 빈 배열)
         const holdings = (j?.etfTop10MajorConstituentAssets || [])
-          .filter(h => /^\d{6}$/.test(h.itemCode || ''))   // 국내 티커만(해외 종목은 itemCode 비어있음)
+          .filter(h => /^\d{6}$/.test(h.itemCode || ''))
           .map(h => ({
             etf_code: e.itemcode, etf_name: j.itemName || e.itemname, etf_tab_code: e.etfTabCode,
             stock_code: h.itemCode, stock_name: h.itemName, weight: num(h.etfWeight), seq: h.seq,
           }));
-        processed++;
         if (holdings.length) {
           const { error } = await supabase.from('etf_holdings').upsert(holdings, { onConflict: 'etf_code,stock_code' });
-          if (error) errors.push(`${e.itemcode}:${error.message}`);
+          if (error) errors.push(`h:${e.itemcode}:${error.message}`);
           else rowsUpserted += holdings.length;
         }
+
+        // ② 스냅샷(총보수·추적오차·순자산·자금유입) — 랭킹용, 목록 API엔 없는 필드라 여기서만 저장
+        const inflow = j?.cumulativeNetInflowList || {};
+        const snap = {
+          code: e.itemcode, name: j.itemName || e.itemname, tab_code: e.etfTabCode,
+          total_fee: num(j.totalFee), tracking_error: num(j.chaseErrorRate), deviation_rate: num(j.deviationRate),
+          market_value_won: krwToNumber(j.marketValue),
+          net_inflow_1d_won: krwToNumber(inflow.cumulativeNetInflow1d),
+          net_inflow_1w_won: krwToNumber(inflow.cumulativeNetInflow1w),
+          updated_at: new Date().toISOString(),
+        };
+        const { error: snapErr } = await supabase.from('etf_snapshot').upsert(snap, { onConflict: 'code' });
+        if (snapErr) errors.push(`s:${e.itemcode}:${snapErr.message}`);
+        else snapshotsUpserted++;
       } catch (err) { errors.push(`${e.itemcode}:${err.message}`); }
     }
   }
@@ -2257,7 +2285,7 @@ async function handleCrawlEtfHoldings(req, res) {
   const consumed = start + processed;
   const nextStart = timedOut ? consumed : (start + slice.length < list.length ? start + slice.length : null);
   return res.status(200).json({
-    ok: true, totalEtfs: list.length, start, processed, rowsUpserted,
+    ok: true, totalEtfs: list.length, start, processed, rowsUpserted, snapshotsUpserted,
     timedOut, nextStart, done: nextStart == null,
     elapsedMs: Date.now() - t0, errorSample: errors.slice(0, 10),
   });

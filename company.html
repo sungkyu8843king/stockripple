@@ -2699,33 +2699,37 @@ async function loadEtfHolders(ticker) {
 }
 
 function renderEtfHolders(d) {
-  const maxW = Math.max(...d.etfs.map(e => e.weight || 0), 1);
-  const rows = d.etfs.map(e => `
+  const pctTxt = v => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%';
+  const pctCls = v => v == null ? 'etfh-flat' : v > 0 ? 'etfh-up' : v < 0 ? 'etfh-dn' : 'etfh-flat';
+  const sorted = d.etfs.slice().sort((a, b) => (b.weight || 0) - (a.weight || 0));
+  const rows = sorted.map(e => `
     <a class="etfh-row" href="/etf.html?code=${escHtml(e.code)}">
       <div class="etfh-name">
         <span class="etfh-nm">${escHtml(e.name)}</span>
         <span class="etfh-cat">${escHtml(e.category)}</span>
       </div>
-      <div class="etfh-bar"><i style="width:${Math.max(4, (e.weight || 0) / maxW * 100)}%"></i></div>
       <div class="etfh-w">${e.weight != null ? e.weight.toFixed(2) + '%' : '—'}</div>
+      <div class="etfh-num ${pctCls(e.changeRate)}">${pctTxt(e.changeRate)}</div>
+      <div class="etfh-num ${pctCls(e.ret3m)}">${pctTxt(e.ret3m)}</div>
     </a>`).join('');
   return `
     <style>
       .etfh-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:8px 16px 14px;margin-bottom:24px}
-      .etfh-row{display:grid;grid-template-columns:1fr 110px 62px;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit}
+      .etfh-row{display:grid;grid-template-columns:1fr 58px 60px 60px;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit}
       .etfh-row:last-child{border-bottom:none}
       .etfh-row:hover .etfh-nm{color:var(--blue)}
       .etfh-name{min-width:0}
       .etfh-nm{font-size:13px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .1s}
       .etfh-cat{font-size:10px;color:var(--text3);margin-top:2px;display:inline-block}
-      .etfh-bar{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
-      .etfh-bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--purple));border-radius:3px}
       .etfh-w{font-size:12.5px;font-weight:700;font-family:var(--font-mono,monospace);text-align:right;color:var(--text2)}
-      .etfh-head{font-size:11.5px;color:var(--text3);padding:10px 0 4px;display:flex;justify-content:space-between}
-      @media (max-width:560px){ .etfh-row{grid-template-columns:1fr 56px} .etfh-bar{display:none} }
+      .etfh-num{font-size:12px;font-weight:700;font-family:var(--font-mono,monospace);text-align:right}
+      .etfh-up{color:var(--green)} .etfh-dn{color:var(--red)} .etfh-flat{color:var(--text3)}
+      .etfh-head{font-size:10.5px;color:var(--text3);padding:10px 0 4px;display:grid;grid-template-columns:1fr 58px 60px 60px;gap:10px;text-transform:uppercase;letter-spacing:.02em}
+      .etfh-head span:not(:first-child){text-align:right}
+      @media (max-width:560px){ .etfh-row,.etfh-head{grid-template-columns:1fr 50px 52px} .etfh-row .etfh-num:last-child,.etfh-head span:last-child{display:none} }
     </style>
     <div class="etfh-wrap">
-      <div class="etfh-head"><span>이 종목을 주요 보유한 ETF ${d.etfs.length}개</span><span>ETF 내 비중</span></div>
+      <div class="etfh-head"><span>이 종목을 주요 보유한 ETF ${d.etfs.length}개</span><span>비중</span><span>오늘</span><span>3개월</span></div>
       ${rows}
     </div>`;
 }

@@ -971,6 +971,36 @@ async function invSec13fPoll() {
   } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
 }
 
+// ETF 보유종목 역인덱스 크롤 — resumable(start/nextStart)이라 done:false면 자동으로 이어서 호출,
+// 한 번 클릭으로 전체(국내보유 ETF ~750개)가 끝날 때까지 진행한다.
+async function runCrawlEtfHoldings(start = 0) {
+  document.getElementById('invStatusBox').textContent = start === 0
+    ? '🔄 ETF 보유종목 크롤 중... (국내 보유 ETF 전체 대상)'
+    : `🔄 이어서 크롤 중... (누적 ${start}개 처리)`;
+  try {
+    const r = await fetch('/api/admin?action=crawl-etf-holdings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({ start }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok) {
+      document.getElementById('invStatusBox').textContent = '❌ ETF 크롤 실패: ' + (j.error || 'unknown');
+      return;
+    }
+    if (j.done) {
+      document.getElementById('invStatusBox').textContent =
+        `✅ ETF 크롤 완료 — 대상 ${j.totalEtfs}개 / 처리 ${j.processed}개 / 보유종목 ${j.rowsUpserted}행 / 스냅샷(보수·순자산·유입) ${j.snapshotsUpserted}개${j.errorSample?.length ? ' / 오류 ' + j.errorSample.length : ''}`;
+    } else {
+      document.getElementById('invStatusBox').textContent =
+        `🔄 진행 중 — 지금까지 ${j.nextStart}개 처리, 이어서 호출합니다...`;
+      await runCrawlEtfHoldings(j.nextStart);
+    }
+  } catch (e) {
+    document.getElementById('invStatusBox').textContent = '❌ ETF 크롤 오류: ' + e.message;
+  }
+}
+
 async function invLoadChart() {
   const ticker = document.getElementById('invChartTicker').value;
   const hint = document.getElementById('invChartHint');

@@ -17,6 +17,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
+button,input,select,textarea{font-family:inherit}
 a{color:inherit}
 /* 메인 사이트 헤더와 통일 */
 .header{position:sticky;top:0;z-index:100;background:rgba(21,23,30,0.80);backdrop-filter:blur(14px) saturate(150%);border-bottom:1px solid var(--border);padding:0 24px}
@@ -44,6 +45,51 @@ a{color:inherit}
 .page-title{font-size:24px;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:9px}
 .page-sub{font-size:13px;color:var(--text2);margin-top:5px;line-height:1.55}
 .page-sub b{color:var(--blue);font-weight:700}
+
+/* 오늘의 ETF 랭킹 */
+.rank-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0}
+@media (max-width:900px){ .rank-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:560px){ .rank-grid{grid-template-columns:minmax(0,1fr)} }
+.rank-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 15px;min-width:0}
+.rank-card-title{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.rank-card-title .hint{margin-left:auto;font-size:10px;color:var(--text3);font-weight:500}
+.rank-item{display:flex;align-items:center;gap:8px;padding:6px 0;text-decoration:none;color:inherit;border-radius:6px}
+.rank-item:hover{background:var(--bg3)}
+.rank-item .no{font-size:11px;color:var(--text3);font-weight:700;width:14px;flex-shrink:0;font-family:var(--mono)}
+.rank-item .nm{flex:1;min-width:0;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank-item .val{font-size:12px;font-weight:700;font-family:var(--mono);flex-shrink:0;white-space:nowrap}
+.rank-empty{font-size:11.5px;color:var(--text3);padding:8px 0}
+
+/* 종목으로 ETF 찾기 */
+.stock-finder{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin:18px 0;position:relative}
+.stock-finder-head{font-size:13.5px;font-weight:750;margin-bottom:3px;display:flex;align-items:center;gap:7px}
+.stock-finder-sub{font-size:11.5px;color:var(--text3);margin-bottom:11px}
+.stock-finder-row{display:flex;gap:8px;position:relative}
+.stock-finder-row input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 13px;color:var(--text);font-size:13.5px;outline:none}
+.stock-finder-row input:focus{border-color:var(--border-strong)}
+.stock-finder-row input::placeholder{color:var(--text3)}
+.stock-finder-clear{border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:12.5px;font-weight:600;padding:0 14px;border-radius:10px;cursor:pointer;white-space:nowrap}
+.stock-finder-clear:hover{color:var(--text);border-color:var(--border-strong)}
+.stock-suggest{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--bg3);border:1px solid var(--border-strong);border-radius:12px;overflow:hidden;z-index:20;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.stock-suggest-item{display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;border-bottom:1px solid var(--border)}
+.stock-suggest-item:last-child{border-bottom:none}
+.stock-suggest-item:hover{background:var(--bg4)}
+.stock-suggest-item .code{color:var(--text3);font-weight:500;font-size:11.5px;margin-left:6px}
+.sf-result-head{display:flex;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.sf-result-head b{font-size:14px;font-weight:750}
+.sf-sort-group{margin-left:auto;display:flex;gap:4px;background:var(--bg3);padding:3px;border-radius:9px}
+.sf-sort-btn{border:none;background:none;color:var(--text2);font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.sf-sort-btn.active{background:var(--blue);color:#fff}
+.sf-row{display:grid;grid-template-columns:1fr 76px 78px 78px;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--border);text-decoration:none;color:inherit}
+.sf-row:last-child{border-bottom:none}
+.sf-row:hover{background:var(--bg3)}
+.sf-row.head{font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.03em;text-transform:uppercase;cursor:default}
+.sf-row.head:hover{background:none}
+.sf-name{min-width:0}
+.sf-name .nm{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sf-name .cat{font-size:10px;color:var(--text3);margin-top:2px}
+.sf-col{text-align:right;font-family:var(--mono);font-size:12.5px;font-weight:700}
+@media (max-width:560px){ .sf-row{grid-template-columns:1fr 60px 62px} .sf-row .sf-col:last-child{display:none} }
 
 /* 카테고리 탭 */
 .cat-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 12px}
@@ -179,6 +225,7 @@ const SORTS = [
 
 let _all = [];            // 전체 ETF 목록
 let _cat = 0, _sort = 'ret3m', _q = '';
+let _rankings = null;     // 스냅샷 기반 랭킹(자금유입/최저보수/순자산) — 목록 API엔 없는 필드
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function fmtPrice(v){ return v==null ? '—' : Number(v).toLocaleString('ko-KR'); }
@@ -201,9 +248,135 @@ async function loadList(){
     if(!j.ok || !j.items?.length) throw new Error('no data');
     _all = j.items;
     renderList();
+    // 자금유입/최저보수/순자산 랭킹은 저장된 스냅샷 조회라 별도 호출 — 실패해도 나머지 화면엔 영향 없음
+    fetch('/api/etf?action=rankings&limit=5').then(r=>r.json()).then(j=>{
+      if(j.ok){ _rankings = j; renderRankingsInPlace(); }
+    }).catch(()=>{});
   }catch(e){
     c.innerHTML = `<div class="empty">ETF 목록을 불러오지 못했어요.<br><button class="cat-tab" style="margin-top:12px" onclick="loadList()">다시 시도</button></div>`;
   }
+}
+function renderRankingsInPlace(){
+  const el = document.getElementById('rankGrid');
+  if(el) el.outerHTML = renderRankingsSection();
+}
+
+// ═══════════════ 오늘의 ETF 랭킹 ═══════════════
+function computeClientRankings(){
+  const withVal = key => _all.filter(e => e[key]!=null);
+  const top = (arr, key, dir) => arr.slice().sort((a,b)=>dir*(a[key]-b[key])).slice(0,5);
+  return {
+    gainers:   top(withVal('changeRate'), 'changeRate', -1),
+    losers:    top(withVal('changeRate'), 'changeRate', 1),
+    ret3mTop:  top(withVal('ret3m'), 'ret3m', -1),
+    amountTop: top(withVal('amount'), 'amount', -1),
+  };
+}
+function rankCard(title, items, valueFn, emptyMsg){
+  if(!items || !items.length) return `<div class="rank-card"><div class="rank-card-title">${title}</div><div class="rank-empty">${emptyMsg||'데이터 없음'}</div></div>`;
+  const rows = items.map((it,i)=>`
+    <a class="rank-item" href="/etf.html?code=${it.code}">
+      <span class="no">${i+1}</span><span class="nm">${esc(it.name)}</span><span class="val">${valueFn(it)}</span>
+    </a>`).join('');
+  return `<div class="rank-card"><div class="rank-card-title">${title}</div>${rows}</div>`;
+}
+function renderRankingsSection(){
+  const c = computeClientRankings();
+  const r = _rankings || {};
+  const rankingsLoaded = !!_rankings;
+  const snapMsg = rankingsLoaded ? '아직 데이터가 없어요' : '불러오는 중...';
+  const cards = [
+    rankCard('🚀 오늘 급등 TOP5', c.gainers, it=>`<span class="up">${fmtPct(it.changeRate)}</span>`),
+    rankCard('📉 오늘 급락 TOP5', c.losers, it=>`<span class="dn">${fmtPct(it.changeRate)}</span>`),
+    rankCard('💎 3개월 수익률 TOP5', c.ret3mTop, it=>`<span class="${cls(it.ret3m)}">${fmtPct(it.ret3m)}</span>`),
+    rankCard('💰 거래대금 TOP5', c.amountTop, it=>fmtAmount(it.amount)),
+    rankCard('💸 오늘 자금유입 TOP5', r.netInflow1d, it=>fmtAmount(it.value), snapMsg),
+    rankCard('🏷️ 최저 보수 TOP5', r.lowestFee, it=>(+it.value)+'%', snapMsg),
+  ];
+  return `<div class="rank-grid" id="rankGrid">${cards.join('')}</div>`;
+}
+
+// ═══════════════ 종목으로 ETF 찾기 ═══════════════
+let _sfTimer=null, _sfEtfs=null, _sfSort='weight', _sfStock=null;
+function stockFinderHtml(){
+  return `<div class="stock-finder">
+    <div class="stock-finder-head">🔍 종목으로 담긴 ETF 찾기</div>
+    <div class="stock-finder-sub">종목명이나 티커를 입력하면 그 종목을 담은 ETF를 편입비중·오늘등락·3개월수익률까지 정리해서 보여드려요.</div>
+    <div class="stock-finder-row">
+      <input id="stockFinderInput" placeholder="예: 삼성전자, 005930, SK하이닉스" oninput="onStockFinderInput(this.value)">
+      <button type="button" class="stock-finder-clear" id="sfClearBtn" style="display:none" onclick="clearStockFinder()">지우기</button>
+    </div>
+    <div id="stockSuggestBox"></div>
+    <div id="stockFinderResult"></div>
+  </div>`;
+}
+function onStockFinderInput(v){
+  clearTimeout(_sfTimer);
+  document.getElementById('sfClearBtn').style.display = v ? '' : 'none';
+  if(!v.trim()){ document.getElementById('stockSuggestBox').innerHTML=''; document.getElementById('stockFinderResult').innerHTML=''; _sfStock=null; return; }
+  _sfTimer = setTimeout(()=>runStockFinder(v.trim()), 250);
+}
+async function runStockFinder(q){
+  const isCode = /^\d{6}$/.test(q);
+  try{
+    const r = await fetch(`/api/etf?action=holders&${isCode?'ticker':'q'}=${encodeURIComponent(q)}`);
+    const j = await r.json();
+    if(j.mode==='suggest'){ renderSuggestions(j.matches||[]); return; }
+    document.getElementById('stockSuggestBox').innerHTML='';
+    _sfStock = { code: j.ticker, name: j.stockName || q };
+    _sfEtfs = j.etfs || [];
+    renderStockFinderResult();
+  }catch(e){
+    document.getElementById('stockFinderResult').innerHTML = `<div class="rank-empty">조회 실패: ${esc(e.message)}</div>`;
+  }
+}
+function renderSuggestions(matches){
+  const box = document.getElementById('stockSuggestBox');
+  if(!matches.length){ box.innerHTML=''; document.getElementById('stockFinderResult').innerHTML = `<div class="rank-empty">일치하는 종목이 없어요 (아직 인덱스에 없는 종목일 수 있어요)</div>`; return; }
+  box.innerHTML = `<div class="stock-suggest">${matches.map(m=>
+    `<button type="button" class="stock-suggest-item" onclick='pickStock(${JSON.stringify(m.code)},${JSON.stringify(m.name)})'>${esc(m.name)}<span class="code">${esc(m.code)}</span></button>`
+  ).join('')}</div>`;
+}
+function pickStock(code, name){
+  document.getElementById('stockFinderInput').value = name;
+  document.getElementById('stockSuggestBox').innerHTML = '';
+  runStockFinder(code);
+}
+function clearStockFinder(){
+  const inp = document.getElementById('stockFinderInput');
+  if(inp) inp.value = '';
+  document.getElementById('stockSuggestBox').innerHTML='';
+  document.getElementById('stockFinderResult').innerHTML='';
+  document.getElementById('sfClearBtn').style.display='none';
+  _sfStock=null; _sfEtfs=null;
+}
+function sfSetSort(s){ _sfSort=s; renderStockFinderResult(); }
+function renderStockFinderResult(){
+  if(!_sfStock) return;
+  const wrap = document.getElementById('stockFinderResult');
+  if(!_sfEtfs.length){
+    wrap.innerHTML = `<div class="sf-result-head"><b>${esc(_sfStock.name)}</b></div><div class="rank-empty">이 종목을 상위 구성으로 담은 ETF가 아직 인덱스에 없어요.</div>`;
+    return;
+  }
+  const sorted = _sfEtfs.slice().sort((a,b)=>{
+    if(_sfSort==='ret3m') return (b.ret3m??-999)-(a.ret3m??-999);
+    if(_sfSort==='changeRate') return (b.changeRate??-999)-(a.changeRate??-999);
+    return (b.weight??0)-(a.weight??0);
+  });
+  const rows = sorted.map(e=>`
+    <a class="sf-row" href="/etf.html?code=${e.code}">
+      <div class="sf-name"><div class="nm">${esc(e.name)}</div><div class="cat">${esc(e.category)}</div></div>
+      <div class="sf-col">${e.weight!=null?e.weight.toFixed(2)+'%':'—'}</div>
+      <div class="sf-col ${cls(e.changeRate)}">${fmtPct(e.changeRate)}</div>
+      <div class="sf-col ${cls(e.ret3m)}">${fmtPct(e.ret3m)}</div>
+    </a>`).join('');
+  const sorts = [['weight','편입비중'],['changeRate','오늘등락'],['ret3m','3개월']];
+  wrap.innerHTML = `
+    <div class="sf-result-head"><b>${esc(_sfStock.name)}</b>을 담은 ETF ${_sfEtfs.length}개
+      <div class="sf-sort-group">${sorts.map(([k,l])=>`<button class="sf-sort-btn ${_sfSort===k?'active':''}" onclick="sfSetSort('${k}')">${l}</button>`).join('')}</div>
+    </div>
+    <div class="sf-row head"><div>ETF</div><div class="sf-col">비중</div><div class="sf-col">오늘</div><div class="sf-col">3개월</div></div>
+    ${rows}`;
 }
 
 function renderList(){
@@ -217,7 +390,9 @@ function renderList(){
 
   document.getElementById('content').innerHTML = `
     <div class="page-title">🧺 ETF 탐색</div>
-    <p class="page-sub">국내 상장 ETF <b>${_all.length.toLocaleString()}종</b>을 카테고리·수익률로 살펴보세요. ETF를 누르면 <b>구성종목·보수·추적오차·기간수익률</b>이 보이고, 종목 페이지에선 <b>그 종목을 담은 ETF</b>를 역으로 찾을 수 있어요.</p>
+    <p class="page-sub">국내 상장 ETF <b>${_all.length.toLocaleString()}종</b>을 카테고리·수익률로 살펴보세요. ETF를 누르면 <b>구성종목·보수·추적오차·기간수익률</b>이 보이고, 아래에선 <b>내 종목이 담긴 ETF</b>를 역으로 찾을 수 있어요.</p>
+    ${renderRankingsSection()}
+    ${stockFinderHtml()}
     <div class="cat-tabs">${tabs}</div>
     <div class="toolbar">
       <div class="search">🔎<input id="etfSearch" placeholder="ETF 이름 검색 (예: 반도체, 미국, 배당)" value="${esc(_q)}" oninput="onSearch(this.value)"></div>
@@ -227,6 +402,12 @@ function renderList(){
   renderRows();
   const inp = document.getElementById('etfSearch');
   if(inp && _q){ inp.focus(); inp.setSelectionRange(_q.length,_q.length); }
+  // 카테고리/정렬 전환으로 전체가 재렌더돼도 종목 검색기 상태는 복원
+  if(_sfStock){
+    const sfInp = document.getElementById('stockFinderInput');
+    if(sfInp){ sfInp.value = _sfStock.name; document.getElementById('sfClearBtn').style.display=''; }
+    renderStockFinderResult();
+  }
 }
 
 function renderRows(){
