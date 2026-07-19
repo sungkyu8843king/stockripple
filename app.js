@@ -133,65 +133,32 @@ async function loadStats() {
 }
 
 
+// 이슈 피드 — Supabase를 방문자 브라우저에서 직접(anon key, 캐싱 없이) 호출하던 걸 서버
+// 엔드포인트(api/admin.js action=issues-feed, 45초 엣지캐시)로 옮겼다. index/heatmap/
+// kr-market/picks/sectors/news 6개 페이지가 전부 이 피드를 공유하는데, 기본 뷰(필터 없음)는
+// 사실상 전체 방문자가 동일 쿼리를 때리는 셈이라 캐싱 없이는 트래픽이 몰릴 때(예: 커뮤니티
+// 홍보 유입) Supabase 커넥션이 소진되거나 응답이 느려질 위험이 컸다 — 필터/검색 로직 자체는
+// 서버가 그대로 재현하므로 동작은 동일.
 async function loadIssues() {
   const container = document.getElementById('issuesContainer');
   if (!container) return;
   container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>이슈 불러오는 중...</p></div>';
 
-  let query = sb.from('issues')
-    .select(`
-      id, title, summary, source_name, published_at, sectors, is_analyzed,
-      analyses!inner(id, confidence_score, ripple_effects, ai_summary,
-        analysis_companies(upside_pct, ripple_sector, is_accurate_1d, actual_return_1d, is_accurate_7d, actual_return_7d,
-          companies(ticker, name_ko, name_en, market)
-        )
-      )
-    `)
-    .eq('is_analyzed', true)
-    .order('published_at', { ascending: false });
-
-  if (currentSector !== 'all') query = query.contains('sectors', [currentSector]);
-  if (searchQuery) query = query.ilike('title', `%${searchQuery}%`);
-
-  // 카테고리 탭 필터
-  const catFilters = {
-    earnings: 'title.ilike.%실적%,title.ilike.%어닝%,title.ilike.%earnings%,title.ilike.%EPS%,title.ilike.%revenue%,sectors.cs.{실적발표}',
-    politics: 'title.ilike.%관세%,title.ilike.%무역%,title.ilike.%외교%,title.ilike.%제재%,title.ilike.%tariff%,title.ilike.%trade%,title.ilike.%geopolit%,title.ilike.%정치%,sectors.cs.{정치},sectors.cs.{외교},sectors.cs.{정세}',
-    economy:  'title.ilike.%금리%,title.ilike.%Fed%,title.ilike.%FOMC%,title.ilike.%물가%,title.ilike.%GDP%,title.ilike.%고용%,title.ilike.%인플레%,sectors.cs.{경제},sectors.cs.{금리},sectors.cs.{물가}',
-    // sectors 태그(분석 시 역태깅됨) + 제목 검색 폴백(태깅 이전 과거 이슈 대응)
-    tech:     'sectors.cs.{AI},sectors.cs.{반도체},sectors.cs.{클라우드},sectors.cs.{IT},sectors.cs.{로봇},title.ilike.%반도체%,title.ilike.%인공지능%,title.ilike.%semiconductor%,title.ilike.%엔비디아%,title.ilike.%nvidia%,title.ilike.%HBM%,title.ilike.%chip%',
-    bio:      'sectors.cs.{바이오},sectors.cs.{제약},sectors.cs.{헬스케어},title.ilike.%바이오%,title.ilike.%제약%,title.ilike.%신약%,title.ilike.%임상%,title.ilike.%FDA%,title.ilike.%biotech%,title.ilike.%pharma%',
-    ev:       'sectors.cs.{전기차},sectors.cs.{배터리},title.ilike.%전기차%,title.ilike.%배터리%,title.ilike.%테슬라%,title.ilike.%tesla%,title.ilike.%이차전지%,title.ilike.%2차전지%,title.ilike.%리튬%',
-    energy:   'sectors.cs.{에너지},sectors.cs.{원전},title.ilike.%원전%,title.ilike.%원자력%,title.ilike.%에너지%,title.ilike.%유가%,title.ilike.%태양광%,title.ilike.%수소%,title.ilike.%전력%,title.ilike.%nuclear%,title.ilike.%oil%',
-    defense:  'sectors.cs.{방산·우주},sectors.cs.{방산},sectors.cs.{우주},title.ilike.%방산%,title.ilike.%국방%,title.ilike.%미사일%,title.ilike.%위성%,title.ilike.%우주%,title.ilike.%로켓%,title.ilike.%defense%,title.ilike.%missile%',
-    game:     'sectors.cs.{게임},sectors.cs.{엔터},title.ilike.%게임%,title.ilike.%K팝%,title.ilike.%k-팝%,title.ilike.%넷플릭스%,title.ilike.%하이브%,title.ilike.%엔터테인먼트%,title.ilike.%netflix%',
-    crypto:   'sectors.cs.{크립토},sectors.cs.{암호화폐},title.ilike.%비트코인%,title.ilike.%암호화폐%,title.ilike.%이더리움%,title.ilike.%스테이블코인%,title.ilike.%bitcoin%,title.ilike.%crypto%,title.ilike.%stablecoin%',
-  };
-  if (currentCategory !== 'all' && catFilters[currentCategory]) {
-    query = query.or(catFilters[currentCategory]);
-  }
-
-  // 전체 카운트를 위한 병렬 쿼리 (조인 없이 issues 테이블만, 동일 필터 적용)
-  let countQuery = sb.from('issues')
-    .select('id', { count: 'exact', head: true })
-    .eq('is_analyzed', true);
-  if (currentSector !== 'all') countQuery = countQuery.contains('sectors', [currentSector]);
-  if (searchQuery) countQuery = countQuery.ilike('title', `%${searchQuery}%`);
-  if (currentCategory !== 'all' && catFilters[currentCategory]) {
-    countQuery = countQuery.or(catFilters[currentCategory]);
-  }
+  const params = new URLSearchParams({
+    page: currentPage, pageSize: PAGE_SIZE,
+    sector: currentSector, category: currentCategory,
+  });
+  if (searchQuery) params.set('q', searchQuery);
 
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 15000);
   let data, error;
   try {
-    const [pageRes, countRes] = await Promise.all([
-      query.abortSignal(ac.signal)
-           .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1),
-      countQuery,
-    ]);
-    ({ data, error } = pageRes);
-    if (typeof countRes?.count === 'number') totalCount = countRes.count;
+    const r = await fetch(`/api/admin?action=issues-feed&${params}`, { signal: ac.signal });
+    const j = await r.json();
+    data = j.data;
+    error = j.ok ? null : { message: j.error || 'unknown error' };
+    if (typeof j.totalCount === 'number') totalCount = j.totalCount;
   } catch (e) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">💤</div><p class="empty-title">DB 응답 없음</p><p class="empty-sub">Supabase DB가 슬립 상태일 수 있습니다. 잠시 후 다시 시도해주세요.</p><button class="empty-btn" onclick="loadIssues()">다시 시도</button></div>`;
     return;
@@ -1391,20 +1358,15 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
     const recentMs = RECENT_DAYS * 86400000;
 
     // 최근 500건의 예측 (이력 + 활성 모두) + 미래 먹거리 테마 맵 (큐레이션 + 일일 cron 자동추출 병합, /api/admin?action=theme-map)
-    const [{ data, error }, themeMap] = await Promise.all([
-      sb.from('analysis_companies')
-        .select(`
-          upside_pct, confidence, rationale, entry_date,
-          is_accurate_7d, actual_return_7d, is_accurate_1d, actual_return_1d,
-          companies(ticker, name_ko, name_en, market),
-          analyses!inner(issue_id, ai_summary,
-            issues!inner(id, title, published_at)
-          )
-        `)
-        .order('entry_date', { ascending: false })
-        .limit(500),
+    // analysis_companies 원본(500건)은 방문자 브라우저의 직접 Supabase 호출을 캐싱되는
+    // 서버 엔드포인트(action=insights-raw, 60초 엣지캐시)로 옮긴 것 — 이하 티커별 집계·
+    // 점수화 로직은 그대로 클라이언트에서 수행(응답 스키마 동일이라 안전).
+    const [insightsRes, themeMap] = await Promise.all([
+      fetch('/api/admin?action=insights-raw').then(r => r.json()).catch(() => ({ ok: false, data: [] })),
       fetch('/api/admin?action=theme-map').then(r => r.ok ? r.json() : { map: {} }).then(j => j.map || {}).catch(() => ({})),
     ]);
+    const data = insightsRes?.data;
+    const error = insightsRes?.ok ? null : (insightsRes?.error || 'unknown error');
 
     if (error || !data?.length) { sec.style.display = 'none'; return; }
 

@@ -82,6 +82,11 @@ export default async function handler(req, res) {
   // track: 방문자 애널리틱스 수집 — 모든 방문자가 매 페이지에서 호출하므로 공개.
   // 실패해도 방문 경험에 영향 없도록 내부에서 항상 200을 반환한다.
   if (action === 'track') return handleTrack(req, res);
+  // issues-feed / insights-raw: 홈 등 6개 페이지가 전부 쓰는 "최신 분석 이슈"/"투자 인사이트"
+  // 피드 — 원래 방문자 브라우저가 Supabase를 직접(캐싱 없이) 호출하던 걸 서버+엣지캐시로
+  // 옮긴 것(트래픽 급증 시 DB 보호 목적). 공개 조회이므로 인증 불필요.
+  if (action === 'issues-feed')  return handleIssuesFeed(req, res);
+  if (action === 'insights-raw') return handleInsightsRaw(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -1561,6 +1566,92 @@ async function handleThemeMap(req, res) {
     return res.status(200).json({ ok: true, map });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message, map: {} });
+  }
+}
+
+// 홈/뉴스 페이지의 "최신 분석 이슈" 피드 — 원래 app.js가 방문자 브라우저에서 Supabase를
+// 직접(anon key, 캐싱 전혀 없이) 호출했던 것을 서버로 옮긴 것. index/heatmap/kr-market/
+// picks/sectors/news 6개 페이지가 전부 이 피드를 쓰는데 기본 뷰(필터 없음, 1페이지)는
+// 사실상 전체 방문자가 동일 쿼리를 때리므로, 엣지 캐시로 트래픽 급증 시 origin(Supabase)
+// 호출을 흡수해 커넥션 소진/응답지연을 막는다. 쿼리 자체는 기존 app.js loadIssues()의
+// JOIN·필터 로직을 그대로 서버로 옮긴 것 — 결과 스키마 동일.
+const ISSUES_CAT_FILTERS = {
+  earnings: 'title.ilike.%실적%,title.ilike.%어닝%,title.ilike.%earnings%,title.ilike.%EPS%,title.ilike.%revenue%,sectors.cs.{실적발표}',
+  politics: 'title.ilike.%관세%,title.ilike.%무역%,title.ilike.%외교%,title.ilike.%제재%,title.ilike.%tariff%,title.ilike.%trade%,title.ilike.%geopolit%,title.ilike.%정치%,sectors.cs.{정치},sectors.cs.{외교},sectors.cs.{정세}',
+  economy:  'title.ilike.%금리%,title.ilike.%Fed%,title.ilike.%FOMC%,title.ilike.%물가%,title.ilike.%GDP%,title.ilike.%고용%,title.ilike.%인플레%,sectors.cs.{경제},sectors.cs.{금리},sectors.cs.{물가}',
+  tech:     'sectors.cs.{AI},sectors.cs.{반도체},sectors.cs.{클라우드},sectors.cs.{IT},sectors.cs.{로봇},title.ilike.%반도체%,title.ilike.%인공지능%,title.ilike.%semiconductor%,title.ilike.%엔비디아%,title.ilike.%nvidia%,title.ilike.%HBM%,title.ilike.%chip%',
+  bio:      'sectors.cs.{바이오},sectors.cs.{제약},sectors.cs.{헬스케어},title.ilike.%바이오%,title.ilike.%제약%,title.ilike.%신약%,title.ilike.%임상%,title.ilike.%FDA%,title.ilike.%biotech%,title.ilike.%pharma%',
+  ev:       'sectors.cs.{전기차},sectors.cs.{배터리},title.ilike.%전기차%,title.ilike.%배터리%,title.ilike.%테슬라%,title.ilike.%tesla%,title.ilike.%이차전지%,title.ilike.%2차전지%,title.ilike.%리튬%',
+  energy:   'sectors.cs.{에너지},sectors.cs.{원전},title.ilike.%원전%,title.ilike.%원자력%,title.ilike.%에너지%,title.ilike.%유가%,title.ilike.%태양광%,title.ilike.%수소%,title.ilike.%전력%,title.ilike.%nuclear%,title.ilike.%oil%',
+  defense:  'sectors.cs.{방산·우주},sectors.cs.{방산},sectors.cs.{우주},title.ilike.%방산%,title.ilike.%국방%,title.ilike.%미사일%,title.ilike.%위성%,title.ilike.%우주%,title.ilike.%로켓%,title.ilike.%defense%,title.ilike.%missile%',
+  game:     'sectors.cs.{게임},sectors.cs.{엔터},title.ilike.%게임%,title.ilike.%K팝%,title.ilike.%k-팝%,title.ilike.%넷플릭스%,title.ilike.%하이브%,title.ilike.%엔터테인먼트%,title.ilike.%netflix%',
+  crypto:   'sectors.cs.{크립토},sectors.cs.{암호화폐},title.ilike.%비트코인%,title.ilike.%암호화폐%,title.ilike.%이더리움%,title.ilike.%스테이블코인%,title.ilike.%bitcoin%,title.ilike.%crypto%,title.ilike.%stablecoin%',
+};
+async function handleIssuesFeed(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 45초 캐시 — 새 분석은 크론/에이전트가 시간 단위로 채우므로 45초 지연은 체감상 문제없고,
+  // 트래픽이 몰려도(뽐뿌 등 홍보 유입) 45초당 origin 1회로 Supabase 부하를 흡수한다.
+  res.setHeader('Cache-Control', 'public, s-maxage=45, stale-while-revalidate=300');
+
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const sector = (req.query.sector || 'all').toString();
+  const category = (req.query.category || 'all').toString();
+  const q = (req.query.q || '').toString().trim();
+  const pageSize = Math.min(Math.max(parseInt(req.query.pageSize) || 9, 1), 30);
+
+  const applyFilters = qb => {
+    let out = qb.eq('is_analyzed', true);
+    if (sector !== 'all') out = out.contains('sectors', [sector]);
+    if (q) out = out.ilike('title', `%${q}%`);
+    if (category !== 'all' && ISSUES_CAT_FILTERS[category]) out = out.or(ISSUES_CAT_FILTERS[category]);
+    return out;
+  };
+
+  try {
+    const dataQuery = applyFilters(
+      supabase.from('issues').select(`
+        id, title, summary, source_name, published_at, sectors, is_analyzed,
+        analyses!inner(id, confidence_score, ripple_effects, ai_summary,
+          analysis_companies(upside_pct, ripple_sector, is_accurate_1d, actual_return_1d, is_accurate_7d, actual_return_7d,
+            companies(ticker, name_ko, name_en, market)
+          )
+        )
+      `).order('published_at', { ascending: false })
+    ).range((page - 1) * pageSize, page * pageSize - 1);
+
+    const countQuery = applyFilters(supabase.from('issues').select('id', { count: 'exact', head: true }));
+
+    const [{ data, error }, { count }] = await Promise.all([dataQuery, countQuery]);
+    if (error) return res.status(200).json({ ok: false, error: error.message, data: [], totalCount: 0 });
+    return res.status(200).json({ ok: true, data: data || [], totalCount: count ?? 0, page, pageSize });
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: e.message, data: [], totalCount: 0 });
+  }
+}
+
+// 홈/매수후보 "투자 인사이트" 카드의 원본 데이터 — 마찬가지로 방문자 브라우저의 직접
+// Supabase 호출을 캐싱되는 서버 엔드포인트로 옮긴 것. 티커별 집계·점수화는 여전히
+// 클라이언트(app.js loadInsights)에서 하므로 응답 스키마는 원래 쿼리 결과와 동일.
+async function handleInsightsRaw(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  try {
+    const { data, error } = await supabase
+      .from('analysis_companies')
+      .select(`
+        upside_pct, confidence, rationale, entry_date,
+        is_accurate_7d, actual_return_7d, is_accurate_1d, actual_return_1d,
+        companies(ticker, name_ko, name_en, market),
+        analyses!inner(issue_id, ai_summary,
+          issues!inner(id, title, published_at)
+        )
+      `)
+      .order('entry_date', { ascending: false })
+      .limit(500);
+    if (error) return res.status(200).json({ ok: false, error: error.message, data: [] });
+    return res.status(200).json({ ok: true, data: data || [] });
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: e.message, data: [] });
   }
 }
 
