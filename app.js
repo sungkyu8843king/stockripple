@@ -1026,7 +1026,6 @@ function areaSparkSvg(points, w, h, color) {
 const MKT_DASH_ITEMS = [
   { id: 'sp500',  name: 'S&P 500',        fmt: 'n', mk: 'us' },
   { id: 'dow',    name: '다우존스',         fmt: 'n', mk: 'us' },
-  { id: 'kospi',  name: '코스피',           fmt: 'n', mk: 'kr' },
   { id: 'kosdaq', name: '코스닥',           fmt: 'n', mk: 'kr' },
   { id: 'vix',    name: 'VIX',             fmt: 'n', mk: 'us' },
   { id: 'usdkrw', name: '달러환율',         fmt: 'n', mk: 'fx' },
@@ -1055,10 +1054,13 @@ function updateMktDots(){
   });
   const heroDot = document.getElementById('mktHeroDot');
   if (heroDot) heroDot.classList.toggle('on', mktIsOpen(heroMarketMeta().mk));
+  const subDot = document.getElementById('mktHeroSubDot');
+  if (subDot) subDot.classList.toggle('on', mktIsOpen(subMarketMeta().mk));
 }
 
 // 홈 "시장 지표" 히어로 카드 — 평일 08:50~18:00 KST는 코스피, 그 외(평일 저녁·밤·주말)는
 // 나스닥을 보여준다(국내 장중에는 국내 지수가, 그 외 시간대는 미국 지수가 더 유용하다는 판단).
+// 서브 히어로(작은 카드)는 항상 히어로의 반대 지수 — 두 시장을 한 화면에서 같이 볼 수 있게.
 function heroMarketMeta(){
   const kst = new Date(Date.now() + 9*3600000);
   const day = kst.getUTCDay(), mins = kst.getUTCHours()*60 + kst.getUTCMinutes();
@@ -1066,6 +1068,22 @@ function heroMarketMeta(){
   return isKrWindow
     ? { key: 'kospi',  name: '코스피',  tag: 'KOSPI Composite',  mk: 'kr', sym: 'kospi' }
     : { key: 'nasdaq', name: '나스닥',  tag: 'NASDAQ Composite', mk: 'us', sym: 'nasdaq' };
+}
+function subMarketMeta(){
+  return heroMarketMeta().key === 'kospi'
+    ? { key: 'nasdaq', name: '나스닥', mk: 'us', sym: 'nasdaq' }
+    : { key: 'kospi',  name: '코스피', mk: 'kr', sym: 'kospi' };
+}
+
+// "더 많은 지표 보기" 토글 — 모바일 전용(데스크톱은 CSS가 버튼을 숨기고 항상 펼침 상태로 강제)
+function toggleMktMore(){
+  const grid = document.getElementById('mktDashGrid');
+  if (!grid) return;
+  const collapsed = grid.classList.toggle('collapsed');
+  const label = document.getElementById('mktMoreToggleLabel');
+  const icon = document.getElementById('mktMoreToggleIcon');
+  if (label) label.textContent = collapsed ? '더 많은 지표 보기' : '접기';
+  if (icon) icon.textContent = collapsed ? '▾' : '▲';
 }
 
 function renderMktStatus() {
@@ -1170,6 +1188,27 @@ function renderMarketDash(data) {
         if (lo) lo.textContent = fmtIdx(nd.fiftyTwoWeekLow, 'n');
         if (hi) hi.textContent = fmtIdx(nd.fiftyTwoWeekHigh, 'n');
       }
+    }
+  }
+
+  // 서브 히어로(소형) — 히어로의 반대 지수
+  const subMeta = subMarketMeta();
+  const subA = document.getElementById('mktHeroSub');
+  if (subA && subA.dataset.subKey !== subMeta.key) {
+    subA.dataset.subKey = subMeta.key;
+    subA.href = `/market-detail.html?sym=${subMeta.sym}`;
+    const subNameEl = document.getElementById('mktHeroSubName');
+    if (subNameEl) subNameEl.textContent = subMeta.name;
+  }
+  const sd = data[subMeta.key];
+  if (sd?.price != null) {
+    const chgClass = sd.changePercent > 0 ? 'pos' : sd.changePercent < 0 ? 'neg' : '';
+    const chgSign = sd.changePercent > 0 ? '+' : '';
+    const subValEl = document.getElementById('mktHeroSubVal');
+    const subChgEl = document.getElementById('mktHeroSubChg');
+    if (subValEl) animateNumberText(subValEl, sd.price, v => fmtIdx(v, 'n'), ['flash-up', 'flash-down']);
+    if (subChgEl && sd.changePercent != null) {
+      subChgEl.innerHTML = `<span class="${chgClass}">${chgSign}${sd.changePercent.toFixed(2)}%</span>`;
     }
   }
 
