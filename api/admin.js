@@ -1621,9 +1621,28 @@ async function handleIssuesFeed(req, res) {
 
     const countQuery = applyFilters(supabase.from('issues').select('id', { count: 'exact', head: true }));
 
-    const [{ data, error }, { count }] = await Promise.all([dataQuery, countQuery]);
-    if (error) return res.status(200).json({ ok: false, error: error.message, data: [], totalCount: 0 });
-    return res.status(200).json({ ok: true, data: data || [], totalCount: count ?? 0, page, pageSize });
+    // TEMP 진단: 어느 쪽이 느린지/실패하는지 알아내려고 개별 8초 타임아웃 + allSettled로 분리 실행.
+    const t0 = Date.now();
+    const dataAc = new AbortController(); const dataTimer = setTimeout(() => dataAc.abort(), 8000);
+    const countAc = new AbortController(); const countTimer = setTimeout(() => countAc.abort(), 8000);
+    const [dataRes, countRes] = await Promise.allSettled([
+      dataQuery.abortSignal(dataAc.signal),
+      countQuery.abortSignal(countAc.signal),
+    ]);
+    clearTimeout(dataTimer); clearTimeout(countTimer);
+
+    return res.status(200).json({
+      ok: true,
+      _debug: {
+        elapsedMs: Date.now() - t0,
+        dataStatus: dataRes.status, countStatus: countRes.status,
+        dataError: dataRes.status === 'rejected' ? String(dataRes.reason) : dataRes.value?.error?.message || null,
+        countError: countRes.status === 'rejected' ? String(countRes.reason) : countRes.value?.error?.message || null,
+      },
+      data: dataRes.status === 'fulfilled' ? (dataRes.value.data || []) : [],
+      totalCount: countRes.status === 'fulfilled' ? (countRes.value.count ?? 0) : 0,
+      page, pageSize,
+    });
   } catch (e) {
     return res.status(200).json({ ok: false, error: e.message, data: [], totalCount: 0 });
   }
