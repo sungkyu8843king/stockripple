@@ -64,15 +64,20 @@ export default async function handler(req, res) {
 function tossProxyConfigured() {
   return !!(process.env.TOSS_PROXY_URL && process.env.TOSS_PROXY_SECRET);
 }
-async function callTossProxy(path) {
-  try {
-    const r = await fetch(`${process.env.TOSS_PROXY_URL}${path}`, {
-      headers: { 'x-proxy-secret': process.env.TOSS_PROXY_SECRET },
-      signal: AbortSignal.timeout(6000),
-    });
-    if (!r.ok) return null;
-    return await r.json();
-  } catch { return null; }
+// retries=1(기본) → 최대 2회 시도. GCP e2-micro 프록시가 순간 과부하로 타임아웃/무응답일 때
+// 첫 실패만으로 바로 포기하지 않고 400ms 뒤 한 번 더 찔러본다(실측: 몇 초 뒤 재시도하면 정상화).
+async function callTossProxy(path, retries = 1) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const r = await fetch(`${process.env.TOSS_PROXY_URL}${path}`, {
+        headers: { 'x-proxy-secret': process.env.TOSS_PROXY_SECRET },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (r.ok) return await r.json();
+    } catch { /* 다음 시도로 폴백 */ }
+    if (attempt < retries) await new Promise(r => setTimeout(r, 400));
+  }
+  return null;
 }
 
 async function handleToss(req, res) {
@@ -103,6 +108,7 @@ async function handleToss(req, res) {
   ]);
 
   if (!pricesData && !fxData) {
+    res.setHeader('Cache-Control', 'no-store');
     return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
   }
 
@@ -176,7 +182,7 @@ async function handleTossPrices(req, res) {
   });
 
   const data = await callTossProxy(`/prices?symbols=${encodeURIComponent(tossSymbols.join(','))}`);
-  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (!data) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
 
   const byBare = {};
   for (const item of data.result || []) {
@@ -196,7 +202,7 @@ async function handleTossRankings(req, res) {
 
   const { type = 'TOP_GAINERS', marketCountry = 'KR', duration = '1d', count = '20' } = req.query;
   const data = await callTossProxy(`/rankings?type=${encodeURIComponent(type)}&marketCountry=${encodeURIComponent(marketCountry)}&duration=${encodeURIComponent(duration)}&count=${encodeURIComponent(count)}`);
-  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (!data) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
   if (data.error) return res.status(400).json({ ok: false, error: data.error.message || 'toss error' });
 
   const rankings = (data.result?.rankings || []).map(r => ({
@@ -210,6 +216,24 @@ async function handleTossRankings(req, res) {
   }));
 
   return res.status(200).json({ ok: true, source: 'toss', rankedAt: data.result?.rankedAt ?? null, rankings });
+}
+
+// toss_rankings_cache(db/toss-rankings-cache.sql)에서 마지막 성공 응답을 읽어 stale로 대체 —
+// 프록시(GCP VM)가 완전히 죽었을 때 "데이터가 없어요" 대신 오래된 데이터라도 보여준다.
+async function tossRankingsCacheFallback(res, market) {
+  try {
+    const { data: cached } = await supabase
+      .from('toss_rankings_cache')
+      .select('categories, updated_at')
+      .eq('market', market)
+      .maybeSingle();
+    if (cached?.categories) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(200).json({ ok: true, market, categories: cached.categories, updatedAt: cached.updated_at, stale: true });
+      return true;
+    }
+  } catch { /* 테이블이 아직 없거나(마이그레이션 전) 조회 실패 — fail-open으로 502 폴백 */ }
+  return false;
 }
 
 // GET ?source=toss&action=rankings-all&market=KR|US&count=12 — 메인 페이지 실시간 랭킹.
@@ -238,7 +262,11 @@ async function handleTossRankingsAll(req, res) {
   const raw = await Promise.all(CATS.map(c =>
     callTossProxy(`/rankings?type=${c.type}&marketCountry=${market}&duration=${c.duration}&count=${count}`)
   ));
-  if (raw.every(d => !d)) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (raw.every(d => !d)) {
+    if (await tossRankingsCacheFallback(res, market)) return;
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  }
 
   // realtime이 빈 배열을 주는 경우가 실측됨(장 마감 시간대의 US 마켓에서 특히 자주) — 주석의
   // "장 마감이어도 마지막 정규장 반환"이 실제론 시장/카테고리에 따라 보장되지 않으므로,
@@ -297,6 +325,21 @@ async function handleTossRankingsAll(req, res) {
     });
   });
 
+  // 개별 프록시 호출은 일부 성공했지만(raw가 all-null은 아님) 최종 카테고리가 전부 빈 배열인
+  // 경우(realtime 미지원 시장 + 1d 폴백까지 실패 등) — 이것도 사용자 입장에선 "빈 화면"이므로
+  // 동일하게 stale 캐시로 대체 시도.
+  const hasAny = Object.values(categories).some(arr => arr.length > 0);
+  if (!hasAny) {
+    if (await tossRankingsCacheFallback(res, market)) return;
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ ok: true, market, categories, updatedAt: new Date().toISOString() });
+  }
+
+  // 성공 응답을 캐시에 적어두기(다음 실패 시 stale 폴백용). 실패해도 응답 자체는 막지 않는다.
+  try {
+    await supabase.from('toss_rankings_cache').upsert({ market, categories, updated_at: new Date().toISOString() });
+  } catch { /* 테이블 미생성 등 — fail-open */ }
+
   return res.status(200).json({ ok: true, market, categories, updatedAt: new Date().toISOString() });
 }
 
@@ -311,7 +354,7 @@ async function handleTossInvestorTrading(req, res) {
   const count = req.query.count || '20';
 
   const data = await callTossProxy(`/market-indicators/${symbol}/investor-trading?interval=1d&count=${encodeURIComponent(count)}`);
-  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (!data) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
 
   const net = amt => amt ? Number(amt.buyAmount) - Number(amt.sellAmount) : null;
   const records = (data.result?.records || []).map(r => ({
@@ -333,7 +376,7 @@ async function handleTossFx(req, res) {
   if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
 
   const data = await callTossProxy('/exchange-rate?baseCurrency=USD&quoteCurrency=KRW');
-  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (!data) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
 
   return res.status(200).json({ ok: true, rate: data.result?.rate != null ? Number(data.result.rate) : null });
 }
@@ -369,7 +412,7 @@ async function handleTossQuote(req, res) {
   const [priceData, candleData, calToday, calYest] = await Promise.all(calls);
 
   const p = priceData?.result?.[0];
-  if (!p) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (!p) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
   const lastPrice = p.lastPrice != null ? Number(p.lastPrice) : null;
 
   const candles = candleData?.result?.candles || [];
@@ -419,7 +462,7 @@ async function handleTossOrderbook(req, res) {
   if (!symbol) return res.status(400).json({ ok: false, error: 'symbol required' });
 
   const data = await callTossProxy(`/orderbook?symbol=${encodeURIComponent(symbol)}`);
-  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (!data) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
   const r = data.result || {};
   const num = v => v != null ? Number(v) : null;
   return res.status(200).json({
@@ -448,7 +491,7 @@ async function handleTossMeta(req, res) {
   const [stockData, warnData, limitData] = await Promise.all(calls);
 
   const s = stockData?.result?.[0];
-  if (!s) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (!s) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
   const km = s.koreanMarketDetail || null;
   const num = v => v != null ? Number(v) : null;
 
@@ -483,7 +526,7 @@ async function handleTossDaily(req, res) {
 
   // 전일대비 계산 위해 요청 개수 + 1개 더 받아 마지막 기준점 확보
   const data = await callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=${count + 1}`);
-  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (!data) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
   const candles = data.result?.candles || [];   // 최신순(내림차순)
   const num = v => v != null ? Number(v) : null;
   const rows = [];
@@ -517,7 +560,7 @@ async function handleTossCandles(req, res) {
   const count = Math.min(Math.max(parseInt(req.query.count) || 120, 5), 200);
 
   const data = await callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=${interval}&count=${count}`);
-  if (!data) return res.status(502).json({ ok: false, error: 'toss proxy unreachable' });
+  if (!data) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
   const num = v => v != null ? Number(v) : null;
   // Toss는 최신순(내림차순) → 차트용으로 오름차순 뒤집기
   const candles = (data.result?.candles || []).slice().reverse().map(c => ({
