@@ -352,6 +352,10 @@ function renderDetail(d){
 
     ${retCells?`<div class="sec"><div class="sec-h"><span class="tick"></span><h3>기간별 수익률</h3><span class="hint">시장가 기준</span></div><div class="ret-grid">${retCells}</div></div>`:''}
 
+    ${(d.netInflows&&d.netInflows.items&&d.netInflows.items.length)?`<div class="sec"><div class="sec-h"><span class="tick"></span><h3>자금 유입 (누적 순유입)</h3><span class="hint">${esc(d.netInflows.referenceDate||'')} 기준</span></div>
+      <div class="ret-grid">${d.netInflows.items.map(x=>`<div class="ret-cell"><div class="p">${esc(x.label)}</div><div class="r" style="font-size:13px">${esc(x.value)}</div></div>`).join('')}</div>
+      <div class="hold-note" style="margin-top:10px">💡 누적 순유입이 클수록 최근 이 ETF로 자금이 몰렸다는 뜻이에요.</div></div>`:''}
+
     ${breakdowns?`<div class="sec"><div class="sec-h"><span class="tick"></span><h3>포트폴리오 구성</h3></div><div class="bd-cols">${breakdowns}</div></div>`:''}
 
     ${holdRows?`<div class="sec"><div class="sec-h"><span class="tick"></span><h3>주요 구성종목 (상위 ${(d.holdings||[]).length})</h3><span class="hint">비중순</span></div>

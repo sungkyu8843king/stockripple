@@ -1629,7 +1629,16 @@ async function handleEtfDetail(req, res) {
       assetBreakdown: mapBreakdown(j.assetPortfolioList),
       countryBreakdown: mapBreakdown(j.countryPortfolioList),
       sectorBreakdown: mapBreakdown(j.sectorPortfolioList),
-      netInflows: (j.cumulativeNetInflowList || []).map(x => ({ period: x.periodTypeCode, value: x.value })),
+      // cumulativeNetInflowList는 배열이 아니라 기간별 문자열 객체("136억" 등, 이미 포맷됨)
+      netInflows: (() => {
+        const o = j.cumulativeNetInflowList;
+        if (!o || typeof o !== 'object') return null;
+        const pick = [['1d','1일'],['1w','1주'],['1m','1개월'],['3m','3개월'],['6m','6개월'],['Ytd','연초이후'],['1y','1년']];
+        const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+        return { referenceDate: o.referenceDate || null, items: pick
+          .map(([k, label]) => ({ label, value: o['cumulativeNetInflow' + cap(k)] ?? null }))
+          .filter(x => x.value != null) };
+      })(),
       holdings: (j.etfTop10MajorConstituentAssets || []).map(h => ({
         seq: h.seq,
         code: h.itemCode || null,
