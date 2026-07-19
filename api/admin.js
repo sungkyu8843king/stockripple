@@ -2199,9 +2199,13 @@ async function handleFixBrokenTitles(req, res) {
 async function handleCrawlEtfHoldings(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const t0 = Date.now();
-  const TIME_BUDGET_MS = 45000;
+  const TIME_BUDGET_MS = 55000;
   const start = Math.max(0, parseInt(req.body?.start) || 0);
-  const limit = Math.min(Math.max(parseInt(req.body?.limit) || 500, 1), 1200);
+  const limit = Math.min(Math.max(parseInt(req.body?.limit) || 1200, 1), 1200);
+  // 해외주식(4)·원자재(5) ETF는 국내 종목을 담지 않아(구성종목 itemCode 비어있음) 역인덱스에
+  // 기여하지 못함 — 기본적으로 건너뛰어 한 번의 호출로 국내보유 ETF 전체를 커버한다.
+  const includeAll = !!req.body?.includeAll;
+  const SKIP_TABS = includeAll ? new Set() : new Set([4, 5]);
 
   const NAVER_H = {
     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
@@ -2214,7 +2218,7 @@ async function handleCrawlEtfHoldings(req, res) {
     const r = await fetch('https://finance.naver.com/api/sise/etfItemList.nhn', { headers: NAVER_H, signal: AbortSignal.timeout(8000) });
     const buf = await r.arrayBuffer();
     let text; try { text = new TextDecoder('euc-kr').decode(buf); } catch { text = new TextDecoder('utf-8').decode(buf); }
-    list = JSON.parse(text)?.result?.etfItemList || [];
+    list = (JSON.parse(text)?.result?.etfItemList || []).filter(e => !SKIP_TABS.has(e.etfTabCode));
   } catch (e) {
     return res.status(502).json({ ok: false, error: 'etf list fetch failed: ' + e.message });
   }
@@ -2248,7 +2252,7 @@ async function handleCrawlEtfHoldings(req, res) {
       } catch (err) { errors.push(`${e.itemcode}:${err.message}`); }
     }
   }
-  await Promise.all(Array.from({ length: 8 }, worker));
+  await Promise.all(Array.from({ length: 12 }, worker));
 
   const consumed = start + processed;
   const nextStart = timedOut ? consumed : (start + slice.length < list.length ? start + slice.length : null);

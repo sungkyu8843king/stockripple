@@ -62,11 +62,12 @@ export default async function handler(req, res) {
   faf('/api/admin?action=dart-sync-corp-codes');  // 신규 KR 종목의 corp_code 자동 매핑 (예: 히트맵에 추가된 HLB류)
   faf('/api/admin?action=ai-market-summary');
   faf('/api/check-accuracy');
+  faf('/api/admin?action=crawl-etf-holdings');  // ETF 보유종목 역인덱스 갱신(company.html "이 종목을 담은 ETF")
   // extract-investments/weekly-schedule/catalysts는 2026-07-15부터 스케줄 Claude Code
   // 에이전트(2시간 주기)의 고정 시간대 큐 제출표로 이관됨(13:15·23:15 / 수·일 21:15 / 15:15) —
   // 여기서 매일 또 부르면 그 스케줄과 중복 제출된다. 제거하지 말고 다시 추가하지도 말 것.
 
-  const jobs = ['fetch-news','fetch-rss','trump','analyze','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy'];
+  const jobs = ['fetch-news','fetch-rss','trump','analyze','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy','crawl-etf-holdings'];
   return res.status(200).json({
     success: true,
     timestamp: new Date().toISOString(),
