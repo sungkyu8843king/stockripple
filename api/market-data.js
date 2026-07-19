@@ -1688,7 +1688,9 @@ async function handleEtfHolders(req, res) {
       .from('etf_holdings')
       .select('etf_code, etf_name, etf_tab_code, stock_name, weight, seq, updated_at')
       .eq('stock_code', stockCode)
-      .order('weight', { ascending: false })
+      // nullsFirst:false 필수 — Postgres DESC 정렬 기본값이 NULL을 맨 앞에 두므로, 지정 안 하면
+      // 비중 미표기(네이버가 "-"로 준) ETF가 KODEX 200(32.73%) 같은 실제 고비중 ETF보다 앞에 나옴(실측 확인된 버그).
+      .order('weight', { ascending: false, nullsFirst: false })
       .limit(40);
     if (error) return res.status(200).json({ ok: true, mode: 'holders', ticker: stockCode, etfs: [], note: error.message });
 
