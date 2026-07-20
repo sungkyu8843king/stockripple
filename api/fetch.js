@@ -11,6 +11,62 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+// ─── 근접 중복 판별 ──────────────────────────────────────
+// source_url 완전일치만으로는 못 잡는 케이스가 실제로 자주 발생: FinancialJuice가 같은
+// 사건을 문구 그대로(또는 거의 그대로) 다른 URL로 재게시하거나, 구글뉴스 RSS가 같은
+// 기사에 매번 다른 추적 파라미터를 붙인 링크를 내려줌 (2026-07-21, 한 배치에서 5쌍/10건
+// 리터럴 중복 확인 — 전부 FinancialJuice). 제목을 정규화해 최근 48시간 수집분과 비교,
+// 완전일치 또는 의미 토큰 Jaccard 유사도 0.55 이상이면 중복으로 보고 skip한다.
+// 주의: 같은 사건이라도 서로 다른 세부 사실을 다루는 헤드라인(예: 트럼프 행정명령의
+// 조항 A vs 조항 B)까지 병합하려 하지 않음 — 실측상 그런 쌍은 유사도가 0.1~0.2대로
+// 임계값에 크게 못 미쳐 안전하게 구분된다. 임계값을 더 낮추면 그런 오탐 위험이 커짐.
+const TITLE_STOPWORDS = new Set(['the','a','an','to','of','in','on','for','and','or','with','by','at','is','are','it','its','that','this','as','from','said','says','say','will','after','over','me']);
+function normalizeTitle(title) {
+  return (title || '')
+    .replace(/^\[트럼프\]\s*/, '')
+    .replace(/^FinancialJuice:\s*/i, '')
+    .replace(/^White House:\s*/i, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function titleTokens(normalized) {
+  return new Set(normalized.split(' ').filter(w => w.length >= 2 && !TITLE_STOPWORDS.has(w)));
+}
+function isNearDuplicateTitle(a, b) {
+  if (!a.norm || !b.norm) return false;
+  if (a.norm === b.norm) return true;
+  if (a.tokens.size === 0 || b.tokens.size === 0) return false;
+  let intersection = 0;
+  for (const t of a.tokens) if (b.tokens.has(t)) intersection++;
+  const union = a.tokens.size + b.tokens.size - intersection;
+  return union > 0 && (intersection / union) >= 0.55;
+}
+async function loadRecentTitleFingerprints(hours = 48) {
+  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const { data } = await supabase.from('issues').select('title').gte('published_at', since).limit(500);
+  return (data || []).map(row => {
+    const norm = normalizeTitle(row.title);
+    return { norm, tokens: titleTokens(norm) };
+  });
+}
+// dupChecker: DB에서 미리 불러온 최근 제목 + 이번 실행 중 새로 저장한 제목을 함께 대조
+// (한 번의 fetch 실행 안에서 같은 이벤트가 여러 피드/쿼리에 동시에 잡히는 경우 방지)
+function makeDupChecker(seedFingerprints) {
+  const seen = [...seedFingerprints];
+  return {
+    isDuplicate(title) {
+      const candidate = { norm: normalizeTitle(title), tokens: titleTokens(normalizeTitle(title)) };
+      return seen.some(s => isNearDuplicateTitle(candidate, s));
+    },
+    add(title) {
+      const norm = normalizeTitle(title);
+      seen.push({ norm, tokens: titleTokens(norm) });
+    },
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const _auth = await verifyAdmin(req.headers.authorization);
@@ -47,7 +103,8 @@ const QUERIES = [
 async function handleNews(res) {
   if (!NEWS_API_KEY) return res.status(500).json({ error: 'NEWS_API_KEY not configured' });
 
-  const results = { fetched: 0, saved: 0, errors: [] };
+  const results = { fetched: 0, saved: 0, duplicatesSkipped: 0, errors: [] };
+  const dupChecker = makeDupChecker(await loadRecentTitleFingerprints());
   // NewsAPI 무료 쿼터(100콜/일) 때문에 회당 5쿼리만 실행하되, 고정 slice는 뒤쪽 쿼리
   // (바이오·한국어)가 영원히 안 돌므로 실행 시각 기준으로 시작점을 순환시킨다
   const rotStart = (new Date().getUTCHours() * 2 + (new Date().getUTCMinutes() >= 30 ? 1 : 0)) % QUERIES.length;
@@ -65,6 +122,7 @@ async function handleNews(res) {
         // 해석하면 중복이 수집마다 1개씩 불어나는 자가증폭이 된다 → limit(1) 배열 체크 사용
         const { data: existing } = await supabase.from('issues').select('id').eq('source_url', article.url).limit(1);
         if (existing?.length) continue;
+        if (dupChecker.isDuplicate(article.title)) { results.duplicatesSkipped++; continue; }
         const { error } = await supabase.from('issues').insert({
           title: article.title,
           summary: article.description || article.content?.slice(0, 500),
@@ -75,7 +133,7 @@ async function handleNews(res) {
           tags: query.q.split(' ').slice(0, 3),
           is_analyzed: false,
         });
-        if (!error) results.saved++;
+        if (!error) { results.saved++; dupChecker.add(article.title); }
       }
       await new Promise(r => setTimeout(r, 200));
     } catch (err) {
@@ -138,7 +196,8 @@ const RSS_FEEDS = [
 ];
 
 async function handleRss(res) {
-  const results = { fetched: 0, saved: 0, errors: [], feedStatus: {} };
+  const results = { fetched: 0, saved: 0, duplicatesSkipped: 0, errors: [], feedStatus: {} };
+  const dupChecker = makeDupChecker(await loadRecentTitleFingerprints());
 
   // 모든 피드 병렬 fetch (각 6초 타임아웃 → 전체 ~6초 내에 끝)
   const fetchResults = await Promise.allSettled(
@@ -193,6 +252,7 @@ async function handleRss(res) {
       const title = feed.isTrump
         ? `[트럼프] ${cleanText(item.description || item.title)?.slice(0, 120) || item.title.slice(0, 120)}`
         : (cleanText(item.title) || item.title).slice(0, 300);
+      if (dupChecker.isDuplicate(title)) { results.duplicatesSkipped++; continue; }
       const { error } = await supabase.from('issues').insert({
         title,
         summary: cleanText(item.description)?.slice(0, 800) || null,
@@ -203,7 +263,7 @@ async function handleRss(res) {
         tags: feed.isTrump ? ['Trump', '트럼프', 'TruthSocial'] : [],
         is_analyzed: false,
       });
-      if (!error) results.saved++;
+      if (!error) { results.saved++; dupChecker.add(title); }
     }
   }
   return res.status(200).json(results);
