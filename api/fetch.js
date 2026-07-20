@@ -18,8 +18,15 @@ const supabase = createClient(
 // 리터럴 중복 확인 — 전부 FinancialJuice). 제목을 정규화해 최근 48시간 수집분과 비교,
 // 완전일치 또는 의미 토큰 Jaccard 유사도 0.55 이상이면 중복으로 보고 skip한다.
 // 주의: 같은 사건이라도 서로 다른 세부 사실을 다루는 헤드라인(예: 트럼프 행정명령의
-// 조항 A vs 조항 B)까지 병합하려 하지 않음 — 실측상 그런 쌍은 유사도가 0.1~0.2대로
-// 임계값에 크게 못 미쳐 안전하게 구분된다. 임계값을 더 낮추면 그런 오탐 위험이 커짐.
+// 조항 A vs 조항 B)까지 병합하려 하지 않음 — 실측상 그런 쌍은 스테밍 적용 후에도 유사도가
+// 0.1~0.15대로 임계값에 크게 못 미쳐 안전하게 구분된다.
+// 2026-07-21: "Trump imposing tariffs on Canadian goods" vs "Trump imposes tariff on
+// Canadian imports"처럼 같은 사건을 동사/복수형만 바꿔 쓴 기사쌍이 raw Jaccard 0.23으로
+// 기존 0.55 임계값을 못 넘어 중복으로 못 잡히던 게 실제로 발생(사용자 리포트) — 가벼운
+// 접미사 스테밍(imposes/imposing→impos, tariffs→tariff)으로 그 쌍이 0.45까지 올라오는 걸
+// 확인, 임계값을 0.42로 낮춰 잡히게 함. 완전히 다른 어휘로 재서술된 헤드라인(예: "U.S. hits
+// Canada with stiff new tariffs")까지는 토큰 중복 방식의 한계로 여전히 못 잡음(의미 기반
+// 비교가 필요) — 별도 개선 필요 시 이 주석 참고.
 const TITLE_STOPWORDS = new Set(['the','a','an','to','of','in','on','for','and','or','with','by','at','is','are','it','its','that','this','as','from','said','says','say','will','after','over','me']);
 function normalizeTitle(title) {
   return (title || '')
@@ -31,8 +38,18 @@ function normalizeTitle(title) {
     .replace(/\s+/g, ' ')
     .trim();
 }
+// 가벼운 접미사 스테밍 — 복수형/동사활용 변형(tariffs/tariff, imposes/imposing/imposed)을
+// 같은 토큰으로 합침. -tion 명사(discrimination 등)는 의미가 뚜렷이 갈리므로 건드리지 않음.
+function stem(word) {
+  if (word.length > 6 && word.endsWith('ies')) return word.slice(0, -3) + 'y';
+  if (word.length > 5 && word.endsWith('ing') && !word.endsWith('tion')) return word.slice(0, -3);
+  if (word.length > 4 && word.endsWith('ed') && !word.endsWith('tion')) return word.slice(0, -2);
+  if (word.length > 4 && word.endsWith('es')) return word.slice(0, -2);
+  if (word.length > 3 && word.endsWith('s') && !word.endsWith('ss')) return word.slice(0, -1);
+  return word;
+}
 function titleTokens(normalized) {
-  return new Set(normalized.split(' ').filter(w => w.length >= 2 && !TITLE_STOPWORDS.has(w)));
+  return new Set(normalized.split(' ').filter(w => w.length >= 2 && !TITLE_STOPWORDS.has(w)).map(stem));
 }
 function isNearDuplicateTitle(a, b) {
   if (!a.norm || !b.norm) return false;
@@ -41,7 +58,7 @@ function isNearDuplicateTitle(a, b) {
   let intersection = 0;
   for (const t of a.tokens) if (b.tokens.has(t)) intersection++;
   const union = a.tokens.size + b.tokens.size - intersection;
-  return union > 0 && (intersection / union) >= 0.55;
+  return union > 0 && (intersection / union) >= 0.42;
 }
 async function loadRecentTitleFingerprints(hours = 48) {
   const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
