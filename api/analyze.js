@@ -462,6 +462,14 @@ const BATCH_SUBMIT_LIMIT = 40;
 // is_analyzed=false로 남아있으므로 다음 hourly 크론의 기존 동기 경로가 자연스럽게
 // 다시 집어가 처리한다 (하루 종일 안 끝나는 걸 무한정 기다리지 않기 위한 상한).
 const BATCH_STUCK_TIMEOUT_MS = 3 * 3600 * 1000;
+// processBatchRow가 행을 submitted→processing으로 선점한 직후 서버리스 함수가
+// 플랫폼에 의해 강제 종료되면(타임아웃 등, JS 예외가 아니므로 catch가 못 잡음)
+// processing 상태로 영원히 고아가 되어 in-flight 체크를 무한정 막는 사고가 실제로
+// 있었음(2026-07-20, 100건 배치가 discover finalize 도중 죽어 14시간 뉴스 갱신 중단).
+// 정상적으로 선점 후 완료까지는 수 초~길어야 1분 내로 끝나야 하므로, 이보다 훨씬
+// 여유 있는 시간이 지나도 여전히 processing이면 고아로 간주해 submitted로 되돌려
+// 다음 폴링이 재시도하게 한다.
+const PROCESSING_STUCK_TIMEOUT_MS = 30 * 60 * 1000;
 
 async function handleBatchSubmit(req, res, opts = {}) {
   const engine = opts.engine === 'agent' ? 'agent' : 'anthropic';
@@ -573,6 +581,13 @@ async function handleBatchSubmit(req, res, opts = {}) {
 }
 
 async function handleBatchPoll(req, res) {
+  // 고아 processing 행 회수 — 아래 submitted 조회 전에 먼저 되돌려야 이번 폴링에서 바로 재시도됨
+  const processingStuckCutoff = new Date(Date.now() - PROCESSING_STUCK_TIMEOUT_MS).toISOString();
+  await supabase.from('analyze_batches')
+    .update({ status: 'submitted' })
+    .eq('status', 'processing')
+    .lt('created_at', processingStuckCutoff);
+
   const { data: rows } = await supabase.from('analyze_batches').select('*').eq('status', 'submitted').order('created_at', { ascending: true });
   if (!rows?.length) return res.status(200).json({ ok: true, checked: 0 });
 
