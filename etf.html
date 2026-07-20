@@ -6,14 +6,14 @@
 <title>ETF 탐색 — StockRipple</title>
 <meta name="description" content="국내 상장 ETF 1,100여 종을 카테고리·수익률로 탐색하고, 각 ETF의 구성종목·보수·추적오차·기간수익률을 확인하세요. 내 종목이 담긴 ETF 역조회까지.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#15171e; --bg2:#1e2129; --bg3:#262a34; --bg4:#2f333f;
   --border:rgba(255,255,255,0.075); --border-strong:rgba(255,255,255,0.16);
   --text:#f2f4f8; --text2:#a6adbb; --text3:#6c7385;
   --red:#ff6b6b; --green:#3ddb7f; --blue:#4d8dff; --yellow:#f0b45e; --purple:#9d7bff;
-  --mono:'SF Mono',ui-monospace,Menlo,monospace;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
@@ -26,6 +26,11 @@ a{color:inherit}
 .logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--blue) 0%,var(--purple) 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;box-shadow:0 3px 10px rgba(36,87,230,0.30)}
 .logo-text{font-size:17px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
 .logo-sub{font-size:10px;color:var(--text3);font-weight:500;margin-top:1px}
+.header-search{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px 10px;flex:1 1 auto;max-width:260px;min-width:0}
+.header-search svg{color:var(--text3);flex-shrink:0}
+.header-search input{flex:1;min-width:0;border:none;outline:none;background:none;font-size:13px;color:var(--text);font-family:inherit}
+.header-search input::placeholder{color:var(--text3)}
+@media (max-width:900px){ .header-search{display:none} }
 .header-nav{display:flex;gap:2px;margin-left:auto;align-items:center}
 .nav-btn{padding:7px 13px;border-radius:10px;font-size:13px;font-weight:500;background:none;border:none;color:var(--text2);cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px;transition:all .12s;white-space:nowrap}
 .nav-btn:hover{background:var(--bg3);color:var(--text)}
@@ -99,7 +104,7 @@ a{color:inherit}
 .cat-tab .n{opacity:.6;font-size:11px;margin-left:3px}
 
 /* 툴바(검색 + 정렬) */
-.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:0}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .search{flex:1;min-width:180px;display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 13px}
 .search input{flex:1;min-width:0;background:none;border:none;color:var(--text);font-size:13px;font-family:inherit;outline:none}
 .search input::placeholder{color:var(--text3)}
@@ -188,6 +193,11 @@ a{color:inherit}
         <div class="logo-sub">파급효과 주식 전망</div>
       </div>
     </a>
+    <div class="header-search" id="headerSearch">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)"
+             onkeydown="if(event.key==='Enter') etfHeaderSearch(this.value)">
+    </div>
     <nav class="header-nav">
       <a href="/news.html" class="nav-btn nav-new">📰 뉴스</a>
       <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
@@ -196,6 +206,7 @@ a{color:inherit}
       <a href="/etf.html" class="nav-btn active">🧺 ETF</a>
       <a href="/talks.html" class="nav-btn nav-new">💬 말말말</a>
       <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
+      <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
       <a href="/account.html" class="nav-btn-primary">로그인</a>
     </nav>
   </div>
@@ -547,6 +558,18 @@ function renderDetail(d){
 }
 
 // ═══════════════ 라우팅 ═══════════════
+// 헤더 검색 — 이 페이지는 app.js(직접 Supabase 조회하는 tryDirectLookup)를 안 불러오는
+// 가벼운 독립 페이지라, 티커 패턴만 로컬로 판별해 종목 페이지로 보낸다(회사명 직접 검색이
+// 필요하면 company.html 자체의 "찾을 수 없음" 화면이 처리).
+function etfHeaderSearch(input){
+  const raw = (input||'').trim();
+  if(!raw) return;
+  const upper = raw.toUpperCase();
+  if(/^\d{6}\.K[SQ]$/i.test(upper)) location.href = `/company.html?ticker=${encodeURIComponent(upper)}`;
+  else if(/^\d{6}$/.test(upper)) location.href = `/company.html?ticker=${encodeURIComponent(upper+'.KS')}`;
+  else location.href = `/company.html?ticker=${encodeURIComponent(upper)}`;
+}
+
 const _code = new URLSearchParams(location.search).get('code');
 if(_code) loadDetail(_code); else loadList();
 </script>
