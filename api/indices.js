@@ -1,3 +1,5 @@
+import { tossProxyConfigured, callTossProxy } from '../lib/toss-proxy.js';
+
 // id → Yahoo 심볼 매핑 (핸들러 본문의 SYMBOLS와 동일한 값 — 차트 히스토리 브랜치가 별도로 참조)
 const SYMBOL_MAP = {
   sp500: '^GSPC', nasdaq: '^IXIC', dow: '^DJI', kospi: '^KS11', kosdaq: '^KQ11',
@@ -148,5 +150,44 @@ export default async function handler(req, res) {
     }
   });
 
+  await patchKrIndicesFromToss(data);
+
   return res.status(200).json({ ok: true, data, ts: Date.now() });
+}
+
+// KOSPI/KOSDAQ 보정 — Yahoo(^KS11/^KQ11)는 이 환경에서 지수 일봉 히스토리에 이상치 봉이
+// 섞여 있어(2026-07-15 종가 7284.41 vs 07-16 종가 6820.60처럼 실제로 있었던 급락 자체는
+// 진짜지만) meta.regularMarketPrice가 그날 이후로 갱신되지 않은 채(=07-16 종가를 그대로
+// "현재가"로 계속 반환) 다음 영업일 아침에도 이어지는 문제가 있다. 그 결과 "현재가(사실은
+// 전전날 종가) vs 전전날의 전일종가"를 비교하게 되어 등락률이 실제(토스 앱 기준 -0.8%대)의
+// 8배 가까이(-6.37%) 부풀려짐 — 실측 확인. 토스 공식 라이브가(market-indicators/prices)와
+// 지수 일봉 히스토리(market-indicators/{symbol}/candles, 최신순)로 "오늘 이전 마지막 완결
+// 거래일" 종가를 직접 골라 price/prevClose/change/changePercent만 덮어쓴다(spark·52주
+// 범위는 기존 Yahoo 값 유지 — 이번에 확인된 문제 범위 밖).
+const KR_INDEX_TOSS_SYMBOLS = { kospi: 'KOSPI', kosdaq: 'KOSDAQ' };
+async function patchKrIndicesFromToss(data) {
+  if (!tossProxyConfigured()) return;
+  const kstToday = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+
+  await Promise.all(Object.entries(KR_INDEX_TOSS_SYMBOLS).map(async ([id, symbol]) => {
+    try {
+      const [pricesData, candlesData] = await Promise.all([
+        callTossProxy(`/market-indicators/prices?symbols=${symbol}`),
+        callTossProxy(`/market-indicators/${symbol}/candles?interval=1d&count=5`),
+      ]);
+      const liveItem = (pricesData?.result || []).find(it => it.symbol === symbol);
+      const price = liveItem?.lastPrice != null ? Number(liveItem.lastPrice) : (data[id]?.price ?? null);
+
+      // 최신순 캔들 중 "오늘(KST)" 이전 날짜의 첫 캔들 = 마지막으로 완결된 거래일 종가
+      const candles = candlesData?.result?.candles || [];
+      const prevCandle = candles.find(c => c.timestamp && c.timestamp.slice(0, 10) < kstToday);
+      const prevClose = prevCandle?.closePrice != null ? Number(prevCandle.closePrice) : null;
+
+      if (price != null && prevClose) {
+        const change = price - prevClose;
+        const changePercent = (change / prevClose) * 100;
+        data[id] = { ...data[id], price, prevClose, change, changePercent };
+      }
+    } catch { /* Toss 실패 시 기존 Yahoo 기반 값 그대로 둠(fail-open) */ }
+  }));
 }

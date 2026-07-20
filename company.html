@@ -479,10 +479,15 @@ body {
 }
 .cmp-hero::before { content:""; position:absolute; inset:0 0 auto 0; height:1px;
   background:linear-gradient(90deg, transparent, rgba(77,141,255,0.32), transparent); }
-.cmp-hero-top { display: flex; align-items: center; gap: 15px; padding: 20px 24px; flex-wrap: wrap; }
-.cmp-hero-top .company-name-main { font-size: 23px; font-weight: 650; letter-spacing: -0.02em; margin: 0; }
-.cmp-hero-top .company-sub { letter-spacing: 0.01em; }
-.cmp-hero-top .price-block { margin-left: auto; }
+/* 세로 스택: (티커뱃지+공유버튼) → 종목명 → 상장 서브텍스트 → 세션·현재가·등락 — 전부 왼쪽 정렬.
+   예전엔 플렉스 한 줄에 4개를 다 넣고 wrap에 맡겼는데, 종목명이 길면 가격 블록이 margin-left:auto로
+   혼자 다음 줄로 밀려나면서 그 줄 왼쪽에 큰 여백만 남는 문제가 있었음(2026-07 실측) — 항상 같은
+   왼쪽 기준선에서 시작하는 세로 스택으로 바꿔 그 문제를 원천 제거.*/
+.cmp-hero-top { padding: 20px 24px; }
+.cmp-hero-row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cmp-hero-top .company-name-main { font-size: 23px; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 4px; }
+.cmp-hero-top .company-sub { letter-spacing: 0.01em; margin-bottom: 14px; }
+.cmp-hero-top .price-block { text-align: left; }
 .cmp-hero-top .current-price { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .cmp-hero-top .price-change { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .cmp-verdict {
@@ -680,7 +685,7 @@ body {
 @media (max-width: 680px) { .flow-tiles, .flow-tiles-2 { grid-template-columns: 1fr; } }
 
 @media (max-width: 700px) {
-  .cmp-hero-top { gap: 10px; padding: 16px; }
+  .cmp-hero-top { padding: 16px; }
   .cmp-hero-top .price-block .current-price { font-size: 22px; }
   .cmp-verdict > .vbadge { margin: 12px 16px; }
   .vmeta { padding: 12px 16px; }
@@ -1600,13 +1605,15 @@ function renderPage(company, records, priceData) {
     <!-- 히어로 -->
     <div class="cmp-hero">
       <div class="cmp-hero-top">
-        <span class="ticker-badge ${isKr ? 'kr' : 'us'}">${escHtml(ticker)}</span>
+        <div class="cmp-hero-row1">
+          <span class="ticker-badge ${isKr ? 'kr' : 'us'}">${escHtml(ticker)}</span>
+          <button class="share-icon-btn" data-share-title="${escHtml(`${name} (${ticker}) — StockRipple`)}" data-share-url="${escHtml(location.href)}" onclick="shareContent(event, this)" title="공유하기">🔗</button>
+        </div>
         <div class="company-name-wrap">
           <div class="company-name-main">${escHtml(name)}</div>
           <div class="company-sub">${isKr ? '🇰🇷 한국 상장' : '🇺🇸 미국 상장'}${sector ? ' · ' + escHtml(sector) : ''}</div>
         </div>
         <div class="price-block" id="priceBlock">${priceHtml}</div>
-        <button class="share-icon-btn" style="align-self:center" data-share-title="${escHtml(`${name} (${ticker}) — StockRipple`)}" data-share-url="${escHtml(location.href)}" onclick="shareContent(event, this)" title="공유하기">🔗</button>
       </div>
       <div class="meta-badges" id="metaBadges"></div>
       <div id="statBarWrap">${statBarHtml}</div>
@@ -2690,11 +2697,12 @@ async function loadEtfHolders(ticker) {
   }
 }
 
+const ETFH_VISIBLE_COUNT = 3;
 function renderEtfHolders(d) {
   const pctTxt = v => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%';
   const pctCls = v => v == null ? 'etfh-flat' : v > 0 ? 'etfh-up' : v < 0 ? 'etfh-dn' : 'etfh-flat';
   const sorted = d.etfs.slice().sort((a, b) => (b.weight || 0) - (a.weight || 0));
-  const rows = sorted.map(e => `
+  const row = e => `
     <a class="etfh-row" href="/etf.html?code=${escHtml(e.code)}">
       <div class="etfh-name">
         <span class="etfh-nm">${escHtml(e.name)}</span>
@@ -2703,7 +2711,15 @@ function renderEtfHolders(d) {
       <div class="etfh-w">${e.weight != null ? e.weight.toFixed(2) + '%' : '—'}</div>
       <div class="etfh-num ${pctCls(e.changeRate)}">${pctTxt(e.changeRate)}</div>
       <div class="etfh-num ${pctCls(e.ret3m)}">${pctTxt(e.ret3m)}</div>
-    </a>`).join('');
+    </a>`;
+  const visible = sorted.slice(0, ETFH_VISIBLE_COUNT).map(row).join('');
+  const rest = sorted.slice(ETFH_VISIBLE_COUNT);
+  const moreLabel = `나머지 ${rest.length}개 더보기`;
+  const toggleHtml = rest.length ? `
+      <div class="etfh-more-wrap" id="etfhMore">${rest.map(row).join('')}</div>
+      <button type="button" class="etfh-toggle" id="etfhToggleBtn" data-more-label="${escHtml(moreLabel)}" onclick="toggleEtfHoldersMore()">
+        <span class="etfh-toggle-label">${escHtml(moreLabel)}</span><span class="etfh-chev">▾</span>
+      </button>` : '';
   return `
     <style>
       .etfh-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:8px 16px 14px;margin-bottom:24px}
@@ -2718,12 +2734,28 @@ function renderEtfHolders(d) {
       .etfh-up{color:var(--green)} .etfh-dn{color:var(--red)} .etfh-flat{color:var(--text3)}
       .etfh-head{font-size:10.5px;color:var(--text3);padding:10px 0 4px;display:grid;grid-template-columns:1fr 58px 60px 60px;gap:10px;text-transform:uppercase;letter-spacing:.02em}
       .etfh-head span:not(:first-child){text-align:right}
+      .etfh-more-wrap{display:none}
+      .etfh-more-wrap.open{display:block}
+      .etfh-toggle{width:100%;margin-top:6px;padding:10px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--text2);font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+      .etfh-toggle:hover{background:var(--bg3);color:var(--text)}
+      .etfh-toggle .etfh-chev{transition:transform .15s}
+      .etfh-toggle.open .etfh-chev{transform:rotate(180deg)}
       @media (max-width:560px){ .etfh-row,.etfh-head{grid-template-columns:1fr 50px 52px} .etfh-row .etfh-num:last-child,.etfh-head span:last-child{display:none} }
     </style>
     <div class="etfh-wrap">
       <div class="etfh-head"><span>이 종목을 주요 보유한 ETF ${d.etfs.length}개</span><span>비중</span><span>오늘</span><span>3개월</span></div>
-      ${rows}
+      ${visible}
+      ${toggleHtml}
     </div>`;
+}
+function toggleEtfHoldersMore() {
+  const more = document.getElementById('etfhMore');
+  const btn = document.getElementById('etfhToggleBtn');
+  if (!more || !btn) return;
+  const open = more.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  const label = btn.querySelector('.etfh-toggle-label');
+  if (label) label.textContent = open ? '접기' : btn.dataset.moreLabel;
 }
 
 function renderInvestorTrend(d) {
@@ -2817,8 +2849,8 @@ function renderInvestorTrend(d) {
       <div class="cum-box">${cumSvg}</div>
     </div>
 
-    <div class="ck-panel" style="padding:4px 6px;margin-bottom:24px">
-      <table class="ck-tbl">
+    <div class="ck-panel" style="padding:4px 6px;margin-bottom:24px;overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <table class="ck-tbl" style="min-width:480px">
         <thead><tr><th>일자</th><th>외국인</th><th>기관</th><th>개인</th><th>외인보유율</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
