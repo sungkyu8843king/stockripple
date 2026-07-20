@@ -1121,10 +1121,12 @@ button { font-family: inherit; }
   .nav-btn { padding: 6px 9px; font-size: 12px; }
 
   /* 모바일 홈은 최신 뉴스 3개만 노출 + "뉴스 더 보기" 버튼으로 news.html 유도
-     (데스크톱은 기존과 동일하게 9개 + 페이지네이션 그대로 노출) */
+     (데스크톱은 기존과 동일하게 9개 + 페이지네이션 그대로 노출). #pagination/#newsMoreBtn은
+     인라인 style="display:..."이 있어 !important 없이는 이 규칙이 안 먹힘(인라인 스타일이
+     외부 스타일시트보다 항상 우선) — index.html의 다른 모바일 오버라이드와 동일 패턴. */
   #issuesContainer .issues-grid > .issue-card:nth-child(n+4) { display: none; }
-  #pagination { display: none; }
-  #newsMoreBtn { display: inline-block; }
+  #pagination { display: none !important; }
+  #newsMoreBtn { display: inline-block !important; }
 }
 
 /* ═══ 📊 실시간 랭킹 (토스) ═══ */
