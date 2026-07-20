@@ -54,6 +54,7 @@ export default async function handler(req, res) {
       if (action === 'meta')            return handleTossMeta(req, res);
       if (action === 'daily')           return handleTossDaily(req, res);
       if (action === 'candles')         return handleTossCandles(req, res);
+      if (action === 'probe-index-candles') return handleTossProbeIndexCandles(req, res);
       return handleToss(req, res);
     }
     default:
@@ -596,6 +597,25 @@ async function handleTossCandles(req, res) {
   })).filter(c => c.date && c.close != null);
 
   return res.status(200).json({ ok: true, symbol, interval, currency: data.result?.candles?.[0]?.currency ?? null, candles });
+}
+
+// TEMP 진단용 — KOSPI/KOSDAQ 같은 지수 심볼의 일봉 히스토리를 토스 프록시가 어느 경로로
+// 제공하는지 후보 경로 여러 개를 시도해보고 결과를 그대로 반환한다. 결론 나면 제거할 것.
+async function handleTossProbeIndexCandles(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
+  const symbol = (req.query.symbol || 'KOSPI').toString();
+  const candidates = [
+    `/market-indicators/${encodeURIComponent(symbol)}/candles?interval=1d&count=5`,
+    `/market-indicators/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=5`,
+    `/market-indicators/${encodeURIComponent(symbol)}/history?interval=1d&count=5`,
+    `/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=5`,
+  ];
+  const results = {};
+  for (const path of candidates) {
+    results[path] = await callTossProxy(path, 0);
+  }
+  return res.status(200).json({ ok: true, symbol, results });
 }
 
 const SHARED_HEADERS = {
