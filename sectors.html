@@ -38,7 +38,7 @@ h1 { font-size: 20px; font-weight: 800; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; overflow: hidden; }
 .card-title { font-size: 14.5px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .meta { font-size: 11px; color: var(--text3); font-weight: 400; }
-.up { color: var(--green); } .dn { color: var(--red); }
+.up { color: var(--red); } .dn { color: var(--blue); }
 
 /* ── 상단 메뉴바 (다른 페이지들과 동일 — index.html/kr-market.html 등과 마크업 통일) ── */
 .header {
@@ -136,8 +136,8 @@ h1 { font-size: 20px; font-weight: 800; }
 .ticker-price { color: var(--text); font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .ticker-chg { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
 .ticker-spark { width: 44px; height: 14px; flex-shrink: 0; opacity: .9; }
-.ticker-chg.up { color: var(--green); }
-.ticker-chg.dn { color: var(--red); }
+.ticker-chg.up { color: var(--red); }
+.ticker-chg.dn { color: var(--blue); }
 .ticker-chg.flat { color: var(--text3); }
 
 /* User Menu */
@@ -330,8 +330,8 @@ h1 { font-size: 20px; font-weight: 800; }
 .sec-name-line { display: flex; align-items: center; gap: 7px; }
 .sec-name { font-size: 14px; font-weight: 800; }
 .sec-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
-.sec-badge.hot { background: var(--green-dim); color: var(--green); }
-.sec-badge.cold { background: var(--red-dim); color: var(--red); }
+.sec-badge.hot { background: var(--red-dim); color: var(--red); }
+.sec-badge.cold { background: var(--blue-dim); color: var(--blue); }
 .sec-badge.accel { background: var(--yellow-dim); color: var(--yellow); }
 .sec-desc { font-size: 11.5px; color: var(--text3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sec-share { width: 46px; text-align: right; font-size: 13px; font-weight: 700; color: var(--text2); flex-shrink: 0; }
@@ -639,7 +639,7 @@ function renderStrip() {
     let bg;
     if (chg != null) {
       const a = Math.min(1, Math.abs(chg) / 3) * 0.75 + 0.15;
-      bg = chg >= 0 ? `rgba(15,157,88,${a})` : `rgba(229,72,77,${a})`;
+      bg = chg >= 0 ? `rgba(229,72,77,${a})` : `rgba(77,141,255,${a})`;
     } else {
       bg = s.heat >= 1.1 ? 'rgba(229,72,77,.4)' : 'rgba(56,97,246,.3)';
     }
@@ -757,7 +757,7 @@ function renderList() {
     const badge = chg != null
       ? (chg >= 0.8 ? '<span class="sec-badge hot">강세</span>' : chg <= -0.8 ? '<span class="sec-badge cold">약세</span>' : '')
       : (s.heat >= 1.3 ? '<span class="sec-badge accel">가속</span>' : '');
-    const dot = chg != null ? (chg >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--border2)';
+    const dot = chg != null ? (chg >= 0 ? 'var(--red)' : 'var(--blue)') : 'var(--border2)';
     return `<div class="sec-row" onclick="select('${escHtml(s.tag)}');document.getElementById('flowCard').scrollIntoView({behavior:'smooth'})">
       <span class="sec-dot" style="background:${dot}"></span>
       <div class="sec-main">

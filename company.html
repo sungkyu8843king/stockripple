@@ -246,12 +246,12 @@ body {
 .share-icon-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .share-icon-btn:hover { background: var(--bg3); color: var(--text); }
 .current-price { font-size: 28px; font-weight: 700; transition: color 0.4s ease; }
-.current-price.price-flash-up { color: var(--green); }
-.current-price.price-flash-down { color: var(--red); }
+.current-price.price-flash-up { color: var(--red); }
+.current-price.price-flash-down { color: var(--blue); }
 .current-price-krw { font-size: 14px; font-weight: 600; color: var(--text2); margin-top: 1px; font-family: var(--mono); }
 .price-change { font-size: 14px; font-weight: 600; margin-top: 2px; }
-.price-change.pos { color: var(--green); }
-.price-change.neg { color: var(--red); }
+.price-change.pos { color: var(--red); }
+.price-change.neg { color: var(--blue); }
 .price-loading { font-size: 14px; color: var(--text3); }
 
 /* Stats Bar */
@@ -326,8 +326,8 @@ body {
 }
 .issue-link:hover { color: var(--blue); }
 .upside-cell { font-weight: 700; white-space: nowrap; }
-.upside-cell.pos { color: var(--green); }
-.upside-cell.neg { color: var(--red); }
+.upside-cell.pos { color: var(--red); }
+.upside-cell.neg { color: var(--blue); }
 .return-cell { white-space: nowrap; }
 .return-badge {
   display: inline-flex; align-items: center; gap: 4px;
@@ -398,8 +398,8 @@ body {
 .fund-val.warn { color: var(--yellow); }
 .fund-val.dim  { color: var(--text3); font-size: 13px; }
 .fund-sub { font-size: 10px; color: var(--text3); margin-top: 2px; font-family: var(--mono); }
-.fund-sub.pos { color: var(--green); }
-.fund-sub.neg { color: var(--red); }
+.fund-sub.pos { color: var(--red); }
+.fund-sub.neg { color: var(--blue); }
 @media (max-width: 700px) {
   .fund-grid { grid-template-columns: repeat(2, 1fr); }
 }
@@ -544,8 +544,8 @@ body {
 .hist-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .hist-date { font-size: 12px; font-family: var(--mono); color: var(--text3); font-variant-numeric: tabular-nums; }
 .hist-upside { font-size: 11px; font-weight: 700; font-family: var(--mono); padding: 2px 8px; border-radius: 6px; }
-.hist-upside.pos { color: var(--green); background: var(--green-dim); }
-.hist-upside.neg { color: var(--red); background: var(--red-dim); }
+.hist-upside.pos { color: var(--red); background: var(--red-dim); }
+.hist-upside.neg { color: var(--blue); background: var(--blue-dim); }
 .hist-title { font-size: 14.5px; font-weight: 650; line-height: 1.45; letter-spacing: -0.01em; margin-bottom: 6px; }
 .hist-reason { font-size: 13px; color: var(--text2); line-height: 1.65; }
 
@@ -591,20 +591,20 @@ body {
 .ob-ladder { display: flex; flex-direction: column; }
 .ob-row { display: grid; grid-template-columns: 1fr 90px 1fr; align-items: center; height: 26px; }
 .ob-price { text-align: center; font-family: var(--mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.ob-price.ask { color: var(--red); }
-.ob-price.bid { color: var(--green); }
+.ob-price.ask { color: var(--blue); }
+.ob-price.bid { color: var(--red); }
 .ob-vol { display: flex; align-items: center; gap: 6px; min-width: 0; height: 100%; }
 .ob-vol.ask { justify-content: flex-end; }
 .ob-vol.bid { justify-content: flex-start; }
 .ob-vnum { font-size: 10.5px; font-family: var(--mono); color: var(--text3); flex-shrink: 0; }
 .ob-bar { height: 15px; border-radius: 3px; min-width: 2px; }
-.ob-bar.ask { background: rgba(220,47,62,0.22); }
-.ob-bar.bid { background: rgba(10,135,84,0.22); }
+.ob-bar.ask { background: rgba(77,141,255,0.22); }
+.ob-bar.bid { background: rgba(220,47,62,0.22); }
 .ob-spread { display: flex; justify-content: space-between; padding: 5px 12px; margin: 3px 0; border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
 .ob-spread-lbl { font-size: 10px; color: var(--text3); font-weight: 600; letter-spacing: 0.05em; }
 .ob-tot { display: flex; justify-content: space-between; padding: 9px 12px 4px; font-size: 11.5px; color: var(--text2); font-family: var(--mono); }
 .ob-tot em { font-style: normal; font-size: 10px; color: var(--text3); margin-right: 4px; }
-.ob-tot em.ask { color: var(--red); } .ob-tot em.bid { color: var(--green); }
+.ob-tot em.ask { color: var(--blue); } .ob-tot em.bid { color: var(--red); }
 
 /* 📅 일별 시세 표 */
 .dt-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--bg2); }
@@ -616,8 +616,8 @@ body {
 .dt-date { color: var(--text2); font-family: var(--mono); }
 .dt-close { font-weight: 700; }
 .dt-dim { color: var(--text3); }
-.dt-num.pos { color: var(--green); }
-.dt-num.neg { color: var(--red); }
+.dt-num.pos { color: var(--red); }
+.dt-num.neg { color: var(--blue); }
 
 /* 게이지 타일 (펀더멘털 표 안 디자인) */
 .gtile { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 16px; }
@@ -645,8 +645,8 @@ body {
 .ck-tbl tbody tr:last-child td { border-bottom: none; }
 .ck-tbl tbody tr:hover td { background: rgba(77,141,255,0.05); }
 .ck-cell { display: inline-block; min-width: 62px; padding: 3px 9px; border-radius: 6px; font-weight: 600; font-size: 12px; }
-.ck-cell.p { color: var(--green); background: var(--green-dim); }
-.ck-cell.n { color: var(--red); background: var(--red-dim); }
+.ck-cell.p { color: var(--red); background: var(--red-dim); }
+.ck-cell.n { color: var(--blue); background: var(--blue-dim); }
 
 /* 수급 흐름 모듈 */
 .hold-bar { height: 26px; border-radius: 8px; overflow: hidden; display: flex; margin: 6px 0 10px; }
@@ -1136,7 +1136,7 @@ async function loadPrice(ticker) {
 // ── 고도화 캔들차트 (lightweight-charts) + 매물대 ─────────────────
 // Yahoo 라인차트/TradingView 임베드를 대체. Toss 공식 일봉으로 캔들+거래량을 우리 테마로 렌더.
 let _advChart = null, _advResizeObs = null, _advRange = 66;
-const ADV_COLORS = { up:'#0ac05c', down:'#e5484d', text:'#8b93a1', grid:'rgba(255,255,255,0.06)' };
+const ADV_COLORS = { up:'#e5484d', down:'#4d8dff', text:'#8b93a1', grid:'rgba(255,255,255,0.06)' };
 
 async function initAdvChart(ticker){ _advRange = 66; await loadAdvChart(ticker, 66); }
 async function setAdvRange(n, btn){
@@ -1772,8 +1772,8 @@ async function buildRelativeChart(baseTicker, baseName, peerTicker, peerName, ra
     <div class="ck-panel" style="padding:16px 18px;margin-bottom:20px">
       <div class="rr-top">
         <div class="rr-legend">
-          <div class="rr-lg"><span class="ln" style="background:${CA}"></span>${escHtml(baseName)} <b style="color:${endA >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtPct(endA)}</b></div>
-          <div class="rr-lg"><span class="ln" style="background:${CM}"></span>${escHtml(peerName)} <b style="color:${endB >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtPct(endB)}</b></div>
+          <div class="rr-lg"><span class="ln" style="background:${CA}"></span>${escHtml(baseName)} <b style="color:${endA >= 0 ? 'var(--red)' : 'var(--blue)'}">${fmtPct(endA)}</b></div>
+          <div class="rr-lg"><span class="ln" style="background:${CM}"></span>${escHtml(peerName)} <b style="color:${endB >= 0 ? 'var(--red)' : 'var(--blue)'}">${fmtPct(endB)}</b></div>
         </div>
         <div class="rr-ranges">${rangeBtns}</div>
       </div>
@@ -2060,14 +2060,14 @@ async function loadTechChips(ticker) {
     if (!info) { wrap.innerHTML = ''; return; }
 
     const sigMap = {
-      strong_bullish: { label: '🟢 강세 추세',  color: 'var(--green)' },
-      bullish:        { label: '🟢 상승',       color: 'var(--green)' },
-      oversold_bull:  { label: '🟢 과매도(매수기회)', color: 'var(--green)' },
+      strong_bullish: { label: '🔴 강세 추세',  color: 'var(--red)' },
+      bullish:        { label: '🔴 상승',       color: 'var(--red)' },
+      oversold_bull:  { label: '🔴 과매도(매수기회)', color: 'var(--red)' },
       neutral:        { label: '⚪ 중립',       color: 'var(--text2)' },
       overbought:     { label: '🟡 과매수',     color: 'var(--yellow)' },
       oversold:       { label: '🟠 과매도',     color: 'var(--yellow)' },
-      bearish:        { label: '🔴 하락',       color: 'var(--red)' },
-      strong_bearish: { label: '🔴 약세 추세',  color: 'var(--red)' },
+      bearish:        { label: '🔵 하락',       color: 'var(--blue)' },
+      strong_bearish: { label: '🔵 약세 추세',  color: 'var(--blue)' },
     };
     const sig = sigMap[info.signal] || sigMap.neutral;
 
@@ -2081,9 +2081,9 @@ async function loadTechChips(ticker) {
       const rsiColor = info.rsi14 >= 70 ? 'var(--yellow)' : info.rsi14 <= 30 ? 'var(--yellow)' : 'var(--text2)';
       chips.push(`<span class="tech-chip" style="color:${rsiColor}">RSI 14: ${info.rsi14}</span>`);
     }
-    if (info.vsSma20  != null) chips.push(`<span class="tech-chip" style="color:${info.vsSma20  > 0 ? 'var(--green)' : 'var(--red)'}">20일선 ${info.vsSma20  > 0 ? '+' : ''}${info.vsSma20}%</span>`);
-    if (info.vsSma50  != null) chips.push(`<span class="tech-chip" style="color:${info.vsSma50  > 0 ? 'var(--green)' : 'var(--red)'}">50일선 ${info.vsSma50  > 0 ? '+' : ''}${info.vsSma50}%</span>`);
-    if (info.vsSma200 != null) chips.push(`<span class="tech-chip" style="color:${info.vsSma200 > 0 ? 'var(--green)' : 'var(--red)'}">200일선 ${info.vsSma200 > 0 ? '+' : ''}${info.vsSma200}%</span>`);
+    if (info.vsSma20  != null) chips.push(`<span class="tech-chip" style="color:${info.vsSma20  > 0 ? 'var(--red)' : 'var(--blue)'}">20일선 ${info.vsSma20  > 0 ? '+' : ''}${info.vsSma20}%</span>`);
+    if (info.vsSma50  != null) chips.push(`<span class="tech-chip" style="color:${info.vsSma50  > 0 ? 'var(--red)' : 'var(--blue)'}">50일선 ${info.vsSma50  > 0 ? '+' : ''}${info.vsSma50}%</span>`);
+    if (info.vsSma200 != null) chips.push(`<span class="tech-chip" style="color:${info.vsSma200 > 0 ? 'var(--red)' : 'var(--blue)'}">200일선 ${info.vsSma200 > 0 ? '+' : ''}${info.vsSma200}%</span>`);
 
     wrap.innerHTML = `<div class="tech-chips">${chips.join('')}</div>`;
   } catch { wrap.innerHTML = ''; }
@@ -2389,8 +2389,8 @@ function renderFundamentals(wrap, f, ticker) {
             if (_currentLivePrice == null) return '';
             const upside = ((f.priceTargetMean - _currentLivePrice) / _currentLivePrice) * 100;
             const up = upside >= 0;
-            return `<div class="consensus-upside" style="background:${up ? 'var(--green-dim)' : 'var(--red-dim)'}">
-              <div class="consensus-upside-val" style="color:${up ? 'var(--green)' : 'var(--red)'}">${up ? '+' : ''}${upside.toFixed(1)}%</div>
+            return `<div class="consensus-upside" style="background:${up ? 'var(--red-dim)' : 'var(--blue-dim)'}">
+              <div class="consensus-upside-val" style="color:${up ? 'var(--red)' : 'var(--blue)'}">${up ? '+' : ''}${upside.toFixed(1)}%</div>
               <div class="consensus-upside-label">현재가 대비 상승여력</div>
             </div>`;
           })()}
@@ -2408,7 +2408,7 @@ function renderFundamentals(wrap, f, ticker) {
               <tr>
                 <td><a href="/company.html?ticker=${encodeURIComponent(p.ticker)}">${escHtml(p.name)}</a></td>
                 <td style="text-align:right;font-family:var(--mono)">${p.price != null ? Math.round(p.price).toLocaleString() + '원' : '—'}</td>
-                <td class="peer-chg" style="text-align:right;color:${p.changePercent >= 0 ? 'var(--green)' : 'var(--red)'}">${p.changePercent != null ? (p.changePercent >= 0 ? '+' : '') + p.changePercent.toFixed(2) + '%' : '—'}</td>
+                <td class="peer-chg" style="text-align:right;color:${p.changePercent >= 0 ? 'var(--red)' : 'var(--blue)'}">${p.changePercent != null ? (p.changePercent >= 0 ? '+' : '') + p.changePercent.toFixed(2) + '%' : '—'}</td>
                 <td style="text-align:right;color:var(--text3)">${p.marketCap != null ? (p.marketCap / 1e12).toFixed(1) + '조원' : '—'}</td>
               </tr>`).join('')}
           </tbody>
@@ -2610,7 +2610,7 @@ async function loadOptionsChain(ticker) {
       return;
     }
     const d = await r.json();
-    const pcrColor = d.pcr == null ? 'var(--text3)' : d.pcr > 1.1 ? 'var(--red)' : d.pcr < 0.9 ? 'var(--green)' : 'var(--yellow)';
+    const pcrColor = d.pcr == null ? 'var(--text3)' : d.pcr > 1.1 ? 'var(--blue)' : d.pcr < 0.9 ? 'var(--red)' : 'var(--yellow)';
     const pcrLabel = d.pcr == null ? '—' : d.pcr > 1.1 ? '약세 (Put 우세)' : d.pcr < 0.9 ? '강세 (Call 우세)' : '중립';
     const renderStrikes = (arr, label, color) => arr.length ? `
       <div style="margin-top:10px">
@@ -2637,16 +2637,16 @@ async function loadOptionsChain(ticker) {
         </div>
         <div style="background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase">총 Call OI</div>
-          <div style="font-size:16px;font-weight:700;color:var(--green)">${(d.totalCallOI||0).toLocaleString()}</div>
+          <div style="font-size:16px;font-weight:700;color:var(--red)">${(d.totalCallOI||0).toLocaleString()}</div>
         </div>
         <div style="background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
           <div style="font-size:10px;color:var(--text3);text-transform:uppercase">총 Put OI</div>
-          <div style="font-size:16px;font-weight:700;color:var(--red)">${(d.totalPutOI||0).toLocaleString()}</div>
+          <div style="font-size:16px;font-weight:700;color:var(--blue)">${(d.totalPutOI||0).toLocaleString()}</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
-        ${renderStrikes(d.callsTop||[], '📈 콜옵션 Top 5 (OI 기준)', 'var(--green)')}
-        ${renderStrikes(d.putsTop||[],  '📉 풋옵션 Top 5 (OI 기준)', 'var(--red)')}
+        ${renderStrikes(d.callsTop||[], '📈 콜옵션 Top 5 (OI 기준)', 'var(--red)')}
+        ${renderStrikes(d.putsTop||[],  '📉 풋옵션 Top 5 (OI 기준)', 'var(--blue)')}
       </div>
     </div>`;
   } catch (e) { wrap.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">옵션 로드 실패: ${escHtml(e.message)}</div>`; }
@@ -2731,7 +2731,7 @@ function renderEtfHolders(d) {
       .etfh-cat{font-size:10px;color:var(--text3);margin-top:2px;display:inline-block}
       .etfh-w{font-size:12.5px;font-weight:700;font-family:var(--font-mono,monospace);text-align:right;color:var(--text2)}
       .etfh-num{font-size:12px;font-weight:700;font-family:var(--font-mono,monospace);text-align:right}
-      .etfh-up{color:var(--green)} .etfh-dn{color:var(--red)} .etfh-flat{color:var(--text3)}
+      .etfh-up{color:var(--red)} .etfh-dn{color:var(--blue)} .etfh-flat{color:var(--text3)}
       .etfh-head{font-size:10.5px;color:var(--text3);padding:10px 0 4px;display:grid;grid-template-columns:1fr 58px 60px 60px;gap:10px;text-transform:uppercase;letter-spacing:.02em}
       .etfh-head span:not(:first-child){text-align:right}
       .etfh-more-wrap{display:none}
@@ -2761,7 +2761,7 @@ function toggleEtfHoldersMore() {
 function renderInvestorTrend(d) {
   const days = d.days;                 // 최신순 (0 = 오늘)
   const chron = [...days].reverse();   // 과거→현재 (차트용)
-  const CG = '#3ddc84', CR = '#ff5c72', CA = '#4d8dff', CM = '#f0b45e';
+  const CG = '#e5484d', CR = '#4d8dff', CA = '#4d8dff', CM = '#f0b45e';
   const manju = v => Math.round((v || 0) / 10000);
   const latestClose = days[0]?.close || 0;
 
@@ -2779,11 +2779,11 @@ function renderInvestorTrend(d) {
   const flowTile = (name, dotColor, key) => {
     const net = sum5(key), mj = manju(net), buy = net >= 0;
     const eok = Math.round(Math.abs(net) * latestClose / 1e8);
-    const col = buy ? 'var(--green)' : 'var(--red)';
+    const col = buy ? 'var(--red)' : 'var(--blue)';
     const scol = buy ? CG : CR;
     return `<div class="ft">
       <div class="ft-top"><div class="ft-name"><i style="background:${dotColor}"></i>${name}</div>
-        <span class="ft-arrow" style="color:${col};background:${buy ? 'var(--green-dim)' : 'var(--red-dim)'}">${buy ? '순매수' : '순매도'}</span></div>
+        <span class="ft-arrow" style="color:${col};background:${buy ? 'var(--red-dim)' : 'var(--blue-dim)'}">${buy ? '순매수' : '순매도'}</span></div>
       <div class="ft-net" style="color:${col}">${buy ? '+' : '−'}${Math.abs(mj).toLocaleString()}만주</div>
       <div class="ft-sub">최근 5거래일 누적 · 약 ${buy ? '+' : '−'}${eok.toLocaleString()}억</div>
       <div class="ft-spark">${spark(recentDaily(key), scol)}</div>

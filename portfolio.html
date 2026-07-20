@@ -99,8 +99,8 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .ticker-chip { font-family:'SF Mono',monospace; font-size:11px; font-weight:700; padding:2px 7px; border-radius:4px; }
 .ticker-chip.kr { background:rgba(0,102,204,0.10); color:#4d8dff; }
 .ticker-chip.us { background:rgba(124,58,237,0.10); color:#9d7bff; }
-.pct.up { color: var(--green); font-weight: 700; font-family: 'SF Mono', monospace; }
-.pct.dn { color: var(--red);   font-weight: 700; font-family: 'SF Mono', monospace; }
+.pct.up { color: var(--red); font-weight: 700; font-family: 'SF Mono', monospace; }
+.pct.dn { color: var(--blue);   font-weight: 700; font-family: 'SF Mono', monospace; }
 .pct.flat { color: var(--text3); font-family: 'SF Mono', monospace; }
 .mono { font-family: 'SF Mono', monospace; }
 
@@ -478,12 +478,12 @@ function render() {
       </div>
       <div class="summary-card">
         <div class="s-label">💎 총 자산</div>
-        <div class="s-val ${totalPnl >= 0 ? 'green' : 'red'}">${fmtKRW(totalValue)}</div>
-        <div class="s-sub ${totalPnl >= 0 ? 'green' : ''}" style="color:${totalPnl >= 0 ? 'var(--green)' : 'var(--red)'}">${totalPnl >= 0 ? '+' : ''}${fmtKRW(totalPnl)} (${fmtPct(totalPnlPct)})</div>
+        <div class="s-val ${totalPnl >= 0 ? 'red' : 'blue'}">${fmtKRW(totalValue)}</div>
+        <div class="s-sub ${totalPnl >= 0 ? 'red' : ''}" style="color:${totalPnl >= 0 ? 'var(--red)' : 'var(--blue)'}">${totalPnl >= 0 ? '+' : ''}${fmtKRW(totalPnl)} (${fmtPct(totalPnlPct)})</div>
       </div>
       <div class="summary-card">
         <div class="s-label">🏆 주식 손익 (환율 고정)</div>
-        <div class="s-val ${unrealizedPnl >= 0 ? 'green' : 'red'}">${unrealizedPnl >= 0 ? '+' : ''}${fmtKRW(unrealizedPnl)}</div>
+        <div class="s-val ${unrealizedPnl >= 0 ? 'red' : 'blue'}">${unrealizedPnl >= 0 ? '+' : ''}${fmtKRW(unrealizedPnl)}</div>
         <div class="s-sub">${Math.abs(fxGain) > 100 ? `환차익 ${fxGain >= 0 ? '+' : ''}${fmtKRW(fxGain)} · ` : ''}실현 ${realizedPnl >= 0 ? '+' : ''}${fmtKRW(realizedPnl)}</div>
       </div>
     </div>
@@ -559,8 +559,8 @@ function renderPositionRow(p) {
   const cls    = pnlPct > 0 ? 'up' : pnlPct < 0 ? 'dn' : 'flat';
   const tgtHit = (p.ai_target_pct != null) && (pnlPct >= p.ai_target_pct);
   const slHit  = (p.ai_stop_pct   != null) && (pnlPct <= p.ai_stop_pct);
-  const aiHint = tgtHit ? `<span style="color:var(--green);font-weight:700">🎯 목표 도달</span>` :
-                 slHit  ? `<span style="color:var(--red);font-weight:700">⚠️ 손절선 도달</span>` :
+  const aiHint = tgtHit ? `<span style="color:var(--red);font-weight:700">🎯 목표 도달</span>` :
+                 slHit  ? `<span style="color:var(--blue);font-weight:700">⚠️ 손절선 도달</span>` :
                  p.ai_target_pct ? `<span style="color:var(--text3)">목표 +${p.ai_target_pct}% / 손절 ${p.ai_stop_pct}%</span>` : '—';
 
   return `

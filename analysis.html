@@ -177,8 +177,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .ip-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
 .ip-row:last-child { margin-bottom: 0; }
 .ip-tag { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
-.ip-tag.pos { color: var(--green); background: var(--green-dim); }
-.ip-tag.neg { color: var(--red); background: var(--red-dim); }
+.ip-tag.pos { color: var(--red); background: var(--red-dim); }
+.ip-tag.neg { color: var(--blue); background: var(--blue-dim); }
 .ip-names { font-size: 13.5px; color: var(--text); line-height: 1.6; font-weight: 500; }
 
 /* 관련 과거 이슈 타임라인 */
@@ -208,8 +208,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   text-transform: uppercase; letter-spacing: 0.5px;
   white-space: nowrap; flex-shrink: 0;
 }
-.impact-positive { background: var(--green-dim); color: var(--green); }
-.impact-negative { background: var(--red-dim); color: var(--red); }
+.impact-positive { background: var(--red-dim); color: var(--red); }
+.impact-negative { background: var(--blue-dim); color: var(--blue); }
 .impact-neutral { background: var(--bg3); color: var(--text2); }
 .ripple-sector-name { font-size: 14px; font-weight: 600; min-width: 0; }
 .ripple-reason { font-size: 12px; color: var(--text2); line-height: 1.55; }
@@ -293,8 +293,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .chart-modal-name { font-size: 18px; font-weight: 700; margin: 6px 0 2px; }
 .chart-modal-price { font-size: 24px; font-weight: 700; }
 .chart-modal-change { font-size: 14px; font-weight: 600; margin-left: 8px; }
-.chart-modal-change.pos { color: var(--green); }
-.chart-modal-change.neg { color: var(--red); }
+.chart-modal-change.pos { color: var(--red); }
+.chart-modal-change.neg { color: var(--blue); }
 .chart-close {
   background: none; border: none; color: var(--text3); cursor: pointer;
   font-size: 20px; line-height: 1; padding: 4px; border-radius: 4px;
@@ -322,8 +322,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   font-size: 20px; font-weight: 800; padding: 4px 10px; border-radius: 8px;
   white-space: nowrap;
 }
-.upside-pos { background: var(--green-dim); color: var(--green); }
-.upside-neg { background: var(--red-dim); color: var(--red); }
+.upside-pos { background: var(--red-dim); color: var(--red); }
+.upside-neg { background: var(--blue-dim); color: var(--blue); }
 .company-rationale { font-size: 12px; color: var(--text2); line-height: 1.55; margin-bottom: 10px; }
 .company-ripple { font-size: 11px; color: var(--text3); }
 .company-ripple span { color: var(--blue); }
@@ -447,7 +447,7 @@ async function loadStockPrice(ticker, el) {
       const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: data.currency || 'USD', maximumFractionDigits: 2 });
       const cp = data.changePercent;
       const chgHtml = (cp != null && !isNaN(cp))
-        ? ` <span class="price-chg" style="color:${cp >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700" title="당일 등락(최근 시세 기준)">${cp >= 0 ? '▲' : '▼'} ${cp >= 0 ? '+' : ''}${Number(cp).toFixed(2)}%</span>`
+        ? ` <span class="price-chg" style="color:${cp >= 0 ? 'var(--red)' : 'var(--blue)'};font-weight:700" title="당일 등락(최근 시세 기준)">${cp >= 0 ? '▲' : '▼'} ${cp >= 0 ? '+' : ''}${Number(cp).toFixed(2)}%</span>`
         : '';
       el.innerHTML = `<span class="price">${fmt.format(data.price)}</span>${chgHtml}`;
       if (data.marketCap) {
@@ -567,10 +567,10 @@ function renderPage(issue, analysis, companies) {
     // 차트 테크니컬 칩 ([FUND] 메타의 rsi/sig/volr/mom1m/atrm)
     const fund = parsed.fund;
     const sigInfo = {
-      strong_bullish: ['정배열 강세', 'var(--green)'], bullish: ['상승 추세', 'var(--green)'],
-      neutral: ['중립', 'var(--text3)'], bearish: ['하락 추세', 'var(--red)'],
-      strong_bearish: ['역배열 약세', 'var(--red)'], overbought: ['과열', 'var(--yellow)'],
-      oversold: ['과매도', 'var(--red)'], oversold_bull: ['눌림목 기회', 'var(--blue)'],
+      strong_bullish: ['정배열 강세', 'var(--red)'], bullish: ['상승 추세', 'var(--red)'],
+      neutral: ['중립', 'var(--text3)'], bearish: ['하락 추세', 'var(--blue)'],
+      strong_bearish: ['역배열 약세', 'var(--blue)'], overbought: ['과열', 'var(--yellow)'],
+      oversold: ['과매도', 'var(--blue)'], oversold_bull: ['눌림목 기회', 'var(--blue)'],
     };
     const techChip = (label, color) => `<span style="font-size:10px;font-weight:600;padding:3px 8px;border-radius:10px;border:1px solid ${color};color:${color}">${label}</span>`;
     let techChips = '';
@@ -579,7 +579,7 @@ function renderPage(issue, analysis, companies) {
       if (fund.sig && sigInfo[fund.sig]) parts.push(techChip('📈 ' + sigInfo[fund.sig][0], sigInfo[fund.sig][1]));
       if (fund.rsi != null) parts.push(techChip('RSI ' + fund.rsi, fund.rsi >= 70 ? 'var(--yellow)' : fund.rsi <= 30 ? 'var(--red)' : 'var(--text2)'));
       if (fund.volr != null) parts.push(techChip('거래량 ' + fund.volr + '×', fund.volr >= 1.5 ? 'var(--blue)' : 'var(--text3)'));
-      if (fund.mom1m != null) parts.push(techChip('1개월 ' + fmtP(fund.mom1m), fund.mom1m >= 0 ? 'var(--green)' : 'var(--red)'));
+      if (fund.mom1m != null) parts.push(techChip('1개월 ' + fmtP(fund.mom1m), fund.mom1m >= 0 ? 'var(--red)' : 'var(--blue)'));
       if (fund.atrm != null) parts.push(techChip('월변동폭 ±' + fund.atrm + '%', 'var(--text3)'));
       if (parts.length) techChips = `<div style="display:flex;gap:5px;flex-wrap:wrap;margin:8px 0 2px">${parts.join('')}</div>`;
     }
@@ -707,7 +707,7 @@ function renderPage(issue, analysis, companies) {
     ${posCompanies.length ? `
     <div class="companies-section">
       <div class="section-title">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--green-dim);color:var(--green);font-size:13px">▲</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--red-dim);color:var(--red);font-size:13px">▲</span>
         긍정 영향 기업 <span style="font-size:13px;color:var(--text2);font-weight:400">(${posCompanies.length}개 · 수혜 예상)</span>
       </div>
       <div class="companies-grid">${posCards}</div>
@@ -716,7 +716,7 @@ function renderPage(issue, analysis, companies) {
     ${negCount ? `
     <div class="companies-section">
       <div class="section-title">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--red-dim);color:var(--red);font-size:13px">▼</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--blue-dim);color:var(--blue);font-size:13px">▼</span>
         부정 영향 기업 <span style="font-size:13px;color:var(--text2);font-weight:400">(${negCount}개 · 피해 우려)</span>
       </div>
       <div class="companies-grid">${negCards}</div>

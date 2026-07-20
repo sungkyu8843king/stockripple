@@ -274,8 +274,8 @@ button { font-family: inherit; }
 .ticker-price { color: var(--text); font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .ticker-chg { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
 .ticker-spark { width: 44px; height: 14px; flex-shrink: 0; opacity: .9; }
-.ticker-chg.up { color: var(--green); }
-.ticker-chg.dn { color: var(--red); }
+.ticker-chg.up { color: var(--red); }
+.ticker-chg.dn { color: var(--blue); }
 .ticker-chg.flat { color: var(--text3); }
 
 /* ═══════════════════════════════════════════
@@ -522,7 +522,7 @@ button { font-family: inherit; }
 .mkt-hero.mkt-card-link .mkt-hero-name { display: flex; align-items: center; }
 .mkt-card-val.flash-up, .mkt-hero-val.flash-up { animation: priceFlashUp .9s ease-out; }
 .mkt-card-val.flash-down, .mkt-hero-val.flash-down { animation: priceFlashDown .9s ease-out; }
-.pos { color: var(--green); } .neg { color: var(--red); }
+.pos { color: var(--red); } .neg { color: var(--blue); }
 .card-sectors { display: flex; flex-wrap: wrap; gap: 5px; }
 .sector-tag { font-size: 10.5px; padding: 3px 8px; border-radius: var(--r-xs); font-weight: 600; }
 .tag-semi   { background: var(--blue-dim);   color: var(--blue); }
@@ -561,8 +561,8 @@ button { font-family: inherit; }
 }
 .mini-name { font-size: 12px; color: var(--text2); flex: 1; }
 .mini-upside { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.mini-upside.up { color: var(--green); }
-.mini-upside.dn { color: var(--red); }
+.mini-upside.up { color: var(--red); }
+.mini-upside.dn { color: var(--blue); }
 
 /* ═══════════════════════════════════════════
  * States
@@ -801,8 +801,8 @@ button { font-family: inherit; }
 .wl-price-row { display: flex; align-items: baseline; gap: 8px; }
 .wl-price { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .wl-chg { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.wl-chg.up { color: var(--green); }
-.wl-chg.dn { color: var(--red); }
+.wl-chg.up { color: var(--red); }
+.wl-chg.dn { color: var(--blue); }
 .wl-link { font-size: 12px; color: var(--blue); text-decoration: none; font-weight: 600; }
 .wl-link:hover { text-decoration: underline; }
 
@@ -845,26 +845,26 @@ button { font-family: inherit; }
 .idx-clickable:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
 .index-val { font-size: 12.5px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .index-chg { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.index-chg.up { color: var(--green); }
-.index-chg.dn { color: var(--red); }
+.index-chg.up { color: var(--red); }
+.index-chg.dn { color: var(--blue); }
 .index-bar { flex: 1; height: 3px; background: var(--bg3); border-radius: 2px; max-width: 60px; }
 .index-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
 
 /* ── Realtime quote tick effects ── */
 @keyframes tickUp {
-  0%   { background: rgba(10,135,84,.28); box-shadow: 0 0 12px rgba(10,135,84,.35); transform: scale(1.02); }
-  100% { background: var(--bg3); box-shadow: none; transform: scale(1); }
-}
-@keyframes tickDown {
   0%   { background: rgba(220,47,62,.28); box-shadow: 0 0 12px rgba(220,47,62,.35); transform: scale(1.02); }
   100% { background: var(--bg3); box-shadow: none; transform: scale(1); }
 }
+@keyframes tickDown {
+  0%   { background: rgba(77,141,255,.28); box-shadow: 0 0 12px rgba(77,141,255,.35); transform: scale(1.02); }
+  100% { background: var(--bg3); box-shadow: none; transform: scale(1); }
+}
 @keyframes priceFlashUp {
-  0%   { color: var(--green); text-shadow: 0 0 10px rgba(10,135,84,.45); }
+  0%   { color: var(--red); text-shadow: 0 0 10px rgba(220,47,62,.45); }
   100% { color: var(--text); text-shadow: none; }
 }
 @keyframes priceFlashDown {
-  0%   { color: var(--red); text-shadow: 0 0 10px rgba(220,47,62,.45); }
+  0%   { color: var(--blue); text-shadow: 0 0 10px rgba(77,141,255,.45); }
   100% { color: var(--text); text-shadow: none; }
 }
 @keyframes livePulse {
@@ -893,8 +893,8 @@ button { font-family: inherit; }
 .earnings-company { font-size: 12px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .earnings-date { font-size: 11px; color: var(--text3); }
 .earnings-meta { display: flex; gap: 10px; font-size: 11px; color: var(--text3); }
-.earnings-beat { color: var(--green); font-weight: 700; }
-.earnings-miss { color: var(--red); font-weight: 700; }
+.earnings-beat { color: var(--red); font-weight: 700; }
+.earnings-miss { color: var(--blue); font-weight: 700; }
 .earnings-upcoming { color: var(--yellow); }
 .ei-timing-bmo { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--blue-dim); color: var(--blue); flex-shrink: 0; }
 .ei-timing-amc { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--purple-dim); color: var(--purple); flex-shrink: 0; }
@@ -907,8 +907,8 @@ button { font-family: inherit; }
 .ei-metric-val.whisper { color: var(--blue); }
 .ei-metric-val.iv { color: var(--yellow); }
 .ei-metric-val.rev { color: var(--text2); font-size: 11px; }
-.ei-metric-val.beat { color: var(--green); }
-.ei-metric-val.miss { color: var(--red); }
+.ei-metric-val.beat { color: var(--red); }
+.ei-metric-val.miss { color: var(--blue); }
 .ei-growth { font-size: 10px; color: var(--text3); margin-top: 1px; }
 
 /* Economic Calendar */
@@ -922,8 +922,8 @@ button { font-family: inherit; }
 .eco-time   { font-size: 10px; color: var(--text3); font-family: var(--font-mono); margin-bottom: 3px; }
 .eco-values { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; }
 .eco-actual         { font-weight: 700; padding: 1px 5px; border-radius: 3px; font-variant-numeric: tabular-nums; }
-.eco-actual.beat    { color: var(--green);  background: var(--green-dim); }
-.eco-actual.miss    { color: var(--red);    background: var(--red-dim); }
+.eco-actual.beat    { color: var(--red);  background: var(--red-dim); }
+.eco-actual.miss    { color: var(--blue);    background: var(--blue-dim); }
 .eco-actual.meet    { color: var(--text2);  background: var(--bg3); }
 .eco-actual.pending { color: var(--yellow); background: var(--yellow-dim); }
 .eco-consensus { color: var(--text3); }
@@ -1009,8 +1009,8 @@ button { font-family: inherit; }
 .acc-tab { padding:4px 10px; font-size:11px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:999px; cursor:pointer; }
 .acc-tab.active { color:#fff; background:var(--blue); border-color:var(--blue); }
 .cal-day-hd td { font-size:11px; font-weight:700; color:var(--text3); letter-spacing:.5px; padding:5px 10px; text-transform:uppercase; }
-.cal-beat { color:var(--green); font-weight:700; }
-.cal-miss { color:var(--red);   font-weight:700; }
+.cal-beat { color:var(--red); font-weight:700; }
+.cal-miss { color:var(--blue);   font-weight:700; }
 .cal-meet { color:var(--text2); font-weight:700; }
 .cal-pend { color:var(--yellow); }
 .cal-hi   { color:var(--red);    font-size:10px; font-weight:700; }
@@ -1141,7 +1141,9 @@ button { font-family: inherit; }
 .rk-rank { width: 22px; text-align: center; font-size: 14px; font-weight: 800; color: var(--text3); font-family: var(--font-mono); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .rk-item:nth-child(-n+3) .rk-rank { color: var(--blue); }
 .rk-main { flex: 1; min-width: 0; }
-.rk-name { font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; }
+.rk-name { font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 5px; }
+.rk-name .nm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.rk-ticker { flex-shrink: 0; font-size: 10.5px; font-weight: 600; color: var(--text3); font-family: var(--font-mono, monospace); }
 .rk-sub { font-size: 11px; color: var(--text3); margin-top: 3px; min-height: 14px; line-height: 1.3; white-space: nowrap; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent); mask-image: linear-gradient(90deg, #000 92%, transparent); }
 .rk-sub.rk-issue { color: var(--text2); }
 .rk-sub-inner { display: inline-block; white-space: nowrap; }
@@ -1151,7 +1153,7 @@ button { font-family: inherit; }
 .rk-price { text-align: right; flex-shrink: 0; }
 .rk-px { font-size: 13.5px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rk-chg { font-size: 12px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 2px; }
-.rk-chg.up { color: var(--green); } .rk-chg.dn { color: var(--red); } .rk-chg.flat { color: var(--text3); }
+.rk-chg.up { color: var(--red); } .rk-chg.dn { color: var(--blue); } .rk-chg.flat { color: var(--text3); }
 .rk-loading, .rk-empty { text-align: center; color: var(--text3); font-size: 13px; padding: 30px 20px; line-height: 1.8; }
 .rk-retry-btn { border: 1px solid var(--border); background: var(--bg2); color: var(--blue); font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 999px; cursor: pointer; margin-top: 4px; }
 .rk-retry-btn:hover { border-color: var(--blue); }
@@ -1827,7 +1829,7 @@ document.addEventListener('keydown', e => {
 // ═══ 📊 실시간 랭킹 (토스 공식) — index.html 전용 ═══
 // 인기(TOSS_SECURITIES_거래대금)/거래대금/거래량은 realtime, 급상승/급하락은 1d.
 // 장 마감이어도 마지막 정규장 데이터가 나온다(서버 handleTossRankingsAll에서 처리).
-const RK_CAT_METRIC = { popular:null, amount:'amount', volume:'volume', gainers:null, losers:null };
+const RK_CAT_METRIC = { popular:null, amount:'amount', volume:'volume', gainers:'amount', losers:'amount' };
 let _rkMarket = 'all', _rkCat = 'popular';
 const _rkCache = { kr:null, us:null };
 let _rkTimer = null;
@@ -1837,7 +1839,7 @@ function _rkPrice(v,cur){ if(v==null) return '—'; return cur==='KRW' ? '₩'+M
 function _rkAmount(v,cur){ if(v==null) return ''; if(cur==='KRW'){ if(v>=1e12) return (v/1e12).toFixed(1)+'조'; if(v>=1e8) return Math.round(v/1e8).toLocaleString()+'억'; return Math.round(v).toLocaleString(); } if(v>=1e9) return '$'+(v/1e9).toFixed(1)+'B'; if(v>=1e6) return '$'+(v/1e6).toFixed(0)+'M'; return '$'+Math.round(v).toLocaleString(); }
 function _rkVol(v){ if(v==null) return ''; if(v>=1e8) return (v/1e8).toFixed(1)+'억'; if(v>=1e4) return Math.round(v/1e4).toLocaleString()+'만'; return Math.round(v).toLocaleString(); }
 
-function _rkList(items, cat){
+function _rkList(items, cat, marketKey){
   if(!items || !items.length) return '<div class="rk-empty">데이터가 없어요.</div>';
   const metric = RK_CAT_METRIC[cat];
   return '<div class="rk-list">' + items.map(it => {
@@ -1848,9 +1850,12 @@ function _rkList(items, cat){
     let fb = '';
     if (metric==='amount') fb = '거래대금 ' + _rkAmount(it.tradingAmount, it.currency);
     else if (metric==='volume') fb = '거래량 ' + _rkVol(it.tradingVolume);
+    const nameHtml = marketKey === 'us'
+      ? `<span class="nm-text">${_rkEsc(it.name)}</span><span class="rk-ticker">${_rkEsc(it.symbol)}</span>`
+      : _rkEsc(it.name);
     return `<a class="rk-item" data-ticker="${_rkEsc(it.linkTicker)}" data-fb="${_rkEsc(fb)}" href="/company.html?ticker=${encodeURIComponent(it.linkTicker)}">
       <span class="rk-rank">${it.rank}</span>
-      <div class="rk-main"><div class="rk-name">${_rkEsc(it.name)}</div><div class="rk-sub"><span class="rk-sub-inner">${_rkEsc(fb)}</span></div></div>
+      <div class="rk-main"><div class="rk-name">${nameHtml}</div><div class="rk-sub"><span class="rk-sub-inner">${_rkEsc(fb)}</span></div></div>
       <div class="rk-price"><div class="rk-px">${_rkPrice(it.price,it.currency)}</div><div class="rk-chg ${cls}">${chg}</div></div>
     </a>`;
   }).join('') + '</div>';
@@ -1915,7 +1920,7 @@ async function _rkFillIssues(){
 // 캐시가 아직 없으면(로딩/실패) 빈 '데이터 없음' 대신 로딩 표시 — 초기 콜드로드 시
 // 한쪽 시장만 늦게 오는 경우 사용자가 빈 컬럼을 오인하지 않게.
 function _rkColInner(cache, cat, marketKey){
-  if(cache) return _rkList(cache.categories?.[cat] || [], cat);
+  if(cache) return _rkList(cache.categories?.[cat] || [], cat, marketKey);
   if(_rkFailed[marketKey]) return `<div class="rk-empty">데이터를 불러오지 못했어요.<br><button class="rk-retry-btn" onclick="_rkRetryOne('${marketKey}')">다시 시도</button></div>`;
   return '<div class="rk-loading">불러오는 중...</div>';
 }

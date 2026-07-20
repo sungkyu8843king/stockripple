@@ -113,8 +113,8 @@ a { color: inherit; text-decoration: none; }
 .idx-item-name { font-size: 10px; font-weight: 700; color: var(--text2); letter-spacing: 0.5px; text-transform: uppercase; }
 .idx-item-val { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--text); margin-top: 2px; }
 .idx-item-chg { font-family: var(--mono); font-size: 11px; font-weight: 600; margin-top: 1px; }
-.idx-item-chg.up { color: var(--green); }
-.idx-item-chg.dn { color: var(--red); }
+.idx-item-chg.up { color: var(--red); }
+.idx-item-chg.dn { color: var(--blue); }
 .idx-item-chg.flat { color: var(--text3); }
 
 /* ─── Grid Layout ─── */
@@ -155,8 +155,8 @@ a { color: inherit; text-decoration: none; }
   font-family: var(--mono); font-size: 13px; font-weight: 700;
   padding: 4px 10px; border-radius: 2px;
 }
-.regime-pill.RISK-ON  { background: var(--green-dim); color: var(--green); }
-.regime-pill.RISK-OFF { background: var(--red-dim);   color: var(--red); }
+.regime-pill.RISK-ON  { background: var(--red-dim); color: var(--red); }
+.regime-pill.RISK-OFF { background: var(--blue-dim);   color: var(--blue); }
 .regime-pill.MIXED    { background: var(--yellow-dim);color: var(--yellow); }
 .headline-text { font-size: 12px; line-height: 1.5; margin-top: 8px; color: var(--text); }
 
@@ -165,12 +165,12 @@ a { color: inherit; text-decoration: none; }
 .sector-row-name { width: 78px; color: var(--text2); font-weight: 500; flex-shrink: 0; }
 .sector-row-bar { flex: 1; height: 8px; background: var(--bg3); position: relative; overflow: hidden; border-radius: 1px; }
 .sector-row-bar-fill { height: 100%; position: absolute; top: 0; }
-.sector-row-bar-fill.up { background: var(--green); left: 50%; }
-.sector-row-bar-fill.dn { background: var(--red);   right: 50%; }
+.sector-row-bar-fill.up { background: var(--red); left: 50%; }
+.sector-row-bar-fill.dn { background: var(--blue);   right: 50%; }
 .sector-row-bar-center { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--border-strong); }
 .sector-row-pct { font-family: var(--mono); font-size: 11px; font-weight: 600; width: 56px; text-align: right; }
-.sector-row-pct.up { color: var(--green); }
-.sector-row-pct.dn { color: var(--red); }
+.sector-row-pct.up { color: var(--red); }
+.sector-row-pct.dn { color: var(--blue); }
 
 /* ─── Heatmap (Compact Bloomberg) ─── */
 .term-heatmap-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
@@ -464,15 +464,15 @@ async function loadMarketPulse() {
       </div>
       <div class="headline-text">${esc(d.headline || '')}</div>
       <div style="margin-top:10px">
-        <div style="font-size:9.5px;color:var(--green);font-weight:700;letter-spacing:0.5px">▲ BULLISH</div>
+        <div style="font-size:9.5px;color:var(--red);font-weight:700;letter-spacing:0.5px">▲ BULLISH</div>
         ${(d.bullish_drivers||[]).slice(0,3).map(x => `<div style="font-size:10.5px;color:var(--text2);margin-top:2px;line-height:1.45">• ${esc(x)}</div>`).join('')}
       </div>
       <div style="margin-top:8px">
-        <div style="font-size:9.5px;color:var(--red);font-weight:700;letter-spacing:0.5px">▼ BEARISH</div>
+        <div style="font-size:9.5px;color:var(--blue);font-weight:700;letter-spacing:0.5px">▼ BEARISH</div>
         ${(d.bearish_drivers||[]).slice(0,3).map(x => `<div style="font-size:10.5px;color:var(--text2);margin-top:2px;line-height:1.45">• ${esc(x)}</div>`).join('')}
       </div>
       <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
-        ${(d.sectors_winning||[]).map(s => `<span style="font-size:9.5px;font-family:var(--mono);padding:1px 6px;background:var(--green-dim);color:var(--green);border-radius:2px">${esc(s)}</span>`).join('')}
+        ${(d.sectors_winning||[]).map(s => `<span style="font-size:9.5px;font-family:var(--mono);padding:1px 6px;background:var(--red-dim);color:var(--red);border-radius:2px">${esc(s)}</span>`).join('')}
       </div>`;
   } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
 }
@@ -647,10 +647,10 @@ async function loadTermHeatmap() {
       const v = Math.max(-5, Math.min(5, pct)) / 5;
       if (v >= 0) {
         const a = 0.18 + v * 0.78;
-        return { bg: `rgba(0,217,126,${a.toFixed(2)})`, fg: v > 0.35 ? '#000' : 'var(--green)' };
+        return { bg: `rgba(255,59,59,${a.toFixed(2)})`, fg: v > 0.35 ? '#000' : 'var(--red)' };
       }
       const a = 0.18 + (-v) * 0.78;
-      return { bg: `rgba(255,59,59,${a.toFixed(2)})`, fg: -v > 0.35 ? '#fff' : 'var(--red)' };
+      return { bg: `rgba(90,200,250,${a.toFixed(2)})`, fg: -v > 0.35 ? '#fff' : 'var(--blue)' };
     };
     const isAsset = (t) => /^\^/.test(t) || /=F$/.test(t) || /=X$/.test(t) || /-USD$/.test(t) || /^DX-Y/.test(t);
     grid.innerHTML = items.map(it => {
@@ -703,7 +703,7 @@ async function loadBuyCandidates() {
         const priceStr = d?.price != null ? cur + (d.currency === 'KRW' ? Math.round(d.price).toLocaleString() : d.price.toFixed(2)) : '—';
         const cp = d?.changePercent;
         const cpStr = cp != null ? `${cp > 0 ? '+' : ''}${cp.toFixed(2)}%` : '—';
-        const cpCls = cp == null ? '' : cp > 0 ? 'style="color:var(--green)"' : 'style="color:var(--red)"';
+        const cpCls = cp == null ? '' : cp > 0 ? 'style="color:var(--red)"' : 'style="color:var(--blue)"';
         const signal = it.avgConf >= 80 ? 'STRONG' : it.avgConf >= 65 ? 'BUY' : 'NEUTRAL';
         return `<tr onclick="location.href='/company.html?ticker=${encodeURIComponent(it.ticker)}'" style="cursor:pointer">
           <td class="bc-ticker">${esc(it.ticker.replace(/\.(KS|KQ)$/, ''))}</td>
@@ -801,7 +801,7 @@ async function loadAnalyst() {
         </div>
         <div style="display:flex;justify-content:space-between;color:var(--text3);font-size:10px;font-family:var(--mono);margin-top:2px">
           <span>$${it.price?.toFixed(2) || '—'} → $${it.targetMean?.toFixed(2) || '—'}</span>
-          ${upside != null ? `<span style="color:${upside > 0 ? 'var(--green)' : 'var(--red)'}">${upside > 0 ? '+' : ''}${upside.toFixed(1)}%</span>` : ''}
+          ${upside != null ? `<span style="color:${upside > 0 ? 'var(--red)' : 'var(--blue)'}">${upside > 0 ? '+' : ''}${upside.toFixed(1)}%</span>` : ''}
         </div>
       </div>`;
     }).join('');
