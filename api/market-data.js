@@ -535,6 +535,7 @@ async function handleTossMeta(req, res) {
 
   return res.status(200).json({
     ok: true,
+    _debugRawStockKeys: s, // TEMP: probing Toss /stocks field names, remove after diagnosis
     symbol: rawSymbol,
     name: s.name ?? null,
     market: s.market ?? null,
