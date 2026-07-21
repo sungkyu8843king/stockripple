@@ -395,6 +395,29 @@ async function handleTossFx(req, res) {
 // pre/day/after 세션별 가격을 안 주므로(공식 스키마 확인됨), 일별 캔들의 종가를 "정규장 마감가"
 // 기준점으로 삼아 직접 계산한다 — 캔들 종가는 정규장만 반영(확인됨: 시간외 체결이 있어도
 // /prices의 lastPrice와 최근 완결 캔들 종가가 서로 다르게 나옴).
+//
+// ⚠️ KR "전일 종가" 함정(2026-07-21 실측, 000660): Toss 일별 캔들의 전일 종가(정규장 15:30
+// 마감가, 예 1,841,000)를 그대로 prevClose로 쓰면 홈 실시간 랭킹(Toss 자체 changeRate 기반,
+// 예 +2.66%)과 종목 상세 페이지("정규" 표기, 캔들 기준 계산 시 -1.63%)의 등락률이 크게
+// 어긋난다 — 같은 순간, 같은 lastPrice인데도. 네이버 integration의 lastClosePrice(예
+// 1,764,000)가 Toss changeRate의 역산값과 정확히 일치함을 확인함 — NXT 애프터마켓(~20:00)
+// 거래가 있으면 "전일 종가"가 정규장 마감가가 아니라 NXT 마감 시점 가격이 되기 때문으로
+// 보인다. 그래서 KR 종목은 네이버 lastClosePrice를 prevClose로 우선 사용하고(랭킹 위젯과
+// 항상 일치), 실패하면만 캔들 기반 값으로 폴백한다. US는 NXT가 없어 기존 캔들 방식 유지.
+async function fetchNaverLastClose(code) {
+  try {
+    const r = await fetch(`https://m.stock.naver.com/api/stock/${code}/integration`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StockRipple/1.0)' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const raw = data?.totalInfos?.find(i => i.code === 'lastClosePrice')?.value;
+    const n = raw != null ? Number(String(raw).replace(/,/g, '')) : null;
+    return Number.isFinite(n) ? n : null;
+  } catch { return null; }
+}
+
 async function handleTossQuote(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=45');
@@ -412,15 +435,12 @@ async function handleTossQuote(req, res) {
 
   const calls = [
     callTossProxy(`/prices?symbols=${encodeURIComponent(symbol)}`),
-    callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=5`),
+    callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=2`),
+    isKr ? callTossProxy(`/market-calendar/KR`) : callTossProxy(`/market-calendar/US?date=${kstToday}`),
+    isKr ? null : callTossProxy(`/market-calendar/US?date=${kstYest}`),
+    isKr ? fetchNaverLastClose(symbol) : null,
   ];
-  if (!isKr) {
-    calls.push(callTossProxy(`/market-calendar/US?date=${kstToday}`));
-    calls.push(callTossProxy(`/market-calendar/US?date=${kstYest}`));
-  } else {
-    calls.push(callTossProxy(`/market-calendar/KR`));
-  }
-  const [priceData, candleData, calA, calB] = await Promise.all(calls);
+  const [priceData, candleData, calA, calB, naverLastClose] = await Promise.all(calls);
 
   const p = priceData?.result?.[0];
   if (!p) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ ok: false, error: 'toss proxy unreachable' }); }
@@ -428,18 +448,10 @@ async function handleTossQuote(req, res) {
 
   const candles = candleData?.result?.candles || [];
   const regularClose = candles[0]?.closePrice != null ? Number(candles[0].closePrice) : null;
-  // "전일 종가" 기준점 — 캔들 종가(정규장 15:30 마감가만 반영)를 그대로 쓰면 랭킹 위젯(홈
-  // 실시간 랭킹, handleTossRankings/-All이 쓰는 p.changeRate)과 어긋난다: NXT 도입 이후
-  // "전일 종가"는 정규장 마감가가 아니라 전날 애프터마켓(NXT, ~20:00)의 마지막 체결가일 수
-  // 있어서다(2026-07-21 실측: 000660 캔들종가 기준 -1.63% vs 토스 changeRate 기준 +2.66%,
-  // lastPrice는 완전히 동일했음 — 순수 기준가 불일치). 토스 자체 changeRate가 있으면
-  // lastPrice에서 역산해 그걸 prevClose로 쓴다 — 그래야 정규장 중엔 랭킹 위젯과 항상 일치하고,
-  // 캔들 기반 값은 changeRate가 없을 때만(구성 실패 등) 폴백으로 쓴다.
-  const tossChangeRate = p.changeRate != null ? Number(p.changeRate) : null;
-  const impliedPrevClose = (tossChangeRate != null && lastPrice != null && (1 + tossChangeRate) !== 0)
-    ? lastPrice / (1 + tossChangeRate)
-    : null;
-  const prevClose = impliedPrevClose ?? (candles[1]?.closePrice != null ? Number(candles[1].closePrice) : null);
+  // "전일 종가" 기준점 — KR은 네이버 lastClosePrice 우선(위 주석 참고), 실패하면 캔들 폴백.
+  const prevClose = isKr
+    ? (naverLastClose ?? (candles[1]?.closePrice != null ? Number(candles[1].closePrice) : null))
+    : (candles[1]?.closePrice != null ? Number(candles[1].closePrice) : null);
 
   // 세션 라벨
   let session = 'CLOSED';
@@ -487,7 +499,6 @@ async function handleTossQuote(req, res) {
     ok: true, symbol: rawSymbol, currency: p.currency, lastPrice, timestamp: p.timestamp,
     regularClose, prevClose, regularChange, regularChangePercent,
     exChange, exChangePercent, session,
-    _debugCandles: candles, // TEMP: probing Toss /candles ordering, remove after diagnosis
   });
 }
 
@@ -535,7 +546,6 @@ async function handleTossMeta(req, res) {
 
   return res.status(200).json({
     ok: true,
-    _debugRawStockKeys: s, // TEMP: probing Toss /stocks field names, remove after diagnosis
     symbol: rawSymbol,
     name: s.name ?? null,
     market: s.market ?? null,
