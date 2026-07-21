@@ -1743,7 +1743,7 @@ function renderPage(company, records, priceData) {
       <div class="ck-sec-head"><span class="tick"></span><h3>🌊 왜 움직였나 · 파급효과</h3><span class="note">뉴스 → 이 종목</span></div>
       <p class="ripple-intro">이런 뉴스 이슈가 <b>${escHtml(name)}</b>에 영향을 줄 수 있어요. StockRipple이 뉴스의 파급효과를 분석해 연결한 종목입니다.</p>
       ${rippleStaleNote}
-      <div class="ripple-list">${rippleCards || `<div class="cmp-empty">아직 이 종목과 연결된 뉴스 이슈가 없어요.${rippleStaleNote ? '' : ' (신규 이슈 연결 분석은 현재 점검 중입니다)'}</div>`}</div>
+      <div class="ripple-list">${rippleCards || '<div class="cmp-empty">아직 이 종목과 연결된 뉴스 이슈가 없어요.</div>'}</div>
       <div id="aiSummaryWrap"></div>
     </section>
 
@@ -2208,15 +2208,7 @@ async function loadAiSummary(ticker, displayName) {
     await minAdDelay;
     if (!r.ok) { wrap.innerHTML = ''; return; }
     const d = await r.json();
-    if (!d.ok) {
-      // feature_disabled(2026-07-21, 유사투자자문업 리스크로 company_summary 파이프라인
-      // 자체를 껐음)를 그냥 빈 화면으로 두면 picks.html처럼 "카드가 있어야 할 자리에
-      // 아무것도 없는" 어색한 UX가 된다 — 조용히 사라지는 대신 이유를 안내한다.
-      wrap.innerHTML = d.feature_disabled
-        ? `<div style="padding:28px 20px;text-align:center;color:var(--text3);font-size:13px;border:1px dashed var(--border);border-radius:12px">🛠️ AI 종합 분석 기능은 현재 점검을 위해 잠시 중단되었습니다.</div>`
-        : '';
-      return;
-    }
+    if (!d.ok) { wrap.innerHTML = ''; return; }
 
     // stale: 오늘 재생성(Claude 호출)에 실패했지만 DB에 예전 분석이 남아있어
     // 그걸 그대로 보여주는 경우 — 완전히 안 나오는 것보다 낫다. 언제 생성된
