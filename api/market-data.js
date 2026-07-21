@@ -412,7 +412,7 @@ async function handleTossQuote(req, res) {
 
   const calls = [
     callTossProxy(`/prices?symbols=${encodeURIComponent(symbol)}`),
-    callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=2`),
+    callTossProxy(`/candles?symbol=${encodeURIComponent(symbol)}&interval=1d&count=5`),
   ];
   if (!isKr) {
     calls.push(callTossProxy(`/market-calendar/US?date=${kstToday}`));
@@ -487,7 +487,7 @@ async function handleTossQuote(req, res) {
     ok: true, symbol: rawSymbol, currency: p.currency, lastPrice, timestamp: p.timestamp,
     regularClose, prevClose, regularChange, regularChangePercent,
     exChange, exChangePercent, session,
-    _debugRawPriceKeys: p, // TEMP: probing Toss /prices field names, remove after diagnosis
+    _debugCandles: candles, // TEMP: probing Toss /candles ordering, remove after diagnosis
   });
 }
 
