@@ -1162,6 +1162,8 @@ button { font-family: inherit; }
 .rk-px { font-size: 13.5px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rk-chg { font-size: 12px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 2px; }
 .rk-chg.up { color: var(--red); } .rk-chg.dn { color: var(--blue); } .rk-chg.flat { color: var(--text3); }
+.rk-px.flash-up, .rk-chg.flash-up { animation: priceFlashUp .9s ease-out; }
+.rk-px.flash-down, .rk-chg.flash-down { animation: priceFlashDown .9s ease-out; }
 .rk-loading, .rk-empty { text-align: center; color: var(--text3); font-size: 13px; padding: 30px 20px; line-height: 1.8; }
 .rk-retry-btn { border: 1px solid var(--border); background: var(--bg2); color: var(--blue); font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 999px; cursor: pointer; margin-top: 4px; }
 .rk-retry-btn:hover { border-color: var(--blue); }
@@ -1869,7 +1871,7 @@ function _rkList(items, cat, marketKey){
     return `<a class="rk-item" data-ticker="${_rkEsc(it.linkTicker)}" data-fb="${_rkEsc(fb)}" href="/company.html?ticker=${encodeURIComponent(it.linkTicker)}">
       <span class="rk-rank">${it.rank}</span>
       <div class="rk-main"><div class="rk-name">${nameHtml}</div><div class="rk-sub"><span class="rk-sub-inner">${_rkEsc(fb)}</span></div></div>
-      <div class="rk-price"><div class="rk-px">${_rkPrice(it.price,it.currency)}</div><div class="rk-chg ${cls}">${chg}</div></div>
+      <div class="rk-price"><div class="rk-px" data-val="${it.price ?? ''}" data-cur="${_rkEsc(it.currency)}">${_rkPrice(it.price,it.currency)}</div><div class="rk-chg ${cls}" data-val="${it.changePercent ?? ''}">${chg}</div></div>
     </a>`;
   }).join('') + '</div>';
 }
@@ -1937,9 +1939,43 @@ function _rkColInner(cache, cat, marketKey){
   if(_rkFailed[marketKey]) return `<div class="rk-empty">데이터를 불러오지 못했어요.<br><button class="rk-retry-btn" onclick="_rkRetryOne('${marketKey}')">다시 시도</button></div>`;
   return '<div class="rk-loading">불러오는 중...</div>';
 }
+// 리스트 전체를 새로 그리는 방식(순위가 바뀔 수 있어 diff patch 대신 통째로 재렌더)이라,
+// 그냥 innerHTML만 바꾸면 홈 지수 카드처럼 숫자가 굴러가며 반짝이는 효과가 안 생긴다 —
+// 새로 그리기 직전에 티커별 이전 값을 스냅샷해두고, 그린 뒤 같은 티커의 새 엘리먼트에
+// dataset.animVal로 그 이전 값을 "심어" animateNumberText가 이전→신규로 보간하게 만든다.
+function _rkSnapshotVals(body){
+  const snap = {};
+  body.querySelectorAll('.rk-item[data-ticker]').forEach(el => {
+    const t = el.getAttribute('data-ticker');
+    const px = el.querySelector('.rk-px'), chg = el.querySelector('.rk-chg');
+    snap[t] = {
+      price: px?.dataset.animVal ?? px?.dataset.val,
+      chg: chg?.dataset.animVal ?? chg?.dataset.val,
+    };
+  });
+  return snap;
+}
+function _rkAnimateVals(body, prevSnap){
+  body.querySelectorAll('.rk-item[data-ticker]').forEach(el => {
+    const t = el.getAttribute('data-ticker');
+    const prev = prevSnap[t];
+    if(!prev) return; // 새로 등장한 종목(리스트에 없던 티커) — 애니메이션 없이 그대로 표시
+    const px = el.querySelector('.rk-px');
+    if(px && px.dataset.val !== '' && prev.price !== '' && prev.price != null){
+      px.dataset.animVal = prev.price;
+      animateNumberText(px, Number(px.dataset.val), v => _rkPrice(v, px.dataset.cur), ['flash-up','flash-down']);
+    }
+    const chg = el.querySelector('.rk-chg');
+    if(chg && chg.dataset.val !== '' && prev.chg !== '' && prev.chg != null){
+      chg.dataset.animVal = prev.chg;
+      animateNumberText(chg, Number(chg.dataset.val), v => (v>0?'+':'') + v.toFixed(2) + '%', ['flash-up','flash-down']);
+    }
+  });
+}
 function _rkRender(){
   const body = document.getElementById('rankingsBody');
   if(!body) return;
+  const prevSnap = _rkSnapshotVals(body);
   if(_rkMarket==='all'){
     body.innerHTML = `<div class="rk-cols">
       <div><div class="rk-col-head">🇰🇷 국장</div>${_rkColInner(_rkCache.kr,_rkCat,'kr')}</div>
@@ -1948,6 +1984,7 @@ function _rkRender(){
   } else {
     body.innerHTML = `<div class="rk-cols single">${_rkColInner(_rkMarket==='kr'?_rkCache.kr:_rkCache.us,_rkCat,_rkMarket)}</div>`;
   }
+  _rkAnimateVals(body, prevSnap);
   const upd = document.getElementById('rankingsUpdated');
   const ts = _rkCache.kr?.updatedAt || _rkCache.us?.updatedAt;
   if(upd && ts) upd.textContent = new Date(ts).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit'}) + ' 기준';

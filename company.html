@@ -247,9 +247,17 @@ body {
 .price-block { text-align: right; flex-shrink: 0; }
 .share-icon-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .share-icon-btn:hover { background: var(--bg3); color: var(--text); }
-.current-price { font-size: 28px; font-weight: 700; transition: color 0.4s ease; }
-.current-price.price-flash-up { color: var(--red); }
-.current-price.price-flash-down { color: var(--blue); }
+.current-price { font-size: 28px; font-weight: 700; }
+.current-price.flash-up { animation: priceFlashUp .9s ease-out; }
+.current-price.flash-down { animation: priceFlashDown .9s ease-out; }
+@keyframes priceFlashUp {
+  0%   { color: var(--red); text-shadow: 0 0 10px rgba(220,47,62,.45); }
+  100% { color: var(--text); text-shadow: none; }
+}
+@keyframes priceFlashDown {
+  0%   { color: var(--blue); text-shadow: 0 0 10px rgba(77,141,255,.45); }
+  100% { color: var(--text); text-shadow: none; }
+}
 .current-price-krw { font-size: 14px; font-weight: 600; color: var(--text2); margin-top: 1px; font-family: var(--mono); }
 .price-change { font-size: 14px; font-weight: 600; margin-top: 2px; }
 .price-change.pos { color: var(--red); }
@@ -1425,6 +1433,36 @@ function buildStatBar(priceData) {
   return `<div class="stat-bar">${statCells}</div>${yr}`;
 }
 
+// 숫자가 이전값→새값으로 부드럽게 굴러가며 마지막에 상승/하락 색으로 반짝이는 효과.
+// company.html은 app.js를 로드하지 않는 독립 페이지라 그 파일의 동명 함수를 그대로 복제(홈
+// 지수 카드 등에서 쓰는 것과 완전히 동일한 구현 — 로직을 바꿀 땐 app.js 쪽도 같이 볼 것).
+function animateNumberText(el, toVal, formatFn, flashCls) {
+  if (!el || toVal == null || !isFinite(toVal)) return;
+  const fromVal = el.dataset.animVal != null ? parseFloat(el.dataset.animVal) : NaN;
+  el.dataset.animVal = toVal;
+  if (!isFinite(fromVal)) { el.textContent = formatFn(toVal); return; }
+  if (fromVal === toVal) return;
+
+  if (el._animRAF) cancelAnimationFrame(el._animRAF);
+  const startTs = performance.now();
+  const duration = 500;
+  const ease = t => 1 - Math.pow(1 - t, 3);
+  const step = now => {
+    const t = Math.min(1, (now - startTs) / duration);
+    el.textContent = formatFn(fromVal + (toVal - fromVal) * ease(t));
+    if (t < 1) { el._animRAF = requestAnimationFrame(step); return; }
+    el._animRAF = null;
+    if (flashCls) {
+      const [upCls, dnCls] = flashCls;
+      el.classList.remove(upCls, dnCls);
+      void el.offsetWidth;
+      el.classList.add(toVal > fromVal ? upCls : dnCls);
+      setTimeout(() => el.classList.remove(upCls, dnCls), 900);
+    }
+  };
+  el._animRAF = requestAnimationFrame(step);
+}
+
 // Price block — regular + pre/after-market. renderPage(최초)와 refreshLivePrice(폴링) 공용.
 // 국내·미장 모두 Toss 공식 API(_tossQuote, loadTossQuote()가 채움) 기준으로 헤드라인(통합가) +
 // 정규장/시간외 변동 분해를 계산 — Toss는 세션 구분 필드가 없어서(확인됨) 일별 캔들 종가를
@@ -1454,7 +1492,7 @@ function buildPriceBlock(priceData) {
     priceHtml = `<div style="font-size:11px;color:${st.color};font-weight:600;margin-bottom:3px">${st.label}</div>`;
 
     if (tq) {
-      priceHtml += `<div class="current-price">${fmt.format(tq.lastPrice)}</div>`;
+      priceHtml += `<div class="current-price" id="cmpCurPrice" data-val="${tq.lastPrice}">${fmt.format(tq.lastPrice)}</div>`;
       if (_usdKrwRate) {
         priceHtml += `<div class="current-price-krw">₩${Math.round(tq.lastPrice * _usdKrwRate).toLocaleString('ko-KR')}</div>`;
       }
@@ -1462,7 +1500,10 @@ function buildPriceBlock(priceData) {
         const sign = tq.regularChange >= 0 ? '+' : '-';
         const cls = tq.regularChangePercent >= 0 ? 'pos' : 'neg';
         const amtStr = fmt.format(Math.abs(tq.regularChange));
-        if (tq.exChangePercent != null && tq.regularClose != null) {
+        // "정규장 X로 마감" 문구는 애프터마켓(오늘 정규장이 실제로 이미 끝난 상태)일 때만
+        // 사실이다 — 데이마켓/프리마켓은 오늘 정규장이 아직 열리지도 않았으므로 이 문구를
+        // 쓰면 안 된다(2026-07-21 지적). 그 경우들은 아래 plain 분기로 통일.
+        if (tq.session === 'POST' && tq.regularClose != null) {
           priceHtml += `<div class="price-change ${cls}">정규장 ${fmt.format(tq.regularClose)}으로 마감 ${sign}${amtStr}(${sign}${Math.abs(tq.regularChangePercent).toFixed(2)}%)</div>`;
         } else {
           // 세션이 CLOSED일 땐 위에 이미 "⚪ 마감"이 떠 있는데 여기 "정규" 태그까지 붙으면
@@ -1488,7 +1529,7 @@ function buildPriceBlock(priceData) {
         exLabel = '프리마켓'; exPrice = priceData.preMarketPrice; exChange = priceData.preMarketChange; exPct = priceData.preMarketChangePercent;
       }
       const headlinePrice = exPrice != null ? exPrice : priceData.price;
-      priceHtml += `<div class="current-price">${fmt.format(headlinePrice)}</div>`;
+      priceHtml += `<div class="current-price" id="cmpCurPrice" data-val="${headlinePrice}">${fmt.format(headlinePrice)}</div>`;
       if (!isKrw && _usdKrwRate) {
         priceHtml += `<div class="current-price-krw">₩${Math.round(headlinePrice * _usdKrwRate).toLocaleString('ko-KR')}</div>`;
       }
@@ -1496,7 +1537,7 @@ function buildPriceBlock(priceData) {
         const sign = priceData.change >= 0 ? '+' : '-';
         const cls = priceData.changePercent >= 0 ? 'pos' : 'neg';
         const amtStr = priceData.change != null ? fmt.format(Math.abs(priceData.change)) : '';
-        if (exLabel) {
+        if (exLabel === '애프터마켓') {
           priceHtml += `<div class="price-change ${cls}">정규장 ${fmt.format(priceData.price)}으로 마감 ${sign}${amtStr}(${sign}${Math.abs(priceData.changePercent).toFixed(2)}%)</div>`;
         } else {
           // 위 세션 상태가 "마감"인데 여기 "정규" 태그까지 붙으면 모순처럼 보임 — 정규장이
@@ -1523,28 +1564,28 @@ function buildPriceBlock(priceData) {
 // 국내·미장 공통: /action=quote로 헤드라인+정규/시간외 변동 분해까지 전부 다시 계산되므로
 // priceBlock 전체를 재렌더(buildPriceBlock이 이제 국내 종목도 _tossQuote를 우선 사용).
 let _tossFastTimer = null;
-let _lastTossPrice = null;
 function startTossFastPriceSync(ticker) {
   if (_tossFastTimer || !ticker) return;
-
-  const flashCurrentPrice = (newPrice) => {
-    if (_lastTossPrice == null || newPrice === _lastTossPrice) { _lastTossPrice = newPrice; return; }
-    const cpEl = document.querySelector('.current-price');
-    if (cpEl) {
-      cpEl.classList.remove('price-flash-up', 'price-flash-down');
-      void cpEl.offsetWidth; // 리플로우 강제 — 애니메이션 재시작
-      cpEl.classList.add(newPrice > _lastTossPrice ? 'price-flash-up' : 'price-flash-down');
-    }
-    _lastTossPrice = newPrice;
-  };
 
   const tick = async () => {
     if (document.hidden) return;
     const q = await loadTossQuote(ticker);
     if (!q || q.lastPrice == null) return;
     const priceBlock = document.getElementById('priceBlock');
-    if (priceBlock) priceBlock.innerHTML = buildPriceBlock(_lastPriceData);
-    flashCurrentPrice(q.lastPrice);
+    if (!priceBlock) return;
+    // 홈 지수 카드와 동일한 "숫자가 이전값→새값으로 굴러가며 강조되는" 효과를 주기 위해,
+    // 통째로 재렌더하기 전에 현재가 엘리먼트의 이전 값을 스냅샷해두고, 새로 그려진 뒤 그
+    // 값을 dataset.animVal로 심어 animateNumberText가 이전→신규로 보간·플래시하게 한다.
+    const prevEl = document.getElementById('cmpCurPrice');
+    const prevVal = prevEl ? (prevEl.dataset.animVal ?? prevEl.dataset.val) : null;
+    priceBlock.innerHTML = buildPriceBlock(_lastPriceData);
+    const curEl = document.getElementById('cmpCurPrice');
+    if (curEl && prevVal != null) {
+      const isKrw = (_lastPriceData?.currency || 'USD') === 'KRW';
+      const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: _lastPriceData?.currency || 'USD', maximumFractionDigits: isKrw ? 0 : 2 });
+      curEl.dataset.animVal = prevVal;
+      animateNumberText(curEl, Number(curEl.dataset.val), v => fmt.format(v), ['flash-up', 'flash-down']);
+    }
   };
 
   tick();
@@ -1560,7 +1601,18 @@ function startLivePriceRefresh() {
     const priceData = await loadPrice(_currentTicker);
     if (!priceData || priceData.price == null) return;
     const priceBlock = document.getElementById('priceBlock');
-    if (priceBlock) priceBlock.innerHTML = buildPriceBlock(priceData);
+    if (priceBlock) {
+      const prevEl = document.getElementById('cmpCurPrice');
+      const prevVal = prevEl ? (prevEl.dataset.animVal ?? prevEl.dataset.val) : null;
+      priceBlock.innerHTML = buildPriceBlock(priceData);
+      const curEl = document.getElementById('cmpCurPrice');
+      if (curEl && prevVal != null) {
+        const isKrw = (priceData.currency || 'USD') === 'KRW';
+        const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: priceData.currency || 'USD', maximumFractionDigits: isKrw ? 0 : 2 });
+        curEl.dataset.animVal = prevVal;
+        animateNumberText(curEl, Number(curEl.dataset.val), v => fmt.format(v), ['flash-up', 'flash-down']);
+      }
+    }
     const quoteWrap = document.getElementById('quoteCardWrap');
     if (quoteWrap) {
       const html = buildQuoteCard(priceData);
