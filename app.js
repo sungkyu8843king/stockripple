@@ -1636,24 +1636,28 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
         const target  = curPrice && trade?.tp  != null ? curPrice * (1 + trade.tp  / 100) : null;
         const stop    = curPrice && trade?.sl  != null ? curPrice * (1 + trade.sl  / 100) : null;
 
+        // ⚠️ 규제(유사투자자문업)·과신 방어: 이 매수/목표/손절 수치는 "특정 종목 매매 권유"가
+        // 아니라 AI가 만든 가설 시나리오임을 화면에서 분명히 한다(2026-07). 라벨을 "가설"로
+        // 완화하고, 박스 상단에 매매 권유가 아니라는 캡션을 항상 붙인다. 수치 자체는 유지.
         const tradeBox = trade ? `
           <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:10px;background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(47,129,247,.08));border:1px solid rgba(63,185,80,.2);border-radius:8px">
+            <div style="grid-column:1/-1;font-size:8.5px;color:var(--text3);text-align:center;line-height:1.3;margin-bottom:2px">🤖 AI 가설 시나리오 · 특정 종목 매매 권유가 아닙니다</div>
             <div style="text-align:center;min-width:0">
-              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">매수가</div>
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">참고 매수대</div>
               <div style="font-size:11px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace;overflow-wrap:break-word">
                 ${buyLow ? fmtP(buyLow) : (trade.elp != null ? fmtPct(trade.elp) : '—')}
                 ${buyHigh ? `<br><span style="font-size:9px;color:var(--text3);font-weight:400">~ ${fmtP(buyHigh)}</span>` : ''}
               </div>
             </div>
             <div style="text-align:center;min-width:0;border-left:1px solid var(--border);border-right:1px solid var(--border)">
-              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">목표</div>
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">목표(가설)</div>
               <div style="font-size:11px;font-weight:700;color:var(--green);font-family:'SF Mono',monospace;overflow-wrap:break-word">
                 ${target ? fmtP(target) : (trade.tp != null ? fmtPct(trade.tp) : '—')}
                 ${target ? `<br><span style="font-size:9px;color:var(--text3);font-weight:400">+${trade.tp}%</span>` : ''}
               </div>
             </div>
             <div style="text-align:center;min-width:0">
-              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">손절</div>
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">손절(가설)</div>
               <div style="font-size:11px;font-weight:700;color:var(--red);font-family:'SF Mono',monospace;overflow-wrap:break-word">
                 ${stop ? fmtP(stop) : (trade.sl != null ? fmtPct(trade.sl) : '—')}
                 ${stop ? `<br><span style="font-size:9px;color:var(--text3);font-weight:400">${trade.sl}%</span>` : ''}
