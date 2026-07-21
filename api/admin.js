@@ -97,6 +97,7 @@ export default async function handler(req, res) {
   if (action === 'stats')               return handleStats(req, res);
   if (action === 'extract-investments') return handleExtractInvestments(req, res);
   if (action === 'company-summary-backfill') return handleCompanySummaryBackfill(req, res);
+  if (action === 'article-digest-backfill') return handleArticleDigestBackfill(req, res);
   if (action === 'list-investments')    return handleListInvestments(req, res);
   if (action === 'update-investment')   return handleUpdateInvestment(req, res);
   if (action === 'delete-investment')   return handleDeleteInvestment(req, res);
@@ -1304,6 +1305,75 @@ function buildExtractInvestmentsDynamicBlock(issue) {
   return `뉴스 제목: ${issue.title}\n요약: ${issue.summary || '없음'}\n\n위 뉴스에 대해 위 규칙에 따라 JSON으로만 응답하세요.`;
 }
 
+// 유사투자자문업 리스크와 무관한 순수 기사 요약 — analyses/analysis_companies와 완전히 별개로
+// issues.ai_digest 컬럼에 직접 저장한다(2026-07-21, db/article-digest.sql).
+const ARTICLE_DIGEST_STATIC_PROMPT = `당신은 뉴스 요약 전문가입니다. 아래 뉴스 기사를 한국어로 2~3문장으로 객관적으로 요약하세요.
+
+엄격한 규칙 (매우 중요):
+- 기사에 있는 사실 전달에만 집중할 것.
+- 특정 종목의 매수·매도를 권유하거나 추천하는 표현은 절대 쓰지 말 것.
+- "수혜", "기회", "유망", "투자 포인트", "주목" 같은 투자판단성 표현을 쓰지 말 것.
+- "이 뉴스로 어떤 기업이 이득/손해를 본다"는 식의 파급효과·인과 해석을 하지 말 것 — 기사 본문 내용만 요약.
+- 확실하지 않은 내용을 추측해서 채우지 말 것.
+
+다음 JSON만 반환하세요 (다른 텍스트 없이):
+{ "summary": "2~3문장 요약" }`;
+
+function buildArticleDigestDynamicBlock(issue) {
+  return `뉴스 제목: ${issue.title}\n요약: ${issue.summary || '없음'}\n\n위 뉴스를 위 규칙에 따라 JSON으로만 요약하세요.`;
+}
+
+async function handleArticleDigestBackfill(req, res) {
+  if (!(await isFeatureEnabled(supabase, 'article_digest'))) {
+    return res.status(200).json({ ok: true, scanned: 0, submitted: 0, disabled: true });
+  }
+  const limit = Math.min(parseInt(req.body?.limit || req.query?.limit, 10) || 60, 100);
+
+  // ai_digest가 아직 없는 최신 이슈들. is_analyzed 여부와 무관 — 순수 기사 요약이라 AI
+  // 파급효과 분석(analyze) 완료 여부와 별개로 채울 수 있다.
+  const { data: issues, error } = await supabase
+    .from('issues')
+    .select('id, title, summary')
+    .is('ai_digest', null)
+    .order('published_at', { ascending: false })
+    .limit(limit);
+  if (error) return res.status(500).json({ error: error.message });
+  if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, submitted: 0 });
+
+  const items = issues.map(issue => ({
+    itemId: issue.id,
+    static: ARTICLE_DIGEST_STATIC_PROMPT,
+    dynamic: buildArticleDigestDynamicBlock(issue),
+  }));
+  const result = await submitAgentJob({
+    pipeline: 'article_digest',
+    items,
+    payload: { issueIds: issues.map(i => i.id) },
+  });
+  return res.status(200).json({ ok: true, scanned: issues.length, ...result });
+}
+
+async function finalizeArticleDigest(row) {
+  const issueIds = row.payload?.issueIds || [];
+  const results = { updated: 0, skipped: 0, errors: [] };
+  for (const issueId of issueIds) {
+    try {
+      const text = extractJobText(row, issueId);
+      if (!text) { results.skipped++; continue; }
+      const parsed = parseJobJson(text);
+      const summary = (parsed.summary || '').toString().trim();
+      if (!summary) { results.skipped++; continue; }
+      await supabase.from('issues')
+        .update({ ai_digest: summary.slice(0, 500), ai_digest_at: new Date().toISOString() })
+        .eq('id', issueId);
+      results.updated++;
+    } catch (e) {
+      results.errors.push({ issue_id: issueId, error: e.message?.slice(0, 200) });
+    }
+  }
+  return results;
+}
+
 async function handleExtractInvestments(req, res) {
   if (!(await isFeatureEnabled(supabase, 'extract_investments'))) {
     return res.status(200).json({ ok: true, scanned: 0, extracted: 0, disabled: true });
@@ -1633,14 +1703,16 @@ async function handleIssuesFeed(req, res) {
     // 신뢰도/파급효과 데이터(analyses 조인)를 공개 피드에서 아예 빼고 뉴스 제목/요약만
     // 내려준다.
     const includeAnalyses = await isFeatureEnabled(supabase, 'analyze');
+    // ai_digest(순수 기사 요약, 매수판단 없음)는 analyze 플래그와 무관하게 항상 포함 —
+    // analyses/analysis_companies와 완전히 별개 파이프라인이라 게이트할 이유가 없다.
     const selectCols = includeAnalyses
-      ? `id, title, summary, source_name, published_at, sectors, is_analyzed,
+      ? `id, title, summary, source_name, published_at, sectors, is_analyzed, ai_digest,
         analyses!inner(id, confidence_score, ripple_effects, ai_summary,
           analysis_companies(upside_pct, ripple_sector, is_accurate_1d, actual_return_1d, is_accurate_7d, actual_return_7d,
             companies(ticker, name_ko, name_en, market)
           )
         )`
-      : 'id, title, summary, source_name, published_at, sectors, is_analyzed';
+      : 'id, title, summary, source_name, published_at, sectors, is_analyzed, ai_digest';
     const dataQuery = applyFilters(
       supabase.from('issues').select(selectCols).order('published_at', { ascending: false })
     ).range((page - 1) * pageSize, page * pageSize - 1);
@@ -3668,6 +3740,7 @@ const AGENT_JOB_FINALIZERS = {
   catalysts:           { main: finalizeCatalysts },
   daily_report:        { main: finalizeDailyReport },
   weekly_schedule:      { events: finalizeWeeklyScheduleEvents, highlights: finalizeWeeklyScheduleHighlights },
+  article_digest:      { main: finalizeArticleDigest },
 };
 
 // claim(submitted→processing) 직후 finalize 도중 함수가 죽으면(Vercel 타임아웃 등) 그 row는

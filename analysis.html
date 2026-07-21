@@ -697,7 +697,11 @@ function renderPage(issue, analysis, companies) {
         <div class="conf-bar"><div class="conf-fill" style="width:${confidence}%"></div></div>
         <span class="conf-pct">${confidence}%</span>
       </div>
-    </div>` : ''}
+    </div>` : (issue.ai_digest ? `
+    <div class="ai-card">
+      <div class="ai-badge"><span class="ai-badge-dot"></span>📝 AI 기사 요약</div>
+      <div class="ai-text">${escHtml(issue.ai_digest)}</div>
+    </div>` : '')}
 
     ${(posCompanies.length || negCount) ? `
     <div class="invest-point">

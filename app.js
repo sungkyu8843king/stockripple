@@ -323,7 +323,7 @@ function renderIssueCard(issue) {
       </div>
       <div class="card-body">
         <div class="card-title">${escHtml(issue.title)}</div>
-        ${analysis?.ai_summary ? `<div class="card-ai-summary">${escHtml(analysis.ai_summary)}</div>` : ''}
+        ${analysis?.ai_summary ? `<div class="card-ai-summary">${escHtml(analysis.ai_summary)}</div>` : (issue.ai_digest ? `<div class="card-ai-summary">📝 ${escHtml(issue.ai_digest)}</div>` : '')}
         ${sectors.length ? `<div class="card-flow-label">📡 파급 섹터</div><div class="card-sectors">${sectorTags}</div>` : ''}
       </div>
       ${companies.length ? `<div class="card-companies"><div class="card-flow-label">🎯 수혜 예상 종목</div>${companyRows}</div>` : ''}

@@ -210,7 +210,7 @@ async function loadTimeline(topic){
   try{
     const orClause = topic.keywords.map(k=>`title.ilike.%${k}%`).join(',');
     const { data, error } = await sb.from('issues')
-      .select('id,title,summary,source_url,source_name,published_at,analyses(ai_summary)')
+      .select('id,title,summary,source_url,source_name,published_at,ai_digest,analyses(ai_summary)')
       .or(orClause).order('published_at',{ascending:false}).limit(40);
     if(error) throw error;
     // 같은 사건 중복(매체별) 제거 — 제목 앞부분 기준
@@ -224,9 +224,10 @@ async function loadTimeline(topic){
     tl.innerHTML = '<div class="timeline">' + items.map(it=>{
       const href = it.source_url || `/analysis.html?id=${it.id}`;
       const ext = it.source_url ? ' target="_blank" rel="noopener"' : '';
-      // Claude가 분석한 한국어 요약(ai_summary)을 우선 쓰고, 아직 분석 전이면 원문 피드 요약을 정제해 대체
+      // Claude가 분석한 한국어 요약(ai_summary, 파급효과 파이프라인은 현재 비활성) → 순수 기사 요약(ai_digest) →
+      // 둘 다 없으면 원문 피드 요약을 정제해 대체
       const aiSum = (it.analyses && it.analyses[0] && it.analyses[0].ai_summary) ? it.analyses[0].ai_summary.trim() : '';
-      const sum = aiSum || cleanSum(it.summary, it.title);
+      const sum = aiSum || (it.ai_digest || '').trim() || cleanSum(it.summary, it.title);
       return `<a class="tl-item" href="${esc(href)}"${ext}>
         <div class="tl-meta"><span class="tl-date">${fmtDateTime(it.published_at)}</span><span class="tl-src">${esc(it.source_name||'')}</span></div>
         <div class="tl-title">${esc(it.title)}</div>
