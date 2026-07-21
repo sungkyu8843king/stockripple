@@ -456,12 +456,18 @@ async function handleTossQuote(req, res) {
   // 세션 라벨
   let session = 'CLOSED';
   if (!isKr) {
+    // ⚠️ 토스 데이마켓(2026-07-21 사용자 지적): 토스는 미국주식을 한국시간 기준 거의 24시간
+    // 가깝게 거래 지원한다(데이마켓 09~17시·프리마켓 17~22:30·정규장 22:30~익일06시·
+    // 애프터마켓 06~09:50, 실측 09:50~10:00 약 10분만 진짜 휴장) — /market-calendar/US 응답에
+    // 이미 dayMarket 필드로 그 구간이 내려오는데 여기서 안 읽고 있어서, 하루 대부분(정확히는
+    // 데이마켓 시간대 8시간)을 실제로는 거래 중인데도 "⚪ 마감"으로 잘못 표시하고 있었다.
     const within = s => s && kstNowMs >= new Date(s.startTime).getTime() && kstNowMs < new Date(s.endTime).getTime();
     for (const cal of [calB?.result?.today, calA?.result?.today]) {
       if (!cal) continue;
       if (within(cal.regularMarket)) { session = 'REGULAR'; break; }
       if (within(cal.preMarket))     { session = 'PRE'; break; }
       if (within(cal.afterMarket))   { session = 'POST'; break; }
+      if (within(cal.dayMarket))     { session = 'DAY'; break; }
     }
   } else {
     // 넥스트레이드(NXT) 고정 시간대(사용자 확인, 토스 앱 "국내주식 거래 시간 안내" 기준):
@@ -488,9 +494,9 @@ async function handleTossQuote(req, res) {
     regularChange = dayRefPrice - prevClose;
     regularChangePercent = (regularChange / prevClose) * 100;
   }
-  // 시간외 변동(정규장 마감가 대비)은 프리/애프터일 때만 의미가 있음
+  // 시간외 변동(정규장 마감가 대비)은 프리/애프터/데이마켓일 때만 의미가 있음
   let exChange = null, exChangePercent = null;
-  if ((session === 'PRE' || session === 'POST') && lastPrice != null && regularClose) {
+  if ((session === 'PRE' || session === 'POST' || session === 'DAY') && lastPrice != null && regularClose) {
     exChange = lastPrice - regularClose;
     exChangePercent = (exChange / regularClose) * 100;
   }

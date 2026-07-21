@@ -1443,6 +1443,7 @@ function buildPriceBlock(priceData) {
     });
     const sessionMap = {
       REGULAR: { label: '🟢 정규장', color: 'var(--green)' },
+      DAY:     { label: '🔵 데이마켓', color: 'var(--blue)' },
       PRE:     { label: '🟡 프리장', color: 'var(--yellow)' },
       POST:    { label: '🟣 애프터장', color: 'var(--purple)' },
       CLOSED:  { label: '⚪ 마감',   color: 'var(--text3)' },
@@ -1472,7 +1473,7 @@ function buildPriceBlock(priceData) {
         }
       }
       if (tq.exChangePercent != null && tq.exChangePercent !== 0) {
-        const exLabel = tq.session === 'PRE' ? '프리마켓' : '애프터마켓';
+        const exLabel = tq.session === 'PRE' ? '프리마켓' : tq.session === 'DAY' ? '데이마켓' : '애프터마켓';
         const exSign = tq.exChange >= 0 ? '+' : '-';
         const exCls = tq.exChangePercent >= 0 ? 'pos' : 'neg';
         const exAmtStr = fmt.format(Math.abs(tq.exChange));
