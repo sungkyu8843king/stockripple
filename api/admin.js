@@ -1382,15 +1382,18 @@ async function handleExtractInvestments(req, res) {
   const sinceHours = parseInt(req.body?.since_hours || req.query?.since_hours || 48, 10);
   const maxIssues  = Math.min(parseInt(req.body?.max || req.query?.max || 30, 10), 60);
 
-  // 최근 분석된 이슈 수집
+  // 최근 이슈 수집. analyze 파이프라인이 꺼져있으면 is_analyzed가 다시는 true가 안 되므로
+  // (2026-07-21 유사투자자문업 리스크 대응) ai_digest 존재 여부로 "최근에 실제 처리된 이슈"를 대신 잡는다.
   const sinceIso = new Date(Date.now() - sinceHours * 3600 * 1000).toISOString();
-  const { data: issues, error: issErr } = await supabase
+  const useAnalyzedFilter = await isFeatureEnabled(supabase, 'analyze');
+  let issuesQ = supabase
     .from('issues')
     .select('id, title, summary, source_url')
-    .eq('is_analyzed', true)
     .gte('published_at', sinceIso)
     .order('published_at', { ascending: false })
     .limit(maxIssues);
+  issuesQ = useAnalyzedFilter ? issuesQ.eq('is_analyzed', true) : issuesQ.not('ai_digest', 'is', null);
+  const { data: issues, error: issErr } = await issuesQ;
   if (issErr) return res.status(500).json({ error: issErr.message });
   if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, extracted: 0 });
 
@@ -1679,8 +1682,12 @@ async function handleIssuesFeed(req, res) {
   const q = (req.query.q || '').toString().trim();
   const pageSize = Math.min(Math.max(parseInt(req.query.pageSize) || 9, 1), 30);
 
+  // 유사투자자문업 리스크 대응(2026-07-21)으로 analyze 파이프라인을 끈 뒤로 is_analyzed가
+  // 다시는 true가 되지 않는다(그 필드를 마킹하는 코드가 analyze.js 안에만 있음) — analyze가
+  // 꺼진 동안은 피드 필터를 ai_digest(analyze와 무관하게 계속 채워지는 순수 요약) 존재 여부로 대체.
+  const includeAnalyses = await isFeatureEnabled(supabase, 'analyze');
   const applyFilters = qb => {
-    let out = qb.eq('is_analyzed', true);
+    let out = includeAnalyses ? qb.eq('is_analyzed', true) : qb.not('ai_digest', 'is', null);
     if (sector !== 'all') out = out.contains('sectors', [sector]);
     if (q) out = out.ilike('title', `%${q}%`);
     if (category !== 'all' && ISSUES_CAT_FILTERS[category]) out = out.or(ISSUES_CAT_FILTERS[category]);
@@ -1701,8 +1708,7 @@ async function handleIssuesFeed(req, res) {
   try {
     // 유사투자자문업 리스크 대응(2026-07-21): 'analyze' 플래그가 꺼져 있으면 매수 후보/
     // 신뢰도/파급효과 데이터(analyses 조인)를 공개 피드에서 아예 빼고 뉴스 제목/요약만
-    // 내려준다.
-    const includeAnalyses = await isFeatureEnabled(supabase, 'analyze');
+    // 내려준다. (includeAnalyses는 위에서 이미 계산됨 — applyFilters도 같은 값을 씀)
     // ai_digest(순수 기사 요약, 매수판단 없음)는 analyze 플래그와 무관하게 항상 포함 —
     // analyses/analysis_companies와 완전히 별개 파이프라인이라 게이트할 이유가 없다.
     const selectCols = includeAnalyses
@@ -2665,21 +2671,24 @@ async function handleAiMarketSummaryPost(req, res) {
     }
   }
 
-  // 최근 24h 분석된 이슈 60건 수집
+  // 최근 24h 이슈 60건 수집. analyze가 꺼져있으면(2026-07-21) is_analyzed가 다시는 true가
+  // 안 되므로 ai_digest 존재 여부로 "최근에 실제 처리된 이슈"를 대신 잡는다.
   const sinceIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const { data: issues } = await supabase
+  const useAnalyzedFilter = await isFeatureEnabled(supabase, 'analyze');
+  let summaryIssuesQ = supabase
     .from('issues')
-    .select('title, summary, sectors, published_at, analyses(ai_summary, confidence_score)')
-    .eq('is_analyzed', true)
+    .select('title, summary, ai_digest, sectors, published_at, analyses(ai_summary, confidence_score)')
     .gte('published_at', sinceIso)
     .order('published_at', { ascending: false })
     .limit(60);
+  summaryIssuesQ = useAnalyzedFilter ? summaryIssuesQ.eq('is_analyzed', true) : summaryIssuesQ.not('ai_digest', 'is', null);
+  const { data: issues } = await summaryIssuesQ;
 
   if (!issues?.length) return res.status(200).json({ ok: true, generated: false, reason: 'No recent issues' });
 
   const ctx = issues.map(i => {
     const conf = i.analyses?.[0]?.confidence_score;
-    return `[${(i.published_at || '').slice(0, 16)}] (${conf || '?'}점) ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.summary || ''}`.slice(0, 400);
+    return `[${(i.published_at || '').slice(0, 16)}] (${conf || '?'}점) ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.ai_digest || i.summary || ''}`.slice(0, 400);
   }).join('\n\n');
 
   const dynamic = `당신은 한국어 금융 시장 분석가입니다. 아래 지난 24시간 분석 이슈 ${issues.length}건을 종합해서 오늘의 시장 종합 보고서를 작성하세요.
@@ -3579,11 +3588,14 @@ async function handleDailyReportPost(req, res) {
     DR_INDICES[market].map(x => fetchDrIndexQuote(x.symbol, x.name))
   )).filter(Boolean);
 
-  // 2) 뉴스 수집 창 — 기본은 최근 24h, date 백필 시에는 그 거래일 하루로 정확히 좁힘
+  // 2) 뉴스 수집 창 — 기본은 최근 24h, date 백필 시에는 그 거래일 하루로 정확히 좁힘.
+  // analyze가 꺼져있으면(2026-07-21) is_analyzed가 다시는 true가 안 되므로 ai_digest 존재
+  // 여부로 "최근에 실제 처리된 이슈"를 대신 잡는다.
+  const useAnalyzedFilterDr = await isFeatureEnabled(supabase, 'analyze');
   let issuesQuery = supabase
     .from('issues')
-    .select('title, summary, sectors, published_at, analyses(ai_summary, confidence_score)')
-    .eq('is_analyzed', true);
+    .select('title, summary, ai_digest, sectors, published_at, analyses(ai_summary, confidence_score)');
+  issuesQuery = useAnalyzedFilterDr ? issuesQuery.eq('is_analyzed', true) : issuesQuery.not('ai_digest', 'is', null);
   if (overrideDate) {
     const tz = market === 'KR' ? 'Asia/Seoul' : 'America/New_York';
     const { startUtc, endUtc } = localDayBoundsUtc(overrideDate, tz);
@@ -3600,7 +3612,7 @@ async function handleDailyReportPost(req, res) {
   }
 
   const ctx = (issues || []).map(i => {
-    return `[${(i.published_at || '').slice(0, 16)}] ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.summary || ''}`.slice(0, 400);
+    return `[${(i.published_at || '').slice(0, 16)}] ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.ai_digest || i.summary || ''}`.slice(0, 400);
   }).join('\n\n');
 
   const idxStr = indices.map(i =>
