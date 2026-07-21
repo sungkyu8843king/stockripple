@@ -253,7 +253,10 @@ async function tossRankingsCacheFallback(res, market) {
 async function handleTossRankingsAll(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   // 모든 방문자가 동일 페이로드(시장별 고정 요청) → edge 캐시가 origin 호출을 흡수(레이트리밋 방어).
-  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=90');
+  // 10초로 단축(2026-07-21) — 종목 quote 엔드포인트가 이미 10초 주기로 안정 운영 중인 것과
+  // 맞춤. 이보다 더 낮추면 카테고리 5개를 한 번에 부르는 이 호출 특성상 GCP e2-micro
+  // 프록시 부담이 검증 안 된 영역이라 일단 여기서 지켜본다.
+  res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30');
   if (!tossProxyConfigured()) return res.status(503).json({ ok: false, error: 'toss proxy not configured' });
 
   const market = (req.query.market || 'KR').toString().toUpperCase();

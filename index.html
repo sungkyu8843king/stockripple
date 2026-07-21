@@ -2032,7 +2032,9 @@ async function initRankings(){
   // 콜드 스타트 시 첫 응답의 일부 카테고리가 빌 수 있어(프록시 워밍업) 3초 뒤 한 번 더 강제 갱신.
   setTimeout(async () => { await _rkEnsure(true); _rkRender(); }, 3000);
   if(_rkTimer) clearInterval(_rkTimer);
-  _rkTimer = setInterval(async () => { if(document.hidden) return; await _rkEnsure(true); _rkRender(); }, 30000);
+  // 서버 캐시(handleTossRankingsAll)도 10초로 맞춰뒀음 — 여기만 줄이면 캐시 히트만 반복될 뿐
+  // 실제로 더 신선해지지 않으니 항상 같이 조정할 것.
+  _rkTimer = setInterval(async () => { if(document.hidden) return; await _rkEnsure(true); _rkRender(); }, 10000);
 }
 initRankings();
 </script>
