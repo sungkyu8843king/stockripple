@@ -334,9 +334,9 @@ function renderIssueCard(issue) {
         </div>
         ${avgUpside != null ? `<div class="footer-stat"><span class="val green">+${avgUpside}%</span> 평균 예상</div>` : ''}
         ${accBadge}
-        <div class="confidence-bar" title="분석 신뢰도 ${confidence}%">
+        ${analysis ? `<div class="confidence-bar" title="분석 신뢰도 ${confidence}%">
           <div class="confidence-fill" style="width:${confidence}%"></div>
-        </div>
+        </div>` : ''}
         <span class="view-btn">분석 보기 →</span>
         <button class="share-btn" data-share-title="${escAttr(issue.title)}" data-share-url="${escAttr(`${location.origin}/analysis/${issue.id}`)}" onclick="shareContent(event, this)" title="공유하기">🔗</button>
       </div>
@@ -1368,7 +1368,17 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
     const data = insightsRes?.data;
     const error = insightsRes?.ok ? null : (insightsRes?.error || 'unknown error');
 
-    if (error || !data?.length) { sec.style.display = 'none'; return; }
+    if (error) { sec.style.display = 'none'; return; }
+    if (!data?.length) {
+      // 매수 후보 데이터가 의도적으로 비어있는 경우(기능 일시 중단) — 그냥 숨기면
+      // picks.html처럼 이 섹션이 페이지의 전부인 곳은 "제목만 있고 아무것도 없는"
+      // 어색한 빈 화면이 된다. 조용히 사라지는 대신 이유를 짧게 안내한다.
+      sec.style.display = '';
+      el.innerHTML = `<div style="padding:32px 20px;text-align:center;color:var(--text3);font-size:13px;border:1px dashed var(--border);border-radius:12px">
+        🛠️ 매수 후보 추천 기능은 현재 점검을 위해 잠시 중단되었습니다.
+      </div>`;
+      return;
+    }
 
     // 티커별 집계
     const map = {};

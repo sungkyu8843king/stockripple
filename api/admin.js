@@ -631,8 +631,14 @@ async function handleSummary(req, res) {
       .order('created_at', { ascending: false })
       .limit(1);
     cached = cachedRows?.[0] || null;
+
+    // 기능 자체가 꺼져 있으면(어드민 일괄 on/off, 또는 유사투자자문업 리스크 대응으로 끔) —
+    // 아래 "3일 이내 캐시 즉시 서빙" 패스보다 먼저 체크해야 한다. 이 체크가 그 뒤에 있으면
+    // 신선한 캐시가 featureOff 여부와 무관하게 그대로 나가버린다(과거 실제로 이랬음).
+    const featureOff = !(await isFeatureEnabled(supabase, 'company_summary'));
+
     const CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
-    if (cached && Date.now() - new Date(cached.created_at).getTime() < CACHE_TTL_MS) {
+    if (!featureOff && cached && Date.now() - new Date(cached.created_at).getTime() < CACHE_TTL_MS) {
       return res.status(200).json({
         ok: true,
         ticker,
@@ -650,10 +656,6 @@ async function handleSummary(req, res) {
       });
     }
 
-    // 기능 자체가 꺼져 있으면(어드민 일괄 on/off) budget 체크와 동일하게 취급 —
-    // 새로 생성하지 않고 캐시가 있으면 stale로 그거라도 보여준다.
-    const featureOff = !(await isFeatureEnabled(supabase, 'company_summary'));
-
     // 하루 전체 Claude 호출 상한 — 캐시가 어떤 이유로든 안 먹어도 비용이 무한정
     // 늘어나지 않도록 하는 이중 안전장치. RPC 실패(마이그레이션 전 등)는 안전하게
     // 통과시킨다 — 이 안전장치가 아직 없다고 기능 자체를 막지는 않음.
@@ -668,7 +670,10 @@ async function handleSummary(req, res) {
       if (featureOff || budgetExceeded) {
         // 새로 생성은 못 하지만, DB에 예전 분석이 남아있으면 그거라도 보여준다
         // (완전히 안 나오는 것보다 낫다) — stale로 표시해 하단에 마지막 업데이트 시각 노출.
-        if (cached) {
+        // 단, featureOff가 유사투자자문업 리스크 대응(2026-07-21)으로 꺼진 경우엔 캐시된
+        // 매수논리(thesis/strategic_exposure)도 절대 노출하면 안 되므로 이 폴백을 건너뛴다
+        // — budget_exceeded(단순 비용 제한)일 때만 stale 캐시를 보여준다.
+        if (cached && !featureOff) {
           return res.status(200).json({
             ok: true,
             ticker,
@@ -1624,15 +1629,20 @@ async function handleIssuesFeed(req, res) {
   };
 
   try {
-    const dataQuery = applyFilters(
-      supabase.from('issues').select(`
-        id, title, summary, source_name, published_at, sectors, is_analyzed,
+    // 유사투자자문업 리스크 대응(2026-07-21): 'analyze' 플래그가 꺼져 있으면 매수 후보/
+    // 신뢰도/파급효과 데이터(analyses 조인)를 공개 피드에서 아예 빼고 뉴스 제목/요약만
+    // 내려준다.
+    const includeAnalyses = await isFeatureEnabled(supabase, 'analyze');
+    const selectCols = includeAnalyses
+      ? `id, title, summary, source_name, published_at, sectors, is_analyzed,
         analyses!inner(id, confidence_score, ripple_effects, ai_summary,
           analysis_companies(upside_pct, ripple_sector, is_accurate_1d, actual_return_1d, is_accurate_7d, actual_return_7d,
             companies(ticker, name_ko, name_en, market)
           )
-        )
-      `).order('published_at', { ascending: false })
+        )`
+      : 'id, title, summary, source_name, published_at, sectors, is_analyzed';
+    const dataQuery = applyFilters(
+      supabase.from('issues').select(selectCols).order('published_at', { ascending: false })
     ).range((page - 1) * pageSize, page * pageSize - 1);
 
     // count:'exact'는 Postgres가 매칭 행을 실제로 다 세야 해서(대형/블로트된 테이블일수록)
@@ -1667,6 +1677,11 @@ async function handleIssuesFeed(req, res) {
 async function handleInsightsRaw(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  // 유사투자자문업 리스크 대응(2026-07-21): 'analyze' 플래그가 꺼져 있으면 매수 후보
+  // 카드 자체를 안 내려준다 — app.js loadInsights는 data가 비면 섹션을 숨긴다.
+  if (!(await isFeatureEnabled(supabase, 'analyze'))) {
+    return res.status(200).json({ ok: true, data: [] });
+  }
   try {
     const { data, error } = await supabase
       .from('analysis_companies')
@@ -2676,6 +2691,15 @@ function smTagsOf(text) {
 }
 
 async function handleSectorMapGet(req, res) {
+  // 유사투자자문업 리스크 대응(2026-07-21): 종목 랭킹/매수논리(top_stocks, sectors[].companies)가
+  // 이 응답의 핵심이라 'analyze' 플래그가 꺼져 있으면 빈 맵으로 응답한다.
+  if (!(await isFeatureEnabled(supabase, 'analyze'))) {
+    res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
+    return res.status(200).json({
+      ok: true, window_days: 30, based_on: 0, generated_at: new Date().toISOString(),
+      sectors: [], edges: [], top_stocks: [],
+    });
+  }
   const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
   const since7Ms = Date.now() - 7 * 86400000;
 
