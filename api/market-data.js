@@ -487,6 +487,7 @@ async function handleTossQuote(req, res) {
     ok: true, symbol: rawSymbol, currency: p.currency, lastPrice, timestamp: p.timestamp,
     regularClose, prevClose, regularChange, regularChangePercent,
     exChange, exChangePercent, session,
+    _debugRawPriceKeys: p, // TEMP: probing Toss /prices field names, remove after diagnosis
   });
 }
 
