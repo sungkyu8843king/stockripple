@@ -499,7 +499,6 @@ async function handleTossQuote(req, res) {
     ok: true, symbol: rawSymbol, currency: p.currency, lastPrice, timestamp: p.timestamp,
     regularClose, prevClose, regularChange, regularChangePercent,
     exChange, exChangePercent, session,
-    _debugUS: !isKr ? { nowIso: new Date(kstNowMs).toISOString(), calAToday: calA?.result?.today, calBToday: calB?.result?.today } : undefined,
   });
 }
 

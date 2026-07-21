@@ -1464,7 +1464,11 @@ function buildPriceBlock(priceData) {
         if (tq.exChangePercent != null && tq.regularClose != null) {
           priceHtml += `<div class="price-change ${cls}">정규장 ${fmt.format(tq.regularClose)}으로 마감 ${sign}${amtStr}(${sign}${Math.abs(tq.regularChangePercent).toFixed(2)}%)</div>`;
         } else {
-          priceHtml += `<div class="price-change ${cls}">${sign}${amtStr} (${sign}${Math.abs(tq.regularChangePercent).toFixed(2)}%) <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span></div>`;
+          // 세션이 CLOSED일 땐 위에 이미 "⚪ 마감"이 떠 있는데 여기 "정규" 태그까지 붙으면
+          // "마감"과 "정규"가 동시에 보여 모순처럼 읽힌다(실측 피드백, 2026-07-21) — 정규장이
+          // 실제로 진행 중일 때만 "정규" 태그를 붙이고, 마감 중엔 태그 없이 숫자만 보여준다.
+          const tagHtml = tq.session === 'REGULAR' ? ` <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span>` : '';
+          priceHtml += `<div class="price-change ${cls}">${sign}${amtStr} (${sign}${Math.abs(tq.regularChangePercent).toFixed(2)}%)${tagHtml}</div>`;
         }
       }
       if (tq.exChangePercent != null && tq.exChangePercent !== 0) {
@@ -1494,7 +1498,10 @@ function buildPriceBlock(priceData) {
         if (exLabel) {
           priceHtml += `<div class="price-change ${cls}">정규장 ${fmt.format(priceData.price)}으로 마감 ${sign}${amtStr}(${sign}${Math.abs(priceData.changePercent).toFixed(2)}%)</div>`;
         } else {
-          priceHtml += `<div class="price-change ${cls}">${sign}${amtStr} (${sign}${Math.abs(priceData.changePercent).toFixed(2)}%) <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span></div>`;
+          // 위 세션 상태가 "마감"인데 여기 "정규" 태그까지 붙으면 모순처럼 보임 — 정규장이
+          // 실제로 진행 중일 때만 태그를 붙인다(Toss 우선 경로와 동일 원칙).
+          const tagHtml = priceData.marketState === 'REGULAR' ? ` <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span>` : '';
+          priceHtml += `<div class="price-change ${cls}">${sign}${amtStr} (${sign}${Math.abs(priceData.changePercent).toFixed(2)}%)${tagHtml}</div>`;
         }
       }
       if (exLabel) {
