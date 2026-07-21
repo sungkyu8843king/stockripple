@@ -428,7 +428,18 @@ async function handleTossQuote(req, res) {
 
   const candles = candleData?.result?.candles || [];
   const regularClose = candles[0]?.closePrice != null ? Number(candles[0].closePrice) : null;
-  const prevClose = candles[1]?.closePrice != null ? Number(candles[1].closePrice) : null;
+  // "전일 종가" 기준점 — 캔들 종가(정규장 15:30 마감가만 반영)를 그대로 쓰면 랭킹 위젯(홈
+  // 실시간 랭킹, handleTossRankings/-All이 쓰는 p.changeRate)과 어긋난다: NXT 도입 이후
+  // "전일 종가"는 정규장 마감가가 아니라 전날 애프터마켓(NXT, ~20:00)의 마지막 체결가일 수
+  // 있어서다(2026-07-21 실측: 000660 캔들종가 기준 -1.63% vs 토스 changeRate 기준 +2.66%,
+  // lastPrice는 완전히 동일했음 — 순수 기준가 불일치). 토스 자체 changeRate가 있으면
+  // lastPrice에서 역산해 그걸 prevClose로 쓴다 — 그래야 정규장 중엔 랭킹 위젯과 항상 일치하고,
+  // 캔들 기반 값은 changeRate가 없을 때만(구성 실패 등) 폴백으로 쓴다.
+  const tossChangeRate = p.changeRate != null ? Number(p.changeRate) : null;
+  const impliedPrevClose = (tossChangeRate != null && lastPrice != null && (1 + tossChangeRate) !== 0)
+    ? lastPrice / (1 + tossChangeRate)
+    : null;
+  const prevClose = impliedPrevClose ?? (candles[1]?.closePrice != null ? Number(candles[1].closePrice) : null);
 
   // 세션 라벨
   let session = 'CLOSED';
