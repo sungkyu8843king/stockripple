@@ -272,6 +272,7 @@ body {
 .price-change { font-size: 14px; font-weight: 600; margin-top: 2px; }
 .price-change.pos { color: var(--red); }
 .price-change.neg { color: var(--blue); }
+.price-src { font-size: 10px; color: var(--text3); font-weight: 500; margin-top: 3px; }
 .price-loading { font-size: 14px; color: var(--text3); }
 
 /* Stats Bar */
@@ -1482,6 +1483,21 @@ function animateNumberText(el, toVal, formatFn, flashCls) {
 // 국내 종목은 넥스트레이드(NXT) 프리마켓(08:00-08:50)·애프터마켓(15:30-20:00)에서 Yahoo가
 // 세션을 못 읽어 전일 스탯을 그대로 보여주는 문제가 있어(2026-07 실측) Toss를 우선한다.
 // Toss 프록시가 아직 안 떴거나 실패했을 땐 Yahoo(priceData) 기준으로 폴백.
+// 시세 데이터의 실제 시각을 "N초/분 전"으로 — 신선도를 주장이 아니라 사실로 노출한다.
+function relTime(iso) {
+  if (!iso) return null;
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (!isFinite(diffMs) || diffMs < 0) return '방금';
+  const s = Math.floor(diffMs / 1000);
+  if (s < 10) return '방금';
+  if (s < 60) return `${s}초 전`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}분 전`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}시간 전`;
+  return new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit' });
+}
+
 function buildPriceBlock(priceData) {
   let priceHtml = '<span class="price-loading">주가 로딩 중...</span>';
   if (priceData && priceData.price) {
@@ -1532,6 +1548,8 @@ function buildPriceBlock(priceData) {
         const exAmtStr = fmt.format(Math.abs(tq.exChange));
         priceHtml += `<div class="price-change ${exCls}" style="margin-top:2px">${exLabel}에서 ${exSign}${exAmtStr}(${exSign}${Math.abs(tq.exChangePercent).toFixed(2)}%)</div>`;
       }
+      const fresh = relTime(tq.timestamp);
+      priceHtml += `<div class="price-src">토스증권 시세${fresh ? ` · ${fresh}` : ''}</div>`;
     } else {
       // Toss 폴백 — Yahoo 기준 (Toss 프록시 미설정/일시 장애 시에만 탐)
       let exLabel = null, exPrice = null, exChange = null, exPct = null;
@@ -1564,6 +1582,8 @@ function buildPriceBlock(priceData) {
         const exAmtStr = exChange != null ? fmt.format(Math.abs(exChange)) : '';
         priceHtml += `<div class="price-change ${exCls}" style="margin-top:2px">${exLabel}에서 ${exSign}${exAmtStr}(${exSign}${Math.abs(exPct).toFixed(2)}%)</div>`;
       }
+      // Yahoo 폴백 경로 — 미국 종목은 최대 15분 지연될 수 있음을 정직하게 고지.
+      priceHtml += `<div class="price-src">Yahoo Finance · 최대 15분 지연 가능</div>`;
     }
 
     _currentLivePrice = priceData.price;
