@@ -1445,8 +1445,8 @@ async function handleRankReasonBackfill(req, res) {
   const maxNew = Math.min(Math.max(parseInt(req.body?.max || req.query?.max, 10) || 30, 1), 60);
 
   const [krData, usData] = await Promise.all([
-    fetch(`${base}/api/quotes?source=toss&action=rankings-all&market=KR&count=${count}`).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch(`${base}/api/quotes?source=toss&action=rankings-all&market=US&count=${count}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`${base}/api/toss?action=rankings-all&market=KR&count=${count}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`${base}/api/toss?action=rankings-all&market=US&count=${count}`).then(r => r.ok ? r.json() : null).catch(() => null),
   ]);
 
   const entries = [];
