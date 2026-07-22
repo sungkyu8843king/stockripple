@@ -308,23 +308,9 @@ body {
 .chart-wrap { position: relative; height: 280px; }
 .chart-loading { text-align: center; padding: 60px; color: var(--text3); font-size: 13px; }
 
-/* 고도화 캔들차트 + 매물대 */
-.adv-grid { display: grid; grid-template-columns: 1fr 194px; gap: 14px; align-items: start; }
+/* 고도화 캔들차트 (매물대 사이드바는 2026-07-22 제거, 차트 전체폭) */
 .adv-chart-box { min-width: 0; }
-.adv-chart { width: 100%; height: 330px; }
-.vol-profile-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 11px 12px; }
-.vp-title { font-size: 12px; font-weight: 700; margin-bottom: 9px; }
-.vp-title span { font-size: 10px; color: var(--text3); font-weight: 500; margin-left: 3px; }
-.vol-profile { display: flex; flex-direction: column; gap: 3px; }
-.vp-row { display: flex; align-items: center; gap: 6px; height: 17px; }
-.vp-price { font-size: 9.5px; font-family: var(--mono); color: var(--text3); width: 56px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.vp-bar-wrap { flex: 1; height: 9px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
-.vp-bar { height: 100%; background: var(--blue); opacity: 0.45; border-radius: 3px; }
-.vp-row.poc .vp-bar { opacity: 0.95; background: var(--yellow); }
-.vp-row.poc .vp-price { color: var(--yellow); font-weight: 700; }
-.vp-note { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text3); line-height: 1.5; }
-.vp-note b { color: var(--text2); font-family: var(--mono); font-size: 11px; }
-@media (max-width: 720px) { .adv-grid { grid-template-columns: 1fr; } }
+.adv-chart { width: 100%; height: 340px; }
 
 /* History Section */
 .history-section { margin-bottom: 36px; }
@@ -632,16 +618,9 @@ body {
 @media (max-width: 640px) { .stat-bar { grid-template-columns: repeat(3, minmax(0,1fr)); } }
 
 /* 🌊 파급효과 */
-.ripple-intro { font-size: 12.5px; color: var(--text2); line-height: 1.6; margin: 0 0 14px; }
-.ripple-stale { font-size: 12px; color: var(--yellow); background: var(--yellow-dim); border: 1px solid rgba(217,164,6,0.3); border-radius: 10px; padding: 9px 13px; margin-bottom: 12px; line-height: 1.5; }
-.ripple-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
-.ripple-card { display: block; background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--blue); border-radius: 12px; padding: 14px 16px; text-decoration: none; color: var(--text); transition: border-color var(--t-fast); }
-.ripple-card:hover { border-color: var(--border-strong); border-left-color: var(--blue); }
-.ripple-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
-.ripple-date { font-size: 11.5px; font-family: var(--mono); color: var(--text3); }
-.ripple-src { font-size: 10.5px; color: var(--text3); background: var(--bg3); padding: 1px 7px; border-radius: 5px; }
-.ripple-title { font-size: 14px; font-weight: 650; line-height: 1.45; margin-bottom: 6px; }
-.ripple-reason { font-size: 12.5px; color: var(--text2); line-height: 1.6; }
+/* 수급 섹션 "읽는 법" 도움말 */
+.flow-help { font-size: 12px; color: var(--text2); line-height: 1.65; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 13px; margin: 0 0 14px; }
+.flow-help b { color: var(--text); }
 
 /* 📊 호가창 */
 .ob-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 8px 10px; }
@@ -659,9 +638,15 @@ body {
 .ob-bar.bid { background: rgba(220,47,62,0.22); }
 .ob-spread { display: flex; justify-content: space-between; padding: 5px 12px; margin: 3px 0; border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
 .ob-spread-lbl { font-size: 10px; color: var(--text3); font-weight: 600; letter-spacing: 0.05em; }
-.ob-tot { display: flex; justify-content: space-between; padding: 9px 12px 4px; font-size: 11.5px; color: var(--text2); font-family: var(--mono); }
-.ob-tot em { font-style: normal; font-size: 10px; color: var(--text3); margin-right: 4px; }
-.ob-tot em.ask { color: var(--blue); } .ob-tot em.bid { color: var(--red); }
+.ob-balance { padding: 11px 12px 5px; }
+.ob-bal-head { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--text2); font-family: var(--mono); margin-bottom: 7px; }
+.ob-bal-head em { font-style: normal; font-size: 10px; color: var(--text3); margin-right: 4px; }
+.ob-bal-head em.ask { color: var(--blue); } .ob-bal-head em.bid { color: var(--red); }
+.ob-bal-lean { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; }
+.ob-bal-track { display: flex; height: 22px; border-radius: 7px; overflow: hidden; background: var(--bg3); }
+.ob-bal-bid, .ob-bal-ask { display: flex; align-items: center; font-size: 10.5px; font-weight: 700; font-family: var(--mono); color: #fff; transition: width .3s ease; min-width: 0; }
+.ob-bal-bid { background: linear-gradient(90deg, rgba(220,47,62,0.55), rgba(220,47,62,0.85)); justify-content: flex-start; padding-left: 9px; }
+.ob-bal-ask { background: linear-gradient(90deg, rgba(77,141,255,0.85), rgba(77,141,255,0.55)); justify-content: flex-end; padding-right: 9px; }
 
 /* 📅 일별 시세 표 */
 .dt-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--bg2); }
@@ -1416,9 +1401,8 @@ function renderPage(company, records, priceData) {
   _chipData = {};
   renderCmpChips();
 
-  // 사실 지표 · AI 종합분석 · 펀더멘털
+  // 사실 지표 · 펀더멘털 (AI 종합분석은 company_summary 비활성화로 제거됨)
   loadTechChips(ticker);
-  loadAiSummary(ticker, name);
   loadFundamentals(ticker);
 
   // Toss 공식: 종목마스터(시총·경고 뱃지) · 호가 · 일별 시세
@@ -1752,6 +1736,13 @@ function renderOrderbook(d) {
     </div>`).join('');
   const totAsk = d.asks.reduce((s, a) => s + a.volume, 0);
   const totBid = d.bids.reduce((s, b) => s + b.volume, 0);
+  const totAll = totAsk + totBid || 1;
+  const bidPct = (totBid / totAll * 100);
+  const askPct = 100 - bidPct;
+  // 매수/매도 압력 밸런스 — 잔량 비율을 한눈에. 매수잔량이 많으면(빨강) 아래에서 받치는 힘,
+  // 매도잔량이 많으면(파랑) 위에서 누르는 힘으로 흔히 해석(절대 신호는 아님).
+  const lean = bidPct >= 55 ? '매수 우위' : bidPct <= 45 ? '매도 우위' : '균형';
+  const leanCol = bidPct >= 55 ? 'var(--red)' : bidPct <= 45 ? 'var(--blue)' : 'var(--text2)';
   return `
     <div class="ob-card">
       <div class="ob-ladder">
@@ -1759,9 +1750,16 @@ function renderOrderbook(d) {
         <div class="ob-spread"><span class="ob-spread-lbl">매도호가</span><span class="ob-spread-lbl">매수호가</span></div>
         ${bidRows}
       </div>
-      <div class="ob-tot">
-        <span><em class="ask">매도잔량</em> ${fmtV(totAsk)}</span>
-        <span><em class="bid">매수잔량</em> ${fmtV(totBid)}</span>
+      <div class="ob-balance">
+        <div class="ob-bal-head">
+          <span><em class="bid">매수잔량</em> ${fmtV(totBid)}</span>
+          <span class="ob-bal-lean" style="color:${leanCol}">${lean}</span>
+          <span><em class="ask">매도잔량</em> ${fmtV(totAsk)}</span>
+        </div>
+        <div class="ob-bal-track">
+          <div class="ob-bal-bid" style="width:${bidPct.toFixed(1)}%">${bidPct >= 12 ? bidPct.toFixed(0) + '%' : ''}</div>
+          <div class="ob-bal-ask" style="width:${askPct.toFixed(1)}%">${askPct >= 12 ? askPct.toFixed(0) + '%' : ''}</div>
+        </div>
       </div>
     </div>`;
 }
@@ -2593,6 +2591,7 @@ function renderInvestorTrend(d) {
 
   return `
     <div class="ck-sec-head"><span class="tick"></span><h3>수급 흐름 · 외국인 / 기관 / 개인</h3><span class="note">최근 ${days.length} 거래일 · 네이버증권</span></div>
+    <p class="flow-help">💡 <b>순매수</b>는 산 금액이 판 금액보다 많다는 뜻(<span style="color:var(--red)">빨강</span>), <b>순매도</b>는 그 반대(<span style="color:var(--blue)">파랑</span>)예요. 아래 <b>누적 추세</b> 선이 우상향이면 그 주체가 꾸준히 사 모으는 중, 우하향이면 파는 중으로 읽어요.</p>
 
     ${curHold != null ? `
     <div class="ck-panel" style="padding:16px 18px;margin-bottom:14px">
