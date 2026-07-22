@@ -1853,10 +1853,9 @@ async function _rkFillIssues(){
         if(symbol && symbol.length >= 2 && new RegExp(`\\b${symbol.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(shown)) return true;
         return false;
       });
-      if(match){
-        const shown = (match.ai_digest && match.ai_digest.trim()) || match.title;
-        _rkIssue[key] = shown.length > 30 ? shown.slice(0, 30) + '…' : shown;
-      }
+      // 이쪽은 원문 뉴스 요약(1~3문장)이라 30자로 강제 절삭하면 문장이 중간에 끊겨 보인다 —
+      // 그대로 전체를 넘기고 폭보다 길면 기존 마퀴(_rkApplyMarquee)가 좌우 롤링으로 보여준다.
+      if(match) _rkIssue[key] = (match.ai_digest && match.ai_digest.trim()) || match.title;
     }
   }catch{}
   _rkApplyIssues();
