@@ -369,40 +369,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 </head>
 <body>
 
-<header class="header">
-  <div class="header-inner">
-    <a href="/" class="logo">
-      <div class="logo-icon">〜</div>
-      <div>
-        <div class="logo-text">StockRipple</div>
-        <div class="logo-sub">파급효과 주식 전망</div>
-      </div>
-    </a>
-    <div class="header-search" id="headerSearch">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)"
-             onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
-    </div>
-    <nav class="header-nav" id="headerNav">
-      <a href="/news.html" class="nav-btn nav-new">📰 뉴스</a>
-      <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
-      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
-      <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
-      <a href="/etf.html" class="nav-btn nav-new">🧺 ETF</a>
-      <a href="/talks.html" class="nav-btn nav-new">💬 말말말</a>
-      <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
-      <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
-      <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
-      <div class="user-menu" id="userMenu" style="display:none">
-        <button class="user-avatar-btn" id="userAvatar" onclick="toggleUserDropdown()"></button>
-        <div class="user-dropdown" id="userDropdown" style="display:none">
-          <a href="/account.html" class="dropdown-item">계정 설정</a>
-          <button class="dropdown-item" onclick="doSignOut()">로그아웃</button>
-        </div>
-      </div>
-    </nav>
-  </div>
-</header>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/analysis.html');</script>
 
 <div class="page-wrap" id="pageWrap">
   <div class="loading-state">
@@ -411,21 +381,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
-const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// 실시간 접속자 표시용 (관리자 대시보드) — 페이지뷰 집계가 아니라 현재 열려있는 탭 수 근사치
-(function trackPresence() {
-  try {
-    let sid = sessionStorage.getItem('sr_sid');
-    if (!sid) { sid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; sessionStorage.setItem('sr_sid', sid); }
-    const ch = sb.channel('site-presence', { config: { presence: { key: sid } } });
-    ch.subscribe(status => { if (status === 'SUBSCRIBED') ch.track({ page: location.pathname }); });
-  } catch {}
-})();
+// SUPABASE_URL/ANON_KEY/sb/트래킹은 site-header.js가 공용 제공(2026-07-22) — 여기서 재선언 안 함.
 
 const sectorColors = {
   '반도체': 'tag-semi', 'AI': 'tag-ai', '전기차': 'tag-ev', '배터리': 'tag-ev',
@@ -885,21 +842,8 @@ function renderUserMenu(user) {
     document.getElementById('userAvatar').textContent = (user.email || '?')[0].toUpperCase();
   }
 }
-function toggleUserDropdown() {
-  const dd = document.getElementById('userDropdown');
-  dd.style.display = dd.style.display === 'none' ? '' : 'none';
-}
-document.addEventListener('click', e => {
-  if (!e.target.closest('#userMenu')) {
-    const dd = document.getElementById('userDropdown');
-    if (dd) dd.style.display = 'none';
-  }
-});
-async function doSignOut() {
-  await sb.auth.signOut();
-  renderUserMenu(null);
-  showShareToast('로그아웃 했습니다');
-}
+// toggleUserDropdown/doSignOut은 site-header.js 공용 버전 사용(2026-07-22) — 이 페이지의
+// doSignOut은 관심종목 캐시(_wlCache) 정리 로직이 없어 공용판과 동작 차이가 없었음.
 
 function isAnalysisWatched(ticker) { return _wlCache.has(ticker); }
 
@@ -919,208 +863,7 @@ async function toggleAnalysisWatch(e, btn) {
   btn.textContent = w ? '★' : '☆';
 }
 
-function openAuthModal(mode = 'signin') {
-  document.getElementById('authOverlay').style.display = 'flex';
-  switchAuthMode(mode);
-}
-function closeAuthModal() {
-  document.getElementById('authOverlay').style.display = 'none';
-}
-function switchAuthMode(mode) {
-  const isSignIn = mode === 'signin';
-  document.getElementById('authTitle').textContent = isSignIn ? '로그인' : '회원가입';
-  document.getElementById('authSubmitBtn').textContent = isSignIn ? '로그인' : '가입하기';
-  document.getElementById('authPassLabel').textContent = isSignIn ? '비밀번호' : '비밀번호 (영문·숫자·특수문자 포함 8자 이상)';
-  document.getElementById('authPass').autocomplete = isSignIn ? 'current-password' : 'new-password';
-  document.getElementById('authSwitchText').innerHTML = isSignIn
-    ? `계정이 없나요? <button onclick="switchAuthMode('signup')" class="auth-link">회원가입</button>`
-    : `이미 계정이 있나요? <button onclick="switchAuthMode('signin')" class="auth-link">로그인</button>`;
-  document.getElementById('authForm').dataset.mode = mode;
-  document.getElementById('authConsentRow').style.display = isSignIn ? 'none' : 'block';
-  document.getElementById('authConsent').checked = false;
-  document.getElementById('authPrivacyText').style.display = 'none';
-  const errEl = document.getElementById('authError');
-  errEl.textContent = '';
-  errEl.className = 'auth-error';
-}
-function togglePrivacyText(e) {
-  e?.preventDefault();
-  const el = document.getElementById('authPrivacyText');
-  el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-// 회원가입 비밀번호 규칙 — 영문+숫자+특수문자 조합, 8자 이상. signin에는 적용 안 함(기존 계정 보호).
-function validateSignupPassword(pw) {
-  if (pw.length < 8) return '비밀번호는 8자 이상이어야 합니다.';
-  if (!/[a-zA-Z]/.test(pw)) return '비밀번호에 영문자를 포함해주세요.';
-  if (!/[0-9]/.test(pw)) return '비밀번호에 숫자를 포함해주세요.';
-  if (!/[^a-zA-Z0-9]/.test(pw)) return '비밀번호에 특수문자를 포함해주세요.';
-  return null;
-}
-async function submitAuth(e) {
-  e.preventDefault();
-  const mode = document.getElementById('authForm').dataset.mode;
-  const email = document.getElementById('authEmail').value.trim();
-  const pass = document.getElementById('authPass').value;
-  const errEl = document.getElementById('authError');
-  const btn = document.getElementById('authSubmitBtn');
 
-  if (mode === 'signup' && !document.getElementById('authConsent').checked) {
-    errEl.className = 'auth-error';
-    errEl.textContent = '개인정보 수집·이용에 동의해주세요.';
-    return;
-  }
-  if (mode === 'signup') {
-    const pwErr = validateSignupPassword(pass);
-    if (pwErr) { errEl.className = 'auth-error'; errEl.textContent = pwErr; return; }
-  }
-
-  btn.disabled = true; btn.textContent = '처리 중...';
-  errEl.textContent = '';
-  try {
-    let result;
-    if (mode === 'signup') {
-      result = await sb.auth.signUp({ email, password: pass });
-      if (result.error) throw result.error;
-      if (result.data?.user && !result.data.session) {
-        errEl.className = 'auth-error success';
-        errEl.textContent = '이메일을 확인해 인증 링크를 클릭하세요.';
-        return;
-      }
-    } else {
-      result = await sb.auth.signInWithPassword({ email, password: pass });
-      if (result.error) throw result.error;
-    }
-  } catch (err) {
-    errEl.className = 'auth-error';
-    const msgs = {
-      'Invalid login credentials': '이메일 또는 비밀번호가 올바르지 않습니다.',
-      'User already registered': '이미 가입된 이메일입니다.',
-    };
-    errEl.textContent = msgs[err.message] || err.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = document.getElementById('authForm').dataset.mode === 'signin' ? '로그인' : '가입하기';
-  }
-}
-async function signInWithGoogle() {
-  const mode = document.getElementById('authForm').dataset.mode;
-  if (mode === 'signup' && !document.getElementById('authConsent').checked) {
-    const errEl = document.getElementById('authError');
-    errEl.className = 'auth-error';
-    errEl.textContent = '개인정보 수집·이용에 동의해주세요.';
-    return;
-  }
-  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } });
-}
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeSearchPicker({ target: { id: 'searchPickerModal' } });
-});
-
-/* ── 상단 종목 검색 (PC 헤더 전용, company.html과 통일) ── */
-function showShareToast(msg) {
-  let el = document.getElementById('shareToast');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'shareToast';
-    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#131722;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .2s';
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-  el.style.opacity = '1';
-  clearTimeout(el._hideTimer);
-  el._hideTimer = setTimeout(() => { el.style.opacity = '0'; }, 2200);
-}
-async function tryDirectLookup(input) {
-  const raw = (input || '').trim();
-  if (!raw) return;
-  const upper = raw.toUpperCase();
-  const isKrTicker = /^\d{6}\.K[SQ]$/i.test(upper);
-  const isKrCode6  = /^\d{6}$/.test(upper);
-  const isUsTickerPattern = /^[A-Z][A-Z0-9.\-]{0,9}$/.test(upper) && !/^\d/.test(upper);
-
-  if (isKrTicker) { location.href = `/company.html?ticker=${encodeURIComponent(upper)}`; return; }
-  if (isKrCode6)  { location.href = `/company.html?ticker=${encodeURIComponent(upper + '.KS')}`; return; }
-
-  showShareToast(`"${raw}" 검색 중...`);
-  try {
-    const safe = raw.replace(/[%_'"\\]/g, '');
-    const { data: rawMatches } = await sb
-      .from('companies')
-      .select('ticker, name_ko, name_en, market')
-      .or(`name_ko.ilike.%${safe}%,name_en.ilike.%${safe}%,ticker.ilike.${upper}%`)
-      .limit(30);
-
-    const rawLower = raw.toLowerCase();
-    const safeLower = safe.toLowerCase();
-    const rankOf = (m) => {
-      const ko = (m.name_ko || '').toLowerCase();
-      const en = (m.name_en || '').toLowerCase();
-      if (ko === rawLower || en === rawLower) return 0;
-      if (ko.startsWith(safeLower) || en.startsWith(safeLower)) return 1;
-      return 2;
-    };
-    const matches = (rawMatches || []).slice().sort((a, b) => {
-      const ra = rankOf(a), rb = rankOf(b);
-      if (ra !== rb) return ra - rb;
-      const ka = /\.K[SQ]$/i.test(a.ticker || '') ? 0 : 1;
-      const kb = /\.K[SQ]$/i.test(b.ticker || '') ? 0 : 1;
-      if (ka !== kb) return ka - kb;
-      return (a.name_ko || a.name_en || '').localeCompare(b.name_ko || b.name_en || '');
-    });
-
-    if (matches.length === 1) { location.href = `/company.html?ticker=${encodeURIComponent(matches[0].ticker)}`; return; }
-    if (matches.length > 1) {
-      const exacts = matches.filter(m => rankOf(m) === 0);
-      if (exacts.length === 1) { location.href = `/company.html?ticker=${encodeURIComponent(exacts[0].ticker)}`; return; }
-      openSearchPicker(raw, matches);
-      return;
-    }
-
-    if (isUsTickerPattern) { location.href = `/company.html?ticker=${encodeURIComponent(upper)}`; return; }
-
-    try {
-      const krRes = await fetch(`/api/stock?type=search-kr&q=${encodeURIComponent(raw)}`);
-      const krData = await krRes.json();
-      const krItems = krData.items || [];
-      if (krItems.length === 1) { location.href = `/company.html?ticker=${encodeURIComponent(krItems[0].ticker)}`; return; }
-      if (krItems.length > 1) {
-        openSearchPicker(raw, krItems.map(it => ({ ticker: it.ticker, name_ko: it.name, market: 'KR' })));
-        return;
-      }
-    } catch {}
-
-    showShareToast(`"${raw}" 종목을 찾을 수 없습니다`);
-  } catch (e) {
-    showShareToast('검색 실패: ' + e.message);
-  }
-}
-function openSearchPicker(query, matches) {
-  const modal = document.getElementById('searchPickerModal');
-  const grid  = document.getElementById('searchPickerGrid');
-  document.getElementById('searchPickerQuery').textContent = query;
-  document.getElementById('searchPickerCount').textContent = `${matches.length}건`;
-
-  grid.innerHTML = matches.map(m => {
-    const isKr = m.market === 'KR' || /\.K[SQ]$/i.test(m.ticker);
-    const tickerStripped = m.ticker.replace(/\.(KS|KQ)$/i, '');
-    const badgeColor = isKr ? 'var(--blue-dim)' : 'var(--purple-dim)';
-    const badgeText  = isKr ? 'var(--blue)' : 'var(--purple)';
-    return `<a href="/company.html?ticker=${encodeURIComponent(m.ticker)}" class="sp-card">
-      <div class="sp-card-top">
-        <span class="sp-ticker" style="background:${badgeColor};color:${badgeText}">${escHtml(tickerStripped)}</span>
-        <span class="sp-market">${isKr ? '🇰🇷 KR' : '🇺🇸 US'}</span>
-      </div>
-      <div class="sp-name">${escHtml(m.name_ko || m.name_en || m.ticker)}</div>
-      ${m.name_en && m.name_ko !== m.name_en ? `<div class="sp-name-sub">${escHtml(m.name_en)}</div>` : ''}
-      <div class="sp-arrow">상세 페이지로 이동 →</div>
-    </a>`;
-  }).join('');
-  modal.style.display = 'flex';
-}
-function closeSearchPicker(event) {
-  if (event && event.target.id !== 'searchPickerModal') return;
-  document.getElementById('searchPickerModal').style.display = 'none';
-}
 
 /* ── Stock Chart Modal ── */
 let _chartInstance = null;
@@ -1277,60 +1020,7 @@ function selectRange(range) {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChart(); });
 </script>
 
-<!-- Auth Modal -->
-<div id="authOverlay" class="auth-overlay" style="display:none" onclick="if(event.target===this)closeAuthModal()">
-  <div class="auth-modal">
-    <button class="auth-close" onclick="closeAuthModal()" aria-label="닫기">✕</button>
-    <div class="auth-logo">Stock<span>Ripple</span></div>
-    <h2 class="auth-title" id="authTitle">로그인</h2>
-    <button class="auth-btn-google" onclick="signInWithGoogle()">
-      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-      Google로 계속하기
-    </button>
-    <div class="auth-consent" id="authConsentRow" style="display:none">
-      <label class="auth-consent-label">
-        <input type="checkbox" id="authConsent">
-        <span>이메일 주소 수집·이용에 동의합니다. <button type="button" class="auth-link-inline" onclick="togglePrivacyText(event)">약관 보기</button></span>
-      </label>
-      <div id="authPrivacyText" class="auth-privacy-text" style="display:none">
-        · 수집 항목: 이메일 주소 (Google 로그인 시 Google 계정의 이메일)<br>
-        · 수집 목적: 회원 식별, 로그인, 관심종목·북마크 등 계정 기반 기능 제공<br>
-        · 보유 기간: 회원 탈퇴 시까지 — 탈퇴 즉시 파기<br>
-        · 제3자 제공: 없음<br>
-        · 동의를 거부할 수 있으나, 거부 시 회원가입이 제한됩니다.
-      </div>
-    </div>
-    <div class="auth-divider"><span>이메일로 계속하기</span></div>
-    <form id="authForm" data-mode="signin" onsubmit="submitAuth(event)" autocomplete="on">
-      <div class="auth-field">
-        <label for="authEmail">이메일</label>
-        <input type="email" id="authEmail" name="email" class="auth-input" placeholder="example@email.com" required autocomplete="email">
-      </div>
-      <div class="auth-field">
-        <label for="authPass" id="authPassLabel">비밀번호</label>
-        <input type="password" id="authPass" name="password" class="auth-input" placeholder="영문+숫자+특수문자 8자 이상" required minlength="8" autocomplete="current-password">
-      </div>
-      <div id="authError" class="auth-error"></div>
-      <button type="submit" id="authSubmitBtn" class="auth-submit-btn">로그인</button>
-    </form>
-    <div class="auth-switch" id="authSwitchText">
-      계정이 없나요? <button onclick="switchAuthMode('signup')" class="auth-link">회원가입</button>
-    </div>
-  </div>
-</div>
-
-<!-- 종목 검색 결과 카드 모달 -->
-<div id="searchPickerModal" style="display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px" onclick="closeSearchPicker(event)">
-  <div style="background:var(--bg);border-radius:18px;max-width:720px;width:100%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-weight:700;font-size:17px">🔍 "<span id="searchPickerQuery"></span>" 검색 결과</span>
-        <span id="searchPickerCount" style="font-size:12px;color:var(--text3)"></span>
-      </div>
-      <button onclick="closeSearchPicker()" style="background:var(--bg3);border:none;border-radius:8px;width:30px;height:30px;cursor:pointer;color:var(--text2);font-size:16px">✕</button>
-    </div>
-    <div id="searchPickerGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;padding:18px 22px;overflow-y:auto"></div>
-  </div>
-</div>
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
 </body>
 </html>

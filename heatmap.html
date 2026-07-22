@@ -1039,40 +1039,10 @@ button { font-family: inherit; }
 </head>
 <body>
 
-<header class="header">
-  <div class="header-inner">
-    <a href="/" class="logo">
-      <div class="logo-icon">〜</div>
-      <div>
-        <div class="logo-text">StockRipple</div>
-        <div class="logo-sub">파급효과 주식 전망</div>
-      </div>
-    </a>
-    <div class="header-search" id="headerSearch">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)"
-             onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
-    </div>
-    <nav class="header-nav" id="headerNav">
-      <a href="/news.html" class="nav-btn nav-new">📰 뉴스</a>
-      <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
-      <a href="/heatmap.html" class="nav-btn active">🔥 히트맵</a>
-      <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
-      <a href="/etf.html" class="nav-btn nav-new">🧺 ETF</a>
-      <a href="/talks.html" class="nav-btn nav-new">💬 말말말</a>
-      <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
-      <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
-      <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
-      <div class="user-menu" id="userMenu" style="display:none">
-        <button class="user-avatar-btn" id="userAvatar" onclick="toggleUserDropdown()"></button>
-        <div class="user-dropdown" id="userDropdown" style="display:none">
-          <a href="/account.html" class="dropdown-item">계정 설정</a>
-          <button class="dropdown-item" onclick="doSignOut()">로그아웃</button>
-        </div>
-      </div>
-    </nav>
-  </div>
-</header>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/heatmap.html');</script>
 
 <!-- Indices Ticker Bar -->
 <div class="indices-ticker" id="indicesTicker">
@@ -1148,14 +1118,8 @@ button { font-family: inherit; }
   </div>
 </main>
 
-<footer class="site-footer">
-  <div class="site-footer-inner">
-    <span><b>StockRipple</b> · 뉴스 파급효과 기반 AI 종목 분석 — 본 서비스의 모든 분석·추천은 투자 참고용이며, 투자 판단과 책임은 이용자 본인에게 있습니다.</span>
-    <span>데이터: Yahoo Finance · 네이버증권 · DART · NewsAPI · Claude AI</span>
-  </div>
-</footer>
-
-<div class="toast" id="toast"></div>
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
 
 <!-- 피드백 챗봇 -->
 <button class="fb-fab" id="fbFab" onclick="openFeedbackChat()" aria-label="의견 주기" title="의견 주기">💬</button>
@@ -1171,76 +1135,7 @@ button { font-family: inherit; }
 </div>
 
 <!-- Auth Modal -->
-<div id="authOverlay" class="auth-overlay" style="display:none" onclick="if(event.target===this)closeAuthModal()">
-  <div class="auth-modal">
-    <button class="auth-close" onclick="closeAuthModal()" aria-label="닫기">✕</button>
-    <div class="auth-logo">Stock<span>Ripple</span></div>
-    <h2 class="auth-title" id="authTitle">로그인</h2>
-    <button class="auth-btn-google" onclick="signInWithGoogle()">
-      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-      Google로 계속하기
-    </button>
-    <div class="auth-consent" id="authConsentRow" style="display:none">
-      <label class="auth-consent-label">
-        <input type="checkbox" id="authConsent">
-        <span>이메일 주소 수집·이용에 동의합니다. <button type="button" class="auth-link-inline" onclick="togglePrivacyText(event)">약관 보기</button></span>
-      </label>
-      <div id="authPrivacyText" class="auth-privacy-text" style="display:none">
-        · 수집 항목: 이메일 주소 (Google 로그인 시 Google 계정의 이메일)<br>
-        · 수집 목적: 회원 식별, 로그인, 관심종목·북마크 등 계정 기반 기능 제공<br>
-        · 보유 기간: 회원 탈퇴 시까지 — 탈퇴 즉시 파기<br>
-        · 제3자 제공: 없음<br>
-        · 동의를 거부할 수 있으나, 거부 시 회원가입이 제한됩니다.
-      </div>
-    </div>
-    <div class="auth-divider"><span>이메일로 계속하기</span></div>
-    <form id="authForm" data-mode="signin" onsubmit="submitAuth(event)" autocomplete="on">
-      <div class="auth-field">
-        <label for="authEmail">이메일</label>
-        <input type="email" id="authEmail" name="email" class="auth-input" placeholder="example@email.com" required autocomplete="email">
-      </div>
-      <div class="auth-field">
-        <label for="authPass" id="authPassLabel">비밀번호</label>
-        <input type="password" id="authPass" name="password" class="auth-input" placeholder="6자 이상" required minlength="6" autocomplete="current-password">
-      </div>
-      <div id="authError" class="auth-error"></div>
-      <button type="submit" id="authSubmitBtn" class="auth-submit-btn">로그인</button>
-    </form>
-    <div class="auth-switch" id="authSwitchText">
-      계정이 없나요? <button onclick="switchAuthMode('signup')" class="auth-link">회원가입</button>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/app.js" defer></script>
-
-<style>
-.sp-card {
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 14px 16px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  text-decoration: none; color: var(--text);
-  transition: transform .12s var(--ease), border-color .12s, box-shadow .12s;
-}
-.sp-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--blue);
-  box-shadow: 0 8px 24px rgba(0,102,204,0.10);
-}
-.sp-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.sp-ticker {
-  font-family: var(--font-mono, 'SF Mono', monospace);
-  font-size: 12px; font-weight: 700;
-  padding: 3px 9px; border-radius: 6px; letter-spacing: .3px;
-}
-.sp-market { font-size: 11px; color: var(--text3); font-weight: 500; }
-.sp-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; }
-.sp-name-sub { font-size: 11px; color: var(--text3); font-weight: 400; }
-.sp-arrow { font-size: 11px; color: var(--blue); margin-top: 4px; font-weight: 500; }
-</style>
 
 <!-- 📰 데일리 리포트 모바일 플로팅 버튼 + 바텀시트 -->
 <button class="dr-fab" id="drFab" onclick="openDrSheet()" aria-label="데일리 리포트 열기" title="데일리 리포트">📰<span class="dr-fab-dot"></span></button>
@@ -1262,20 +1157,6 @@ button { font-family: inherit; }
     <div class="dr-sheet-body dr-big" id="drSheetBody">
       <div style="color:var(--text3);font-size:13px;text-align:center;padding:24px 0">로딩 중...</div>
     </div>
-  </div>
-</div>
-
-<!-- 종목 검색 결과 카드 모달 -->
-<div id="searchPickerModal" style="display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px" onclick="closeSearchPicker(event)">
-  <div style="background:var(--bg);border-radius:var(--r-lg,20px);width:min(820px,96vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-pop,0 20px 60px rgba(0,0,0,.18))">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--border);flex-shrink:0">
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
-        <span style="font-weight:700;font-size:17px">🔍 "<span id="searchPickerQuery"></span>" 검색 결과</span>
-        <span id="searchPickerCount" style="font-size:12px;color:var(--text3)"></span>
-      </div>
-      <button onclick="closeSearchPicker({target:{id:'searchPickerModal'}})" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;line-height:1;padding:2px 8px">&times;</button>
-    </div>
-    <div id="searchPickerGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;padding:18px 22px;overflow-y:auto"></div>
   </div>
 </div>
 

@@ -1,37 +1,7 @@
 
-const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
-
-// 만료된 Supabase 세션이 페이지 쿼리를 멈추게 만드는 버그 방지
-// (admin 페이지에서 로그인한 세션이 깨진 상태로 남아있을 때 발생)
-try {
-  for (const key of Object.keys(localStorage)) {
-    if (!key.startsWith('sb-') || !key.endsWith('-auth-token')) continue;
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      const exp = parsed?.expires_at;
-      // expires_at은 Unix 초. 현재 시각보다 과거면 제거
-      if (typeof exp === 'number' && exp * 1000 < Date.now()) {
-        localStorage.removeItem(key);
-        console.info('[StockRipple] 만료된 세션 자동 제거:', key);
-      }
-    } catch { localStorage.removeItem(key); }  // 파싱 실패한 토큰도 제거
-  }
-} catch {}
-
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// 실시간 접속자 표시용 (관리자 대시보드) — 페이지뷰 집계가 아니라 현재 열려있는 탭 수 근사치
-(function trackPresence() {
-  try {
-    let sid = sessionStorage.getItem('sr_sid');
-    if (!sid) { sid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; sessionStorage.setItem('sr_sid', sid); }
-    const ch = sb.channel('site-presence', { config: { presence: { key: sid } } });
-    ch.subscribe(status => { if (status === 'SUBSCRIBED') ch.track({ page: location.pathname }); });
-  } catch {}
-})();
+// sb/escHtml/showToast/트래킹/만료세션정리는 이제 site-header.js가 공용으로 제공한다
+// (2026-07-22 헤더/푸터/인증 통합) — 이 파일이 로드되기 전에 반드시 site-header.js가
+// 동기로 먼저 로드돼 있어야 한다(각 페이지에서 <script src="/site-header.js"> 위치 확인).
 
 const PAGE_SIZE = 9;   // 홈 미리보기 노출량 축소(기존 20 → 8) 후 3열 그리드에서 8개면 마지막 줄이 비어 보여 9로 조정(3x3 꽉 참)
 let currentPage = 1;
@@ -365,18 +335,6 @@ function changePage(p) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function escHtml(s) {
-  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function showToast(msg, type = 'info') {
-  const t = document.getElementById('toast');
-  const icons = { success: '✓', error: '✗', info: 'ℹ' };
-  t.className = `toast ${type}`;
-  t.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
 
 // 뉴스/종목 공유 — 모바일은 OS 공유 시트, 데스크톱은 클립보드 복사 폴백.
 // 카드 전체가 <a>라 이벤트 버블링을 막아 링크 이동을 막는다.
@@ -397,7 +355,7 @@ async function shareContent(e, btn) {
 }
 
 /* ── Auth & Watchlist ── */
-let currentUser = null;
+// currentUser는 site-header.js가 선언 — 여기선 재선언하지 않고 그대로 쓴다(재할당은 아래 initAuth에서).
 let watchlistCache = new Set();
 
 async function initAuth() {
@@ -652,117 +610,16 @@ async function fbSubmitFeedback() {
   }
 }
 
-/* ── Auth Modal ── */
-function openAuthModal(mode = 'signin') {
-  document.getElementById('authOverlay').style.display = 'flex';
-  switchAuthMode(mode);
-}
-function closeAuthModal() {
-  document.getElementById('authOverlay').style.display = 'none';
-}
-function switchAuthMode(mode) {
-  const isSignIn = mode === 'signin';
-  document.getElementById('authTitle').textContent = isSignIn ? '로그인' : '회원가입';
-  document.getElementById('authSubmitBtn').textContent = isSignIn ? '로그인' : '가입하기';
-  document.getElementById('authPassLabel').textContent = isSignIn ? '비밀번호' : '비밀번호 (영문·숫자·특수문자 포함 8자 이상)';
-  document.getElementById('authPass').autocomplete = isSignIn ? 'current-password' : 'new-password';
-  document.getElementById('authSwitchText').innerHTML = isSignIn
-    ? `계정이 없나요? <button onclick="switchAuthMode('signup')" class="auth-link">회원가입</button>`
-    : `이미 계정이 있나요? <button onclick="switchAuthMode('signin')" class="auth-link">로그인</button>`;
-  document.getElementById('authForm').dataset.mode = mode;
-  // 회원가입 모드에서만 개인정보 수집·이용 동의 체크박스 노출 (이메일/Google 둘 다 적용)
-  document.getElementById('authConsentRow').style.display = isSignIn ? 'none' : 'block';
-  document.getElementById('authConsent').checked = false;
-  document.getElementById('authPrivacyText').style.display = 'none';
-  const errEl = document.getElementById('authError');
-  errEl.textContent = '';
-  errEl.className = 'auth-error';
-}
-function togglePrivacyText(e) {
-  e?.preventDefault();
-  const el = document.getElementById('authPrivacyText');
-  el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-// 회원가입 비밀번호 규칙 — 영문+숫자+특수문자 조합, 8자 이상. signin에는 적용 안 함(기존 계정 보호).
-function validateSignupPassword(pw) {
-  if (pw.length < 8) return '비밀번호는 8자 이상이어야 합니다.';
-  if (!/[a-zA-Z]/.test(pw)) return '비밀번호에 영문자를 포함해주세요.';
-  if (!/[0-9]/.test(pw)) return '비밀번호에 숫자를 포함해주세요.';
-  if (!/[^a-zA-Z0-9]/.test(pw)) return '비밀번호에 특수문자를 포함해주세요.';
-  return null;
-}
-async function submitAuth(e) {
-  e.preventDefault();
-  const mode = document.getElementById('authForm').dataset.mode;
-  const email = document.getElementById('authEmail').value.trim();
-  const pass = document.getElementById('authPass').value;
-  const errEl = document.getElementById('authError');
-  const btn = document.getElementById('authSubmitBtn');
-
-  if (mode === 'signup' && !document.getElementById('authConsent').checked) {
-    errEl.className = 'auth-error';
-    errEl.textContent = '개인정보 수집·이용에 동의해주세요.';
-    return;
-  }
-  if (mode === 'signup') {
-    const pwErr = validateSignupPassword(pass);
-    if (pwErr) { errEl.className = 'auth-error'; errEl.textContent = pwErr; return; }
-  }
-
-  btn.disabled = true; btn.textContent = '처리 중...';
-  errEl.textContent = '';
-  try {
-    let result;
-    if (mode === 'signup') {
-      result = await sb.auth.signUp({ email, password: pass });
-      if (result.error) throw result.error;
-      if (result.data?.user && !result.data.session) {
-        errEl.className = 'auth-error success';
-        errEl.textContent = '이메일을 확인해 인증 링크를 클릭하세요.';
-        return;
-      }
-    } else {
-      result = await sb.auth.signInWithPassword({ email, password: pass });
-      if (result.error) throw result.error;
-    }
-  } catch (err) {
-    errEl.className = 'auth-error';
-    const msgs = {
-      'Invalid login credentials': '이메일 또는 비밀번호가 올바르지 않습니다.',
-      'User already registered': '이미 가입된 이메일입니다.',
-    };
-    errEl.textContent = msgs[err.message] || err.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = document.getElementById('authForm').dataset.mode === 'signin' ? '로그인' : '가입하기';
-  }
-}
-async function signInWithGoogle() {
-  const mode = document.getElementById('authForm').dataset.mode;
-  if (mode === 'signup' && !document.getElementById('authConsent').checked) {
-    const errEl = document.getElementById('authError');
-    errEl.className = 'auth-error';
-    errEl.textContent = '개인정보 수집·이용에 동의해주세요.';
-    return;
-  }
-  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } });
-}
+/* ── Auth Modal ──
+   openAuthModal/closeAuthModal/switchAuthMode/togglePrivacyText/validateSignupPassword/
+   submitAuth/signInWithGoogle/toggleUserDropdown은 site-header.js가 공용으로 제공(2026-07-22) —
+   여기 재정의하지 않는다. doSignOut만 watchlistCache 정리가 필요해 그대로 유지(재정의로 덮어씀). */
 async function doSignOut() {
   await sb.auth.signOut();
   watchlistCache.clear();
   renderUserMenu(null);
   showToast('로그아웃 했습니다', 'info');
 }
-function toggleUserDropdown() {
-  const dd = document.getElementById('userDropdown');
-  dd.style.display = dd.style.display === 'none' ? '' : 'none';
-}
-document.addEventListener('click', e => {
-  if (!e.target.closest('#userMenu')) {
-    const dd = document.getElementById('userDropdown');
-    if (dd) dd.style.display = 'none';
-  }
-});
 
 document.querySelectorAll('[data-sector]').forEach(btn => {
   btn.addEventListener('click', () => {

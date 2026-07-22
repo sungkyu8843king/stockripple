@@ -194,33 +194,10 @@ a{color:inherit}
 </style>
 </head>
 <body>
-<header class="header">
-  <div class="header-inner">
-    <a href="/index.html" class="logo">
-      <div class="logo-icon">〜</div>
-      <div>
-        <div class="logo-text">StockRipple</div>
-        <div class="logo-sub">파급효과 주식 전망</div>
-      </div>
-    </a>
-    <div class="header-search" id="headerSearch">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)"
-             onkeydown="if(event.key==='Enter') etfHeaderSearch(this.value)">
-    </div>
-    <nav class="header-nav">
-      <a href="/news.html" class="nav-btn nav-new">📰 뉴스</a>
-      <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
-      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
-      <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
-      <a href="/etf.html" class="nav-btn active">🧺 ETF</a>
-      <a href="/talks.html" class="nav-btn nav-new">💬 말말말</a>
-      <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
-      <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
-      <a href="/account.html" class="nav-btn-primary">로그인</a>
-    </nav>
-  </div>
-</header>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/etf.html');</script>
 <div class="wrap">
   <div id="content"><div class="loading">불러오는 중...</div></div>
 </div>
@@ -568,20 +545,13 @@ function renderDetail(d){
 }
 
 // ═══════════════ 라우팅 ═══════════════
-// 헤더 검색 — 이 페이지는 app.js(직접 Supabase 조회하는 tryDirectLookup)를 안 불러오는
-// 가벼운 독립 페이지라, 티커 패턴만 로컬로 판별해 종목 페이지로 보낸다(회사명 직접 검색이
-// 필요하면 company.html 자체의 "찾을 수 없음" 화면이 처리).
-function etfHeaderSearch(input){
-  const raw = (input||'').trim();
-  if(!raw) return;
-  const upper = raw.toUpperCase();
-  if(/^\d{6}\.K[SQ]$/i.test(upper)) location.href = `/company.html?ticker=${encodeURIComponent(upper)}`;
-  else if(/^\d{6}$/.test(upper)) location.href = `/company.html?ticker=${encodeURIComponent(upper+'.KS')}`;
-  else location.href = `/company.html?ticker=${encodeURIComponent(upper)}`;
-}
+// 헤더 검색은 site-header.js의 공용 tryDirectLookup 사용(2026-07-22) — 자체 etfHeaderSearch 제거.
 
 const _code = new URLSearchParams(location.search).get('code');
 if(_code) loadDetail(_code); else loadList();
+initAuth();
 </script>
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
 </body>
 </html>

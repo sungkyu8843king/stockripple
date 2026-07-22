@@ -80,28 +80,10 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webk
 </style>
 </head>
 <body>
-<header class="header">
-  <div class="header-inner">
-    <a href="/index.html" class="logo">
-      <div class="logo-icon">〜</div>
-      <div>
-        <div class="logo-text">StockRipple</div>
-        <div class="logo-sub">파급효과 주식 전망</div>
-      </div>
-    </a>
-    <nav class="header-nav">
-      <a href="/news.html" class="nav-btn nav-new">📰 뉴스</a>
-      <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
-      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
-      <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
-      <a href="/etf.html" class="nav-btn nav-new">🧺 ETF</a>
-      <a href="/talks.html" class="nav-btn nav-new">💬 말말말</a>
-      <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
-      <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
-      <a href="/account.html" class="nav-btn-primary">로그인</a>
-    </nav>
-  </div>
-</header>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/market-detail.html');</script>
 <div class="wrap">
   <a class="back" href="/index.html">← 홈</a>
   <div id="content"><div class="loading">불러오는 중...</div></div>
@@ -240,6 +222,9 @@ function renderChart(box, candles){
 }
 
 init();
+initAuth();
 </script>
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
 </body>
 </html>

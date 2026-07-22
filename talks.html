@@ -80,28 +80,10 @@ a{color:inherit}
 </style>
 </head>
 <body>
-<header class="header">
-  <div class="header-inner">
-    <a href="/index.html" class="logo">
-      <div class="logo-icon">〜</div>
-      <div>
-        <div class="logo-text">StockRipple</div>
-        <div class="logo-sub">파급효과 주식 전망</div>
-      </div>
-    </a>
-    <nav class="header-nav">
-      <a href="/news.html" class="nav-btn nav-new">📰 뉴스</a>
-      <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
-      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
-      <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
-      <a href="/etf.html" class="nav-btn nav-new">🧺 ETF</a>
-      <a href="/talks.html" class="nav-btn active">💬 말말말</a>
-      <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
-      <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
-      <a href="/account.html" class="nav-btn-primary">로그인</a>
-    </nav>
-  </div>
-</header>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/talks.html');</script>
 <div class="wrap">
   <a class="back" href="/index.html">← 홈</a>
   <div class="page-title">💬 말말말</div>
@@ -110,9 +92,8 @@ a{color:inherit}
   <div id="topicBody"><div class="loading">불러오는 중...</div></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
-const sb = supabase.createClient('https://nmvfffzpkqyzztiobwtt.supabase.co', 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f');
+// sb는 site-header.js가 공용 제공(2026-07-22) — 여기서 재선언 안 함.
 
 const TOPICS = [
   {
@@ -239,6 +220,9 @@ async function loadTimeline(topic){
 
 renderTabs();
 loadTopic();
+initAuth();
 </script>
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
 </body>
 </html>

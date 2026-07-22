@@ -271,15 +271,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 </head>
 <body>
 
-<header class="header">
-  <div class="header-inner">
-    <a href="/" class="back-btn">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      피드로 돌아가기
-    </a>
-    <span class="logo-sm">Stock<span>Ripple</span></span>
-  </div>
-</header>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/account.html');</script>
 
 <div class="page-wrap" id="pageWrap">
   <div class="loading-state">
@@ -290,11 +285,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 
 <div id="toastContainer" class="toast-container"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
-const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// SUPABASE_URL/ANON_KEY/sb는 site-header.js가 공용 제공(2026-07-22) — 여기서 재선언 안 함.
 
 const sectorColors = {
   '반도체': 'tag-semi', 'AI': 'tag-ai', '전기차': 'tag-ev', '배터리': 'tag-ev',
@@ -303,7 +295,7 @@ const sectorColors = {
   '에너지': 'tag-energy', '친환경': 'tag-energy',
 };
 
-let currentUser = null;
+// currentUser는 site-header.js가 선언 — 여기선 재선언하지 않고 그대로 씀(할당은 아래에서).
 let activeTab = 'watchlist';
 
 function escHtml(s) {
@@ -670,6 +662,9 @@ async function doDeleteAccount() {
 }
 
 init();
+initAuth();
 </script>
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
 </body>
 </html>
