@@ -127,6 +127,9 @@ function _siteChromeInjectStyle() {
 .site-footer-inner{max-width:1400px;margin:0 auto;padding:20px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text3);line-height:1.6}
 @media (max-width:600px){ .site-footer-inner{padding:20px 16px} }
 .site-footer-inner b{color:var(--text2);font-weight:700}
+.site-footer-legal{padding-top:0;border-top:1px solid var(--border);margin-top:0}
+.site-footer-legal a{color:var(--text3);text-decoration:underline}
+.site-footer-legal a:hover{color:var(--text2)}
 .toast{position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--bg4);color:var(--text);border:1px solid var(--border-strong);border-radius:16px;padding:12px 16px;font-size:13px;display:flex;align-items:center;gap:8px;box-shadow:0 20px 50px rgba(0,0,0,.6);transform:translateY(80px);opacity:0;transition:all .2s;pointer-events:none}
 .toast.show{transform:translateY(0);opacity:1}
 .toast.success{box-shadow:0 0 0 1.5px var(--green),0 20px 50px rgba(0,0,0,.6)}
@@ -283,6 +286,10 @@ function renderSiteFooter() {
       <div class="site-footer-inner">
         <span><b>StockRipple</b> · 뉴스 파급효과 기반 AI 종목 분석 — 본 서비스의 모든 분석·추천은 투자 참고용이며, 투자 판단과 책임은 이용자 본인에게 있습니다.</span>
         <span>데이터: Yahoo Finance · 네이버증권 · DART · NewsAPI · Claude AI</span>
+      </div>
+      <div class="site-footer-inner site-footer-legal">
+        <span><a href="/privacy.html">개인정보처리방침</a> · <a href="/terms.html">이용약관</a></span>
+        <span>© ${new Date().getFullYear()} StockRipple</span>
       </div>
     </footer>
     <div class="toast" id="toast"></div>`;
