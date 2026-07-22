@@ -735,7 +735,7 @@ async function loadNews() {
   try {
     const { data } = await sb.from('issues')
       .select('id, title, source_name, published_at, sectors, analyses(confidence_score)')
-      .eq('is_analyzed', true).order('published_at', { ascending: false }).limit(40);
+      .not('ai_digest', 'is', null).order('published_at', { ascending: false }).limit(40);
     if (!data?.length) { body.innerHTML = '<div class="loading">데이터 없음</div>'; return; }
     body.innerHTML = data.map(i => {
       const t = new Date(i.published_at);

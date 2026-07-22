@@ -1310,21 +1310,32 @@ function buildExtractInvestmentsDynamicBlock(issue) {
 
 // 유사투자자문업 리스크와 무관한 순수 기사 요약 — analyses/analysis_companies와 완전히 별개로
 // issues.ai_digest 컬럼에 직접 저장한다(2026-07-21, db/article-digest.sql).
-const ARTICLE_DIGEST_STATIC_PROMPT = `당신은 뉴스 요약 전문가입니다. 아래 뉴스 기사를 한국어로 2~3문장으로 객관적으로 요약하세요.
+const ARTICLE_DIGEST_STATIC_PROMPT = `당신은 뉴스 요약 전문가입니다. 아래 뉴스 정보를 한국어로 1~3문장으로 객관적으로 요약하세요.
 
 엄격한 규칙 (매우 중요):
-- 기사에 있는 사실 전달에만 집중할 것.
+- 주어진 정보에 있는 사실 전달에만 집중할 것.
 - 특정 종목의 매수·매도를 권유하거나 추천하는 표현은 절대 쓰지 말 것.
 - "수혜", "기회", "유망", "투자 포인트", "주목" 같은 투자판단성 표현을 쓰지 말 것.
-- "이 뉴스로 어떤 기업이 이득/손해를 본다"는 식의 파급효과·인과 해석을 하지 말 것 — 기사 본문 내용만 요약.
+- "이 뉴스로 어떤 기업이 이득/손해를 본다"는 식의 파급효과·인과 해석을 하지 말 것 — 주어진 내용만 요약.
 - 확실하지 않은 내용을 추측해서 채우지 말 것.
+- ⚠️ "본문이 제공되지 않았다", "내용이 없다", "제목만 있다", "확인할 수 없다" 같은 정보 부족에 대한 메타 언급을 독자에게 절대 노출하지 말 것.
+- 제공된 정보가 제목뿐이거나 짧으면, 그 안에 담긴 사실만 자연스러운 완결 문장 1~2개로 서술할 것(제목을 매끄러운 문장으로 다듬는 수준). 길이를 억지로 늘리지 말 것.
+- 요약할 사실이 정말 아무것도 없으면 summary를 빈 문자열("")로 반환할 것.
 
 다음 JSON만 반환하세요 (다른 텍스트 없이):
-{ "summary": "2~3문장 요약" }`;
+{ "summary": "요약 (요약할 내용이 없으면 빈 문자열)" }`;
 
 function buildArticleDigestDynamicBlock(issue) {
-  return `뉴스 제목: ${issue.title}\n요약: ${issue.summary || '없음'}\n\n위 뉴스를 위 규칙에 따라 JSON으로만 요약하세요.`;
+  const hasSummary = issue.summary && issue.summary.trim();
+  const body = hasSummary
+    ? `뉴스 제목: ${issue.title}\n기사 요약: ${issue.summary.trim()}`
+    : `뉴스 제목: ${issue.title}`;
+  return `${body}\n\n위 뉴스를 위 규칙에 따라 JSON으로만 요약하세요.`;
 }
+
+// AI가 규칙을 어기고 "본문이 제공되지 않았다" 류 정보부족 메타 코멘트를 요약으로 내놓는 경우가
+// 있어(제목만 있는 이슈에서 특히), 저장 전에 걸러낸다 — 이런 문구는 독자에게 무의미하다.
+const DIGEST_META_JUNK_RE = /(제공되지\s*않|본문[^.]{0,12}(없|제공)|내용[이은]?\s*(없|제공되지)|제목만|요약할\s*수\s*없|요약할\s*내용|확인할\s*수\s*없|확인되지\s*않|정보가?\s*(부족|없))/;
 
 async function handleArticleDigestBackfill(req, res) {
   if (!(await isFeatureEnabled(supabase, 'article_digest'))) {
@@ -1365,11 +1376,15 @@ async function finalizeArticleDigest(row) {
       if (!text) { results.skipped++; continue; }
       const parsed = parseJobJson(text);
       const summary = (parsed.summary || '').toString().trim();
-      if (!summary) { results.skipped++; continue; }
+      // 빈 요약이거나 "본문 제공 안 됨" 류 메타 코멘트면 요약 대신 빈 문자열 sentinel을 저장한다.
+      // null로 두면 backfill(.is('ai_digest',null))이 매번 다시 집어 무한 재시도하므로,
+      // ''로 "처리했으나 요약 없음"을 표시 → 재시도 방지. 프론트는 ''을 falsy로 보고 원제목 폴백.
+      const isJunk = !summary || DIGEST_META_JUNK_RE.test(summary);
+      const clean = isJunk ? '' : summary.slice(0, 500);
       await supabase.from('issues')
-        .update({ ai_digest: summary.slice(0, 500), ai_digest_at: new Date().toISOString() })
+        .update({ ai_digest: clean, ai_digest_at: new Date().toISOString() })
         .eq('id', issueId);
-      results.updated++;
+      if (clean) results.updated++; else results.skipped++;
     } catch (e) {
       results.errors.push({ issue_id: issueId, error: e.message?.slice(0, 200) });
     }
