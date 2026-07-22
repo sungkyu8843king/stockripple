@@ -1337,37 +1337,10 @@ function buildArticleDigestDynamicBlock(issue) {
 // 있어(제목만 있는 이슈에서 특히), 저장 전에 걸러낸다 — 이런 문구는 독자에게 무의미하다.
 const DIGEST_META_JUNK_RE = /(제공되지\s*않|본문[^.]{0,12}(없|제공)|내용[이은]?\s*(없|제공되지)|제목만|요약할\s*수\s*없|요약할\s*내용|확인할\s*수\s*없|확인되지\s*않|정보가?\s*(부족|없))/;
 
-// article_digest는 순수 사실 요약이라 유사투자자문업 리스크가 없고(company_summary/analyze와
-// 달리), 건당 토큰도 적어 — 다른 5개 파이프라인처럼 agent_jobs 큐로 넘겨 Claude Code 스케줄
-// 세션이 대신 추론하게 하면, 세션의 5시간 사용량 한도를 매 실행(60건씩, 2시간마다)마다 크게
-// 깎아먹는다(2026-07-22 실측: 실행당 한도 30%+, 정작 뉴스량은 많지 않아 비효율).
-// Haiku 직접 호출은 60건 다 해도 실비용이 몇 센트 수준이라, 이 파이프라인만 큐를 거치지 않고
-// Vercel 함수 안에서 즉시 병렬 처리한다(maxDuration 60초 내 병렬 호출로 충분).
-async function digestOneIssue(issue) {
-  const prompt = `${ARTICLE_DIGEST_STATIC_PROMPT}\n\n${buildArticleDigestDynamicBlock(issue)}`;
-  try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    const text = msg.content?.[0]?.text || '';
-    const m = text.match(/\{[\s\S]*\}/);
-    if (!m) return { id: issue.id, clean: '' };
-    const parsed = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1'));
-    const summary = (parsed.summary || '').toString().trim();
-    const isJunk = !summary || DIGEST_META_JUNK_RE.test(summary);
-    return { id: issue.id, clean: isJunk ? '' : summary.slice(0, 500) };
-  } catch (e) {
-    return { id: issue.id, error: e.message?.slice(0, 200) };
-  }
-}
-
 async function handleArticleDigestBackfill(req, res) {
   if (!(await isFeatureEnabled(supabase, 'article_digest'))) {
-    return res.status(200).json({ ok: true, scanned: 0, updated: 0, disabled: true });
+    return res.status(200).json({ ok: true, scanned: 0, submitted: 0, disabled: true });
   }
-  if (!anthropic) return res.status(200).json({ ok: true, scanned: 0, updated: 0, reason: 'no ANTHROPIC_API_KEY' });
   const limit = Math.min(parseInt(req.body?.limit || req.query?.limit, 10) || 60, 100);
 
   // ai_digest가 아직 없는 최신 이슈들. is_analyzed 여부와 무관 — 순수 기사 요약이라 AI
@@ -1379,27 +1352,45 @@ async function handleArticleDigestBackfill(req, res) {
     .order('published_at', { ascending: false })
     .limit(limit);
   if (error) return res.status(500).json({ error: error.message });
-  if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, updated: 0 });
+  if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, submitted: 0 });
 
-  // Vercel 60초 예산 내에서 안전하게 — 12개씩 동시 처리
-  const CONCURRENCY = 12;
-  const results = [];
-  for (let i = 0; i < issues.length; i += CONCURRENCY) {
-    const batch = issues.slice(i, i + CONCURRENCY);
-    results.push(...await Promise.all(batch.map(digestOneIssue)));
-  }
-
-  let updated = 0, skipped = 0;
-  const errors = [];
-  const now = new Date().toISOString();
-  for (const r of results) {
-    if (r.error) { errors.push({ issue_id: r.id, error: r.error }); continue; }
-    await supabase.from('issues').update({ ai_digest: r.clean, ai_digest_at: now }).eq('id', r.id);
-    if (r.clean) updated++; else skipped++;
-  }
-  return res.status(200).json({ ok: true, scanned: issues.length, updated, skipped, errors: errors.slice(0, 5) });
+  const items = issues.map(issue => ({
+    itemId: issue.id,
+    static: ARTICLE_DIGEST_STATIC_PROMPT,
+    dynamic: buildArticleDigestDynamicBlock(issue),
+  }));
+  const result = await submitAgentJob({
+    pipeline: 'article_digest',
+    items,
+    payload: { issueIds: issues.map(i => i.id) },
+  });
+  return res.status(200).json({ ok: true, scanned: issues.length, ...result });
 }
 
+async function finalizeArticleDigest(row) {
+  const issueIds = row.payload?.issueIds || [];
+  const results = { updated: 0, skipped: 0, errors: [] };
+  for (const issueId of issueIds) {
+    try {
+      const text = extractJobText(row, issueId);
+      if (!text) { results.skipped++; continue; }
+      const parsed = parseJobJson(text);
+      const summary = (parsed.summary || '').toString().trim();
+      // 빈 요약이거나 "본문 제공 안 됨" 류 메타 코멘트면 요약 대신 빈 문자열 sentinel을 저장한다.
+      // null로 두면 backfill(.is('ai_digest',null))이 매번 다시 집어 무한 재시도하므로,
+      // ''로 "처리했으나 요약 없음"을 표시 → 재시도 방지. 프론트는 ''을 falsy로 보고 원제목 폴백.
+      const isJunk = !summary || DIGEST_META_JUNK_RE.test(summary);
+      const clean = isJunk ? '' : summary.slice(0, 500);
+      await supabase.from('issues')
+        .update({ ai_digest: clean, ai_digest_at: new Date().toISOString() })
+        .eq('id', issueId);
+      if (clean) results.updated++; else results.skipped++;
+    } catch (e) {
+      results.errors.push({ issue_id: issueId, error: e.message?.slice(0, 200) });
+    }
+  }
+  return results;
+}
 
 async function handleExtractInvestments(req, res) {
   if (!(await isFeatureEnabled(supabase, 'extract_investments'))) {
@@ -3779,6 +3770,7 @@ const AGENT_JOB_FINALIZERS = {
   catalysts:           { main: finalizeCatalysts },
   daily_report:        { main: finalizeDailyReport },
   weekly_schedule:      { events: finalizeWeeklyScheduleEvents, highlights: finalizeWeeklyScheduleHighlights },
+  article_digest:      { main: finalizeArticleDigest },
 };
 
 // claim(submitted→processing) 직후 finalize 도중 함수가 죽으면(Vercel 타임아웃 등) 그 row는
