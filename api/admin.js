@@ -98,6 +98,7 @@ export default async function handler(req, res) {
   if (action === 'extract-investments') return handleExtractInvestments(req, res);
   if (action === 'company-summary-backfill') return handleCompanySummaryBackfill(req, res);
   if (action === 'article-digest-backfill') return handleArticleDigestBackfill(req, res);
+  if (action === 'rank-reason-backfill') return handleRankReasonBackfill(req, res);
   if (action === 'list-investments')    return handleListInvestments(req, res);
   if (action === 'update-investment')   return handleUpdateInvestment(req, res);
   if (action === 'delete-investment')   return handleDeleteInvestment(req, res);
@@ -1387,6 +1388,144 @@ async function finalizeArticleDigest(row) {
       if (clean) results.updated++; else results.skipped++;
     } catch (e) {
       results.errors.push({ issue_id: issueId, error: e.message?.slice(0, 200) });
+    }
+  }
+  return results;
+}
+
+// 홈 실시간 랭킹 종목별 "왜 이 랭킹에 있는지" 짧은 사유 — db/rank-reasons.sql 참조.
+// 뉴스 제목만으로 매칭하던 기존 방식은 다른 종목 얘기가 섞여 붙는 문제가 있었어(2026-07-22),
+// 랭킹 지표(등락률/거래대금/거래량) 자체를 1차 근거로 삼고, 관련성이 확실한 뉴스가 있으면만
+// 보조로 참고하게 한다. article_digest와 마찬가지로 Claude Code 큐를 거친다(direct API 금지 —
+// 2026-07-22에 article_digest를 API로 바꿨다가 세션 사용량 대비 실비용이 더 비싸 바로 되돌린 전례 있음).
+const RANK_CAT_LABEL = { popular: '인기', amount: '거래대금', volume: '거래량', gainers: '급상승', losers: '급하락' };
+
+const RANK_REASON_STATIC_PROMPT = `당신은 주식 데이터 분석가입니다. 아래 종목이 실시간 랭킹의 특정 카테고리에 오른 이유를 한국어 30자 이내로 간결하게 서술하세요.
+
+엄격한 규칙 (매우 중요):
+- 주어진 수치(등락률/거래대금/거래량)와, 명확히 관련된 뉴스가 있다면 그 사실에만 근거할 것. 추측·전망 금지.
+- 매수·매도 권유, "수혜"/"기회"/"유망"/"주목"/"관심" 같은 투자판단성 표현 절대 금지.
+- 참고용 뉴스가 주어져도 이 종목과 명확히 관련된 내용이 아니면 절대 쓰지 말고 수치만으로 서술할 것.
+- 카테고리가 '인기'이고 뚜렷한 수치·뉴스 근거가 없으면 reason을 빈 문자열("")로 반환 — 억지로 만들지 말 것.
+- "본문이 없다"/"확인할 수 없다" 같은 메타 언급 금지. 30자 초과 금지.
+
+다음 JSON만 반환하세요 (다른 텍스트 없이):
+{ "reason": "30자 이내 사유 또는 빈 문자열" }`;
+
+function buildRankReasonDynamicBlock(e, newsSnippets) {
+  const catLabel = RANK_CAT_LABEL[e.category] || e.category;
+  const fmtAmt = e.tradingAmount == null ? null
+    : e.currency === 'KRW'
+      ? (e.tradingAmount >= 1e8 ? Math.round(e.tradingAmount / 1e8).toLocaleString() + '억원' : Math.round(e.tradingAmount).toLocaleString() + '원')
+      : '$' + Math.round(e.tradingAmount).toLocaleString();
+  const lines = [
+    `종목명: ${e.name}`,
+    `시장: ${e.market === 'KR' ? '국내' : '해외'}`,
+    `랭킹 카테고리: ${catLabel}`,
+    e.changePercent != null ? `등락률: ${e.changePercent > 0 ? '+' : ''}${e.changePercent.toFixed(2)}%` : null,
+    fmtAmt ? `거래대금: ${fmtAmt}` : null,
+    e.tradingVolume != null ? `거래량: ${Math.round(e.tradingVolume).toLocaleString()}` : null,
+  ].filter(Boolean);
+  if (newsSnippets?.length) {
+    lines.push('참고용 뉴스(이 종목과 무관할 수도 있음 — 명확히 관련될 때만 반영):');
+    newsSnippets.forEach((s, i) => lines.push(`  ${i + 1}. ${s.slice(0, 150)}`));
+  }
+  return lines.join('\n') + '\n\n위 정보를 바탕으로 규칙에 따라 JSON으로만 답하세요.';
+}
+
+async function handleRankReasonBackfill(req, res) {
+  if (!(await isFeatureEnabled(supabase, 'rank_reason'))) {
+    return res.status(200).json({ ok: true, scanned: 0, submitted: false, disabled: true });
+  }
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req.headers.host}`;
+  const count = Math.min(Math.max(parseInt(req.body?.count || req.query?.count, 10) || 8, 1), 12);
+  // 실행당 세션 사용량 상한 — 신규/변동분만 처리하고 나머지는 다음 실행(2시간 후)이 이어간다.
+  const maxNew = Math.min(Math.max(parseInt(req.body?.max || req.query?.max, 10) || 30, 1), 60);
+
+  const [krData, usData] = await Promise.all([
+    fetch(`${base}/api/quotes?source=toss&action=rankings-all&market=KR&count=${count}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`${base}/api/quotes?source=toss&action=rankings-all&market=US&count=${count}`).then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+
+  const entries = [];
+  for (const [market, data] of [['KR', krData], ['US', usData]]) {
+    if (!data?.categories) continue;
+    for (const category of Object.keys(data.categories)) {
+      for (const it of (data.categories[category] || [])) {
+        if (!it.linkTicker) continue;
+        entries.push({
+          ticker: it.linkTicker, market, category, name: it.name, symbol: it.symbol,
+          changePercent: it.changePercent, tradingAmount: it.tradingAmount, tradingVolume: it.tradingVolume, currency: it.currency,
+        });
+      }
+    }
+  }
+  if (!entries.length) return res.status(200).json({ ok: true, scanned: 0, submitted: false, reason: 'no rankings data' });
+
+  // 4시간 이내 사유가 이미 있으면 스킵 — 랭킹 구성이 보통 그보다 천천히 바뀌므로 대부분의
+  // 실행은 신규 진입 종목만 처리하게 되어 실행당 부담이 자연히 낮아진다.
+  const { data: existing } = await supabase.from('rank_reasons')
+    .select('ticker, market, category, updated_at')
+    .in('ticker', [...new Set(entries.map(e => e.ticker))]);
+  const freshCutoff = Date.now() - 4 * 3600 * 1000;
+  const freshSet = new Set((existing || [])
+    .filter(r => new Date(r.updated_at).getTime() > freshCutoff)
+    .map(r => `${r.ticker}|${r.market}|${r.category}`));
+
+  let pending = entries.filter(e => !freshSet.has(`${e.ticker}|${e.market}|${e.category}`));
+  const skippedFresh = entries.length - pending.length;
+  if (pending.length > maxNew) pending = pending.slice(0, maxNew);
+  if (!pending.length) return res.status(200).json({ ok: true, scanned: entries.length, submitted: false, reason: 'all fresh', skippedFresh });
+
+  // 관련 뉴스 후보 풀은 한 번만 조회해 종목별로 재사용(종목마다 따로 쿼리하지 않음).
+  const { data: newsPool } = await supabase.from('issues').select('title, ai_digest, published_at')
+    .neq('ai_digest', '').order('published_at', { ascending: false }).limit(300);
+  const pool = newsPool || [];
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const matchNews = (name, symbol) => {
+    const shortName = (name || '').replace(/\(.*?\)/g, '').trim();
+    const out = [];
+    for (const row of pool) {
+      const shown = (row.ai_digest && row.ai_digest.trim()) || row.title;
+      if (!shown) continue;
+      const nameHit = shortName.length >= 2 && shown.includes(shortName);
+      const symHit = symbol && symbol.length >= 2 && new RegExp(`\\b${escRe(symbol)}\\b`).test(shown);
+      if (nameHit || symHit) { out.push(shown); if (out.length >= 2) break; }
+    }
+    return out;
+  };
+
+  const items = pending.map(e => ({
+    itemId: `${e.ticker}|${e.market}|${e.category}`,
+    static: RANK_REASON_STATIC_PROMPT,
+    dynamic: buildRankReasonDynamicBlock(e, matchNews(e.name, e.symbol)),
+  }));
+  const result = await submitAgentJob({
+    pipeline: 'rank_reason',
+    items,
+    payload: { keys: pending.map(e => `${e.ticker}|${e.market}|${e.category}`) },
+  });
+  return res.status(200).json({ ok: true, scanned: entries.length, skippedFresh, ...result });
+}
+
+async function finalizeRankReason(row) {
+  const keys = row.payload?.keys || [];
+  const results = { updated: 0, skipped: 0, errors: [] };
+  const now = new Date().toISOString();
+  for (const key of keys) {
+    try {
+      const text = extractJobText(row, key);
+      if (!text) { results.skipped++; continue; }
+      const parsed = parseJobJson(text);
+      const reason = (parsed.reason || '').toString().trim().slice(0, 30);
+      const [ticker, market, category] = key.split('|');
+      await supabase.from('rank_reasons')
+        .upsert({ ticker, market, category, reason, updated_at: now }, { onConflict: 'ticker,market,category' });
+      if (reason) results.updated++; else results.skipped++;
+    } catch (e) {
+      results.errors.push({ key, error: e.message?.slice(0, 200) });
     }
   }
   return results;
@@ -3771,6 +3910,7 @@ const AGENT_JOB_FINALIZERS = {
   daily_report:        { main: finalizeDailyReport },
   weekly_schedule:      { events: finalizeWeeklyScheduleEvents, highlights: finalizeWeeklyScheduleHighlights },
   article_digest:      { main: finalizeArticleDigest },
+  rank_reason:         { main: finalizeRankReason },
 };
 
 // claim(submitted→processing) 직후 finalize 도중 함수가 죽으면(Vercel 타임아웃 등) 그 row는

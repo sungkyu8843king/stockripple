@@ -1758,7 +1758,7 @@ function _rkList(items, cat, marketKey){
     const nameHtml = marketKey === 'us'
       ? `<span class="nm-text">${_rkEsc(it.name)}</span><span class="rk-ticker">${_rkEsc(it.symbol)}</span>`
       : _rkEsc(it.name);
-    return `<a class="rk-item" data-ticker="${_rkEsc(it.linkTicker)}" data-fb="${_rkEsc(fb)}" data-name="${_rkEsc(it.name||'')}" data-symbol="${_rkEsc(it.symbol||'')}" href="/company.html?ticker=${encodeURIComponent(it.linkTicker)}">
+    return `<a class="rk-item" data-ticker="${_rkEsc(it.linkTicker)}" data-category="${_rkEsc(cat)}" data-fb="${_rkEsc(fb)}" data-name="${_rkEsc(it.name||'')}" data-symbol="${_rkEsc(it.symbol||'')}" href="/company.html?ticker=${encodeURIComponent(it.linkTicker)}">
       <span class="rk-rank">${it.rank}</span>
       <div class="rk-main"><div class="rk-name">${nameHtml}</div><div class="rk-sub"><span class="rk-sub-inner">${_rkEsc(fb)}</span></div></div>
       <div class="rk-price"><div class="rk-px" data-val="${it.price ?? ''}" data-cur="${_rkEsc(it.currency)}">${_rkPrice(it.price,it.currency)}</div><div class="rk-chg ${cls}" data-val="${it.changePercent ?? ''}">${chg}</div></div>
@@ -1766,14 +1766,15 @@ function _rkList(items, cat, marketKey){
   }).join('') + '</div>';
 }
 
-// 랭킹 종목의 현재 이슈 한줄요약 — 최근 기사 제목 중 종목명/티커가 언급된 것을 붙인다(순수 정보성, 아래 _rkFillIssues 참고).
-const _rkIssue = {};  // ticker -> 요약문 | null(조회했으나 없음)
+// 랭킹 종목의 서브라인 — 1순위 rank_reasons(랭킹 지표 근거 AI 사유), 2순위 최근 관련뉴스
+// 매칭, 둘 다 없으면 지표 폴백(data-fb). 카테고리별로 사유가 다를 수 있어 ticker|category로 캐싱.
+const _rkIssue = {};  // "ticker|category" -> 표시문구 | null(조회했으나 없음)
+function _rkKey(el){ return el.getAttribute('data-ticker') + '|' + (el.getAttribute('data-category') || ''); }
 function _rkApplyIssues(){
   document.querySelectorAll('#rankingsBody .rk-item[data-ticker]').forEach(el => {
-    const t = el.getAttribute('data-ticker');
     const sub = el.querySelector('.rk-sub');
     if(!sub) return;
-    const issue = _rkIssue[t];
+    const issue = _rkIssue[_rkKey(el)];
     if(issue){ sub.classList.add('rk-issue'); sub.innerHTML = `<span class="rk-sub-inner">📰 ${_rkEsc(issue)}</span>`; }
     else { sub.classList.remove('rk-issue'); sub.innerHTML = `<span class="rk-sub-inner">${_rkEsc(el.getAttribute('data-fb') || '')}</span>`; }
   });
@@ -1802,13 +1803,39 @@ async function _rkFillIssues(){
   _rkApplyIssues();  // 캐시분 즉시 반영
   const need = [];
   const nameOf = {};
+  const marketOf = {};
   document.querySelectorAll('#rankingsBody .rk-item[data-ticker]').forEach(el => {
+    const key = _rkKey(el);
     const t = el.getAttribute('data-ticker');
-    if(t && !(t in _rkIssue)) { need.push(t); nameOf[t] = { name: el.getAttribute('data-name')||'', symbol: el.getAttribute('data-symbol')||'' }; }
+    if(t && !(key in _rkIssue)) {
+      need.push(key);
+      nameOf[key] = { name: el.getAttribute('data-name')||'', symbol: el.getAttribute('data-symbol')||'' };
+      // KR 티커는 .KS/.KQ 접미사가 붙어있음 — rank_reasons.market 값과 맞춰 판별.
+      marketOf[key] = /\.(KS|KQ)$/.test(t) ? 'KR' : 'US';
+    }
   });
   const uniq = [...new Set(need)];
   if(!uniq.length || typeof sb === 'undefined') return;
-  uniq.forEach(t => _rkIssue[t] = null);  // 조회 표시(중복 방지)
+  uniq.forEach(key => _rkIssue[key] = null);  // 조회 표시(중복 방지)
+
+  // 1순위: rank_reasons(랭킹 지표+뉴스를 근거로 AI가 작성한 사유, 카테고리별로 다를 수 있음).
+  try{
+    const tickers = [...new Set(uniq.map(key => key.split('|')[0]))];
+    const { data: reasons } = await sb.from('rank_reasons')
+      .select('ticker, category, reason')
+      .in('ticker', tickers);
+    for(const r of (reasons || [])){
+      const key = `${r.ticker}|${r.category}`;
+      if(uniq.includes(key) && r.reason && r.reason.trim()) _rkIssue[key] = r.reason.trim().slice(0, 30);
+    }
+  }catch{}
+
+  // 2순위(rank_reasons에 없는 것만): 최근 관련뉴스 매칭. 실제로 화면에 보여줄 텍스트
+  // (ai_digest 우선, 없으면 title) 자체에 그 종목명이 있어야 매칭 — 원문 제목에만 있고
+  // 요약엔 다른 종목 얘기뿐이면(예: "삼성전자 순매수 1위" 기사에 SK하이닉스도 언급)
+  // 무관한 종목에 엉뚱한 요약이 붙는 걸 방지.
+  const stillNeed = uniq.filter(key => !_rkIssue[key]);
+  if(!stillNeed.length){ _rkApplyIssues(); return; }
   try{
     const { data } = await sb.from('issues')
       .select('title, ai_digest, published_at')
@@ -1816,14 +1843,9 @@ async function _rkFillIssues(){
       .order('published_at', { ascending:false })
       .limit(300);
     const rows = data || [];
-    for(const t of uniq){
-      const { name, symbol } = nameOf[t];
-      // 한국 종목명은 괄호 등 부가정보 없이 그대로, 미국은 종목명이 뉴스 제목과
-      // 잘 안 겹치는 경우가 많아 티커 심볼(대문자, 단어 경계)도 같이 시도.
+    for(const key of stillNeed){
+      const { name, symbol } = nameOf[key];
       const shortName = (name || '').replace(/\(.*?\)/g, '').trim();
-      // 실제로 화면에 보여줄 텍스트(ai_digest 우선, 없으면 title) 자체에 그 종목명이
-      // 있어야 매칭 — 원문 제목에만 있고 요약엔 다른 종목 얘기뿐이면(예: "삼성전자 순매수
-      // 1위" 기사에 SK하이닉스도 언급) 무관한 종목에 엉뚱한 요약이 붙는 걸 방지.
       const match = rows.find(row => {
         const shown = (row.ai_digest && row.ai_digest.trim()) || row.title;
         if(!shown) return false;
@@ -1833,8 +1855,7 @@ async function _rkFillIssues(){
       });
       if(match){
         const shown = (match.ai_digest && match.ai_digest.trim()) || match.title;
-        // 랭킹 서브라인은 폭이 좁아 최대 30자로 자른다(마퀴 효과와 별개로 과도한 텍스트 방지).
-        _rkIssue[t] = shown.length > 30 ? shown.slice(0, 30) + '…' : shown;
+        _rkIssue[key] = shown.length > 30 ? shown.slice(0, 30) + '…' : shown;
       }
     }
   }catch{}
