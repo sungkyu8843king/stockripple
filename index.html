@@ -1811,7 +1811,7 @@ async function _rkFillIssues(){
   uniq.forEach(t => _rkIssue[t] = null);  // 조회 표시(중복 방지)
   try{
     const { data } = await sb.from('issues')
-      .select('title, published_at')
+      .select('title, ai_digest, published_at')
       .eq('is_analyzed', true)
       .order('published_at', { ascending:false })
       .limit(300);
@@ -1827,7 +1827,8 @@ async function _rkFillIssues(){
         if(symbol && symbol.length >= 2 && new RegExp(`\\b${symbol.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(row.title)) return true;
         return false;
       });
-      if(match) _rkIssue[t] = match.title;
+      // ai_digest(투자판단 표현 없는 가공 요약)가 있으면 우선 사용, 없으면 원제목 폴백.
+      if(match) _rkIssue[t] = (match.ai_digest && match.ai_digest.trim()) || match.title;
     }
   }catch{}
   _rkApplyIssues();
