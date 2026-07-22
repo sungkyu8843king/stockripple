@@ -1821,14 +1821,21 @@ async function _rkFillIssues(){
       // 한국 종목명은 괄호 등 부가정보 없이 그대로, 미국은 종목명이 뉴스 제목과
       // 잘 안 겹치는 경우가 많아 티커 심볼(대문자, 단어 경계)도 같이 시도.
       const shortName = (name || '').replace(/\(.*?\)/g, '').trim();
+      // 실제로 화면에 보여줄 텍스트(ai_digest 우선, 없으면 title) 자체에 그 종목명이
+      // 있어야 매칭 — 원문 제목에만 있고 요약엔 다른 종목 얘기뿐이면(예: "삼성전자 순매수
+      // 1위" 기사에 SK하이닉스도 언급) 무관한 종목에 엉뚱한 요약이 붙는 걸 방지.
       const match = rows.find(row => {
-        if(!row.title) return false;
-        if(shortName && shortName.length >= 2 && row.title.includes(shortName)) return true;
-        if(symbol && symbol.length >= 2 && new RegExp(`\\b${symbol.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(row.title)) return true;
+        const shown = (row.ai_digest && row.ai_digest.trim()) || row.title;
+        if(!shown) return false;
+        if(shortName && shortName.length >= 2 && shown.includes(shortName)) return true;
+        if(symbol && symbol.length >= 2 && new RegExp(`\\b${symbol.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(shown)) return true;
         return false;
       });
-      // ai_digest(투자판단 표현 없는 가공 요약)가 있으면 우선 사용, 없으면 원제목 폴백.
-      if(match) _rkIssue[t] = (match.ai_digest && match.ai_digest.trim()) || match.title;
+      if(match){
+        const shown = (match.ai_digest && match.ai_digest.trim()) || match.title;
+        // 랭킹 서브라인은 폭이 좁아 최대 30자로 자른다(마퀴 효과와 별개로 과도한 텍스트 방지).
+        _rkIssue[t] = shown.length > 30 ? shown.slice(0, 30) + '…' : shown;
+      }
     }
   }catch{}
   _rkApplyIssues();
