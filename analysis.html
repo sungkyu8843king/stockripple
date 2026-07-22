@@ -440,7 +440,7 @@ async function loadRelatedIssues(issue) {
     const { data } = await sb.from('issues')
       .select('id,title,published_at,sectors')
       .overlaps('sectors', sectors)
-      .not('ai_digest', 'is', null)
+      .neq('ai_digest', '')
       .neq('id', issue.id)
       .order('published_at', { ascending: false })
       .limit(6);

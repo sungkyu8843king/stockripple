@@ -1812,7 +1812,7 @@ async function _rkFillIssues(){
   try{
     const { data } = await sb.from('issues')
       .select('title, ai_digest, published_at')
-      .not('ai_digest', 'is', null)
+      .neq('ai_digest', '')
       .order('published_at', { ascending:false })
       .limit(300);
     const rows = data || [];

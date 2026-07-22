@@ -1410,7 +1410,7 @@ async function handleExtractInvestments(req, res) {
     .gte('published_at', sinceIso)
     .order('published_at', { ascending: false })
     .limit(maxIssues);
-  issuesQ = useAnalyzedFilter ? issuesQ.eq('is_analyzed', true) : issuesQ.not('ai_digest', 'is', null);
+  issuesQ = useAnalyzedFilter ? issuesQ.eq('is_analyzed', true) : issuesQ.neq('ai_digest', '');
   const { data: issues, error: issErr } = await issuesQ;
   if (issErr) return res.status(500).json({ error: issErr.message });
   if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, extracted: 0 });
@@ -1705,7 +1705,7 @@ async function handleIssuesFeed(req, res) {
   // 꺼진 동안은 피드 필터를 ai_digest(analyze와 무관하게 계속 채워지는 순수 요약) 존재 여부로 대체.
   const includeAnalyses = await isFeatureEnabled(supabase, 'analyze');
   const applyFilters = qb => {
-    let out = includeAnalyses ? qb.eq('is_analyzed', true) : qb.not('ai_digest', 'is', null);
+    let out = includeAnalyses ? qb.eq('is_analyzed', true) : qb.neq('ai_digest', '');
     if (sector !== 'all') out = out.contains('sectors', [sector]);
     if (q) out = out.ilike('title', `%${q}%`);
     if (category !== 'all' && ISSUES_CAT_FILTERS[category]) out = out.or(ISSUES_CAT_FILTERS[category]);
@@ -2699,7 +2699,7 @@ async function handleAiMarketSummaryPost(req, res) {
     .gte('published_at', sinceIso)
     .order('published_at', { ascending: false })
     .limit(60);
-  summaryIssuesQ = useAnalyzedFilter ? summaryIssuesQ.eq('is_analyzed', true) : summaryIssuesQ.not('ai_digest', 'is', null);
+  summaryIssuesQ = useAnalyzedFilter ? summaryIssuesQ.eq('is_analyzed', true) : summaryIssuesQ.neq('ai_digest', '');
   const { data: issues } = await summaryIssuesQ;
 
   if (!issues?.length) return res.status(200).json({ ok: true, generated: false, reason: 'No recent issues' });
@@ -3613,7 +3613,7 @@ async function handleDailyReportPost(req, res) {
   let issuesQuery = supabase
     .from('issues')
     .select('title, summary, ai_digest, sectors, published_at, analyses(ai_summary, confidence_score)');
-  issuesQuery = useAnalyzedFilterDr ? issuesQuery.eq('is_analyzed', true) : issuesQuery.not('ai_digest', 'is', null);
+  issuesQuery = useAnalyzedFilterDr ? issuesQuery.eq('is_analyzed', true) : issuesQuery.neq('ai_digest', '');
   if (overrideDate) {
     const tz = market === 'KR' ? 'Asia/Seoul' : 'America/New_York';
     const { startUtc, endUtc } = localDayBoundsUtc(overrideDate, tz);
