@@ -303,7 +303,8 @@ async function loadAll() {
   render();
   // 실시간 시세 30초마다 갱신
   if (!window._priceTimer) {
-    window._priceTimer = setInterval(async () => { await refreshPrices(); render(); }, 30000);
+    window._priceTimer = setInterval(async () => { if (document.hidden) return; await refreshPrices(); render(); }, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshPrices().then(render); } });
   }
 }
 

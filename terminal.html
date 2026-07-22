@@ -437,7 +437,7 @@ async function loadIndices() {
     }
   } catch {}
 }
-loadIndices(); setInterval(loadIndices, 5000);
+loadIndices(); setInterval(() => { if (!document.hidden) loadIndices(); }, 5000);
 
 // 인덱스 클릭 → TradingView 새 창
 document.querySelectorAll('.idx-item[data-ticker]').forEach(el => {
@@ -520,7 +520,7 @@ async function loadSectors() {
     }).join('');
   } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
 }
-loadSectors(); setInterval(loadSectors, 30000);
+loadSectors(); setInterval(() => { if (!document.hidden) loadSectors(); }, 30000);
 
 // ─── Correlation ───
 const CORR = [
@@ -676,7 +676,7 @@ async function loadTermHeatmap() {
     }).join('');
   } catch { grid.innerHTML = '<div class="loading" style="grid-column:1/-1">로드 실패</div>'; }
 }
-loadTermHeatmap(); setInterval(loadTermHeatmap, 15000);
+loadTermHeatmap(); setInterval(() => { if (!document.hidden) loadTermHeatmap(); }, 15000);
 
 // ─── Buy Candidates (top 8) ───
 async function loadBuyCandidates() {
@@ -751,7 +751,7 @@ async function loadNews() {
     }).join('');
   } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
 }
-loadNews(); setInterval(loadNews, 60000);
+loadNews(); setInterval(() => { if (!document.hidden) loadNews(); }, 60000);
 
 // ─── Economic Calendar ───
 async function loadEcon() {
@@ -839,7 +839,15 @@ async function loadBreaking() {
     }).join('');
   } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
 }
-loadBreaking(); setInterval(loadBreaking, 60000);
+loadBreaking(); setInterval(() => { if (!document.hidden) loadBreaking(); }, 60000);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  try { loadIndices(); } catch {}
+  try { loadSectors(); } catch {}
+  try { loadTermHeatmap(); } catch {}
+  try { loadNews(); } catch {}
+  try { loadBreaking(); } catch {}
+});
 
 // ─── Expirations ───
 function loadExp() {

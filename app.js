@@ -2409,12 +2409,18 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   // 1초 폴링이지만 /api/indices는 전 사용자 공통 고정 심볼셋(사용자별로 다른 티커를
   // 요청하는 /api/quotes와 달리)이라 엣지 캐시가 트래픽과 무관하게 오리진 호출을
   // s-maxage(3초)로 묶어준다 — 접속자가 늘어도 야후 호출 빈도는 그대로.
-  setInterval(loadIndices, 1000);
+  setInterval(() => { if (!document.hidden) loadIndices(); }, 1000);
   // 15초마다 시세 갱신 (마켓 상태는 카드에 표시) — 사용자마다 화면에 보이는 종목
   // 조합이 달라 edge cache 히트율이 낮음. 1초 간격은 실사용자 트래픽 증가 시
   // Yahoo Finance 레이트리밋을 유발한 원인 중 하나였음(히트맵 폴링과 동일 이슈).
-  setInterval(refreshInsightQuotes, 15000);
-  setInterval(loadEconomicCalendar, 30000);   // 30초마다 (발표 결과 빠른 반영)
+  setInterval(() => { if (!document.hidden) refreshInsightQuotes(); }, 15000);
+  setInterval(() => { if (!document.hidden) loadEconomicCalendar(); }, 30000);   // 30초마다 (발표 결과 빠른 반영)
+  // 백그라운드 탭에서 멈춘 폴링을 탭 복귀 시 즉시 한 번 따라잡기
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    try { loadIndices(); } catch {}
+    try { refreshInsightQuotes(); } catch {}
+  });
 }
 
 // ── Calendar Modal ────────────────────────────────────────────────────────
@@ -4672,9 +4678,9 @@ function computeMarketStatus(market) {
   // 쿼리스트링이 완전히 같을 때만 origin 호출을 흡수해줘서 실사용자 트래픽이 조금만
   // 몰려도 origin→Yahoo Finance 팬아웃(요청당 최대 600개 티커)이 초당 수십 회씩
   // 발생해 Yahoo 레이트리밋 + Supabase/게이트웨이 타임아웃까지 이어지는 장애가 있었음.
-  setInterval(() => { try { loadHeatmap(); } catch {} }, 15000);
+  setInterval(() => { if (document.hidden) return; try { loadHeatmap(); } catch {} }, 15000);
   // 60초 섹터 모멘텀
-  setInterval(() => { try { loadSectorMomentum(); } catch {} }, 60000);
+  setInterval(() => { if (document.hidden) return; try { loadSectorMomentum(); } catch {} }, 60000);
   // 30분 상관관계 (시계열이라 자주 갱신 불필요)
   setInterval(() => { try { loadCorrelation(); } catch {} }, 1800000);
   // 1시간마다 새 리포트/AI 종합 감지(토스트) → AI 시장 종합 + 데일리 리포트 새로고침.
@@ -4687,19 +4693,30 @@ function computeMarketStatus(market) {
   // 만기일은 자정 지나면 갱신
   setInterval(() => { try { loadExpiries(); } catch {} }, 3600000);
   // 이슈 피드 실시간: 장중 45초마다 새 이슈 감지(배너), 30초마다 LIVE 태그 갱신
-  setInterval(() => { try { pollNewIssues(); } catch {} }, 45000);
-  setInterval(() => { try { updateFeedLiveTag(); } catch {} }, 30000);
+  setInterval(() => { if (document.hidden) return; try { pollNewIssues(); } catch {} }, 45000);
+  setInterval(() => { if (document.hidden) return; try { updateFeedLiveTag(); } catch {} }, 30000);
   // 장중 브라우저 구동 수집: 즉시 1회 + 5분마다 (서버가 게이트·레이트리밋 — 간격을 늘려
   // 동시접속자 많을 때 Claude 호출이 겹쳐 불어나는 걸 추가로 방지, 비용 급증 대응 2026-07)
   try { triggerLiveCollect(); } catch {}
-  setInterval(() => { try { triggerLiveCollect(); } catch {} }, 300000);
+  setInterval(() => { if (document.hidden) return; try { triggerLiveCollect(); } catch {} }, 300000);
   // 5분마다 국장 현황 새로고침
-  setInterval(() => { try { delete _kmCache[_kmTab]; loadKrMarket(); } catch {} }, 300000);
+  setInterval(() => { if (document.hidden) return; try { delete _kmCache[_kmTab]; loadKrMarket(); } catch {} }, 300000);
   // 1분마다 국장 요약(지수 카드 + 인기검색 + 수급차트) 새로고침
-  setInterval(() => { try { loadKrSummary(); } catch {} }, 60000);
+  setInterval(() => { if (document.hidden) return; try { loadKrSummary(); } catch {} }, 60000);
   // 미장현황 탭이 보일 때만 새로고침 (숨겨져 있으면 불필요한 호출 방지)
-  setInterval(() => { try { if (_marketSection === 'us') loadUsSummary(); } catch {} }, 60000);
-  setInterval(() => { try { if (_marketSection === 'us') { delete _usmCache[_usmTab]; loadUsMarket(); } } catch {} }, 300000);
+  setInterval(() => { if (document.hidden) return; try { if (_marketSection === 'us') loadUsSummary(); } catch {} }, 60000);
+  setInterval(() => { if (document.hidden) return; try { if (_marketSection === 'us') { delete _usmCache[_usmTab]; loadUsMarket(); } } catch {} }, 300000);
+  // 백그라운드 탭에서 멈춘 폴링을 탭 복귀 시 즉시 한 번 따라잡기
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    try { loadHeatmap(); } catch {}
+    try { loadSectorMomentum(); } catch {}
+    try { pollNewIssues(); } catch {}
+    try { updateFeedLiveTag(); } catch {}
+    try { loadKrMarket(); } catch {}
+    try { loadKrSummary(); } catch {}
+    if (_marketSection === 'us') { try { loadUsSummary(); } catch {} try { loadUsMarket(); } catch {} }
+  });
 })();
 
 // ─── 종목 검색 결과 카드 모달 ─────────────────────────────
