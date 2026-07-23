@@ -46,9 +46,9 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 | `index.html` | 홈 — 피드 + 각 섹션 미리보기 |
 | `heatmap.html` | 히트맵 전용 (섹터 드릴다운 뷰 포함) |
 | `kr-market.html` | 국장·미장 현황 (지수카드/인기검색/수급차트) |
-| `picks.html` | 매수 후보 전용 |
+| `picks.html` | 매수 후보 — ⚠️ 2026-07-21부터 공개 노출 중단(아래 유사투자자문업 섹션), 데이터는 비공개 유지 |
 | `sectors.html` | 섹터 지도 |
-| `analysis.html` | 이슈 상세 분석 |
+| `analysis.html` | 이슈 상세 — 2026-07-21 대폭 축소(수혜기업/신뢰도 제거, ai_digest 요약 중심) |
 | `company.html` | 종목 상세 — Toss 공식 API 기반 통합가+정규장/시간외 변동 분해, 호가창, 일별시세표, lightweight-charts 캔들+매물대 차트, AI 종합분석/펀더멘털/DART/투자자동향/옵션체인/애널리스트 컨센서스. 예측 수치(상승여력%·신뢰도%·STRONG BUY 등)는 없음 — 적중률이 낮아(20%대) 신뢰 근거로 못 씀, 대신 "파급효과" 정성적 뉴스 연결만 제공 |
 | `market-detail.html` | 시장지표 상세(지수/원자재/환율/암호화폐) — Toss/Yahoo 소스, lightweight-charts 자체 차트(1개월/6개월/1년) + 52주 레인지. `?sym=` 쿼리로 지표 선택(`MKT` 객체가 지원 목록) |
 | `etf.html` | ETF 탐색 — 국내 상장 ETF 전체(~1,150종) 목록(카테고리 탭·수익률/거래대금 정렬·검색) + `?code=`로 상세(총보수·추적오차·괴리율·순자산·기간수익률 D1~Y10·자산/국가/섹터 배분·상위10 구성종목·자금유입). 전부 네이버 무키 소스, 저장 없이 실시간. 상세는 lightweight-charts 없이 순수 데이터. ETF↔종목 링크: 상세의 국내 구성종목은 company.html로, company.html의 "이 종목을 담은 ETF" 역조회는 etf.html로 상호 연결 |
@@ -56,10 +56,17 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 | `terminal.html` | 페이퍼 트레이딩 |
 | `portfolio.html`, `account.html` | 관심종목, 계정 |
 | `admin/index.html` | 어드민 (셸만 정적, 로직은 `/api/admin-logic`에서 fetch) |
+| `privacy.html`, `terms.html` | 개인정보처리방침·이용약관 (2026-07-22, 푸터 링크) |
 
 **공용 로직은 `app.js`(4300+줄, `/app.js`)** — `index/heatmap/kr-market/picks/sectors` 5개 페이지가 공유(auth·관심종목·인사이트카드·지수·캘린더·히트맵 렌더링·국장현황 등 거의 전부). **이 파일을 고치면 5개 페이지에 동시 영향** — 한 페이지만 고치려는 의도면 그 페이지의 인라인 `<script>`를 찾을 것. `announcement-bar.js`(긴급 안내 배너), `sr-pulse.js`는 대부분 페이지가 개별 로드.
 
-**로그인/회원가입 JS는 4곳에 독립적으로 중복돼 있음**: `app.js`(5개 공유 페이지용) / `company.html` / `analysis.html` / `portfolio.html` — 전부 각자 `initAuth`/`renderUserMenu`/`toggleUserDropdown`/`doSignOut`/`openAuthModal`/`switchAuthMode`/`submitAuth`/`signInWithGoogle`/`validateSignupPassword` 함수명으로 통일돼 있으나 파일마다 별개 정의. **인증 관련 규칙(비밀번호 정책 등)을 바꾸면 4곳 다 고쳐야 함** — 하나만 고치면 나머지는 조용히 구식 규칙으로 남는다. `company.html`이 가장 완전한 참조 구현(검색창+피커 모달+동의 체크박스+유저메뉴 드롭다운까지 전부 있음) — 새 standalone 페이지에 인증을 추가할 땐 `company.html` 블록을 통째로 이식할 것. 현재 회원가입 비밀번호 규칙: 영문+숫자+특수문자 조합 8자 이상(`validateSignupPassword`).
+**헤더/푸터/로그인/검색은 `site-header.js`(2026-07-22 통합)** — 이전의 "인증 JS 4곳 중복" 구조를 이 파일 하나로 합쳤다. 헤더 구조·로그인 규칙·검색 로직 변경은 이 파일만 고치면 전체 페이지 반영. 사용법(각 페이지): supabase CDN → `/site-header.js`(동기 로드 필수, defer 금지) → `<div id="site-header-mount"></div><script>renderSiteHeader('/현재페이지.html')</script>`, 푸터는 `renderSiteFooter()`, 페이지 스크립트 끝에 `initAuth()` 1회. **예외**: `app.js`(5개 공유 페이지)와 `analysis.html`은 관심종목 캐시 때문에 `initAuth`/`renderUserMenu`를 자기 것으로 재선언해 덮어쓴다 — site-header.js에서 그 두 함수 이름을 바꾸면 이 덮어쓰기가 조용히 깨진다. 회원가입 비밀번호 규칙: 영문+숫자+특수문자 8자 이상(`validateSignupPassword`).
+
+## ⚠️ 유사투자자문업 리스크 대응 (2026-07-21 방향 전환)
+
+"매수 후보/신뢰도%/상승여력/파급효과 수혜기업" 등 **투자판단으로 읽힐 수 있는 데이터의 공개 노출을 전면 중단**했다. UI 제거만으론 부족해서(브라우저의 공개 anon key로 Supabase REST를 직접 치면 그대로 노출) **`db/disable-public-recommendations.sql`이 실제 차단 지점** — `analyses`/`analysis_companies`/`company_ai_summary`의 anon SELECT 정책을 DROP했다. service_role(서버 API)은 RLS 우회라 파이프라인은 계속 돈다. **새 기능을 만들 때 이 3개 테이블을 anon(브라우저 직접 쿼리)으로 읽는 코드를 다시 넣으면 안 됨** — 서버 API 경유로도 이 데이터를 공개 응답에 담지 말 것. 대체 파이프라인(투자판단 없는 순수 사실 서술만): `article_digest`(issues.ai_digest 컬럼, 기사 2~3문장 요약), `rank_reason`(rank_reasons 테이블, 홈 랭킹 종목별 12~28자 토스 스타일 테마 문구 — 예: "반도체주 동반 강세"). 재개 조건(신고 완료 등) 충족 시 원본 CREATE POLICY 복원으로 되돌릴 수 있다.
+
+**AI 큐 운영(토큰 절감, 2026-07-21~22)**: 스케줄 Claude Code 에이전트는 **KST 고정 12슬롯 시간표**로 돌고, agent-queue per-cycle 한도는 5/5로 축소됨(구 20/25). 파이프라인 추가 시 어드민 패널의 시간표 문서와 맞출 것.
 
 ## ⚠️ TradingView 무료 임베드 — 지수 심볼 절반이 아예 안 뜸
 
