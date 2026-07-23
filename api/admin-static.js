@@ -73,6 +73,10 @@ const SHELL_HTML = `
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       👤 회원 관리
     </button>
+    <button class="nav-item" data-panel="chat">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      💬 채팅 관리
+    </button>
     <button class="nav-item" data-panel="announcement">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       🚨 긴급 안내 <span id="annNavBadge" class="fb-nav-badge" style="display:none">ON</span>
@@ -725,6 +729,22 @@ const SHELL_HTML = `
     </div>
 
     <!-- Settings -->
+    <!-- Chat moderation -->
+    <div class="panel-section" id="panel-chat">
+      <div class="section-header">
+        <h2>💬 실시간 채팅 관리</h2>
+        <p>채팅 on/off는 대시보드의 기능 플래그(실시간 채팅 위젯)에서. 신고 3회 누적 시 자동 임시 숨김 — 여기서 확인 후 해제하거나 확정(삭제)하세요.</p>
+      </div>
+      <div class="action-row">
+        <select id="chatFilter" onchange="chatAdminLoad()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          <option value="reported">신고된 메시지만</option>
+          <option value="all">전체 최근 100건</option>
+        </select>
+        <button class="btn btn-ghost" onclick="chatAdminLoad()">새로고침</button>
+      </div>
+      <div id="chatAdminList" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+
     <div class="panel-section" id="panel-settings">
       <div class="section-header">
         <h2>API 키 설정</h2>

@@ -1,4 +1,4 @@
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', analytics: '📊 방문자 분석', feedback: '💬 사용자 피드백', users: '👤 회원 관리', announcement: '🚨 긴급 안내', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', analytics: '📊 방문자 분석', feedback: '💬 사용자 피드백', users: '👤 회원 관리', announcement: '🚨 긴급 안내', chat: '💬 채팅 관리', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -18,6 +18,7 @@ function showPanel(name) {
   if (name === 'feedback') loadFeedback();
   if (name === 'users') loadUsers();
   if (name === 'announcement') loadAnnouncement();
+  if (name === 'chat') chatAdminLoad();
 }
 
 // panels 라벨도 추가
@@ -1420,4 +1421,47 @@ function initPresenceWatch() {
     }
   });
   _presenceCh.subscribe();
-}
+}
+
+// ── 💬 실시간 채팅 관리 ──────────────────────────────────────
+async function chatAdminLoad() {
+  const el = document.getElementById('chatAdminList');
+  if (!el) return;
+  el.innerHTML = '<div class="loading-row">불러오는 중...</div>';
+  const filter = document.getElementById('chatFilter')?.value || 'reported';
+  try {
+    const r = await fetch('/api/admin?action=chat-admin&filter=' + filter, { headers: { Authorization: 'Bearer ' + (await getAuthToken()) } });
+    const j = await r.json();
+    if (!j.ok) { el.innerHTML = '❌ ' + escHtml(j.error || '실패'); return; }
+    if (!j.items.length) { el.innerHTML = '<div class="loading-row">해당하는 메시지가 없습니다.</div>'; return; }
+    el.innerHTML = j.items.map(m => `
+      <div style="background:var(--bg2);border:1px solid ${m.hidden ? 'rgba(227,25,55,.4)' : 'var(--border)'};border-radius:10px;padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3);margin-bottom:6px;flex-wrap:wrap">
+          <b style="color:var(--text)">${escHtml(m.nickname)}</b>
+          ${m.is_member ? '<span class="badge badge-blue">회원</span>' : '<span class="badge badge-gray">게스트</span>'}
+          ${m.hidden ? '<span class="badge badge-red">숨김 중</span>' : ''}
+          ${m.report_count > 0 ? '<span class="badge badge-yellow">신고 ' + m.report_count + '</span>' : ''}
+          <span>${new Date(m.created_at).toLocaleString('ko-KR')}</span>
+          <span style="font-family:monospace;font-size:10px">${escHtml(m.sender_key)}</span>
+        </div>
+        <div style="font-size:13.5px;line-height:1.5;margin-bottom:10px;word-break:break-word">${escHtml(m.message)}</div>
+        <div style="display:flex;gap:6px">
+          ${m.hidden
+            ? '<button class="btn btn-success btn-sm" onclick="chatAdminOp(' + m.id + ', &quot;unhide&quot;)">✓ 숨김 해제 (신고 초기화)</button>'
+            : '<button class="btn btn-warn btn-sm" onclick="chatAdminOp(' + m.id + ', &quot;hide&quot;)">숨김</button>'}
+          <button class="btn btn-danger btn-sm" onclick="chatAdminOp(${m.id}, &quot;delete&quot;)">삭제</button>
+        </div>
+      </div>`).join('');
+  } catch (e) { el.innerHTML = '❌ ' + escHtml(e.message); }
+}
+async function chatAdminOp(id, op) {
+  if (op === 'delete' && !confirm('이 메시지를 완전히 삭제할까요?')) return;
+  const r = await fetch('/api/admin?action=chat-admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+    body: JSON.stringify({ id, op }),
+  });
+  const j = await r.json();
+  if (j.ok) { showToast(op === 'unhide' ? '숨김 해제됨' : op === 'hide' ? '숨김 처리됨' : '삭제됨', 'success'); chatAdminLoad(); }
+  else showToast('실패: ' + (j.error || ''), 'error');
+}

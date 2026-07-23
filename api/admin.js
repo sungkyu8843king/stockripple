@@ -110,6 +110,7 @@ export default async function handler(req, res) {
   if (action === 'fix-kr-broken-names') return handleFixKrBrokenNames(req, res);
   if (action === 'fix-broken-titles') return handleFixBrokenTitles(req, res);
   if (action === 'crawl-etf-holdings') return handleCrawlEtfHoldings(req, res);
+  if (action === 'chat-admin') return handleChatAdmin(req, res);
   if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
   if (action === 'daily-report') return handleDailyReportPost(req, res);
   if (action === 'weekly-schedule') return handleWeeklySchedulePost(req, res);
@@ -2672,6 +2673,36 @@ async function handleCrawlEtfHoldings(req, res) {
     timedOut, nextStart, done: nextStart == null,
     elapsedMs: Date.now() - t0, errorSample: errors.slice(0, 10),
   });
+}
+
+// 실시간 채팅 검열 — GET: 최근 메시지(숨김 포함, 원문 그대로) / POST {id, op}:
+// unhide(숨김 해제 + 신고 초기화 — 재신고 3명부터 다시 숨김), hide(수동 숨김), delete(완전 삭제)
+async function handleChatAdmin(req, res) {
+  if (req.method === 'GET') {
+    const onlyReported = req.query?.filter === 'reported';
+    let q = supabase.from('chat_messages')
+      .select('id, sender_key, nickname, is_member, message, hidden, report_count, created_at')
+      .order('created_at', { ascending: false }).limit(100);
+    if (onlyReported) q = q.gt('report_count', 0);
+    const { data, error } = await q;
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ ok: true, items: data || [] });
+  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const { id, op } = req.body || {};
+  const msgId = parseInt(id);
+  if (!msgId || !['unhide', 'hide', 'delete'].includes(op)) return res.status(400).json({ error: 'bad request' });
+  let error = null;
+  if (op === 'delete') {
+    ({ error } = await supabase.from('chat_messages').delete().eq('id', msgId));
+  } else if (op === 'unhide') {
+    await supabase.from('chat_reports').delete().eq('message_id', msgId);
+    ({ error } = await supabase.from('chat_messages').update({ hidden: false, report_count: 0 }).eq('id', msgId));
+  } else {
+    ({ error } = await supabase.from('chat_messages').update({ hidden: true }).eq('id', msgId));
+  }
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true });
 }
 
 // ════════════════════════════════════════════════════════════

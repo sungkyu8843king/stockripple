@@ -19,7 +19,129 @@ export default async function handler(req, res) {
   const action = (req.query?.action || '').toString();
   if (action === 'list')   return handleList(req, res);
   if (action === 'update') return handleUpdate(req, res);
+  // ── 실시간 채팅 (db/chat.sql) — 쓰기 전부 여기(service_role) 경유, 브라우저 직접 INSERT 불가 ──
+  if (action === 'chat-config')   return handleChatConfig(req, res);
+  if (action === 'chat-messages') return handleChatMessages(req, res);
+  if (action === 'chat-send')     return handleChatSend(req, res);
+  if (action === 'chat-report')   return handleChatReport(req, res);
   return handleSubmit(req, res);
+}
+
+// ════════════════════════════════════════════════════════════
+// 실시간 채팅
+// ════════════════════════════════════════════════════════════
+
+// 플래그 조회 — fail-closed(행 없음/에러 = OFF). 다른 AI 플래그들의 fail-open과 반대인 게 의도:
+// "어드민이 켤 때만 위젯이 나온다"가 요구사항이라 불확실하면 안 보여주는 쪽이 맞다.
+async function isChatEnabled() {
+  try {
+    const { data } = await supabase.from('feature_flags').select('enabled').eq('key', 'chat').maybeSingle();
+    return data?.enabled === true;
+  } catch { return false; }
+}
+
+async function handleChatConfig(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 모든 페이지가 로드마다 호출 — 엣지캐시 필수(어드민 토글 반영은 최대 60초 지연 감수)
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  return res.status(200).json({ ok: true, enabled: await isChatEnabled() });
+}
+
+async function handleChatMessages(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 초기 로드 1회용(이후엔 Realtime 구독이 이어받음) — 짧은 캐시로 동시 접속 몰림 흡수
+  res.setHeader('Cache-Control', 'public, s-maxage=5, stale-while-revalidate=30');
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('id, sender_key, nickname, is_member, message, hidden, created_at')
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) return res.status(200).json({ ok: false, error: error.message, items: [] });
+  // 숨김 메시지는 본문을 서버에서 비워서 내려보냄 — 클라이언트는 플레이스홀더만 표시
+  const items = (data || []).reverse().map(m => m.hidden ? { ...m, message: '' } : m);
+  return res.status(200).json({ ok: true, items });
+}
+
+// 인스턴스 내 레이트리밋(10초에 3건). 서버리스라 인스턴스마다 별도지만 스팸 1차 방어로 충분.
+const _chatRate = new Map();
+function chatRateLimited(key) {
+  const now = Date.now();
+  const arr = (_chatRate.get(key) || []).filter(t => now - t < 10000);
+  if (arr.length >= 3) return true;
+  arr.push(now); _chatRate.set(key, arr);
+  if (_chatRate.size > 2000) _chatRate.clear(); // 메모리 상한
+  return false;
+}
+
+async function handleChatSend(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!(await isChatEnabled())) return res.status(403).json({ ok: false, error: 'chat disabled' });
+
+  const body = req.body || {};
+  const message = String(body.message || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!message) return res.status(400).json({ ok: false, error: 'message required' });
+  if (message.length > 300) return res.status(400).json({ ok: false, error: 'too long (max 300)' });
+
+  // 회원이면 토큰 검증해서 신원 확정(닉네임=이메일 앞부분), 아니면 게스트 키 사용
+  let senderKey = null, nickname = null, isMember = false;
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const { data } = await supabase.auth.getUser(authHeader.slice(7).trim());
+      if (data?.user) {
+        senderKey = 'u:' + data.user.id;
+        nickname = (data.user.email || '회원').split('@')[0].slice(0, 20);
+        isMember = true;
+      }
+    } catch {}
+  }
+  if (!senderKey) {
+    const gk = String(body.guestKey || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+    if (gk.length < 8) return res.status(400).json({ ok: false, error: 'guestKey required' });
+    senderKey = 'g:' + gk;
+    nickname = ('게스트' + gk.slice(-4)).slice(0, 20);
+  }
+
+  const ip = (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() || 'noip';
+  if (chatRateLimited(ip) || chatRateLimited(senderKey)) {
+    return res.status(429).json({ ok: false, error: '잠시 후 다시 보내주세요 (도배 방지)' });
+  }
+
+  const { data, error } = await supabase.from('chat_messages')
+    .insert({ sender_key: senderKey, nickname, is_member: isMember, message })
+    .select('id').maybeSingle();
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+  return res.status(200).json({ ok: true, id: data?.id, senderKey });
+}
+
+const CHAT_HIDE_THRESHOLD = 3; // 서로 다른 신고자 3명 → 임시 숨김(어드민 확인 대상)
+
+async function handleChatReport(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const body = req.body || {};
+  const messageId = parseInt(body.messageId);
+  const reporterKey = String(body.reporterKey || '').slice(0, 60);
+  if (!messageId || reporterKey.length < 8) return res.status(400).json({ ok: false, error: 'bad request' });
+
+  // upsert+ignoreDuplicates — 같은 사람이 같은 글을 여러 번 신고해도 1건으로만 집계
+  const { error: insErr } = await supabase.from('chat_reports')
+    .upsert({ message_id: messageId, reporter_key: reporterKey },
+            { onConflict: 'message_id,reporter_key', ignoreDuplicates: true });
+  if (insErr) return res.status(500).json({ ok: false, error: insErr.message });
+
+  const { count } = await supabase.from('chat_reports')
+    .select('*', { count: 'exact', head: true }).eq('message_id', messageId);
+  const reports = count ?? 0;
+  let hidden = false;
+  if (reports >= CHAT_HIDE_THRESHOLD) {
+    hidden = true;
+    await supabase.from('chat_messages').update({ hidden: true, report_count: reports }).eq('id', messageId);
+  } else {
+    await supabase.from('chat_messages').update({ report_count: reports }).eq('id', messageId);
+  }
+  return res.status(200).json({ ok: true, reports, hidden });
 }
 
 async function handleSubmit(req, res) {

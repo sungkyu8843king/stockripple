@@ -536,3 +536,18 @@ function closeSearchPicker(event) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeSearchPicker({ target: { id: 'searchPickerModal' } });
 });
+
+// ── 실시간 채팅 위젯 로더 — 어드민 플래그(chat)가 켜져 있을 때만 /chat.js를 동적 주입.
+// 꺼져 있으면 아무것도 안 만듦(요구사항: '사용할 때만 나오도록'). fail-closed.
+document.addEventListener('DOMContentLoaded', () => {
+  if (location.pathname.startsWith('/admin')) return;
+  fetch('/api/feedback?action=chat-config')
+    .then(r => r.json())
+    .then(j => {
+      if (!j?.enabled) return;
+      const sc = document.createElement('script');
+      sc.src = '/chat.js';
+      document.body.appendChild(sc);
+    })
+    .catch(() => {});
+});
