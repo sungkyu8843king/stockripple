@@ -280,6 +280,23 @@ async function handleAnalytics(req, res) {
   const sinceIso = new Date(Date.now() - days * 86400000).toISOString();
   const ROW_CAP = 20000; // 개인/소규모 트래픽 기준 — 그 이상이면 DB 집계 함수로 전환 필요
 
+  // ⚠️ PostgREST(Supabase)는 .limit(20000)을 요청해도 서버 설정 db-max-rows(기본 1000)로
+  // 응답을 잘라 돌려준다 — 정렬 없이 가져오면 물리 순서(≈오래된 순) 1000행만 와서, 트래픽이
+  // 쌓인 뒤로는 "최근 날짜가 그래프에서 통째로 사라지는" 증상이 됨(2026-07-23 실측: 7/16 이후
+  // 공백 — 수집은 정상, 읽기만 잘림). 1000행씩 페이지네이션으로 ROW_CAP까지 전부 끌어온다.
+  async function fetchPageViews(selectCols, extra) {
+    const out = [];
+    for (let start = 0; start < ROW_CAP; start += 1000) {
+      let q = supabase.from('page_views').select(selectCols).gte('created_at', sinceIso);
+      if (extra) q = extra(q);
+      const { data, error } = await q.order('created_at', { ascending: true }).range(start, start + 999);
+      if (error) throw new Error(error.message);
+      out.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+    return out;
+  }
+
   try {
     if (type === 'live') {
       // 최근 5분 내 활동한 세션 = 실시간 접속자, 페이지별로도 묶어서 보여줌
@@ -298,9 +315,7 @@ async function handleAnalytics(req, res) {
     }
 
     if (type === 'daily') {
-      const { data, error } = await supabase.from('page_views').select('created_at, session_id')
-        .gte('created_at', sinceIso).limit(ROW_CAP);
-      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const data = await fetchPageViews('created_at, session_id');
       const byDay = {};
       for (const row of data || []) {
         // created_at은 UTC로 저장됨 — 그냥 slice(0,10)하면 UTC 캘린더 날짜라 KST 00~09시
@@ -317,9 +332,7 @@ async function handleAnalytics(req, res) {
 
     if (type === 'hourly') {
       // 최근 N일 통합 — 몇 시대에 방문이 몰리는지 (KST 기준)
-      const { data, error } = await supabase.from('page_views').select('created_at, session_id')
-        .gte('created_at', sinceIso).limit(ROW_CAP);
-      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const data = await fetchPageViews('created_at, session_id');
       const byHour = {};
       for (const row of data || []) {
         const kst = new Date(new Date(row.created_at).getTime() + 9 * 3600000);
@@ -331,9 +344,7 @@ async function handleAnalytics(req, res) {
     }
 
     if (type === 'referrers') {
-      const { data, error } = await supabase.from('page_views').select('referrer_host, utm_source, session_id')
-        .gte('created_at', sinceIso).limit(ROW_CAP);
-      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const data = await fetchPageViews('referrer_host, utm_source, session_id');
       const groups = {};
       for (const row of data || []) {
         const key = row.utm_source ? `📣 ${row.utm_source}` : (row.referrer_host || '직접 방문/북마크');
@@ -347,9 +358,7 @@ async function handleAnalytics(req, res) {
     }
 
     if (type === 'dwell') {
-      const { data, error } = await supabase.from('page_views').select('path, dwell_ms')
-        .gte('created_at', sinceIso).not('dwell_ms', 'is', null).limit(ROW_CAP);
-      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const data = await fetchPageViews('path, dwell_ms', q => q.not('dwell_ms', 'is', null));
       const byPath = {};
       for (const row of data || []) {
         (byPath[row.path] ??= []).push(row.dwell_ms);
@@ -366,9 +375,7 @@ async function handleAnalytics(req, res) {
 
     if (type === 'paths') {
       // 최근 세션들의 페이지 이동 순서 (샘플 — 세션당 최대 20페이지)
-      const { data, error } = await supabase.from('page_views').select('session_id, path, created_at')
-        .gte('created_at', sinceIso).order('created_at', { ascending: true }).limit(ROW_CAP);
-      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const data = await fetchPageViews('session_id, path, created_at');
       const bySession = {};
       for (const row of data || []) {
         (bySession[row.session_id] ??= []).push({ path: row.path, at: row.created_at });
