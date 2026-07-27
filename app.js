@@ -177,6 +177,8 @@ async function loadIssues() {
   const cntEl = document.getElementById('issuesCount');
   if (cntEl) cntEl.textContent = `${(totalCount || data.length).toLocaleString()}건 · 페이지 ${currentPage}`;
   renderPagination();
+  // 🌡️ 지금 산업 온도 보드(news.html 전용) — 최초 1회만 로드
+  if (!_sectorTempLoaded && document.getElementById('sectorTempBoard')) { _sectorTempLoaded = true; loadSectorTemp(); }
 
   // 실시간 폴링 기준점 갱신 + "새 이슈" 배너 리셋 (방금 최신본을 받았으므로)
   _feedTopTs = data[0]?.published_at || _feedTopTs;
@@ -318,10 +320,6 @@ function renderIssueCard(issue) {
       </div>
       ${companies.length ? `<div class="card-companies"><div class="card-flow-label">🎯 수혜 예상 종목</div>${companyRows}</div>` : ''}
       <div class="card-footer">
-        <div class="footer-stat">
-          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <span class="val blue">${companies.length}</span>개 기업
-        </div>
         ${avgUpside != null ? `<div class="footer-stat"><span class="val green">+${avgUpside}%</span> 평균 예상</div>` : ''}
         ${accBadge}
         ${analysis ? `<div class="confidence-bar" title="분석 신뢰도 ${confidence}%">
@@ -331,6 +329,62 @@ function renderIssueCard(issue) {
         <button class="share-btn" data-share-title="${escAttr(issue.title)}" data-share-url="${escAttr(`${location.origin}/analysis/${issue.id}`)}" onclick="shareContent(event, this)" title="공유하기">🔗</button>
       </div>
     </a>`;
+}
+
+// ── 🌡️ 지금 산업 온도 (StockRipple 시그니처) ─────────────────────
+// 최근 뉴스의 news_analysis.sectors 톤(우호적/비우호적/중립)을 산업별로 집계해, 지금 뉴스
+// 흐름이 어떤 산업에 우호적/비우호적인지 한눈에 보여준다. 종목을 지목하지 않는 산업 테마
+// 심리 집계라 유사투자자문 리스크 없음(analyses/analysis_companies 미사용). 다른 사이트엔 없는 기능.
+let _sectorTempLoaded = false;
+async function loadSectorTemp() {
+  const board = document.getElementById('sectorTempBoard');
+  if (!board || typeof sb === 'undefined') return;
+  let rows = [];
+  try {
+    const { data } = await sb.from('issues').select('news_analysis, published_at')
+      .neq('ai_digest', '').order('published_at', { ascending: false }).limit(120);
+    rows = data || [];
+  } catch { return; }
+  const agg = {}; let newsCount = 0;
+  for (const r of rows) {
+    const secs = r.news_analysis && r.news_analysis.sectors;
+    if (!Array.isArray(secs) || !secs.length) continue;
+    newsCount++;
+    for (const s of secs) {
+      if (!s || !s.name) continue;
+      const a = (agg[s.name] ||= { pos: 0, neg: 0, neu: 0 });
+      if (s.tone === 'pos') a.pos++; else if (s.tone === 'neg') a.neg++; else a.neu++;
+    }
+  }
+  const list = Object.entries(agg)
+    .map(([name, a]) => ({ name, ...a, total: a.pos + a.neg + a.neu, net: a.pos - a.neg }))
+    .filter(x => x.total >= 1).sort((a, b) => b.total - a.total || Math.abs(b.net) - Math.abs(a.net)).slice(0, 8);
+  if (!list.length) { board.innerHTML = ''; return; }
+  const rowHtml = x => {
+    const t = x.total || 1;
+    const pw = (x.pos / t * 100), nw = (x.neu / t * 100), gw = (x.neg / t * 100);
+    const netCol = x.net > 0 ? '#ff6b6b' : x.net < 0 ? '#4d8dff' : 'var(--text3)';
+    const netLbl = x.net > 0 ? `우호적 +${x.net}` : x.net < 0 ? `비우호적 ${x.net}` : '중립';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
+      <div style="width:92px;font-size:13px;font-weight:600;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(x.name)}</div>
+      <div style="flex:1;display:flex;height:15px;border-radius:5px;overflow:hidden;background:var(--bg3);min-width:0" title="우호적 ${x.pos} · 중립 ${x.neu} · 비우호적 ${x.neg}">
+        <div style="width:${pw}%;background:#ff6b6b"></div><div style="width:${nw}%;background:rgba(255,255,255,.1)"></div><div style="width:${gw}%;background:#4d8dff"></div>
+      </div>
+      <div style="width:76px;text-align:right;font-size:11.5px;font-weight:700;flex-shrink:0;color:${netCol}">${netLbl}</div>
+    </div>`;
+  };
+  board.innerHTML = `
+    <div style="background:linear-gradient(180deg,var(--bg3,#262a34),var(--bg2,#1e2129));border:1px solid var(--border);border-radius:16px;padding:18px 20px;margin-bottom:22px;position:relative;overflow:hidden">
+      <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:4px">
+        <span style="font-size:16px;font-weight:800;letter-spacing:-.01em">🌡️ 지금 산업 온도</span>
+        <span style="font-size:11.5px;color:var(--text3)">최근 뉴스 ${newsCount}건이 어떤 산업에 우호적/비우호적인지</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--text3);margin-bottom:13px">
+        <span style="color:#ff6b6b;font-weight:700">■</span> 우호적 뉴스 &nbsp; <span style="color:rgba(255,255,255,.5);font-weight:700">■</span> 중립 &nbsp; <span style="color:#4d8dff;font-weight:700">■</span> 비우호적 뉴스
+      </div>
+      ${list.map(rowHtml).join('')}
+      <div style="font-size:10.5px;color:var(--text3);margin-top:12px;line-height:1.5">뉴스의 산업 영향 방향을 집계한 것으로, 특정 종목의 매수·매도 의견이 아닙니다.</div>
+    </div>`;
 }
 
 function renderPagination() {
