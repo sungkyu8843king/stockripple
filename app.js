@@ -2042,6 +2042,36 @@ function renderTopStocks(el) {
   }).join('');
 }
 
+// BMO/AMC(장전/장후)만 봐서는 한국시간으로 언제인지 감이 안 온다는 피드백(2026-07-28) —
+// 개장 09:30 ET(BMO 기준) / 마감 16:00 ET(AMC 기준)를 그 미국 거래일의 실제 한국시간
+// 일시로 환산해 같이 보여준다. DST로 ET-UTC 오프셋이 EDT(-4)/EST(-5)로 바뀌므로 매번
+// 그 날짜 기준으로 판정 — 하드코딩 +13/+14시간을 쓰면 3~11월/11~3월 경계에서 1시간씩
+// 어긋난다. AMC는 마감 후라 한국시간으로는 대부분 다음날 새벽으로 날짜가 넘어간다.
+function _etOffsetHours(dateStr) {
+  const probe = new Date(`${dateStr}T16:00:00Z`);
+  const tz = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' })
+    .formatToParts(probe).find(p => p.type === 'timeZoneName')?.value || '';
+  return tz.includes('EDT') ? 4 : 5;
+}
+function earningsCallTimeToKst(dateStr, callTime) {
+  if (!dateStr || !callTime) return null;
+  const etHour = callTime === 'BMO' ? 9 : 16;
+  const etMin  = callTime === 'BMO' ? 30 : 0;
+  const offset = _etOffsetHours(dateStr);
+  const utcMs = new Date(`${dateStr}T${String(etHour).padStart(2, '0')}:${String(etMin).padStart(2, '0')}:00Z`).getTime() + offset * 3600000;
+  const kst = new Date(utcMs);
+  const full = kst.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+  const hm = kst.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+  const kstDateStr = kst.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }); // YYYY-MM-DD, 날짜이월 판정용
+  const rolledToNextDay = kstDateStr > dateStr;
+  return {
+    full,        // "7월 28일 화 05:00" — 전체 표기용
+    hm,          // "05:00" — 좁은 칸용
+    rolledToNextDay,
+    whenLabel: callTime === 'BMO' ? '개장 전' : '마감 후',
+  };
+}
+
 // 실적발표 캘린더 (강화: 위스퍼·IV·매출 포함)
 // 20개 고정 워치리스트(FMP, /api/earnings)가 아니라 시총 $10B+ 미국 대형주 전체를
 // 날짜별로 훑는 캘린더(/api/earnings-calendar, Nasdaq 공개 API) — 실적 시즌에 워치리스트
@@ -2113,8 +2143,14 @@ async function loadEarningsCalendar() {
     const isFuture = item.date && item.date > today;
     const isPast   = item.date && item.date < today;
 
+    // BMO/AMC 문구만으로는 한국시간으로 언제인지 알기 어렵다는 피드백 — 뱃지엔 KST
+    // 시각을, 날짜줄엔 "개장전/마감후 + 한국시간 전체 일시"를 같이 붙인다.
+    const kstInfo = earningsCallTimeToKst(item.date, item.callTime);
     const timingClass = item.callTime === 'BMO' ? 'bmo' : item.callTime === 'AMC' ? 'amc' : '';
-    const timingLabel = item.callTime === 'BMO' ? '장전' : item.callTime === 'AMC' ? '장후' : '';
+    const timingLabel = kstInfo ? `KST ${kstInfo.hm}${kstInfo.rolledToNextDay ? '(익일)' : ''}` : '';
+    const kstLine = kstInfo
+      ? `<span style="color:var(--text3);font-size:12.5px"> · ${kstInfo.whenLabel} 한국시간 ${kstInfo.full}</span>`
+      : '';
 
     // 날짜 (D-day 포함, Nasdaq 알고리즘 추정일이면 "예상" 표기)
     const dday = item.date ? Math.round((new Date(item.date) - new Date(today)) / 86400000) : null;
@@ -2122,10 +2158,10 @@ async function loadEarningsCalendar() {
     const dateLabel = !item.date
       ? `<span style="color:var(--text3);font-size:13.5px">다음 분기 발표 예정</span>`
       : isToday
-        ? `<span class="ei-today">🔴 오늘 실적발표</span>`
+        ? `<span class="ei-today">🔴 오늘 실적발표</span>${kstLine}`
         : isFuture
-          ? `<span style="color:var(--blue)">📅 ${item.date} <b>D-${dday}</b></span>${estTag}`
-          : `<span style="color:var(--text2)">📊 ${item.date} 발표</span>`;
+          ? `<span style="color:var(--blue)">📅 ${item.date} <b>D-${dday}</b></span>${estTag}${kstLine}`
+          : `<span style="color:var(--text2)">📊 ${item.date} 발표</span>${kstLine}`;
 
     // EPS 메트릭 (있을 때만)
     const consensus = item.epsConsensus ?? item.epsEstimate ?? null;
@@ -2756,7 +2792,7 @@ function showEarningsDayDetail(dateStr) {
   el.innerHTML = `<div style="font-weight:800;font-size:15.5px;margin-bottom:8px">${fmtDay(dateStr)} 실적발표 (${items.length}건)</div>
     <table class="cal-tbl">
       <thead><tr>
-        <th style="width:65px">종목</th><th>기업명</th><th style="width:38px">발표</th>
+        <th style="width:65px">종목</th><th>기업명</th><th style="width:64px">발표(KST)</th>
         <th style="width:80px">EPS 예상</th><th style="width:90px">EPS 실적</th>
         <th style="width:80px">매출 예상</th><th style="width:70px">목표주가</th>
       </tr></thead><tbody>
@@ -2769,9 +2805,10 @@ function showEarningsDayDetail(dateStr) {
           const icon = beat === true ? ' ▲' : beat === false ? ' ▼' : '';
           epsActualHtml = `<span class="${cls}">${fmtNum(item.epsActual)}${icon}</span>`;
         }
-        const timing = item.callTime === 'BMO' ? '<span style="color:#60a5fa;font-size:13px">장전</span>'
-                     : item.callTime === 'AMC' ? '<span style="color:#a78bfa;font-size:13px">장후</span>'
-                     : '<span style="color:var(--text3);font-size:13px">—</span>';
+        const kstInfo = earningsCallTimeToKst(item.date, item.callTime);
+        const timing = kstInfo
+          ? `<span style="color:${item.callTime === 'BMO' ? '#60a5fa' : '#a78bfa'};font-size:13px" title="${escAttr(kstInfo.whenLabel + ' 한국시간 ' + kstInfo.full)}">${kstInfo.hm}${kstInfo.rolledToNextDay ? '<sup>+1</sup>' : ''}</span>`
+          : '<span style="color:var(--text3);font-size:13px">—</span>';
         return `<tr>
           <td style="font-weight:700;color:var(--yellow)">${escHtml(item.ticker || '')}</td>
           <td style="font-size:13.5px;color:var(--text2)">${escHtml(item.company || '')}</td>

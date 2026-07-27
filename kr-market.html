@@ -471,6 +471,14 @@ button { font-family: inherit; }
   background: var(--bg); border: 1px solid var(--border-soft); border-radius: var(--r-md);
   padding: 10px;
 }
+/* 코스피200 탭만 토스 투자자별 API가 미지원이라 네이버 PNG를 쓴다(다른 탭은 네이티브 표).
+   그 이미지는 559px짜리 흰 배경 차트라 (1) 폭을 꽉 채우면 1.5배 확대돼 뭉개지고
+   (2) 다크 모드에서 흰 판이 그대로 떠 이질적이었다 — 원본 크기까지만 키우고 항상
+   흰 판 위에 올려 두 모드 모두에서 일관되게 보이게 한다. */
+#krFlowChartImg {
+  max-width: 559px; margin: 0 auto;
+  background: #fff; border-radius: 6px; padding: 6px;
+}
 .icon-btn {
   background: var(--bg3); border: none; color: var(--text2);
   padding: 5px 9px; border-radius: var(--r-sm); font-size: 14px; cursor: pointer;
@@ -1137,7 +1145,7 @@ button { font-family: inherit; }
           </div>
         </div>
 
-        <div id="krIndexCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">
+        <div id="krIndexCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,260px));gap:10px;margin-bottom:16px;justify-content:start">
           <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div>
         </div>
 
@@ -1201,7 +1209,7 @@ button { font-family: inherit; }
           </div>
         </div>
 
-        <div id="usIndexCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">
+        <div id="usIndexCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,260px));gap:10px;margin-bottom:16px;justify-content:start">
           <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div>
         </div>
 
