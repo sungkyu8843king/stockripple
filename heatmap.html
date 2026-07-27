@@ -1092,7 +1092,7 @@ button { font-family: inherit; }
 
 <div class="hero" id="heroSection">
   <h1 class="hero-title"><span>마켓 히트맵</span></h1>
-  <p class="hero-sub">미장/국장/섹터/ETF/자산 실시간 등락률 — 섹터별로 보거나 전체 종목을 한눈에</p>
+  <p class="hero-sub">미장·국장 실시간 등락률을 섹터별 트리맵으로 — 박스 크기는 거래대금</p>
 </div>
 
 
@@ -1109,27 +1109,16 @@ button { font-family: inherit; }
         <div class="section-head-r">
           <button onclick="loadHeatmap()" title="수동 새로고침" class="icon-btn">🔄</button>
           <div class="seg">
-            <button class="hm-tab hm-mkt active" data-mkt="us"     onclick="switchHeatmap('us', null)">🇺🇸 미장</button>
-            <button class="hm-tab hm-mkt"        data-mkt="sector" onclick="switchHeatmap('sector', null)">📊 섹터</button>
-            <button class="hm-tab hm-mkt"        data-mkt="etf"    onclick="switchHeatmap('etf', null)">⚡ ETF</button>
-            <button class="hm-tab hm-mkt"        data-mkt="assets" onclick="switchHeatmap('assets', null)">🌍 자산</button>
-            <button class="hm-tab hm-mkt"        data-mkt="kr"     onclick="switchHeatmap('kr', null)">🇰🇷 국장</button>
-          </div>
-          <div class="seg">
-            <button class="hm-tab hm-range active" data-range="1d"  onclick="switchHeatmap(null, '1d')">일간</button>
-            <button class="hm-tab hm-range"        data-range="1mo" onclick="switchHeatmap(null, '1mo')">월간</button>
-          </div>
-          <div class="seg" id="heatmapViewToggle">
-            <button class="hm-tab hm-view active" data-view="sector" onclick="switchHeatmapView('sector')">🧩 섹터별</button>
-            <button class="hm-tab hm-view"        data-view="all"    onclick="switchHeatmapView('all')">📋 개별종목 전체</button>
+            <button class="hm-tab hm-mkt active" data-mkt="us" onclick="switchHeatmap('us', null)">🇺🇸 미장</button>
+            <button class="hm-tab hm-mkt"        data-mkt="kr" onclick="switchHeatmap('kr', null)">🇰🇷 국장</button>
           </div>
         </div>
       </div>
-      <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;min-height:80px">
-        <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>
+      <div id="heatmapGrid" style="min-height:80px">
+        <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>
       </div>
       <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--text3)">
-        <span>📡 데이터: Yahoo Finance (실시간 ~15분 지연 가능) · 환율·금리·원자재는 지수 기준</span>
+        <span>📡 데이터: Yahoo Finance (실시간 ~15분 지연 가능)</span>
         <span id="heatmapItemCount"></span>
       </div>
     </div>

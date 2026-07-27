@@ -3341,6 +3341,97 @@ const HM_SESSION_BADGE = {
   post: { label: '🟣 애프터', color: '#9d7bff' },
 };
 
+// ─── Finviz 스타일 트리맵 (2026-07-27) ────────────────────────────────
+// 섹터로 묶고, 박스 크기는 거래대금(가격×거래량) 비례. Yahoo v8 chart 응답엔 시가총액이
+// 없고 종목별 시총 조회는 762종목 × 1콜이라 비싸서, 이미 받아오는 volume·price로 계산되는
+// 거래대금을 크기 기준으로 쓴다 — "오늘 돈이 몰린 곳"이라 일간 히트맵엔 오히려 잘 맞고,
+// 대형주가 크게 잡히는 Finviz 특유의 시각도 그대로 나온다.
+// 레이아웃은 이분할(binary split) 트리맵 — squarified만큼 정사각에 가깝진 않지만 코드가
+// 훨씬 짧고 이 규모(섹터당 수십 개)에선 시각적 차이가 거의 없다.
+function _tmLayout(list, x, y, w, h) {
+  const out = [];
+  const rec = (arr, x, y, w, h) => {
+    if (!arr.length || w <= 0 || h <= 0) return;
+    if (arr.length === 1) { out.push({ it: arr[0], x, y, w, h }); return; }
+    const total = arr.reduce((s, d) => s + d._v, 0);
+    if (total <= 0) return;
+    let acc = 0, i = 0;
+    for (; i < arr.length - 1; i++) {
+      if (acc + arr[i]._v > total / 2) break;
+      acc += arr[i]._v;
+    }
+    const a = arr.slice(0, i + 1), b = arr.slice(i + 1);
+    const frac = a.reduce((s, d) => s + d._v, 0) / total;
+    if (w >= h) { rec(a, x, y, w * frac, h); rec(b, x + w * frac, y, w * (1 - frac), h); }
+    else { rec(a, x, y, w, h * frac); rec(b, x, y + h * frac, w, h * (1 - frac)); }
+  };
+  rec(list, x, y, w, h);
+  return out;
+}
+
+// 박스 크기에 따라 표시 정보를 단계적으로 줄인다(작은 박스에 글자가 넘치지 않게).
+function _tmTileHtml(node, isKr) {
+  const { it, x, y, w, h } = node;
+  const c = heatmapColorFor(it.pct);
+  const sign = it.pct >= 0 ? '+' : '';
+  const pctTxt = `${sign}${it.pct.toFixed(2)}%`;
+  const showPct = w > 5.5 && h > 7;
+  const showName = w > 7 && h > 11;
+  const nameSize = w > 16 ? 15 : w > 11 ? 13 : 11;
+  const pctSize = w > 16 ? 13 : w > 11 ? 11.5 : 10;
+  const label = showName
+    ? `<div style="font-weight:800;font-size:${nameSize}px;line-height:1.15;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escAttr(it.name)}</div>` : '';
+  const pctHtml = showPct
+    ? `<div class="t-num" style="font-weight:700;font-size:${pctSize}px;line-height:1.2;opacity:.95">${pctTxt}</div>` : '';
+  return `<a class="tm-tile" href="${hmCellHref(it.ticker)}" ${hmCellOnClick(it.ticker)}
+    title="${escAttr(it.name)} ${pctTxt}"
+    style="position:absolute;left:${x}%;top:${y}%;width:${w}%;height:${h}%;background:${c.bg};color:${c.fg};
+      display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+      text-decoration:none;overflow:hidden;padding:2px;box-sizing:border-box;
+      border:1px solid rgba(0,0,0,.35);transition:filter .12s"
+    onmouseover="this.style.filter='brightness(1.25)'" onmouseout="this.style.filter=''">${label}${pctHtml}</a>`;
+}
+
+function renderHeatmapTreemap(grid, items) {
+  if (!items.length) { grid.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">데이터가 없어요.</div>'; return; }
+  const isKr = _hmMkt === 'kr';
+  // 거래대금이 0/누락이면 최소값을 줘서 박스가 사라지지 않게 한다.
+  const withVal = items.map(it => ({ ...it, _v: Math.max(1, (it.tradingValue || 0)) }));
+  // 섹터 그룹핑 → 섹터 총 거래대금 순
+  const groups = {};
+  for (const it of withVal) {
+    const s = sectorOf(it.ticker) || 'other';
+    (groups[s] ||= []).push(it);
+  }
+  const sectorList = Object.entries(groups).map(([key, arr]) => ({
+    key, arr: arr.sort((a, b) => b._v - a._v), _v: arr.reduce((s, d) => s + d._v, 0),
+  })).sort((a, b) => b._v - a._v);
+
+  const secNodes = _tmLayout(sectorList, 0, 0, 100, 100);
+  const HEAD = 15; // 섹터 라벨 띠 높이(px)
+  const html = secNodes.map(sn => {
+    const g = sn.it;
+    const label = SECTOR_META[g.key]?.label || g.key;
+    const inner = _tmLayout(g.arr, 0, 0, 100, 100).map(n => _tmTileHtml(n, isKr)).join('');
+    return `<div style="position:absolute;left:${sn.x}%;top:${sn.y}%;width:${sn.w}%;height:${sn.h}%;padding:1px;box-sizing:border-box">
+      <div style="position:relative;width:100%;height:100%;border:1px solid rgba(255,255,255,.18);box-sizing:border-box;overflow:hidden">
+        <div style="position:absolute;inset:0 0 auto 0;height:${HEAD}px;background:rgba(0,0,0,.55);color:#c9d1d9;font-size:9.5px;font-weight:800;letter-spacing:.04em;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;text-transform:uppercase">${escAttr(label)}</div>
+        <div style="position:absolute;left:0;right:0;top:${HEAD}px;bottom:0">${inner}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  grid.innerHTML = `<div class="tm-wrap" style="position:relative;width:100%;aspect-ratio:16/10;background:#0d1117;border-radius:10px;overflow:hidden">${html}</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;font-size:11px;color:var(--text3);flex-wrap:wrap">
+      <span>박스 크기 = 거래대금</span><span style="opacity:.4">|</span>
+      <span style="display:inline-flex;align-items:center;gap:5px">
+        <i style="width:13px;height:13px;border-radius:3px;background:${heatmapColorFor(-5).bg};display:inline-block"></i>-5%
+        <i style="width:13px;height:13px;border-radius:3px;background:${heatmapColorFor(0).bg};display:inline-block;margin-left:4px"></i>0%
+        <i style="width:13px;height:13px;border-radius:3px;background:${heatmapColorFor(5).bg};display:inline-block;margin-left:4px"></i>+5%
+      </span>
+    </div>`;
+}
+
 function hmCellHtml(it) {
   const sign = it.pct >= 0 ? '+' : '';
   const priceLabel = it.price == null ? '' : (it.currency === 'KRW'
@@ -4571,7 +4662,10 @@ async function loadHeatmap() {
       } else if (d.marketState === 'POST' && d.postMarketChangePercent != null) {
         pct = d.postMarketChangePercent; price = d.postMarketPrice ?? price; session = 'post'; liveSession = 'post';
       } else pct = d.changePercent;
-      return { ticker: t, pct, price, currency: d.currency, name: nameMap[t] || d.shortName || t, session };
+      // 트리맵 박스 크기 기준(거래대금) — 통화가 섞이지 않게 시장별로 상대비교만 하면 되므로
+      // 환산 없이 price×volume 원값을 쓴다(같은 시장 안에서만 비교됨).
+      const tradingValue = (d.volume != null && price != null) ? d.volume * price : 0;
+      return { ticker: t, pct, price, currency: d.currency, name: nameMap[t] || d.shortName || t, session, tradingValue };
     }).filter(x => x && x.pct != null);
 
     // 국장 시간외(15:40–18:00 KST) — Yahoo가 KRX 시간외를 제공하지 않아 네이버 시세를 덮어씀
@@ -4596,20 +4690,11 @@ async function loadHeatmap() {
     }
     items.sort((a, b) => (b.pct || 0) - (a.pct || 0));
 
-    if (effectiveView === 'sector' && !drillSector) {
-      // 1단계: 섹터 박스 (평균 등락률 기준, 항상 통째 리렌더 — 박스 11개라 비용 적음)
-      if (needsRebuild) renderSectorBoxes(grid, items, structureKey);
-    } else if (effectiveView === 'sector' && drillSector) {
-      // 2단계: 드릴다운된 섹터 종목만 필터링해 기존 타일 그리드로 표시
-      const filtered = items.filter(it => sectorOf(it.ticker) === drillSector);
-      renderTileGrid(grid, filtered, needsRebuild, structureKey, {
-        backLabel: `전체 섹터 (${SECTOR_META[drillSector]?.label || drillSector})`,
-        backAction: 'heatmapSectorBack()',
-      });
-    } else {
-      // 전체보기 — 기존 그대로 (모바일은 상위 N개 + 더보기)
-      renderTileGrid(grid, items, needsRebuild, structureKey, { mobileLimit: true });
-    }
+    // Finviz 스타일 트리맵 하나로 통일(2026-07-27) — 섹터/ETF/자산 탭, 일간·월간, 섹터별/
+    // 개별종목 뷰 토글을 전부 없애고 미장·국장 두 개만 남겼다. 갱신 때마다 통째로 다시 그린다
+    // (박스 위치·크기가 거래대금에 따라 매번 바뀌어서 부분 갱신이 의미 없음).
+    renderHeatmapTreemap(grid, items);
+    _hmStructureKey = structureKey;
 
     // 마지막 갱신 시각 + 마켓 상태 + 아이템 카운트
     const now = new Date();
@@ -4625,8 +4710,7 @@ async function loadHeatmap() {
     const countEl = document.getElementById('heatmapItemCount');
     if (countEl) {
       const missing = tickers.length - items.length;
-      const shownCount = (!isNarrowViewport() || _hmMobileExpanded) ? items.length : Math.min(items.length, HM_MOBILE_LIMIT);
-      countEl.textContent = `${shownCount}개 표시${shownCount < items.length ? ` (전체 ${items.length}개)` : ''}${missing > 0 ? ` · ${missing}개 데이터 없음` : ''} / ${tickers.length}개 요청`;
+      countEl.textContent = `${items.length}개 종목${missing > 0 ? ` · ${missing}개 데이터 없음` : ''}`;
     }
   } catch (e) {
     if (needsRebuild) grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--red);font-size:14.5px;padding:20px">로드 실패: ${e.message}</div>`;
