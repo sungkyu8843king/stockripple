@@ -55,11 +55,11 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 .back-btn {
   display: flex; align-items: center; gap: 6px; color: var(--text2);
-  text-decoration: none; font-size: 13px; background: none; border: none; cursor: pointer;
+  text-decoration: none; font-size: 15.5px; background: none; border: none; cursor: pointer;
   padding: 5px 10px; border-radius: 6px; transition: all 0.15s;
 }
 .back-btn:hover { background: var(--bg3); color: var(--text); }
-.logo-sm { font-size: 14px; font-weight: 700; color: var(--text2); }
+.logo-sm { font-size: 16px; font-weight: 700; color: var(--text2); }
 .logo-sm span { color: var(--blue); }
 
 .page-wrap { max-width: 1100px; margin: 0 auto; padding: 32px 24px 60px; }
@@ -79,8 +79,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   text-transform: uppercase;
 }
 .profile-info { flex: 1; }
-.profile-email { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
-.profile-meta { font-size: 13px; color: var(--text3); }
+.profile-email { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+.profile-meta { font-size: 15.5px; color: var(--text3); }
 .profile-meta span { color: var(--text2); }
 
 /* Tabs */
@@ -89,7 +89,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   margin-bottom: 28px;
 }
 .tab-btn {
-  padding: 10px 18px; font-size: 14px; font-weight: 500;
+  padding: 10px 18px; font-size: 16px; font-weight: 500;
   background: none; border: none; color: var(--text2); cursor: pointer;
   border-bottom: 2px solid transparent; margin-bottom: -1px;
   transition: all 0.15s;
@@ -103,12 +103,12 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 
 /* Section Title */
 .section-title {
-  font-size: 15px; font-weight: 700; margin-bottom: 16px;
+  font-size: 17px; font-weight: 700; margin-bottom: 16px;
   display: flex; align-items: center; gap: 8px; color: var(--text);
 }
 .section-title svg { color: var(--text3); }
 .section-count {
-  font-size: 13px; color: var(--text2); font-weight: 400; margin-left: 4px;
+  font-size: 15.5px; color: var(--text2); font-weight: 400; margin-left: 4px;
 }
 
 /* Watchlist */
@@ -122,18 +122,18 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 .watchlist-item:hover { border-color: #3d444d; }
 .ticker-badge {
-  font-size: 12px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 14.5px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
   padding: 4px 10px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;
 }
 .ticker-badge.kr { background: rgba(0,102,204,0.10); color: #4d8dff; }
 .ticker-badge.us { background: rgba(124,58,237,0.10); color: #9d7bff; }
-.watchlist-name { flex: 1; font-size: 14px; font-weight: 500; }
+.watchlist-name { flex: 1; font-size: 16px; font-weight: 500; }
 .watchlist-name a { color: var(--text); text-decoration: none; }
 .watchlist-name a:hover { color: var(--blue); }
-.watchlist-added { font-size: 11px; color: var(--text3); white-space: nowrap; }
+.watchlist-added { font-size: 13.5px; color: var(--text3); white-space: nowrap; }
 .delete-btn {
   background: none; border: none; cursor: pointer; color: var(--text3);
-  padding: 5px 7px; border-radius: 5px; font-size: 15px; line-height: 1;
+  padding: 5px 7px; border-radius: 5px; font-size: 17px; line-height: 1;
   transition: all 0.15s;
 }
 .delete-btn:hover { background: var(--red-dim); color: var(--red); }
@@ -150,14 +150,14 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .bookmark-item:hover { border-color: #3d444d; }
 .bookmark-info { flex: 1; min-width: 0; }
 .bookmark-title {
-  font-size: 14px; font-weight: 500; margin-bottom: 6px;
+  font-size: 16px; font-weight: 500; margin-bottom: 6px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .bookmark-title a { color: var(--text); text-decoration: none; }
 .bookmark-title a:hover { color: var(--blue); }
 .bookmark-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.bookmark-date { font-size: 11px; color: var(--text3); }
-.sector-tag { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
+.bookmark-date { font-size: 13.5px; color: var(--text3); }
+.sector-tag { font-size: 13.5px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
 .tag-semi  { background: rgba(0,102,204,0.10); color: #4d8dff; }
 .tag-ev    { background: rgba(0,135,58,0.10);  color: #00873a; }
 .tag-ai    { background: rgba(124,58,237,0.10);color: #9d7bff; }
@@ -174,24 +174,24 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   padding: 24px; margin-bottom: 16px;
 }
 .settings-card-title {
-  font-size: 14px; font-weight: 600; margin-bottom: 16px;
+  font-size: 16px; font-weight: 600; margin-bottom: 16px;
   display: flex; align-items: center; gap: 8px;
 }
 .settings-card-title svg { color: var(--text3); }
 .form-group { margin-bottom: 16px; }
 .form-label {
-  display: block; font-size: 12px; font-weight: 600; color: var(--text2);
+  display: block; font-size: 14.5px; font-weight: 600; color: var(--text2);
   text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px;
 }
 .form-input {
   width: 100%; background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 8px; padding: 10px 14px; font-size: 14px;
+  border-radius: 8px; padding: 10px 14px; font-size: 16px;
   color: var(--text); font-family: 'Inter', sans-serif; outline: none;
   transition: border-color 0.15s;
 }
 .form-input:focus { border-color: var(--blue); }
 .form-input::placeholder { color: var(--text3); }
-.form-hint { font-size: 12px; color: var(--text3); margin-top: 6px; line-height: 1.5; }
+.form-hint { font-size: 14.5px; color: var(--text3); margin-top: 6px; line-height: 1.5; }
 .form-hint a { color: var(--blue); text-decoration: none; }
 .form-hint a:hover { text-decoration: underline; }
 
@@ -199,8 +199,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 0; border-top: 1px solid var(--border);
 }
-.toggle-label { font-size: 14px; color: var(--text); }
-.toggle-desc { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.toggle-label { font-size: 16px; color: var(--text); }
+.toggle-desc { font-size: 14.5px; color: var(--text3); margin-top: 2px; }
 .toggle-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
 .toggle-switch input { opacity: 0; width: 0; height: 0; }
 .toggle-slider {
@@ -220,7 +220,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .save-btn {
   display: inline-flex; align-items: center; gap: 7px;
   background: var(--blue); color: #f2f4f8; border: none; border-radius: 8px;
-  padding: 10px 20px; font-size: 14px; font-weight: 600;
+  padding: 10px 20px; font-size: 16px; font-weight: 600;
   cursor: pointer; transition: background 0.15s;
 }
 .save-btn:hover { background: #388be8; }
@@ -230,13 +230,13 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .signout-area { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
 .signout-btn {
   background: none; border: 1px solid var(--border); border-radius: 8px;
-  color: var(--text2); padding: 9px 18px; font-size: 13px; font-weight: 500;
+  color: var(--text2); padding: 9px 18px; font-size: 15.5px; font-weight: 500;
   cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
 }
 .signout-btn:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
 .delete-account-btn {
   background: none; border: 1px solid var(--border); border-radius: 8px;
-  color: var(--text3); padding: 9px 18px; font-size: 13px; font-weight: 500;
+  color: var(--text3); padding: 9px 18px; font-size: 15.5px; font-weight: 500;
   cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
 }
 .delete-account-btn:hover { border-color: var(--red); color: #f2f4f8; background: var(--red); }
@@ -244,7 +244,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 /* Empty state */
 .empty-state {
   text-align: center; padding: 48px 24px;
-  color: var(--text3); font-size: 14px; line-height: 1.7;
+  color: var(--text3); font-size: 16px; line-height: 1.7;
 }
 .empty-state-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
 
@@ -263,7 +263,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   display: flex; flex-direction: column; gap: 8px; pointer-events: none;
 }
 .toast {
-  padding: 12px 18px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  padding: 12px 18px; border-radius: 8px; font-size: 15.5px; font-weight: 500;
   animation: toastIn 0.25s ease; pointer-events: all; max-width: 320px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
@@ -272,9 +272,9 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (max-width: 600px) {
-  .profile-email { font-size: 15px; }
+  .profile-email { font-size: 17px; }
   .avatar { width: 56px; height: 56px; font-size: 22px; }
-  .tab-btn { padding: 10px 12px; font-size: 13px; }
+  .tab-btn { padding: 10px 12px; font-size: 15.5px; }
   .settings-card { padding: 16px; }
 }
 </style>
@@ -421,7 +421,7 @@ async function loadWatchlist() {
       <div class="empty-state">
         <div class="empty-state-icon">☆</div>
         <div>관심종목이 없습니다.</div>
-        <div style="margin-top:6px;font-size:12px">분석 페이지에서 ☆ 버튼으로 종목을 추가하세요.</div>
+        <div style="margin-top:6px;font-size:14.5px">분석 페이지에서 ☆ 버튼으로 종목을 추가하세요.</div>
       </div>`;
     return;
   }
@@ -496,7 +496,7 @@ async function loadBookmarks() {
       <div class="empty-state">
         <div class="empty-state-icon">🔖</div>
         <div>북마크된 이슈가 없습니다.</div>
-        <div style="margin-top:6px;font-size:12px">분석 페이지에서 북마크 버튼을 눌러 저장하세요.</div>
+        <div style="margin-top:6px;font-size:14.5px">분석 페이지에서 북마크 버튼을 눌러 저장하세요.</div>
       </div>`;
     return;
   }

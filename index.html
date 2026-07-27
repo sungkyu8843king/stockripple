@@ -236,7 +236,7 @@ button { font-family: inherit; }
 .header-search svg { color: var(--text3); flex-shrink: 0; }
 .header-search input {
   flex: 1; min-width: 0; border: none; outline: none; background: none;
-  font-size: 13px; color: var(--text); font-family: inherit;
+  font-size: 15.5px; color: var(--text); font-family: inherit;
 }
 .header-search input::placeholder { color: var(--text3); }
 @media (max-width: 900px) { .header-search { display: none; } }
@@ -246,14 +246,14 @@ button { font-family: inherit; }
   background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
   color: #fff;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 700;
+  font-size: 18px; font-weight: 700;
   box-shadow: 0 3px 10px rgba(36,87,230,0.30);
 }
-.logo-text { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
-.logo-sub { font-size: 10px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
+.logo-text { font-size: 19px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+.logo-sub { font-size: 13px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
 .header-nav { display: flex; gap: 2px; margin-left: auto; align-items: center; }
 .nav-btn {
-  padding: 7px 13px; border-radius: var(--r-md); font-size: 13px; font-weight: 500;
+  padding: 7px 13px; border-radius: var(--r-md); font-size: 15.5px; font-weight: 500;
   background: none; border: none; color: var(--text2); cursor: pointer;
   text-decoration: none; display: flex; align-items: center; gap: 6px;
   transition: all var(--t-fast) var(--ease); white-space: nowrap;
@@ -265,7 +265,7 @@ button { font-family: inherit; }
 .nav-new::after { content: ""; position: absolute; top: 2px; right: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px var(--bg), 0 0 6px var(--red); }
 .nav-btn-primary {
   background: var(--blue); color: #fff; padding: 7px 16px; margin-left: 6px;
-  border-radius: var(--r-md); font-size: 13px; font-weight: 600;
+  border-radius: var(--r-md); font-size: 15.5px; font-weight: 600;
   text-decoration: none; cursor: pointer; border: none; transition: all var(--t-fast);
 }
 .nav-btn-primary:hover { background: #1e4ccc; }
@@ -290,16 +290,16 @@ button { font-family: inherit; }
 }
 .ticker-item {
   display: inline-flex; align-items: center; gap: 7px;
-  padding: 0 18px; font-size: 12px; font-weight: 500; height: 34px;
+  padding: 0 18px; font-size: 14.5px; font-weight: 500; height: 34px;
   position: relative;
 }
 .ticker-item::after {
   content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
   width: 3px; height: 3px; border-radius: 50%; background: var(--border-strong);
 }
-.ticker-name { color: var(--text3); font-weight: 600; font-size: 11px; letter-spacing: 0.02em; }
+.ticker-name { color: var(--text3); font-weight: 600; font-size: 13.5px; letter-spacing: 0.02em; }
 .ticker-price { color: var(--text); font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.ticker-chg { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
+.ticker-chg { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 13.5px; font-weight: 600; }
 .ticker-spark { width: 44px; height: 14px; flex-shrink: 0; opacity: .9; }
 .ticker-chg.up { color: var(--red); }
 .ticker-chg.dn { color: var(--blue); }
@@ -317,11 +317,11 @@ button { font-family: inherit; }
 }
 .hero-strip-text { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 320px; }
 .hero-strip-badge {
-  flex-shrink: 0; font-size: 10.5px; font-weight: 700; color: var(--blue);
+  flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--blue);
   background: var(--blue-dim, rgba(59,130,246,.1)); border-radius: 999px; padding: 3px 10px;
 }
 .hero-strip-headline {
-  font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden;
+  font-size: 16px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; min-width: 0; cursor: pointer; transition: opacity .3s ease;
 }
 .hero-strip-headline:hover { color: var(--blue); }
@@ -355,8 +355,8 @@ button { font-family: inherit; }
   align-self: center;
   width: 4px; height: 16px; border-radius: 2px; background: var(--blue); flex-shrink: 0;
 }
-.sh-title { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
-.sh-desc  { font-size: 11.5px; color: var(--text3); font-weight: 500; }
+.sh-title { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+.sh-desc  { font-size: 14px; color: var(--text3); font-weight: 500; }
 .section-head-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .section-block { margin-bottom: 28px; }
 /* 홈 미리보기: 히트맵/국장현황은 일부만 보여주고 전체는 /heatmap.html, /kr-market.html로 유도
@@ -390,7 +390,7 @@ button { font-family: inherit; }
 }
 .category-tabs::-webkit-scrollbar { display: none; }
 .cat-tab {
-  padding: 7px 14px; border-radius: var(--r-md); font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  padding: 7px 14px; border-radius: var(--r-md); font-size: 15px; font-weight: 600; white-space: nowrap;
   border: none; background: transparent; color: var(--text2); cursor: pointer;
   transition: all var(--t-fast) var(--ease);
 }
@@ -402,9 +402,9 @@ button { font-family: inherit; }
   padding-top: 10px; border-top: 1px dashed var(--border);
   margin-bottom: 0;
 }
-.filter-label { font-size: 11px; color: var(--text3); font-weight: 700; margin-right: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.filter-label { font-size: 13.5px; color: var(--text3); font-weight: 700; margin-right: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
 .filter-chip {
-  padding: 4px 11px; border-radius: var(--r-pill); font-size: 12px; font-weight: 500;
+  padding: 4px 11px; border-radius: var(--r-pill); font-size: 14.5px; font-weight: 500;
   border: 1px solid var(--border); background: var(--bg2); color: var(--text2);
   cursor: pointer; transition: all var(--t-fast);
 }
@@ -420,7 +420,7 @@ button { font-family: inherit; }
 .search-box:focus-within { background: var(--bg2); border-color: var(--blue); box-shadow: var(--shadow-focus); }
 .search-box input {
   background: none; border: none; outline: none; color: var(--text);
-  font-size: 12.5px; width: 200px; font-family: inherit;
+  font-size: 15px; width: 200px; font-family: inherit;
 }
 .search-box input::placeholder { color: var(--text3); }
 
@@ -433,7 +433,7 @@ button { font-family: inherit; }
 }
 .hm-tab {
   background: transparent; border: none; color: var(--text2);
-  padding: 5px 11px; border-radius: var(--r-sm); font-size: 11.5px; font-weight: 500;
+  padding: 5px 11px; border-radius: var(--r-sm); font-size: 14px; font-weight: 500;
   cursor: pointer; transition: all var(--t-fast) var(--ease); white-space: nowrap;
 }
 .hm-tab:hover { color: var(--text); }
@@ -443,7 +443,7 @@ button { font-family: inherit; }
 }
 .icon-btn {
   background: var(--bg3); border: none; color: var(--text2);
-  padding: 5px 9px; border-radius: var(--r-sm); font-size: 11.5px; cursor: pointer;
+  padding: 5px 9px; border-radius: var(--r-sm); font-size: 14px; cursor: pointer;
   transition: background var(--t-fast);
 }
 .icon-btn:hover { background: var(--bg4); }
@@ -467,18 +467,18 @@ button { font-family: inherit; }
   box-shadow: 0 10px 30px rgba(19,23,34,0.10);
 }
 .card-header { padding: 15px 16px 0; display: flex; align-items: flex-start; gap: 12px; }
-.card-source { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.card-source { font-size: 13.5px; color: var(--text3); display: flex; align-items: center; gap: 6px; font-weight: 500; }
 .source-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
-.card-date { font-size: 10px; color: var(--text3); margin-left: auto; text-align: right; line-height: 1.6; flex-shrink: 0; }
-.card-date .rel { font-size: 11px; color: var(--text2); display: block; font-weight: 600; }
-.card-date .abs { color: var(--text3); font-family: var(--font-mono); font-size: 10px; }
+.card-date { font-size: 13px; color: var(--text3); margin-left: auto; text-align: right; line-height: 1.6; flex-shrink: 0; }
+.card-date .rel { font-size: 13.5px; color: var(--text2); display: block; font-weight: 600; }
+.card-date .abs { color: var(--text3); font-family: var(--font-mono); font-size: 13px; }
 .card-body { padding: 10px 16px 14px; }
-.card-title { font-size: 14.5px; font-weight: 700; line-height: 1.45; margin-bottom: 7px; letter-spacing: -0.01em; }
-.card-ai-summary { font-size: 12.5px; color: var(--text2); line-height: 1.6; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.card-flow-label { font-size: 9.5px; font-weight: 700; color: var(--text3); letter-spacing: .03em; margin: 10px 0 4px; }
+.card-title { font-size: 16.5px; font-weight: 700; line-height: 1.45; margin-bottom: 7px; letter-spacing: -0.01em; }
+.card-ai-summary { font-size: 15px; color: var(--text2); line-height: 1.6; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card-flow-label { font-size: 12.5px; font-weight: 700; color: var(--text3); letter-spacing: .03em; margin: 10px 0 4px; }
 
 /* ═══ 📊 시장 지표 대시보드 (2026-07 추가) — 지금 매수 후보 위에 표시 ═══ */
-.mkt-status { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; color: var(--text2); }
+.mkt-status { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; font-size: 14.5px; color: var(--text2); }
 .mkt-status-item { display: flex; align-items: center; gap: 6px; }
 .mkt-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
 .mkt-status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
@@ -498,7 +498,7 @@ button { font-family: inherit; }
 .mkt-more-toggle {
   display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md);
-  padding: 9px; font-size: 12.5px; font-weight: 700; color: var(--text2); cursor: pointer;
+  padding: 9px; font-size: 15px; font-weight: 700; color: var(--text2); cursor: pointer;
   margin-bottom: 10px; transition: background var(--t-fast);
 }
 .mkt-more-toggle:hover { background: var(--bg3); }
@@ -515,14 +515,14 @@ button { font-family: inherit; }
   padding: 10px 16px; display: flex; flex-direction: column; box-shadow: var(--shadow-card);
 }
 .mkt-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.mkt-hero-name { font-size: 12px; font-weight: 700; }
-.mkt-hero-tag { font-size: 10px; color: var(--text3); margin-top: 1px; }
-.mkt-hero-val { font-size: 19px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
-.mkt-hero-chg { font-size: 11.5px; font-weight: 700; font-family: var(--font-mono); margin-top: 1px; }
+.mkt-hero-name { font-size: 14.5px; font-weight: 700; }
+.mkt-hero-tag { font-size: 13px; color: var(--text3); margin-top: 1px; }
+.mkt-hero-val { font-size: 21px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.mkt-hero-chg { font-size: 14px; font-weight: 700; font-family: var(--font-mono); margin-top: 1px; }
 .mkt-hero-chart { height: 44px; margin: 6px 0 3px; }
 .mkt-hero-chart svg { width: 100%; height: 100%; display: block; }
 .mkt-52w { margin-top: 3px; }
-.mkt-52w-label { font-size: 9.5px; color: var(--text3); margin-bottom: 3px; display: flex; justify-content: space-between; }
+.mkt-52w-label { font-size: 12.5px; color: var(--text3); margin-bottom: 3px; display: flex; justify-content: space-between; }
 .mkt-52w-track { height: 4px; border-radius: 3px; background: var(--bg4); position: relative; }
 .mkt-52w-dot { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); border: 2px solid var(--bg2); transform: translate(-50%,-50%); }
 
@@ -531,15 +531,15 @@ button { font-family: inherit; }
   padding: 11px 13px; display: flex; align-items: center; gap: 10px; min-width: 0;
 }
 .mkt-card-main { flex: 1; min-width: 0; }
-.mkt-card-name { font-size: 11px; color: var(--text2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mkt-card-val { font-size: 14px; font-weight: 700; font-family: var(--font-mono); margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.mkt-card-chg { font-size: 10.5px; font-weight: 700; font-family: var(--font-mono); margin-top: 1px; }
+.mkt-card-name { font-size: 13.5px; color: var(--text2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mkt-card-val { font-size: 16px; font-weight: 700; font-family: var(--font-mono); margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mkt-card-chg { font-size: 13px; font-weight: 700; font-family: var(--font-mono); margin-top: 1px; }
 .mkt-card-spark { width: 46px; height: 28px; flex-shrink: 0; }
 .mkt-card-spark svg { width: 100%; height: 100%; display: block; }
 .mkt-card.mkt-link { color: var(--text2); text-decoration: none; cursor: pointer; justify-content: space-between; }
 .mkt-card.mkt-link:hover { border-color: var(--border-strong); }
 .mkt-card.mkt-link .mkt-card-name { color: var(--text); }
-.mkt-link-cta { font-size: 10.5px; color: var(--blue); font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.mkt-link-cta { font-size: 13px; color: var(--blue); font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 /* 클릭 가능한 시장지표 카드 + 장열림 초록 동그라미 */
 .mkt-card-link { text-decoration: none; color: inherit; cursor: pointer; transition: border-color var(--t-fast), transform var(--t-fast); }
 .mkt-card-link:hover { border-color: var(--border-strong); transform: translateY(-1px); }
@@ -551,7 +551,7 @@ button { font-family: inherit; }
 .mkt-card-val.flash-down, .mkt-hero-val.flash-down { animation: priceFlashDown .9s ease-out; }
 .pos { color: var(--red); } .neg { color: var(--blue); }
 .card-sectors { display: flex; flex-wrap: wrap; gap: 5px; }
-.sector-tag { font-size: 10.5px; padding: 3px 8px; border-radius: var(--r-xs); font-weight: 600; }
+.sector-tag { font-size: 13px; padding: 3px 8px; border-radius: var(--r-xs); font-weight: 600; }
 .tag-semi   { background: var(--blue-dim);   color: var(--blue); }
 .tag-ev     { background: var(--green-dim);  color: var(--green); }
 .tag-ai     { background: var(--purple-dim); color: var(--purple); }
@@ -562,18 +562,18 @@ button { font-family: inherit; }
 .tag-energy { background: var(--green-dim);  color: var(--green); }
 .tag-default{ background: var(--bg3); color: var(--text2); }
 .card-footer { padding: 11px 16px; border-top: 1px solid var(--border-soft); display: flex; align-items: center; gap: 12px; background: var(--bg3); }
-.footer-stat { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); }
+.footer-stat { display: flex; align-items: center; gap: 5px; font-size: 14.5px; color: var(--text2); }
 .footer-stat .val { font-weight: 700; font-variant-numeric: tabular-nums; }
 .footer-stat .val.green { color: var(--green); }
 .footer-stat .val.blue { color: var(--blue); }
 .confidence-bar { flex: 1; height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; }
 .confidence-fill { height: 100%; border-radius: 2px; background: var(--blue); transition: width 0.6s; }
 .view-btn {
-  margin-left: auto; font-size: 12px; color: var(--blue); font-weight: 700;
+  margin-left: auto; font-size: 14.5px; color: var(--blue); font-weight: 700;
   background: none; border: none; cursor: pointer; white-space: nowrap;
 }
 .share-btn {
-  background: none; border: none; color: var(--text3); font-size: 13px;
+  background: none; border: none; color: var(--text3); font-size: 15.5px;
   cursor: pointer; padding: 2px 4px; line-height: 1; flex-shrink: 0;
 }
 .share-btn:hover { color: var(--blue); }
@@ -582,12 +582,12 @@ button { font-family: inherit; }
 .card-companies { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 6px; }
 .mini-company { display: flex; align-items: center; gap: 8px; }
 .mini-ticker {
-  font-size: 11px; font-weight: 700; font-family: var(--font-mono);
+  font-size: 13.5px; font-weight: 700; font-family: var(--font-mono);
   background: var(--bg3); color: var(--text2); padding: 2px 7px; border-radius: var(--r-xs);
   min-width: 60px; text-align: center;
 }
-.mini-name { font-size: 12px; color: var(--text2); flex: 1; }
-.mini-upside { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mini-name { font-size: 14.5px; color: var(--text2); flex: 1; }
+.mini-upside { font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .mini-upside.up { color: var(--red); }
 .mini-upside.dn { color: var(--blue); }
 
@@ -604,18 +604,18 @@ button { font-family: inherit; }
 
 .empty-state { text-align: center; padding: 80px 24px; }
 .empty-icon { font-size: 44px; margin-bottom: 16px; }
-.empty-title { font-size: 19px; font-weight: 700; margin-bottom: 8px; }
-.empty-sub { font-size: 13.5px; color: var(--text2); max-width: 400px; margin: 0 auto 24px; line-height: 1.6; }
+.empty-title { font-size: 21px; font-weight: 700; margin-bottom: 8px; }
+.empty-sub { font-size: 16px; color: var(--text2); max-width: 400px; margin: 0 auto 24px; line-height: 1.6; }
 .empty-btn {
   display: inline-block; padding: 10px 20px; background: var(--blue); color: #fff;
-  border-radius: var(--r-md); font-size: 14px; font-weight: 600; text-decoration: none; border: none; cursor: pointer;
+  border-radius: var(--r-md); font-size: 16px; font-weight: 600; text-decoration: none; border: none; cursor: pointer;
 }
 
 /* Toast */
 .toast {
   position: fixed; bottom: 24px; right: 24px; z-index: 9999;
   background: var(--bg4); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r-md);
-  padding: 12px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; font-size: 15.5px; display: flex; align-items: center; gap: 8px;
   box-shadow: var(--shadow-pop); transform: translateY(80px); opacity: 0;
   transition: all var(--t-med) var(--ease); pointer-events: none;
 }
@@ -626,7 +626,7 @@ button { font-family: inherit; }
 /* Pagination */
 .pagination { display: flex; justify-content: center; gap: 8px; margin: 32px 0; }
 .page-btn {
-  padding: 7px 13px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500;
+  padding: 7px 13px; border-radius: var(--r-sm); font-size: 15.5px; font-weight: 500;
   background: var(--bg2); border: 1px solid var(--border); color: var(--text2);
   cursor: pointer; transition: all var(--t-fast);
 }
@@ -636,14 +636,14 @@ button { font-family: inherit; }
 
 /* Accuracy Badge */
 .accuracy-badge {
-  font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
+  font-size: 13.5px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
   background: var(--green-dim); color: var(--green);
 }
 .accuracy-badge.low { background: var(--red-dim); color: var(--red); }
 
 /* Star / Watchlist */
 .star-btn {
-  background: none; border: none; cursor: pointer; font-size: 15px;
+  background: none; border: none; cursor: pointer; font-size: 17px;
   padding: 0 2px; line-height: 1; color: var(--text3); transition: all var(--t-fast);
   flex-shrink: 0;
 }
@@ -678,17 +678,17 @@ button { font-family: inherit; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
-.fb-header-title { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
-.fb-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; padding: 4px; }
+.fb-header-title { font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.fb-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 20px; padding: 4px; }
 .fb-close:hover { color: var(--text); }
 .fb-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.fb-msg { max-width: 84%; padding: 10px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.fb-msg { max-width: 84%; padding: 10px 13px; border-radius: 14px; font-size: 16px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 .fb-msg.bot { align-self: flex-start; background: var(--bg3); color: var(--text); border-bottom-left-radius: 4px; }
 .fb-msg.user { align-self: flex-end; background: var(--purple); color: #fff; border-bottom-right-radius: 4px; }
 .fb-quick-replies { display: flex; flex-wrap: wrap; gap: 7px; align-self: flex-start; max-width: 100%; }
 .fb-qr-btn {
   padding: 8px 14px; border-radius: 999px; border: 1px solid var(--purple);
-  background: var(--purple-dim); color: var(--purple); font-size: 13px; font-weight: 600;
+  background: var(--purple-dim); color: var(--purple); font-size: 15.5px; font-weight: 600;
   cursor: pointer; transition: all var(--t-fast);
 }
 .fb-qr-btn:hover { background: var(--purple); color: #fff; }
@@ -697,17 +697,17 @@ button { font-family: inherit; }
 .fb-input-row { display: flex; gap: 8px; align-items: flex-end; }
 .fb-input-row textarea, .fb-input-row input {
   flex: 1; resize: none; border: 1px solid var(--border); border-radius: var(--r-md);
-  background: var(--bg); color: var(--text); padding: 9px 12px; font-size: 13.5px;
+  background: var(--bg); color: var(--text); padding: 9px 12px; font-size: 16px;
   font-family: inherit; max-height: 100px;
 }
 .fb-input-row textarea:focus, .fb-input-row input:focus { outline: none; border-color: var(--purple); }
 .fb-send-btn {
   background: var(--purple); color: #fff; border: none; border-radius: var(--r-md);
-  padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+  padding: 9px 14px; font-size: 15.5px; font-weight: 700; cursor: pointer; flex-shrink: 0;
 }
 .fb-send-btn:hover { background: #6a2ee0; }
 .fb-send-btn:disabled { opacity: .5; cursor: default; }
-.fb-skip-btn { background: none; border: none; color: var(--text3); font-size: 12px; cursor: pointer; margin-top: 6px; text-decoration: underline; }
+.fb-skip-btn { background: none; border: none; color: var(--text3); font-size: 14.5px; cursor: pointer; margin-top: 6px; text-decoration: underline; }
 
 /* ═══════════════════════════════════════════
  * Auth Modal
@@ -729,16 +729,16 @@ button { font-family: inherit; }
 .auth-close {
   position: absolute; top: 14px; right: 14px;
   background: none; border: none; color: var(--text3); cursor: pointer;
-  font-size: 16px; width: 28px; height: 28px; border-radius: var(--r-xs);
+  font-size: 18px; width: 28px; height: 28px; border-radius: var(--r-xs);
   display: flex; align-items: center; justify-content: center;
   transition: all var(--t-fast);
 }
 .auth-close:hover { background: var(--bg3); color: var(--text); }
-.auth-logo { font-size: 15px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
+.auth-logo { font-size: 17px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
 .auth-logo span { color: var(--blue); }
 .auth-title { font-size: 24px; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.02em; }
 .auth-btn-google {
-  width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 14px; font-weight: 500;
+  width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 16px; font-weight: 500;
   background: #fff; border: 1px solid #dadce0; color: #3c4043;
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
   transition: all var(--t-fast); margin-bottom: 20px;
@@ -748,39 +748,39 @@ button { font-family: inherit; }
 .auth-btn-google:active { background: #f1f3f4; }
 .auth-divider {
   display: flex; align-items: center; gap: 12px;
-  margin-bottom: 18px; color: var(--text3); font-size: 12px;
+  margin-bottom: 18px; color: var(--text3); font-size: 14.5px;
 }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .auth-field { position: relative; margin-bottom: 12px; }
-.auth-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
+.auth-field label { display: block; font-size: 14.5px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
 .auth-input {
   width: 100%; padding: 10px 12px; background: var(--bg3); border: 1.5px solid var(--border);
-  border-radius: var(--r-sm); color: var(--text); font-size: 14px;
+  border-radius: var(--r-sm); color: var(--text); font-size: 16px;
   outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); font-family: inherit;
   box-sizing: border-box;
 }
 .auth-input:focus { border-color: var(--blue); box-shadow: var(--shadow-focus); background: var(--bg2); }
 .auth-input::placeholder { color: var(--text3); }
-.auth-error { font-size: 12px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
+.auth-error { font-size: 14.5px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
 .auth-error.success { color: var(--green); }
 .auth-submit-btn {
-  width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 14px; font-weight: 700;
+  width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 16px; font-weight: 700;
   background: var(--blue); border: none; color: #fff; cursor: pointer;
   transition: all var(--t-fast);
 }
 .auth-submit-btn:hover { background: #1e4ccc; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(36,87,230,0.35); }
 .auth-submit-btn:active { transform: none; box-shadow: none; }
 .auth-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-.auth-switch { margin-top: 18px; text-align: center; font-size: 13px; color: var(--text3); }
-.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 13px; font-weight: 600; }
+.auth-switch { margin-top: 18px; text-align: center; font-size: 15.5px; color: var(--text3); }
+.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15.5px; font-weight: 600; }
 .auth-link:hover { text-decoration: underline; }
 .auth-consent { margin-bottom: 14px; }
-.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text2); cursor: pointer; line-height: 1.5; }
+.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; color: var(--text2); cursor: pointer; line-height: 1.5; }
 .auth-consent-label input[type="checkbox"] { margin-top: 2px; width: 15px; height: 15px; flex-shrink: 0; accent-color: var(--blue); cursor: pointer; }
-.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 0; text-decoration: underline; }
+.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15px; font-weight: 600; padding: 0; text-decoration: underline; }
 .auth-privacy-text {
   margin-top: 8px; padding: 10px 12px; background: var(--bg3); border-radius: var(--r-sm);
-  font-size: 11.5px; color: var(--text3); line-height: 1.7;
+  font-size: 14px; color: var(--text3); line-height: 1.7;
 }
 
 /* User Menu */
@@ -788,7 +788,7 @@ button { font-family: inherit; }
 .user-avatar-btn {
   width: 32px; height: 32px; border-radius: 50%;
   background: var(--blue-dim); color: var(--blue);
-  border: 1.5px solid var(--blue); font-size: 13px; font-weight: 700;
+  border: 1.5px solid var(--blue); font-size: 15.5px; font-weight: 700;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .user-dropdown {
@@ -798,7 +798,7 @@ button { font-family: inherit; }
   box-shadow: var(--shadow-pop);
 }
 .dropdown-item {
-  display: block; width: 100%; padding: 10px 14px; font-size: 13px;
+  display: block; width: 100%; padding: 10px 14px; font-size: 15.5px;
   color: var(--text2); background: none; border: none; text-align: left;
   cursor: pointer; text-decoration: none; transition: all var(--t-fast);
 }
@@ -817,20 +817,20 @@ button { font-family: inherit; }
 }
 .wl-top { display: flex; align-items: center; gap: 8px; }
 .wl-ticker {
-  font-size: 12px; font-weight: 700; font-family: var(--font-mono);
+  font-size: 14.5px; font-weight: 700; font-family: var(--font-mono);
   padding: 3px 8px; border-radius: var(--r-xs);
 }
 .wl-ticker.kr { background: var(--blue-dim);   color: var(--blue); }
 .wl-ticker.us { background: var(--purple-dim); color: var(--purple); }
-.wl-name { font-size: 13px; font-weight: 700; flex: 1; }
-.wl-remove { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 16px; line-height: 1; }
+.wl-name { font-size: 15.5px; font-weight: 700; flex: 1; }
+.wl-remove { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 18px; line-height: 1; }
 .wl-remove:hover { color: var(--red); }
 .wl-price-row { display: flex; align-items: baseline; gap: 8px; }
 .wl-price { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.wl-chg { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-chg { font-size: 15.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .wl-chg.up { color: var(--red); }
 .wl-chg.dn { color: var(--blue); }
-.wl-link { font-size: 12px; color: var(--blue); text-decoration: none; font-weight: 600; }
+.wl-link { font-size: 14.5px; color: var(--blue); text-decoration: none; font-weight: 600; }
 .wl-link:hover { text-decoration: underline; }
 
 /* ═══════════════════════════════════════════
@@ -846,7 +846,7 @@ button { font-family: inherit; }
   display: flex; align-items: center; justify-content: space-between;
   background: var(--bg3);
 }
-.sidebar-card-title { font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; letter-spacing: -0.01em; }
+.sidebar-card-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; letter-spacing: -0.01em; }
 .live-dot {
   width: 6px; height: 6px; border-radius: 50%; background: var(--green);
   animation: pulse 1.5s ease infinite;
@@ -857,7 +857,7 @@ button { font-family: inherit; }
 /* 📅 일정 통합 탭 (2026-07 사이드바 개편) */
 .sched-tabs { display: flex; gap: 3px; padding: 8px 12px 0; }
 .sched-tab {
-  flex: 1; font-size: 11.5px; font-weight: 600; color: var(--text3);
+  flex: 1; font-size: 14px; font-weight: 600; color: var(--text3);
   background: none; border: none; padding: 7px 4px; border-radius: 8px 8px 0 0;
   cursor: pointer; text-align: center;
 }
@@ -867,11 +867,11 @@ button { font-family: inherit; }
 
 /* Index Row */
 .index-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.index-name { font-size: 12.5px; color: var(--text2); font-weight: 500; }
+.index-name { font-size: 15px; color: var(--text2); font-weight: 500; }
 .idx-clickable { cursor: pointer; transition: color var(--t-fast); }
 .idx-clickable:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
-.index-val { font-size: 12.5px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.index-chg { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.index-val { font-size: 15px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.index-chg { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .index-chg.up { color: var(--red); }
 .index-chg.dn { color: var(--blue); }
 .index-bar { flex: 1; height: 3px; background: var(--bg3); border-radius: 2px; max-width: 60px; }
@@ -914,29 +914,29 @@ button { font-family: inherit; }
 .earnings-item:last-child { border-bottom: none; }
 .earnings-header { display: flex; align-items: center; gap: 8px; }
 .earnings-ticker {
-  font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
+  font-size: 13.5px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
   background: var(--bg3); color: var(--text2); font-family: var(--font-mono); flex-shrink: 0;
 }
-.earnings-company { font-size: 12px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.earnings-date { font-size: 11px; color: var(--text3); }
-.earnings-meta { display: flex; gap: 10px; font-size: 11px; color: var(--text3); }
+.earnings-company { font-size: 14.5px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.earnings-date { font-size: 13.5px; color: var(--text3); }
+.earnings-meta { display: flex; gap: 10px; font-size: 13.5px; color: var(--text3); }
 .earnings-beat { color: var(--red); font-weight: 700; }
 .earnings-miss { color: var(--blue); font-weight: 700; }
 .earnings-upcoming { color: var(--yellow); }
-.ei-timing-bmo { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--blue-dim); color: var(--blue); flex-shrink: 0; }
-.ei-timing-amc { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--purple-dim); color: var(--purple); flex-shrink: 0; }
-.ei-date-row { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
+.ei-timing-bmo { font-size: 13px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--blue-dim); color: var(--blue); flex-shrink: 0; }
+.ei-timing-amc { font-size: 13px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--purple-dim); color: var(--purple); flex-shrink: 0; }
+.ei-date-row { font-size: 13.5px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
 .ei-today { color: var(--red); font-weight: 700; }
 .ei-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .ei-metric { background: var(--bg3); border-radius: var(--r-xs); padding: 5px 8px; }
-.ei-metric-label { font-size: 10px; color: var(--text3); margin-bottom: 2px; }
-.ei-metric-val { font-size: 12px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.ei-metric-label { font-size: 13px; color: var(--text3); margin-bottom: 2px; }
+.ei-metric-val { font-size: 14.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .ei-metric-val.whisper { color: var(--blue); }
 .ei-metric-val.iv { color: var(--yellow); }
-.ei-metric-val.rev { color: var(--text2); font-size: 11px; }
+.ei-metric-val.rev { color: var(--text2); font-size: 13.5px; }
 .ei-metric-val.beat { color: var(--red); }
 .ei-metric-val.miss { color: var(--blue); }
-.ei-growth { font-size: 10px; color: var(--text3); margin-top: 1px; }
+.ei-growth { font-size: 13px; color: var(--text3); margin-top: 1px; }
 
 /* Economic Calendar */
 .eco-item { padding: 8px 0; border-bottom: 1px solid var(--border-soft); }
@@ -944,10 +944,10 @@ button { font-family: inherit; }
 .eco-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
 .eco-dot-high   { width: 7px; height: 7px; border-radius: 50%; background: var(--red);    flex-shrink: 0; }
 .eco-dot-medium { width: 7px; height: 7px; border-radius: 50%; background: var(--yellow); flex-shrink: 0; }
-.eco-title  { font-size: 12px; font-weight: 600; flex: 1; line-height: 1.3; }
-.eco-flag   { font-size: 12px; flex-shrink: 0; }
-.eco-time   { font-size: 10px; color: var(--text3); font-family: var(--font-mono); margin-bottom: 3px; }
-.eco-values { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.eco-title  { font-size: 14.5px; font-weight: 600; flex: 1; line-height: 1.3; }
+.eco-flag   { font-size: 14.5px; flex-shrink: 0; }
+.eco-time   { font-size: 13px; color: var(--text3); font-family: var(--font-mono); margin-bottom: 3px; }
+.eco-values { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13.5px; }
 .eco-actual         { font-weight: 700; padding: 1px 5px; border-radius: 3px; font-variant-numeric: tabular-nums; }
 .eco-actual.beat    { color: var(--red);  background: var(--red-dim); }
 .eco-actual.miss    { color: var(--blue);    background: var(--blue-dim); }
@@ -955,57 +955,60 @@ button { font-family: inherit; }
 .eco-actual.pending { color: var(--yellow); background: var(--yellow-dim); }
 .eco-consensus { color: var(--text3); }
 .eco-prev      { color: var(--text3); }
-.eco-section-label { font-size: 10px; color: var(--text3); font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 6px 0 2px; }
+.eco-section-label { font-size: 13px; color: var(--text3); font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 6px 0 2px; }
 .eco-section-label:first-child { padding-top: 0; }
 .eco-item-done { opacity: .7; }
 .eco-result-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:2px; }
-.eco-meta-row  { display:flex; gap:6px; font-size:10px; color:var(--text3); flex-wrap:wrap; }
+.eco-meta-row  { display:flex; gap:6px; font-size:13px; color:var(--text3); flex-wrap:wrap; }
 
 /* Calendar Modal */
 .cal-overlay { position:fixed; inset:0; background:rgba(19,23,34,.55); z-index:9999; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s ease; backdrop-filter: blur(4px); }
 .cal-modal { background:var(--bg2); border-radius:var(--r-lg); width:min(960px,96vw); max-height:90vh; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border); box-shadow: var(--shadow-pop); }
 .cal-modal-head { padding:14px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-.cal-modal-head h2 { font-size:15px; font-weight:800; margin:0; }
-.cal-close-btn { background:none; border:none; color:var(--text3); font-size:22px; cursor:pointer; line-height:1; padding:0 2px; }
+.cal-modal-head h2 { font-size:17px; font-weight:800; margin:0; }
+.cal-close-btn { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; flex-shrink:0; background:var(--bg3); border:1px solid var(--border); border-radius:10px; color:var(--text1); font-size:20px; cursor:pointer; line-height:1; padding:0; }
 .cal-close-btn:hover { color:var(--text); }
 .cal-tabs { display:flex; gap:0; padding:0 20px; border-bottom:1px solid var(--border); }
-.cal-tab { flex:1; min-width:0; text-align:center; padding:9px 18px; font-size:13px; font-weight:600; color:var(--text3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color var(--t-fast); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cal-tab { flex:1; min-width:0; text-align:center; padding:9px 18px; font-size:15.5px; font-weight:600; color:var(--text3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color var(--t-fast); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 @media (max-width:480px) {
   .cal-tabs { padding:0 6px; }
-  .cal-tab { padding:9px 4px; font-size:11px; }
+  .cal-tab { padding:9px 4px; font-size:13.5px; }
 }
 .cal-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
 .cal-tab:hover:not(.active) { color:var(--text2); }
 .cal-body { flex:1; overflow-y:auto; padding:0 8px 16px; }
-.cal-tbl { width:100%; border-collapse:collapse; font-size:12px; }
-.cal-tbl th { padding:8px 10px; text-align:left; color:var(--text3); font-size:11px; font-weight:700; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg2); z-index:1; white-space:nowrap; }
+.cal-tbl { width:100%; border-collapse:collapse; font-size:14.5px; }
+.cal-tbl th { padding:8px 10px; text-align:left; color:var(--text3); font-size:13.5px; font-weight:700; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg2); z-index:1; white-space:nowrap; }
 .cal-tbl td { padding:7px 10px; border-bottom:1px solid var(--border-soft); vertical-align:middle; }
 .cal-tbl tr:hover td { background:var(--bg3); }
 .cal-day-hd { background:var(--bg3) !important; }
 
 /* 실적발표 캘린더 — 월 그리드 뷰 */
-.cal-nav-btn { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; color:var(--text2); cursor:pointer; }
+.cal-nav-btn { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:14.5px; font-weight:600; color:var(--text2); cursor:pointer; }
 .cal-nav-btn:hover { background:var(--bg4); color:var(--text); }
 .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding:0 4px; }
-.cal-grid-dow { text-align:center; font-size:11px; font-weight:700; color:var(--text3); padding:4px 0 8px; }
+.cal-grid-dow { text-align:center; font-size:13.5px; font-weight:700; color:var(--text3); padding:4px 0 8px; }
 .cal-grid-cell { min-height:64px; border:1px solid var(--border-soft); border-radius:8px; padding:5px 5px 3px; background:var(--bg2); }
 .cal-grid-cell.empty { border-color:transparent; background:transparent; }
 .cal-grid-cell.today { border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
 .cal-grid-cell.has-events { cursor:pointer; }
 .cal-grid-cell.has-events:hover { background:var(--bg3); }
-.cal-grid-daynum { font-size:11px; font-weight:700; color:var(--text2); margin-bottom:3px; }
+.cal-grid-daynum { font-size:13.5px; font-weight:700; color:var(--text2); margin-bottom:3px; }
 .cal-grid-cell.today .cal-grid-daynum { color:var(--blue); }
-.cal-grid-badge { font-size:9.5px; font-weight:700; font-family:var(--font-mono); color:var(--blue); background:var(--blue-dim); border-radius:3px; padding:1px 4px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.cal-grid-more { font-size:9.5px; color:var(--text3); font-weight:600; }
-#earningsDayDetail { border-top:1px solid var(--border); padding-top:12px; font-size:12.5px; }
+.cal-grid-badge { font-size:12.5px; font-weight:700; font-family:var(--font-mono); color:var(--blue); background:var(--blue-dim); border-radius:3px; padding:1px 4px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cal-grid-more { font-size:12.5px; color:var(--text3); font-weight:600; }
+#earningsDayDetail { border-top:1px solid var(--border); padding-top:12px; font-size:15px; }
 
 /* 데일리 리포트 탭 + 아카이브 */
-.dr-tab { flex:1; padding:6px 0; font-size:12px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:6px; cursor:pointer; transition:all .15s; }
+.dr-tab { flex:1; padding:11px 0; border-radius:10px; font-size:14.5px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:6px; cursor:pointer; transition:all .15s; }
 .dr-tab.active { color:#fff; background:var(--blue); border-color:var(--blue); }
+.rp-archive-btn { display:inline-flex; align-items:center; gap:4px; font-size:14px; font-weight:700; color:var(--blue);
+  background:var(--blue-dim); border:1px solid transparent; border-radius:999px; padding:9px 14px; cursor:pointer; white-space:nowrap; }
+.rp-archive-btn:hover { border-color:var(--blue); }
 .dr-tab:hover:not(.active) { color:var(--text1); }
-.dr-mood { font-size:10px; font-weight:700; padding:3px 8px; border-radius:999px; color:#fff; }
+.dr-mood { font-size:13px; font-weight:700; padding:3px 8px; border-radius:999px; color:#fff; }
 /* 새 리포트 알림 뱃지 */
-.dr-new-pill { font-size:9px; font-weight:800; letter-spacing:.3px; color:#fff; background:var(--red); padding:2px 6px; border-radius:999px; margin-left:6px; vertical-align:middle; animation:drPulse 1.6s ease-in-out infinite; }
+.dr-new-pill { font-size:12px; font-weight:800; letter-spacing:.3px; color:#fff; background:var(--red); padding:2px 6px; border-radius:999px; margin-left:6px; vertical-align:middle; animation:drPulse 1.6s ease-in-out infinite; }
 .dr-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--red); margin-left:5px; vertical-align:middle; box-shadow:0 0 0 2px var(--bg2); }
 @keyframes drPulse { 0%,100%{opacity:1} 50%{opacity:.45} }
 /* 모바일 데일리 리포트 플로팅 버튼 + 바텀시트 */
@@ -1015,51 +1018,50 @@ button { font-family: inherit; }
 .dr-fab.has-new .dr-fab-dot { display:block; }
 .dr-sheet { position:fixed; inset:0; z-index:9300; background:rgba(19,23,34,.55); backdrop-filter:blur(4px); display:none; align-items:flex-end; justify-content:center; animation:fadeIn .15s ease; }
 .dr-sheet.show { display:flex; }
-.dr-sheet-panel { background:var(--bg2); width:100%; max-width:620px; max-height:88vh; border-radius:18px 18px 0 0; border:1px solid var(--border); border-bottom:none; display:flex; flex-direction:column; overflow:hidden; animation:drSlideUp .22s cubic-bezier(.2,.8,.2,1); }
+.dr-sheet-panel { background:var(--bg2); width:100%; max-width:620px; height:88vh; max-height:88vh; border-radius:18px 18px 0 0; border:1px solid var(--border); border-bottom:none; display:flex; flex-direction:column; overflow:hidden; animation:drSlideUp .22s cubic-bezier(.2,.8,.2,1); }
 @keyframes drSlideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
 .dr-sheet-head { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 8px; border-bottom:1px solid var(--border); }
 .dr-sheet-grip { position:absolute; top:6px; left:50%; transform:translateX(-50%); width:36px; height:4px; border-radius:2px; background:var(--border); }
-.dr-sheet-body { padding:12px 18px 26px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.dr-sheet-body { flex:1; min-height:0; padding:12px 18px 26px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 /* 바텀시트 안에서는 가독성 위해 폰트 확대 (사이드바 인라인 스타일을 !important로 덮음) */
-.dr-big .dr-headline { font-size:16px !important; line-height:1.45 !important; }
-.dr-big .dr-sec { font-size:12px !important; margin-top:12px !important; }
-.dr-big .dr-list { font-size:14px !important; line-height:1.65 !important; }
+.dr-big .dr-headline { font-size:18px !important; line-height:1.45 !important; }
+.dr-big .dr-sec { font-size:14.5px !important; margin-top:12px !important; }
+.dr-big .dr-list { font-size:16px !important; line-height:1.65 !important; }
 .dr-big .dr-list li { margin-bottom:3px; }
-.dr-big .dr-mood { font-size:12px; padding:4px 10px; }
+.dr-big .dr-mood { font-size:14.5px; padding:4px 10px; }
 /* 다가오는 핵심 catalyst 콜아웃 */
-.dr-cat { font-size:11px; color:var(--text1); background:var(--bg3); border-left:2.5px solid var(--purple); border-radius:4px; padding:4px 8px; line-height:1.45; }
-.dr-big .dr-cat { font-size:13.5px !important; padding:6px 10px; }
+.dr-cat { font-size:13.5px; color:var(--text1); background:var(--bg3); border-left:2.5px solid var(--purple); border-radius:4px; padding:4px 8px; line-height:1.45; }
+.dr-big .dr-cat { font-size:16px !important; padding:6px 10px; }
 @media (max-width: 1100px) { .dr-fab { display:flex; } }   /* 모바일에서 FAB 표시 (기본 규칙보다 뒤에 와야 우선 적용) */
 .arch-item { padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:6px; }
 .arch-item:hover { background:var(--bg3); }
-.arch-back { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--blue); cursor:pointer; margin-bottom:10px; }
-.acc-tab { padding:4px 10px; font-size:11px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:999px; cursor:pointer; }
+.acc-tab { padding:4px 10px; font-size:13.5px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:999px; cursor:pointer; }
 .acc-tab.active { color:#fff; background:var(--blue); border-color:var(--blue); }
-.cal-day-hd td { font-size:11px; font-weight:700; color:var(--text3); letter-spacing:.5px; padding:5px 10px; text-transform:uppercase; }
+.cal-day-hd td { font-size:13.5px; font-weight:700; color:var(--text3); letter-spacing:.5px; padding:5px 10px; text-transform:uppercase; }
 .cal-beat { color:var(--red); font-weight:700; }
 .cal-miss { color:var(--blue);   font-weight:700; }
 .cal-meet { color:var(--text2); font-weight:700; }
 .cal-pend { color:var(--yellow); }
-.cal-hi   { color:var(--red);    font-size:10px; font-weight:700; }
-.cal-med  { color:var(--yellow); font-size:10px; }
+.cal-hi   { color:var(--red);    font-size:13px; font-weight:700; }
+.cal-med  { color:var(--yellow); font-size:13px; }
 
 /* Trump / Truth Social */
 .trump-item { padding: 8px 0; border-bottom: 1px solid var(--border-soft); }
 .trump-item:last-child { border-bottom: none; }
-.trump-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; color: var(--red); background: var(--red-dim); padding: 2px 7px; border-radius: 3px; margin-bottom: 4px; }
-.trump-text  { font-size: 12px; line-height: 1.5; color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.trump-meta  { font-size: 10px; color: var(--text3); margin-top: 3px; font-family: var(--font-mono); }
+.trump-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--red); background: var(--red-dim); padding: 2px 7px; border-radius: 3px; margin-bottom: 4px; }
+.trump-text  { font-size: 14.5px; line-height: 1.5; color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.trump-meta  { font-size: 13px; color: var(--text3); margin-top: 3px; font-family: var(--font-mono); }
 
 /* Analyst Ratings */
 .analyst-item { padding: 10px 0; border-bottom: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 5px; }
 .analyst-item:last-child { border-bottom: none; }
 .analyst-header { display: flex; align-items: center; gap: 6px; }
 .analyst-ticker {
-  font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
+  font-size: 13.5px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
   background: var(--bg3); color: var(--text2); font-family: var(--font-mono); flex-shrink: 0;
 }
-.analyst-name { font-size: 12px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.analyst-consensus { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+.analyst-name { font-size: 14.5px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.analyst-consensus { font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
 .ac-strong-buy { background: var(--green-dim);  color: var(--green); }
 .ac-buy        { background: var(--green-dim);  color: var(--green); }
 .ac-hold       { background: var(--yellow-dim); color: var(--yellow); }
@@ -1069,14 +1071,14 @@ button { font-family: inherit; }
 .ab-buy  { background: var(--green);  border-radius: 3px 0 0 3px; }
 .ab-hold { background: #e3b53a; }
 .ab-sell { background: var(--red); border-radius: 0 3px 3px 0; }
-.analyst-bar-legend { display: flex; gap: 8px; font-size: 10px; color: var(--text3); }
+.analyst-bar-legend { display: flex; gap: 8px; font-size: 13px; color: var(--text3); }
 .abl-buy { color: var(--green); }
 .abl-hold{ color: var(--yellow); }
 .abl-sell{ color: var(--red); }
-.analyst-pt { font-size: 11px; color: var(--text2); }
-.analyst-pt-range { font-size: 10px; color: var(--text3); }
+.analyst-pt { font-size: 13.5px; color: var(--text2); }
+.analyst-pt-range { font-size: 13px; color: var(--text3); }
 .analyst-recent { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
-.analyst-action { font-size: 10px; display: flex; align-items: center; gap: 4px; color: var(--text3); }
+.analyst-action { font-size: 13px; display: flex; align-items: center; gap: 4px; color: var(--text3); }
 .aa-icon-up   { color: var(--green); font-weight: 700; }
 .aa-icon-down { color: var(--red); font-weight: 700; }
 .aa-icon-main { color: var(--text3); }
@@ -1086,10 +1088,10 @@ button { font-family: inherit; }
 /* Breaking News */
 .breaking-item { padding: 8px 0; border-bottom: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 3px; }
 .breaking-item:last-child { border-bottom: none; }
-.breaking-time { font-size: 10px; color: var(--text3); font-family: var(--font-mono); }
-.breaking-title { font-size: 12px; line-height: 1.45; }
+.breaking-time { font-size: 13px; color: var(--text3); font-family: var(--font-mono); }
+.breaking-title { font-size: 14.5px; line-height: 1.45; }
 .breaking-badge {
-  display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px;
+  display: inline-block; font-size: 13px; font-weight: 700; padding: 1px 6px;
   border-radius: 3px; margin-bottom: 3px;
 }
 .badge-breaking { background: var(--red-dim);    color: var(--red); }
@@ -1108,7 +1110,7 @@ button { font-family: inherit; }
 .site-footer-inner {
   max-width: var(--page-max); margin: 0 auto; padding: 20px var(--page-pad);
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  font-size: 11px; color: var(--text3); line-height: 1.6;
+  font-size: 13.5px; color: var(--text3); line-height: 1.6;
 }
 .site-footer-inner b { color: var(--text2); font-weight: 700; }
 
@@ -1139,13 +1141,13 @@ button { font-family: inherit; }
   :root { --page-pad: 16px; }
   .header-inner { padding: 8px 0; gap: 10px; }
   .logo-sub { display: none; }
-  .hero-title { font-size: 19px; }
+  .hero-title { font-size: 21px; }
   .issues-grid { grid-template-columns: 1fr; }
   .watchlist-grid { grid-template-columns: 1fr; }
   .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .stat-value { font-size: 18px; }
+  .stat-value { font-size: 20px; }
   .search-box input { width: 120px; }
-  .nav-btn { padding: 6px 9px; font-size: 12px; }
+  .nav-btn { padding: 6px 9px; font-size: 14.5px; }
 
   /* 모바일 홈은 최신 뉴스 3개만 노출 + "뉴스 더 보기" 버튼으로 news.html 유도
      (데스크톱은 기존과 동일하게 9개 + 페이지네이션 그대로 노출). #pagination/#newsMoreBtn은
@@ -1160,39 +1162,39 @@ button { font-family: inherit; }
 .rk-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; scrollbar-width: none; }
 .rk-controls::-webkit-scrollbar { display: none; }
 .rk-markets { display: inline-flex; gap: 2px; background: var(--bg3); border-radius: 10px; padding: 3px; flex-shrink: 0; }
-.rk-mkt { border: none; background: transparent; color: var(--text2); font-size: 13px; font-weight: 700; padding: 7px 18px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.rk-mkt { border: none; background: transparent; color: var(--text2); font-size: 15.5px; font-weight: 700; padding: 7px 18px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
 .rk-mkt.active { background: var(--blue); color: #fff; }
 .rk-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
 .rk-cats { display: flex; gap: 6px; flex-shrink: 0; }
-.rk-cat { border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 12.5px; font-weight: 600; padding: 7px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+.rk-cat { border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 15px; font-weight: 600; padding: 7px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
 .rk-cat.active { background: var(--blue); border-color: var(--blue); color: #fff; }
 .rk-cols { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
 .rk-cols.single { grid-template-columns: minmax(0,1fr); }
-.rk-col-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--text2); letter-spacing: 0.02em; margin-bottom: 4px; padding: 0 4px 9px; border-bottom: 1px solid var(--border); }
+.rk-col-head { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--text2); letter-spacing: 0.02em; margin-bottom: 4px; padding: 0 4px 9px; border-bottom: 1px solid var(--border); }
 .rk-list { display: flex; flex-direction: column; }
 .rk-item { display: flex; align-items: center; gap: 12px; padding: 11px 8px; text-decoration: none; color: var(--text); border-bottom: 1px solid var(--border-soft); transition: background var(--t-fast); }
 .rk-item:last-child { border-bottom: none; }
 .rk-item:hover { background: var(--bg2); border-radius: 8px; }
-.rk-rank { width: 22px; text-align: center; font-size: 14px; font-weight: 800; color: var(--text3); font-family: var(--font-mono); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.rk-rank { width: 22px; text-align: center; font-size: 16px; font-weight: 800; color: var(--text3); font-family: var(--font-mono); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .rk-item:nth-child(-n+3) .rk-rank { color: var(--blue); }
 .rk-main { flex: 1; min-width: 0; }
-.rk-name { font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 5px; }
+.rk-name { font-size: 16px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 5px; }
 .rk-name .nm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.rk-ticker { flex-shrink: 0; font-size: 10.5px; font-weight: 600; color: var(--text3); font-family: var(--font-mono, monospace); }
-.rk-sub { font-size: 11px; color: var(--text3); margin-top: 3px; min-height: 14px; line-height: 1.3; white-space: nowrap; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent); mask-image: linear-gradient(90deg, #000 92%, transparent); }
+.rk-ticker { flex-shrink: 0; font-size: 13px; font-weight: 600; color: var(--text3); font-family: var(--font-mono, monospace); }
+.rk-sub { font-size: 13.5px; color: var(--text3); margin-top: 3px; min-height: 14px; line-height: 1.3; white-space: nowrap; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent); mask-image: linear-gradient(90deg, #000 92%, transparent); }
 .rk-sub.rk-issue { color: var(--text2); }
 .rk-sub-inner { display: inline-block; white-space: nowrap; }
 .rk-sub-inner.marquee { animation-name: rkMarquee; animation-timing-function: linear; animation-iteration-count: infinite; }
 .rk-sub-gap { display: inline-block; width: 36px; }
 @keyframes rkMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .rk-price { text-align: right; flex-shrink: 0; }
-.rk-px { font-size: 13.5px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.rk-chg { font-size: 12px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.rk-px { font-size: 16px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rk-chg { font-size: 14.5px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 2px; }
 .rk-chg.up { color: var(--red); } .rk-chg.dn { color: var(--blue); } .rk-chg.flat { color: var(--text3); }
 .rk-px.flash-up, .rk-chg.flash-up { animation: priceFlashUp .9s ease-out; }
 .rk-px.flash-down, .rk-chg.flash-down { animation: priceFlashDown .9s ease-out; }
-.rk-loading, .rk-empty { text-align: center; color: var(--text3); font-size: 13px; padding: 30px 20px; line-height: 1.8; }
-.rk-retry-btn { border: 1px solid var(--border); background: var(--bg2); color: var(--blue); font-size: 12.5px; font-weight: 700; padding: 6px 14px; border-radius: 999px; cursor: pointer; margin-top: 4px; }
+.rk-loading, .rk-empty { text-align: center; color: var(--text3); font-size: 15.5px; padding: 30px 20px; line-height: 1.8; }
+.rk-retry-btn { border: 1px solid var(--border); background: var(--bg2); color: var(--blue); font-size: 15px; font-weight: 700; padding: 6px 14px; border-radius: 999px; cursor: pointer; margin-top: 4px; }
 .rk-retry-btn:hover { border-color: var(--blue); }
 @media (max-width: 640px) { .rk-cols { grid-template-columns: minmax(0,1fr); } }
 
@@ -1296,7 +1298,7 @@ button { font-family: inherit; }
           <span class="sh-desc">토스 공식 · 장 마감 시 마지막 정규장 기준</span>
         </div>
         <div class="section-head-r">
-          <span style="font-size:11px;color:var(--text3)" id="rankingsUpdated">—</span>
+          <span style="font-size:13.5px;color:var(--text3)" id="rankingsUpdated">—</span>
         </div>
       </div>
       <div class="rk-controls">
@@ -1328,9 +1330,9 @@ button { font-family: inherit; }
           <span class="sh-mark" style="background:var(--purple)"></span>
           <span class="sh-title">최신 분석 이슈</span>
           <span class="sh-desc">뉴스 → 파급 섹터 → 수혜 기업 분석</span>
-          <span id="feedLiveTag" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
+          <span id="feedLiveTag" style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
         </div>
-        <span style="font-size:11px;color:var(--text3)" id="issuesCount"></span>
+        <span style="font-size:13.5px;color:var(--text3)" id="issuesCount"></span>
       </div>
 
       <!-- 카테고리 + 섹터 필터 + 검색 (이슈 피드 전용 툴바) -->
@@ -1369,7 +1371,7 @@ button { font-family: inherit; }
         </div>
       </div>
 
-      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:12.5px;font-weight:700;text-align:center">
+      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:15px;font-weight:700;text-align:center">
         🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
       </div>
 
@@ -1385,7 +1387,7 @@ button { font-family: inherit; }
 
       <!-- 모바일 전용: 최신 3건만 보여준 뒤 전체 목록은 news.html로 유도 (desktop은 CSS로 숨김) -->
       <div style="text-align:center;margin-top:14px">
-        <a href="/news.html" id="newsMoreBtn" style="display:none;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">뉴스 더 보기 →</a>
+        <a href="/news.html" id="newsMoreBtn" style="display:none;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">뉴스 더 보기 →</a>
       </div>
     </div>
 
@@ -1396,7 +1398,7 @@ button { font-family: inherit; }
           <span class="sh-mark" style="background:var(--red)"></span>
           <span class="sh-title">마켓 히트맵</span>
           <span id="heatmapUpdatedAt" class="sh-desc">—</span>
-          <span id="heatmapMarketStatus" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px"></span>
+          <span id="heatmapMarketStatus" style="font-size:13px;font-weight:600;padding:2px 8px;border-radius:999px"></span>
         </div>
         <div class="section-head-r">
           <button onclick="loadHeatmap()" title="수동 새로고침" class="icon-btn">🔄</button>
@@ -1418,16 +1420,16 @@ button { font-family: inherit; }
         </div>
       </div>
       <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;min-height:80px">
-        <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
+        <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>
       </div>
-      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--text3)">
+      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--text3)">
         <span>📡 데이터: Yahoo Finance (실시간 ~15분 지연 가능) · 환율·금리·원자재는 지수 기준</span>
         <span id="heatmapItemCount"></span>
       </div>
     </div>
 
     <div style="text-align:center;margin:-8px 0 8px">
-      <a href="/heatmap.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">🔥 히트맵 전체보기 →</a>
+      <a href="/heatmap.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">🔥 히트맵 전체보기 →</a>
     </div>
 
     <!-- 🇰🇷 국장 현황 (거래량 TOP / 상한가 / 하한가 / 수급 TOP) -->
@@ -1450,15 +1452,15 @@ button { font-family: inherit; }
         </div>
       </div>
       <div id="krMarketPanel" style="min-height:80px">
-        <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
+        <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>
       </div>
-      <div style="margin-top:10px;font-size:10px;color:var(--text3)">
+      <div style="margin-top:10px;font-size:13px;color:var(--text3)">
         📡 데이터: 네이버 증권 · 거래량/상한가/하한가는 코스피+코스닥 전체, 수급 TOP은 시가총액 상위 약 150종목(ETF 제외) 기준 5일 누적 순매수
       </div>
     </div>
 
     <div style="text-align:center;margin:-8px 0 24px">
-      <a href="/kr-market.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">🇰🇷 국장 현황 전체보기 →</a>
+      <a href="/kr-market.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">🇰🇷 국장 현황 전체보기 →</a>
     </div>
 
     <div class="watchlist-view" id="watchlistView"></div>
@@ -1471,12 +1473,12 @@ button { font-family: inherit; }
       <div class="sidebar-card-header">
         <span class="sidebar-card-title">🤖 AI 시장 종합<span class="dr-dot" id="aiMSDot" style="display:none"></span></span>
         <div style="display:flex;align-items:center;gap:8px">
-          <span onclick="openReportArchive('ai')" style="font-size:11px;color:var(--blue);cursor:pointer">지난 리포트</span>
-          <span style="font-size:11px;color:var(--text3)" id="aiMSCreatedAt">—</span>
+          <button type="button" class="rp-archive-btn" onclick="openReportArchive('ai')">🗂 지난 리포트</button>
+          <span style="font-size:13.5px;color:var(--text3)" id="aiMSCreatedAt">—</span>
         </div>
       </div>
       <div style="padding:12px 16px" id="aiMarketSummaryBody">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+        <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
       </div>
     </div>
 
@@ -1484,14 +1486,14 @@ button { font-family: inherit; }
     <div class="sidebar-card" id="dailyReportCard">
       <div class="sidebar-card-header">
         <span class="sidebar-card-title">📰 데일리 리포트<span id="drNewPill" class="dr-new-pill" style="display:none">NEW</span></span>
-        <span onclick="openReportArchive(_drTab === 'KR' ? 'dr-kr' : 'dr-us')" style="font-size:11px;color:var(--blue);cursor:pointer">지난 리포트</span>
+        <button type="button" class="rp-archive-btn" onclick="openReportArchive(_drTab === 'KR' ? 'dr-kr' : 'dr-us')">🗂 지난 리포트</button>
       </div>
       <div style="display:flex;gap:6px;padding:10px 16px 0">
         <button class="dr-tab active" id="drTabUS" onclick="switchDrTab('US')">🇺🇸 미장<span class="dr-dot" id="drDotUS" style="display:none"></span></button>
         <button class="dr-tab" id="drTabKR" onclick="switchDrTab('KR')">🇰🇷 국장<span class="dr-dot" id="drDotKR" style="display:none"></span></button>
       </div>
       <div style="padding:10px 16px 12px" id="dailyReportBody">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+        <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
       </div>
     </div>
 
@@ -1511,32 +1513,32 @@ button { font-family: inherit; }
       <!-- 주간 주요 일정 — display:none 초기값은 그대로 유지(loadWeeklySchedule이 데이터
            있을 때만 card.style.display=''로 해제, 없으면 탭을 눌러도 빈 화면 대신 계속 숨김) -->
       <div class="sched-panel active" data-panel="weekly" id="weeklyScheduleCard" style="display:none">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><span style="font-size:11px;color:var(--text3)" id="wsWeekLabel">—</span></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><span style="font-size:13.5px;color:var(--text3)" id="wsWeekLabel">—</span></div>
         <div id="weeklyScheduleBody"></div>
       </div>
 
       <div class="sched-panel" data-panel="econ">
         <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:4px">
-          <span onclick="openCalendarModal('eco')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
+          <span onclick="openCalendarModal('eco')" style="font-size:13.5px;color:var(--blue);cursor:pointer">전체보기</span>
           <span class="live-dot" style="background:var(--yellow);animation:pulse 2s infinite"></span>
         </div>
         <div id="economicCalendar">
-          <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
+          <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:16px 0">로딩 중...</div>
         </div>
       </div>
 
       <div class="sched-panel" data-panel="earnings">
         <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
-          <span onclick="openCalendarModal('earnings')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
+          <span onclick="openCalendarModal('earnings')" style="font-size:13.5px;color:var(--blue);cursor:pointer">전체보기</span>
         </div>
         <div id="earningsCalendar">
-          <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
+          <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:16px 0">로딩 중...</div>
         </div>
       </div>
 
       <div class="sched-panel" data-panel="expiry">
         <div id="expiryPanel">
-          <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+          <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
         </div>
       </div>
     </div>
@@ -1546,7 +1548,7 @@ button { font-family: inherit; }
     <div class="sidebar-card">
       <div class="sidebar-card-header">
         <span class="sidebar-card-title"><span class="live-dot"></span> 주요 지수</span>
-        <span style="font-size:11px;color:var(--text3)" id="indicesUpdatedAt">—</span>
+        <span style="font-size:13.5px;color:var(--text3)" id="indicesUpdatedAt">—</span>
       </div>
       <div class="sidebar-card-body" id="sidebarIndices">
         <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('sp500')">S&amp;P 500</span><span class="index-val" id="si-sp500">—</span><span class="index-chg flat" id="si-sp500-chg">—</span></div>
@@ -1562,11 +1564,11 @@ button { font-family: inherit; }
       </div>
       <div style="border-top:1px solid var(--border-soft);padding:10px 16px 12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:11.5px;font-weight:700;color:var(--text2)">📊 섹터 모멘텀</span>
-          <span style="font-size:10px;color:var(--text3)">SPDR 1d</span>
+          <span style="font-size:14px;font-weight:700;color:var(--text2)">📊 섹터 모멘텀</span>
+          <span style="font-size:13px;color:var(--text3)">SPDR 1d</span>
         </div>
         <div id="sectorMomentum">
-          <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+          <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
         </div>
       </div>
     </div>
@@ -1575,25 +1577,25 @@ button { font-family: inherit; }
     <div class="sidebar-card">
       <div class="sidebar-card-header" style="cursor:pointer" onclick="toggleMoreTools()">
         <span class="sidebar-card-title">🧰 더 많은 도구</span>
-        <span id="moreToolsChevron" style="font-size:11px;color:var(--text3);transition:transform .15s">▾</span>
+        <span id="moreToolsChevron" style="font-size:13.5px;color:var(--text3);transition:transform .15s">▾</span>
       </div>
       <div id="moreToolsBody" style="display:none">
         <div style="padding:12px 16px;border-bottom:1px solid var(--border-soft)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <span style="font-size:11.5px;font-weight:700;color:var(--text2)">🔗 자산 간 상관관계</span>
-            <span style="font-size:10px;color:var(--text3)">30일</span>
+            <span style="font-size:14px;font-weight:700;color:var(--text2)">🔗 자산 간 상관관계</span>
+            <span style="font-size:13px;color:var(--text3)">30일</span>
           </div>
           <div id="corrMatrix">
-            <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+            <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
           </div>
         </div>
         <div style="padding:12px 16px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <span style="font-size:11.5px;font-weight:700;color:var(--text2)">🏦 투자의견</span>
-            <span style="font-size:10px;color:var(--text3)" id="analystUpdatedAt">—</span>
+            <span style="font-size:14px;font-weight:700;color:var(--text2)">🏦 투자의견</span>
+            <span style="font-size:13px;color:var(--text3)" id="analystUpdatedAt">—</span>
           </div>
           <div id="analystRatings">
-            <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
+            <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:16px 0">로딩 중...</div>
           </div>
         </div>
       </div>
@@ -1627,9 +1629,9 @@ button { font-family: inherit; }
   <div class="dr-sheet-panel">
     <div class="dr-sheet-head">
       <span class="dr-sheet-grip"></span>
-      <span style="font-size:14px;font-weight:800;display:flex;align-items:center;gap:6px" id="drSheetTitle">📰 데일리 리포트</span>
+      <span style="font-size:16px;font-weight:800;display:flex;align-items:center;gap:6px" id="drSheetTitle">📰 데일리 리포트</span>
       <div style="display:flex;align-items:center;gap:12px">
-        <span onclick="closeDrSheet();openReportArchive(_drSheetTab==='KR'?'dr-kr':_drSheetTab==='AI'?'ai':'dr-us')" style="font-size:12px;color:var(--blue);cursor:pointer">지난 리포트</span>
+        <button type="button" class="rp-archive-btn" onclick="closeDrSheet();openReportArchive(_drSheetTab==='KR'?'dr-kr':_drSheetTab==='AI'?'ai':'dr-us')">🗂 지난 리포트</button>
         <button class="cal-close-btn" onclick="closeDrSheet()">✕</button>
       </div>
     </div>
@@ -1639,7 +1641,7 @@ button { font-family: inherit; }
       <button class="dr-tab" id="drSheetTabAI" onclick="switchDrSheetTab('AI')">🤖 AI 종합<span class="dr-dot" id="drSheetDotAI" style="display:none"></span></button>
     </div>
     <div class="dr-sheet-body dr-big" id="drSheetBody">
-      <div style="color:var(--text3);font-size:13px;text-align:center;padding:24px 0">로딩 중...</div>
+      <div style="color:var(--text3);font-size:15.5px;text-align:center;padding:24px 0">로딩 중...</div>
     </div>
   </div>
 </div>
@@ -1649,8 +1651,8 @@ button { font-family: inherit; }
   <div style="background:var(--card);border-radius:14px;width:min(860px,96vw);height:min(540px,85vh);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6)">
     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0">
       <div style="display:flex;align-items:center;gap:10px">
-        <span id="indexChartTitle" style="font-weight:700;font-size:16px"></span>
-        <span id="indexChartSub" style="font-size:11px;color:var(--text3)">TradingView</span>
+        <span id="indexChartTitle" style="font-weight:700;font-size:18px"></span>
+        <span id="indexChartSub" style="font-size:13.5px;color:var(--text3)">TradingView</span>
       </div>
       <button onclick="closeIndexChart()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1;padding:2px 6px">&times;</button>
     </div>
@@ -1664,7 +1666,7 @@ button { font-family: inherit; }
   </div>
 </div>
 <style>
-.ichrt-btn { background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;transition:all .15s; }
+.ichrt-btn { background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:3px 10px;font-size:14.5px;cursor:pointer;transition:all .15s; }
 .ichrt-btn:hover { border-color:var(--blue);color:var(--blue); }
 .ichrt-btn.active { background:var(--blue);border-color:var(--blue);color:#fff; }
 </style>
@@ -1685,7 +1687,7 @@ button { font-family: inherit; }
   iframe.style.cssText = `border:0;width:${isMobile ? 320 : 728}px;height:${isMobile ? 100 : 90}px;display:block;margin:0 auto;max-width:100%`;
   container.appendChild(iframe);
   const disclosure = document.createElement('div');
-  disclosure.style.cssText = 'text-align:center;font-size:10px;color:var(--text3);margin-top:6px';
+  disclosure.style.cssText = 'text-align:center;font-size:13px;color:var(--text3);margin-top:6px';
   disclosure.textContent = '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.';
   container.appendChild(disclosure);
 })();

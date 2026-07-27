@@ -44,7 +44,7 @@
   --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 12px; line-height: 1.4; overflow-x: hidden; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14.5px; line-height: 1.4; overflow-x: hidden; }
 a { color: inherit; text-decoration: none; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -60,11 +60,11 @@ a { color: inherit; text-decoration: none; }
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 100;
 }
-.term-logo { font-weight: 700; font-size: 13px; letter-spacing: 1.2px; color: var(--orange); }
+.term-logo { font-weight: 700; font-size: 15.5px; letter-spacing: 1.2px; color: var(--orange); }
 .term-logo span { color: var(--text); }
 .term-nav { display: flex; gap: 4px; }
 .term-nav a {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+  font-size: 13.5px; font-weight: 600; letter-spacing: 0.5px;
   padding: 6px 12px; color: var(--text2);
   border-radius: 0; transition: color .12s, background .12s;
 }
@@ -78,14 +78,14 @@ a { color: inherit; text-decoration: none; }
 }
 .term-search input {
   flex: 1; background: transparent; border: none; outline: none;
-  color: var(--text); font-family: var(--mono); font-size: 12px;
+  color: var(--text); font-family: var(--mono); font-size: 14.5px;
 }
 .term-search-key {
-  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
   color: var(--orange); background: rgba(255,140,42,0.12);
   padding: 2px 6px; border-radius: 2px; letter-spacing: 0.5px;
 }
-.term-right { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--text2); }
+.term-right { display: flex; align-items: center; gap: 14px; font-size: 13.5px; color: var(--text2); }
 .term-clock { font-family: var(--mono); color: var(--text); }
 .term-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 
@@ -109,7 +109,7 @@ a { color: inherit; text-decoration: none; }
   flex-shrink: 0;
   padding: 0 14px; height: 100%;
   display: flex; align-items: center;
-  font-size: 11px; font-weight: 700; color: var(--orange);
+  font-size: 13.5px; font-weight: 700; color: var(--orange);
   letter-spacing: 1.2px;
   border-right: 1px solid var(--border);
 }
@@ -120,9 +120,9 @@ a { color: inherit; text-decoration: none; }
   border-right: 1px solid var(--border);
   min-width: 110px;
 }
-.idx-item-name { font-size: 10px; font-weight: 700; color: var(--text2); letter-spacing: 0.5px; text-transform: uppercase; }
-.idx-item-val { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--text); margin-top: 2px; }
-.idx-item-chg { font-family: var(--mono); font-size: 11px; font-weight: 600; margin-top: 1px; }
+.idx-item-name { font-size: 13px; font-weight: 700; color: var(--text2); letter-spacing: 0.5px; text-transform: uppercase; }
+.idx-item-val { font-family: var(--mono); font-size: 16px; font-weight: 600; color: var(--text); margin-top: 2px; }
+.idx-item-chg { font-family: var(--mono); font-size: 13.5px; font-weight: 600; margin-top: 1px; }
 .idx-item-chg.up { color: var(--red); }
 .idx-item-chg.dn { color: var(--blue); }
 .idx-item-chg.flat { color: var(--text3); }
@@ -151,7 +151,7 @@ a { color: inherit; text-decoration: none; }
   height: 28px; padding: 0 12px;
   background: var(--bg3);
   border-bottom: 1px solid var(--border);
-  font-size: 10px; font-weight: 700; color: var(--orange);
+  font-size: 13px; font-weight: 700; color: var(--orange);
   letter-spacing: 1.2px; text-transform: uppercase;
 }
 .panel-header .meta { color: var(--text3); font-weight: 500; letter-spacing: 0.4px; }
@@ -162,23 +162,23 @@ a { color: inherit; text-decoration: none; }
 /* ─── Regime / Pulse Card ─── */
 .regime-row { display: flex; align-items: center; justify-content: space-between; }
 .regime-pill {
-  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  font-family: var(--mono); font-size: 15.5px; font-weight: 700;
   padding: 4px 10px; border-radius: 2px;
 }
 .regime-pill.RISK-ON  { background: var(--red-dim); color: var(--red); }
 .regime-pill.RISK-OFF { background: var(--blue-dim);   color: var(--blue); }
 .regime-pill.MIXED    { background: var(--yellow-dim);color: var(--yellow); }
-.headline-text { font-size: 12px; line-height: 1.5; margin-top: 8px; color: var(--text); }
+.headline-text { font-size: 14.5px; line-height: 1.5; margin-top: 8px; color: var(--text); }
 
 /* ─── Sector Momentum (Bloomberg-style bars) ─── */
-.sector-row { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 0; }
+.sector-row { display: flex; align-items: center; gap: 6px; font-size: 13.5px; padding: 3px 0; }
 .sector-row-name { width: 78px; color: var(--text2); font-weight: 500; flex-shrink: 0; }
 .sector-row-bar { flex: 1; height: 8px; background: var(--bg3); position: relative; overflow: hidden; border-radius: 1px; }
 .sector-row-bar-fill { height: 100%; position: absolute; top: 0; }
 .sector-row-bar-fill.up { background: var(--red); left: 50%; }
 .sector-row-bar-fill.dn { background: var(--blue);   right: 50%; }
 .sector-row-bar-center { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--border-strong); }
-.sector-row-pct { font-family: var(--mono); font-size: 11px; font-weight: 600; width: 56px; text-align: right; }
+.sector-row-pct { font-family: var(--mono); font-size: 13.5px; font-weight: 600; width: 56px; text-align: right; }
 .sector-row-pct.up { color: var(--red); }
 .sector-row-pct.dn { color: var(--blue); }
 
@@ -186,7 +186,7 @@ a { color: inherit; text-decoration: none; }
 .term-heatmap-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
 .term-heatmap-tabs button {
   flex: 1; background: transparent; border: none; color: var(--text2);
-  font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
   padding: 8px 6px; cursor: pointer; border-bottom: 2px solid transparent;
   transition: all .12s; font-family: inherit;
 }
@@ -203,14 +203,14 @@ a { color: inherit; text-decoration: none; }
   font-family: var(--mono);
 }
 .hm-cell-term:hover { filter: brightness(1.15); }
-.hm-cell-term .tk { font-size: 11px; font-weight: 700; }
-.hm-cell-term .nm { font-size: 9px; opacity: 0.8; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hm-cell-term .pct { font-size: 12px; font-weight: 700; margin-top: 2px; }
+.hm-cell-term .tk { font-size: 13.5px; font-weight: 700; }
+.hm-cell-term .nm { font-size: 12px; opacity: 0.8; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hm-cell-term .pct { font-size: 14.5px; font-weight: 700; margin-top: 2px; }
 
 /* ─── Correlation Matrix ─── */
-.corr-tbl { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 10.5px; }
+.corr-tbl { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
 .corr-tbl th, .corr-tbl td { padding: 4px 6px; text-align: center; border: 1px solid var(--border); }
-.corr-tbl th { color: var(--text2); font-weight: 600; background: var(--bg3); font-size: 10px; }
+.corr-tbl th { color: var(--text2); font-weight: 600; background: var(--bg3); font-size: 13px; }
 .corr-tbl td.label { color: var(--text2); font-weight: 600; background: var(--bg3); text-align: right; padding-right: 8px; }
 
 /* ─── News List ─── */
@@ -218,22 +218,22 @@ a { color: inherit; text-decoration: none; }
   display: grid; grid-template-columns: 56px 56px 1fr 80px;
   gap: 8px; align-items: baseline;
   padding: 6px 12px; border-bottom: 1px solid var(--border);
-  font-size: 11.5px; transition: background .1s;
+  font-size: 14px; transition: background .1s;
 }
 .news-row:hover { background: var(--bg3); }
-.news-time { font-family: var(--mono); color: var(--text3); font-size: 10.5px; }
-.news-conf { font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: var(--blue); }
+.news-time { font-family: var(--mono); color: var(--text3); font-size: 13px; }
+.news-conf { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--blue); }
 .news-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.news-tag { font-size: 10px; color: var(--text2); text-align: right; }
+.news-tag { font-size: 13px; color: var(--text2); text-align: right; }
 
 /* ─── Buy Candidates Table ─── */
-.bc-table { width: 100%; border-collapse: collapse; font-size: 11px; font-family: var(--mono); }
-.bc-table th { text-align: left; color: var(--text3); font-weight: 600; padding: 6px 10px; background: var(--bg3); border-bottom: 1px solid var(--border); text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px; }
+.bc-table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-family: var(--mono); }
+.bc-table th { text-align: left; color: var(--text3); font-weight: 600; padding: 6px 10px; background: var(--bg3); border-bottom: 1px solid var(--border); text-transform: uppercase; font-size: 12.5px; letter-spacing: 0.5px; }
 .bc-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
 .bc-table tr:hover { background: var(--bg3); }
 .bc-table td.right { text-align: right; }
 .bc-ticker { color: var(--orange); font-weight: 700; }
-.bc-signal { font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 2px; letter-spacing: 0.4px; }
+.bc-signal { font-size: 12.5px; font-weight: 700; padding: 1px 5px; border-radius: 2px; letter-spacing: 0.4px; }
 .bc-signal.STRONG  { background: var(--green-dim); color: var(--green); }
 .bc-signal.BUY     { background: var(--green-dim); color: var(--green); opacity: 0.7; }
 .bc-signal.NEUTRAL { background: var(--yellow-dim); color: var(--yellow); }
@@ -245,16 +245,16 @@ a { color: inherit; text-decoration: none; }
 }
 .asset-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 5px 8px; background: var(--bg2); font-size: 11px;
+  padding: 5px 8px; background: var(--bg2); font-size: 13.5px;
 }
-.asset-row .nm { color: var(--text2); font-size: 10.5px; }
+.asset-row .nm { color: var(--text2); font-size: 13px; }
 .asset-row .val { font-family: var(--mono); color: var(--text); font-weight: 600; }
-.asset-row .chg { font-family: var(--mono); font-weight: 600; font-size: 10.5px; }
+.asset-row .chg { font-family: var(--mono); font-weight: 600; font-size: 13px; }
 
 /* ─── Footer ─── */
 .term-footer {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 6px 14px; font-size: 10px; color: var(--text3);
+  padding: 6px 14px; font-size: 13px; color: var(--text3);
   background: var(--bg2); border-top: 1px solid var(--border);
   letter-spacing: 0.4px;
 }
@@ -262,7 +262,7 @@ a { color: inherit; text-decoration: none; }
 .term-footer .src span { color: var(--text2); }
 
 /* Loading state */
-.loading { color: var(--text3); font-size: 10.5px; text-align: center; padding: 16px 0; }
+.loading { color: var(--text3); font-size: 13px; text-align: center; padding: 16px 0; }
 </style>
 </head>
 <body>
@@ -470,19 +470,19 @@ async function loadMarketPulse() {
     body.innerHTML = `
       <div class="regime-row">
         <span class="regime-pill ${regimeClass}">${esc(regimeClass)}</span>
-        <span style="font-size:10px;color:var(--text3)">${d.based_on_issues || 0} ISSUES</span>
+        <span style="font-size:13px;color:var(--text3)">${d.based_on_issues || 0} ISSUES</span>
       </div>
       <div class="headline-text">${esc(d.headline || '')}</div>
       <div style="margin-top:10px">
-        <div style="font-size:9.5px;color:var(--red);font-weight:700;letter-spacing:0.5px">▲ BULLISH</div>
-        ${(d.bullish_drivers||[]).slice(0,3).map(x => `<div style="font-size:10.5px;color:var(--text2);margin-top:2px;line-height:1.45">• ${esc(x)}</div>`).join('')}
+        <div style="font-size:12.5px;color:var(--red);font-weight:700;letter-spacing:0.5px">▲ BULLISH</div>
+        ${(d.bullish_drivers||[]).slice(0,3).map(x => `<div style="font-size:13px;color:var(--text2);margin-top:2px;line-height:1.45">• ${esc(x)}</div>`).join('')}
       </div>
       <div style="margin-top:8px">
-        <div style="font-size:9.5px;color:var(--blue);font-weight:700;letter-spacing:0.5px">▼ BEARISH</div>
-        ${(d.bearish_drivers||[]).slice(0,3).map(x => `<div style="font-size:10.5px;color:var(--text2);margin-top:2px;line-height:1.45">• ${esc(x)}</div>`).join('')}
+        <div style="font-size:12.5px;color:var(--blue);font-weight:700;letter-spacing:0.5px">▼ BEARISH</div>
+        ${(d.bearish_drivers||[]).slice(0,3).map(x => `<div style="font-size:13px;color:var(--text2);margin-top:2px;line-height:1.45">• ${esc(x)}</div>`).join('')}
       </div>
       <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
-        ${(d.sectors_winning||[]).map(s => `<span style="font-size:9.5px;font-family:var(--mono);padding:1px 6px;background:var(--red-dim);color:var(--red);border-radius:2px">${esc(s)}</span>`).join('')}
+        ${(d.sectors_winning||[]).map(s => `<span style="font-size:12.5px;font-family:var(--mono);padding:1px 6px;background:var(--red-dim);color:var(--red);border-radius:2px">${esc(s)}</span>`).join('')}
       </div>`;
   } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
 }
@@ -761,12 +761,12 @@ async function loadEcon() {
     const j = await r.json();
     const items = (j?.items || []).slice(0, 8);
     if (!items.length) { body.innerHTML = '<div class="loading">데이터 없음</div>'; return; }
-    body.innerHTML = items.map(it => `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:11px">
+    body.innerHTML = items.map(it => `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:13.5px">
       <div style="display:flex;justify-content:space-between;gap:6px">
         <span style="color:var(--text);font-weight:500">${esc(it.titleKo || it.title || '')}</span>
-        <span style="color:var(--text3);font-family:var(--mono);font-size:10px">${esc(it.country || '')}</span>
+        <span style="color:var(--text3);font-family:var(--mono);font-size:13px">${esc(it.country || '')}</span>
       </div>
-      <div style="color:var(--text3);font-size:10px;margin-top:2px">${esc((it.date || '').slice(0,16).replace('T',' '))}${it.actual ? ` · <span style="color:var(--orange)">실제 ${esc(it.actual)}</span>` : ''}</div>
+      <div style="color:var(--text3);font-size:13px;margin-top:2px">${esc((it.date || '').slice(0,16).replace('T',' '))}${it.actual ? ` · <span style="color:var(--orange)">실제 ${esc(it.actual)}</span>` : ''}</div>
     </div>`).join('');
   } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
 }
@@ -780,13 +780,13 @@ async function loadEarnings() {
     const j = await r.json();
     const items = (j?.items || []).slice(0, 8);
     if (!items.length) { body.innerHTML = '<div class="loading">데이터 없음</div>'; return; }
-    body.innerHTML = items.map(it => `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:11px">
+    body.innerHTML = items.map(it => `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:13.5px">
       <div style="display:flex;justify-content:space-between;gap:6px">
         <span style="color:var(--orange);font-family:var(--mono);font-weight:700">${esc(it.ticker)}</span>
-        <span style="color:var(--text3);font-size:10px">${esc((it.date || '').slice(0,10))}</span>
+        <span style="color:var(--text3);font-size:13px">${esc((it.date || '').slice(0,10))}</span>
       </div>
-      <div style="color:var(--text2);font-size:10.5px;margin-top:1px">${esc(it.company || '')}</div>
-      ${it.epsActual != null ? `<div style="color:var(--green);font-family:var(--mono);font-size:10px">EPS $${it.epsActual.toFixed(2)}${it.epsConsensus != null ? ` / 컨센 $${it.epsConsensus.toFixed(2)}` : ''}</div>` : ''}
+      <div style="color:var(--text2);font-size:13px;margin-top:1px">${esc(it.company || '')}</div>
+      ${it.epsActual != null ? `<div style="color:var(--green);font-family:var(--mono);font-size:13px">EPS $${it.epsActual.toFixed(2)}${it.epsConsensus != null ? ` / 컨센 $${it.epsConsensus.toFixed(2)}` : ''}</div>` : ''}
     </div>`).join('');
   } catch { body.innerHTML = '<div class="loading">로드 실패</div>'; }
 }
@@ -806,10 +806,10 @@ async function loadAnalyst() {
       const upside = it.price && it.targetMean ? ((it.targetMean - it.price) / it.price * 100) : null;
       return `<div style="padding:5px 0;border-bottom:1px solid var(--border)">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
-          <span style="color:var(--orange);font-family:var(--mono);font-weight:700;font-size:11px">${esc(it.ticker)}</span>
-          <span style="font-size:9.5px;color:${recColor};font-weight:700">${recLabel}</span>
+          <span style="color:var(--orange);font-family:var(--mono);font-weight:700;font-size:13.5px">${esc(it.ticker)}</span>
+          <span style="font-size:12.5px;color:${recColor};font-weight:700">${recLabel}</span>
         </div>
-        <div style="display:flex;justify-content:space-between;color:var(--text3);font-size:10px;font-family:var(--mono);margin-top:2px">
+        <div style="display:flex;justify-content:space-between;color:var(--text3);font-size:13px;font-family:var(--mono);margin-top:2px">
           <span>$${it.price?.toFixed(2) || '—'} → $${it.targetMean?.toFixed(2) || '—'}</span>
           ${upside != null ? `<span style="color:${upside > 0 ? 'var(--red)' : 'var(--blue)'}">${upside > 0 ? '+' : ''}${upside.toFixed(1)}%</span>` : ''}
         </div>
@@ -829,8 +829,8 @@ async function loadBreaking() {
     body.innerHTML = data.map(i => {
       const t = new Date(i.published_at);
       const time = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
-      return `<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;line-height:1.45">
-        <div style="display:flex;justify-content:space-between;gap:6px;color:var(--text3);font-size:9.5px;font-family:var(--mono);margin-bottom:2px">
+      return `<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13.5px;line-height:1.45">
+        <div style="display:flex;justify-content:space-between;gap:6px;color:var(--text3);font-size:12.5px;font-family:var(--mono);margin-bottom:2px">
           <span>${esc(i.source_name || '')}</span>
           <span>${time}</span>
         </div>
@@ -880,8 +880,8 @@ function loadExp() {
   body.innerHTML = items.map(it => {
     const days = Math.ceil((it.d - today) / 86400000);
     const urgent = days <= 7;
-    return `<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0">
-      <span style="color:var(--text2);font-family:var(--mono);font-size:10.5px">${it.label}</span>
+    return `<div style="display:flex;justify-content:space-between;font-size:13.5px;padding:3px 0">
+      <span style="color:var(--text2);font-family:var(--mono);font-size:13px">${it.label}</span>
       <span style="color:${urgent ? 'var(--orange)' : 'var(--text)'};font-family:var(--mono);font-weight:600">D-${days}</span>
     </div>`;
   }).join('');

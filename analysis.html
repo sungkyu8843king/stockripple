@@ -63,11 +63,11 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 .back-btn {
   display: flex; align-items: center; gap: 6px; color: var(--text2);
-  text-decoration: none; font-size: 13px; background: none; border: none; cursor: pointer;
+  text-decoration: none; font-size: 15.5px; background: none; border: none; cursor: pointer;
   padding: 5px 10px; border-radius: 6px; transition: all 0.15s;
 }
 .back-btn:hover { background: var(--bg3); color: var(--text); }
-.logo-sm { font-size: 14px; font-weight: 700; color: var(--text2); }
+.logo-sm { font-size: 16px; font-weight: 700; color: var(--text2); }
 .logo-sm span { color: var(--blue); }
 
 /* 메인 상단바(index.html)와 통일 — 로고/검색/네비/로그인 */
@@ -76,13 +76,13 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   width: 32px; height: 32px; border-radius: 9px;
   background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
   color: #fff; display: flex; align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 700; box-shadow: 0 3px 10px rgba(36,87,230,0.30); flex-shrink: 0;
+  font-size: 18px; font-weight: 700; box-shadow: 0 3px 10px rgba(36,87,230,0.30); flex-shrink: 0;
 }
-.logo-text { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
-.logo-sub { font-size: 10px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
+.logo-text { font-size: 19px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+.logo-sub { font-size: 13px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
 .header-nav { display: flex; gap: 2px; margin-left: auto; align-items: center; }
 .nav-btn {
-  padding: 7px 13px; border-radius: var(--r-md); font-size: 13px; font-weight: 500;
+  padding: 7px 13px; border-radius: var(--r-md); font-size: 15.5px; font-weight: 500;
   background: none; border: none; color: var(--text2); cursor: pointer;
   text-decoration: none; display: flex; align-items: center; gap: 6px;
   transition: all var(--t-fast) var(--ease); white-space: nowrap;
@@ -93,7 +93,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .nav-new::after { content: ""; position: absolute; top: 2px; right: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px var(--bg), 0 0 6px var(--red); }
 .nav-btn-primary {
   background: var(--blue); color: #fff; padding: 7px 16px; margin-left: 6px;
-  border-radius: var(--r-md); font-size: 13px; font-weight: 600;
+  border-radius: var(--r-md); font-size: 15.5px; font-weight: 600;
   text-decoration: none; cursor: pointer; border: none; transition: all var(--t-fast);
 }
 .nav-btn-primary:hover { background: #1e4ccc; }
@@ -101,7 +101,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .user-avatar-btn {
   width: 32px; height: 32px; border-radius: 50%;
   background: var(--blue-dim); color: var(--blue);
-  border: 1.5px solid var(--blue); font-size: 13px; font-weight: 700;
+  border: 1.5px solid var(--blue); font-size: 15.5px; font-weight: 700;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .user-dropdown {
@@ -110,7 +110,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   min-width: 140px; overflow: hidden; z-index: 500; box-shadow: var(--shadow-pop);
 }
 .dropdown-item {
-  display: block; width: 100%; padding: 10px 14px; font-size: 13px;
+  display: block; width: 100%; padding: 10px 14px; font-size: 15.5px;
   color: var(--text2); background: none; border: none; text-align: left;
   cursor: pointer; text-decoration: none; transition: all var(--t-fast);
 }
@@ -122,7 +122,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   padding: 7px 10px; flex: 1 1 auto; max-width: 260px; min-width: 0;
 }
 .header-search svg { color: var(--text3); flex-shrink: 0; }
-.header-search input { flex: 1; min-width: 0; border: none; outline: none; background: none; font-size: 13px; color: var(--text); font-family: inherit; }
+.header-search input { flex: 1; min-width: 0; border: none; outline: none; background: none; font-size: 15.5px; color: var(--text); font-family: inherit; }
 .header-search input::placeholder { color: var(--text3); }
 @media (max-width: 900px) { .header-search { display: none; } }
 @media (max-width: 760px) {
@@ -131,29 +131,29 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   /* 로그인/유저메뉴는 로고와 같은 첫 줄 우측 끝에 고정 — 아래로 줄바꿈되는 네비 목록과 분리 */
   #loginBtn, .user-menu { position: absolute; top: 8px; right: 0; margin-left: 0; }
 }
-@media (max-width: 680px) { .logo-sub { display: none; } .nav-btn { padding: 6px 9px; font-size: 12px; } .header { padding: 0 16px; } }
+@media (max-width: 680px) { .logo-sub { display: none; } .nav-btn { padding: 6px 9px; font-size: 14.5px; } .header { padding: 0 16px; } }
 .sp-card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; text-decoration: none; color: var(--text); transition: transform .12s var(--ease), border-color .12s, box-shadow .12s; }
 .sp-card:hover { transform: translateY(-2px); border-color: var(--blue); box-shadow: 0 8px 24px rgba(0,102,204,0.10); }
 .sp-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.sp-ticker { font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 6px; letter-spacing: .3px; }
-.sp-market { font-size: 11px; color: var(--text3); font-weight: 500; }
-.sp-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; }
-.sp-name-sub { font-size: 11px; color: var(--text3); font-weight: 400; }
-.sp-arrow { font-size: 11px; color: var(--blue); margin-top: 4px; font-weight: 500; }
+.sp-ticker { font-family: 'SF Mono', monospace; font-size: 14.5px; font-weight: 700; padding: 3px 9px; border-radius: 6px; letter-spacing: .3px; }
+.sp-market { font-size: 13.5px; color: var(--text3); font-weight: 500; }
+.sp-name { font-size: 17px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.sp-name-sub { font-size: 13.5px; color: var(--text3); font-weight: 400; }
+.sp-arrow { font-size: 13.5px; color: var(--blue); margin-top: 4px; font-weight: 500; }
 
 .page-wrap { max-width: 1100px; margin: 0 auto; padding: 32px 24px 60px; }
 
 /* Issue Header */
 .issue-header { margin-bottom: 32px; }
 .issue-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
-.meta-source { font-size: 12px; color: var(--text3); display: flex; align-items: center; gap: 5px; }
+.meta-source { font-size: 14.5px; color: var(--text3); display: flex; align-items: center; gap: 5px; }
 .source-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
-.meta-date { font-size: 12px; color: var(--text3); }
+.meta-date { font-size: 14.5px; color: var(--text3); }
 .meta-sep { color: var(--border); }
 .issue-title { font-size: 24px; font-weight: 700; line-height: 1.4; margin-bottom: 12px; }
-.issue-summary { font-size: 14px; color: var(--text2); line-height: 1.7; margin-bottom: 16px; }
+.issue-summary { font-size: 16px; color: var(--text2); line-height: 1.7; margin-bottom: 16px; }
 .issue-sectors { display: flex; gap: 6px; flex-wrap: wrap; }
-.sector-tag { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
+.sector-tag { font-size: 13.5px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
 .tag-semi   { background: rgba(0,102,204,0.10); color: #4d8dff; }
 .tag-ev     { background: rgba(0,135,58,0.10);  color: #3ddb7f; }
 .tag-ai     { background: rgba(124,58,237,0.10);color: #9d7bff; }
@@ -183,39 +183,39 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   width: 3px; border-radius: var(--r-lg, 20px) 0 0 var(--r-lg, 20px);
   background: linear-gradient(180deg, var(--blue), var(--purple));
 }
-.ai-badge { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--blue); font-weight: 700; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.6px; }
+.ai-badge { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--blue); font-weight: 700; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.6px; }
 .ai-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); animation: pulse 2s infinite; box-shadow: 0 0 0 3px rgba(0,102,204,0.18); }
 @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
-.ai-text { font-size: 14.5px; line-height: 1.75; color: var(--text); font-weight: 400; }
+.ai-text { font-size: 16.5px; line-height: 1.75; color: var(--text); font-weight: 400; }
 
 /* Confidence */
 .confidence-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
-.conf-label { font-size: 11px; color: var(--text2); font-weight: 600; white-space: nowrap; }
+.conf-label { font-size: 13.5px; color: var(--text2); font-weight: 600; white-space: nowrap; }
 .conf-bar { flex: 1; height: 6px; background: var(--bg3); border-radius: 999px; overflow: hidden; }
 .conf-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--blue), var(--purple)); transition: width 1s var(--ease, ease); box-shadow: 0 0 8px rgba(0,102,204,0.25); }
-.conf-pct { font-size: 13px; font-weight: 800; color: var(--blue); font-family: var(--font-mono, monospace); }
+.conf-pct { font-size: 15.5px; font-weight: 800; color: var(--blue); font-family: var(--font-mono, monospace); }
 
 /* 투자 포인트 요약 */
 .invest-point { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg, 16px); padding: 16px 18px; margin-bottom: 24px; }
-.ip-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+.ip-title { font-size: 15.5px; font-weight: 700; margin-bottom: 12px; }
 .ip-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
 .ip-row:last-child { margin-bottom: 0; }
-.ip-tag { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.ip-tag { flex-shrink: 0; font-size: 13.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
 .ip-tag.pos { color: var(--red); background: var(--red-dim); }
 .ip-tag.neg { color: var(--blue); background: var(--blue-dim); }
-.ip-names { font-size: 13.5px; color: var(--text); line-height: 1.6; font-weight: 500; }
+.ip-names { font-size: 16px; color: var(--text); line-height: 1.6; font-weight: 500; }
 
 /* 관련 과거 이슈 타임라인 */
 .related-section { margin-top: 8px; }
 .related-list { display: flex; flex-direction: column; gap: 8px; }
 .related-item { display: flex; align-items: center; gap: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; text-decoration: none; color: var(--text); transition: border-color 0.12s; }
 .related-item:hover { border-color: var(--blue); }
-.related-date { font-size: 11.5px; color: var(--text3); font-family: var(--font-mono, monospace); white-space: nowrap; flex-shrink: 0; }
-.related-title { flex: 1; font-size: 13.5px; font-weight: 500; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.related-date { font-size: 14px; color: var(--text3); font-family: var(--font-mono, monospace); white-space: nowrap; flex-shrink: 0; }
+.related-title { flex: 1; font-size: 16px; font-weight: 500; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .related-sectors { display: flex; gap: 4px; flex-shrink: 0; }
 
 /* Section Headers */
-.section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
 .section-title svg { color: var(--text3); }
 
 /* Ripple Flow */
@@ -228,15 +228,15 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .ripple-card:hover { border-color: var(--blue); }
 .ripple-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .impact-badge {
-  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
+  font-size: 13px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
   text-transform: uppercase; letter-spacing: 0.5px;
   white-space: nowrap; flex-shrink: 0;
 }
 .impact-positive { background: var(--red-dim); color: var(--red); }
 .impact-negative { background: var(--blue-dim); color: var(--blue); }
 .impact-neutral { background: var(--bg3); color: var(--text2); }
-.ripple-sector-name { font-size: 14px; font-weight: 600; min-width: 0; }
-.ripple-reason { font-size: 12px; color: var(--text2); line-height: 1.55; }
+.ripple-sector-name { font-size: 16px; font-weight: 600; min-width: 0; }
+.ripple-reason { font-size: 14.5px; color: var(--text2); line-height: 1.55; }
 
 /* Companies Section */
 .companies-section { margin-bottom: 36px; }
@@ -247,7 +247,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 .card-star {
   position: absolute; top: 12px; right: 12px;
-  background: none; border: none; cursor: pointer; font-size: 16px;
+  background: none; border: none; cursor: pointer; font-size: 18px;
   color: var(--text3); line-height: 1; padding: 2px; z-index: 2;
   transition: all 0.15s;
 }
@@ -270,35 +270,35 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   animation: slideUp 0.2s ease; box-shadow: var(--shadow-pop);
 }
 @keyframes slideUp { from { transform: translateY(16px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
-.auth-close { position: absolute; top: 14px; right: 14px; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 16px; width: 28px; height: 28px; border-radius: var(--r-xs); display: flex; align-items: center; justify-content: center; transition: all var(--t-fast); }
+.auth-close { position: absolute; top: 14px; right: 14px; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; width: 28px; height: 28px; border-radius: var(--r-xs); display: flex; align-items: center; justify-content: center; transition: all var(--t-fast); }
 .auth-close:hover { background: var(--bg3); color: var(--text); }
-.auth-logo { font-size: 15px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
+.auth-logo { font-size: 17px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
 .auth-logo span { color: var(--blue); }
 .auth-title { font-size: 24px; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.02em; }
-.auth-btn-google { width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 14px; font-weight: 500; background: #fff; border: 1px solid #dadce0; color: #3c4043; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all var(--t-fast); margin-bottom: 20px; box-shadow: var(--shadow-sm); }
+.auth-btn-google { width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 16px; font-weight: 500; background: #fff; border: 1px solid #dadce0; color: #3c4043; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all var(--t-fast); margin-bottom: 20px; box-shadow: var(--shadow-sm); }
 .auth-btn-google:hover { background: #f8f9fa; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
 .auth-btn-google:active { background: #f1f3f4; }
-.auth-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; color: var(--text3); font-size: 12px; }
+.auth-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; color: var(--text3); font-size: 14.5px; }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .auth-field { position: relative; margin-bottom: 12px; }
-.auth-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
-.auth-input { width: 100%; padding: 10px 12px; background: var(--bg3); border: 1.5px solid var(--border); border-radius: var(--r-sm); color: var(--text); font-size: 14px; outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); font-family: inherit; box-sizing: border-box; }
+.auth-field label { display: block; font-size: 14.5px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
+.auth-input { width: 100%; padding: 10px 12px; background: var(--bg3); border: 1.5px solid var(--border); border-radius: var(--r-sm); color: var(--text); font-size: 16px; outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); font-family: inherit; box-sizing: border-box; }
 .auth-input:focus { border-color: var(--blue); box-shadow: var(--shadow-focus); background: var(--bg2); }
 .auth-input::placeholder { color: var(--text3); }
-.auth-error { font-size: 12px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
+.auth-error { font-size: 14.5px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
 .auth-error.success { color: var(--green); }
-.auth-submit-btn { width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 14px; font-weight: 700; background: var(--blue); border: none; color: #fff; cursor: pointer; transition: all var(--t-fast); }
+.auth-submit-btn { width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 16px; font-weight: 700; background: var(--blue); border: none; color: #fff; cursor: pointer; transition: all var(--t-fast); }
 .auth-submit-btn:hover { background: #1e4ccc; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(36,87,230,0.35); }
 .auth-submit-btn:active { transform: none; box-shadow: none; }
 .auth-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-.auth-switch { margin-top: 18px; text-align: center; font-size: 13px; color: var(--text3); }
-.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 13px; font-weight: 600; }
+.auth-switch { margin-top: 18px; text-align: center; font-size: 15.5px; color: var(--text3); }
+.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15.5px; font-weight: 600; }
 .auth-link:hover { text-decoration: underline; }
 .auth-consent { margin-bottom: 14px; }
-.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text2); cursor: pointer; line-height: 1.5; }
+.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; color: var(--text2); cursor: pointer; line-height: 1.5; }
 .auth-consent-label input[type="checkbox"] { margin-top: 2px; width: 15px; height: 15px; flex-shrink: 0; accent-color: var(--blue); cursor: pointer; }
-.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 0; text-decoration: underline; }
-.auth-privacy-text { margin-top: 8px; padding: 10px 12px; background: var(--bg3); border-radius: var(--r-sm); font-size: 11.5px; color: var(--text3); line-height: 1.7; }
+.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15px; font-weight: 600; padding: 0; text-decoration: underline; }
+.auth-privacy-text { margin-top: 8px; padding: 10px 12px; background: var(--bg3); border-radius: var(--r-sm); font-size: 14px; color: var(--text3); line-height: 1.7; }
 
 /* Chart Modal */
 .chart-overlay {
@@ -311,12 +311,12 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   width: 100%; max-width: 720px; padding: 24px; position: relative;
 }
 .chart-modal-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
-.chart-modal-ticker { font-family: 'SF Mono', monospace; font-size: 13px; font-weight: 700; }
+.chart-modal-ticker { font-family: 'SF Mono', monospace; font-size: 15.5px; font-weight: 700; }
 .chart-modal-ticker.kr { background: rgba(0,102,204,0.10); color: #4d8dff; padding: 3px 8px; border-radius: 5px; }
 .chart-modal-ticker.us { background: var(--bg3); color: var(--text2); padding: 3px 8px; border-radius: 5px; }
-.chart-modal-name { font-size: 18px; font-weight: 700; margin: 6px 0 2px; }
+.chart-modal-name { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
 .chart-modal-price { font-size: 24px; font-weight: 700; }
-.chart-modal-change { font-size: 14px; font-weight: 600; margin-left: 8px; }
+.chart-modal-change { font-size: 16px; font-weight: 600; margin-left: 8px; }
 .chart-modal-change.pos { color: var(--red); }
 .chart-modal-change.neg { color: var(--blue); }
 .chart-close {
@@ -326,38 +326,38 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .chart-close:hover { background: var(--bg3); color: var(--text); }
 .chart-range-btns { display: flex; gap: 6px; margin: 14px 0 12px; }
 .range-btn {
-  padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  padding: 4px 12px; border-radius: 6px; font-size: 14.5px; font-weight: 600;
   border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; transition: all 0.15s;
 }
 .range-btn.active, .range-btn:hover { background: var(--blue); border-color: var(--blue); color: #fff; }
 .chart-canvas-wrap { position: relative; height: 260px; }
-.chart-loading { text-align: center; padding: 60px; color: var(--text3); font-size: 13px; }
+.chart-loading { text-align: center; padding: 60px; color: var(--text3); font-size: 15.5px; }
 .company-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
 .company-ticker {
-  font-size: 13px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 15.5px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
   background: var(--bg3); color: var(--text2); padding: 4px 10px; border-radius: 6px;
 }
 .company-ticker.kr { background: rgba(0,102,204,0.10); color: #4d8dff; }
 .company-ticker.us { background: rgba(124,58,237,0.10); color: #9d7bff; }
 .company-info { flex: 1; }
-.company-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
-.company-market { font-size: 11px; color: var(--text3); }
+.company-name { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+.company-market { font-size: 13.5px; color: var(--text3); }
 .upside-badge {
   font-size: 20px; font-weight: 800; padding: 4px 10px; border-radius: 8px;
   white-space: nowrap;
 }
 .upside-pos { background: var(--red-dim); color: var(--red); }
 .upside-neg { background: var(--blue-dim); color: var(--blue); }
-.company-rationale { font-size: 12px; color: var(--text2); line-height: 1.55; margin-bottom: 10px; }
-.company-ripple { font-size: 11px; color: var(--text3); }
+.company-rationale { font-size: 14.5px; color: var(--text2); line-height: 1.55; margin-bottom: 10px; }
+.company-ripple { font-size: 13.5px; color: var(--text3); }
 .company-ripple span { color: var(--blue); }
 .company-footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
-.price-info { font-size: 12px; color: var(--text2); }
+.price-info { font-size: 14.5px; color: var(--text2); }
 .price-info .price { font-weight: 600; color: var(--text); }
 .conf-mini { display: flex; align-items: center; gap: 6px; flex: 1; justify-content: flex-end; }
 .conf-mini-bar { width: 60px; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
 .conf-mini-fill { height: 100%; border-radius: 2px; }
-.conf-mini-pct { font-size: 11px; color: var(--text3); }
+.conf-mini-pct { font-size: 13.5px; color: var(--text3); }
 
 /* Chart Section */
 .chart-section { margin-bottom: 36px; }
@@ -365,7 +365,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
   padding: 20px;
 }
-.chart-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--text2); }
+.chart-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--text2); }
 .chart-wrap { position: relative; height: 280px; }
 
 /* Loading / Error */
@@ -374,7 +374,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 600px) {
-  .issue-title { font-size: 18px; }
+  .issue-title { font-size: 20px; }
   .companies-grid { grid-template-columns: 1fr; }
   .ripple-grid { grid-template-columns: 1fr; }
 }
@@ -467,7 +467,7 @@ async function loadRelatedIssues(issue) {
     const rows = data.map(it => {
       const dt = new Date(it.published_at);
       const mmdd = `${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-      const tags = (it.sectors || []).slice(0, 2).map(s => `<span class="sector-tag ${sectorColors[s] || 'tag-default'}" style="font-size:10px;padding:2px 7px">${escHtml(s)}</span>`).join('');
+      const tags = (it.sectors || []).slice(0, 2).map(s => `<span class="sector-tag ${sectorColors[s] || 'tag-default'}" style="font-size:13px;padding:2px 7px">${escHtml(s)}</span>`).join('');
       return `<a href="/analysis.html?id=${it.id}" class="related-item">
         <span class="related-date">${mmdd}</span>
         <span class="related-title">${escHtml(it.title)}</span>
@@ -478,7 +478,7 @@ async function loadRelatedIssues(issue) {
       <div class="related-section">
         <div class="section-title">
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          관련 과거 이슈 <span style="font-size:13px;color:var(--text2);font-weight:400">(같은 섹터 · ${data.length}건)</span>
+          관련 과거 이슈 <span style="font-size:15.5px;color:var(--text2);font-weight:400">(같은 섹터 · ${data.length}건)</span>
         </div>
         <div class="related-list">${rows}</div>
       </div>`;
@@ -559,7 +559,7 @@ function renderPage(issue, analysis, companies) {
       strong_bearish: ['역배열 약세', 'var(--blue)'], overbought: ['과열', 'var(--yellow)'],
       oversold: ['과매도', 'var(--blue)'], oversold_bull: ['눌림목 기회', 'var(--blue)'],
     };
-    const techChip = (label, color) => `<span style="font-size:10px;font-weight:600;padding:3px 8px;border-radius:10px;border:1px solid ${color};color:${color}">${label}</span>`;
+    const techChip = (label, color) => `<span style="font-size:13px;font-weight:600;padding:3px 8px;border-radius:10px;border:1px solid ${color};color:${color}">${label}</span>`;
     let techChips = '';
     if (fund && (fund.rsi != null || fund.sig || fund.volr != null)) {
       const parts = [];
@@ -574,21 +574,21 @@ function renderPage(issue, analysis, companies) {
     const tradeBox = trade ? `
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:10px;margin:8px 0;background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(47,129,247,.08));border:1px solid rgba(63,185,80,.25);border-radius:8px">
         <div style="text-align:center">
-          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">매수가</div>
-          <div style="font-size:13px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace">${trade.elp != null ? fmtP(trade.elp) : '—'}~${trade.ehp != null ? fmtP(trade.ehp) : '—'}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:2px">매수가</div>
+          <div style="font-size:15.5px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace">${trade.elp != null ? fmtP(trade.elp) : '—'}~${trade.ehp != null ? fmtP(trade.ehp) : '—'}</div>
         </div>
         <div style="text-align:center;border-left:1px solid var(--border);border-right:1px solid var(--border)">
-          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">목표</div>
-          <div style="font-size:13px;font-weight:700;color:var(--green);font-family:'SF Mono',monospace">${trade.tp != null ? fmtP(trade.tp) : '—'}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:2px">목표</div>
+          <div style="font-size:15.5px;font-weight:700;color:var(--green);font-family:'SF Mono',monospace">${trade.tp != null ? fmtP(trade.tp) : '—'}</div>
         </div>
         <div style="text-align:center">
-          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">손절</div>
-          <div style="font-size:13px;font-weight:700;color:var(--red);font-family:'SF Mono',monospace">${trade.sl != null ? fmtP(trade.sl) : '—'}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:2px">손절</div>
+          <div style="font-size:15.5px;font-weight:700;color:var(--red);font-family:'SF Mono',monospace">${trade.sl != null ? fmtP(trade.sl) : '—'}</div>
         </div>
       </div>
-      ${trade.tf ? `<div style="font-size:11px;color:var(--blue);margin-bottom:6px;font-weight:600">⏱ ${tfLabel[trade.tf] || trade.tf}</div>` : ''}
-      ${trade.th ? `<div style="font-size:12px;color:var(--text2);margin-bottom:4px;line-height:1.5"><span style="color:var(--green);font-weight:700">💡 </span>${escHtml(trade.th)}</div>` : ''}
-      ${trade.rk ? `<div style="font-size:12px;color:var(--text3);line-height:1.5"><span style="color:var(--yellow);font-weight:700">⚠️ </span>${escHtml(trade.rk)}</div>` : ''}
+      ${trade.tf ? `<div style="font-size:13.5px;color:var(--blue);margin-bottom:6px;font-weight:600">⏱ ${tfLabel[trade.tf] || trade.tf}</div>` : ''}
+      ${trade.th ? `<div style="font-size:14.5px;color:var(--text2);margin-bottom:4px;line-height:1.5"><span style="color:var(--green);font-weight:700">💡 </span>${escHtml(trade.th)}</div>` : ''}
+      ${trade.rk ? `<div style="font-size:14.5px;color:var(--text3);line-height:1.5"><span style="color:var(--yellow);font-weight:700">⚠️ </span>${escHtml(trade.rk)}</div>` : ''}
     ` : '';
 
     return `
@@ -657,7 +657,7 @@ function renderPage(issue, analysis, companies) {
         <span class="meta-source"><span class="source-dot"></span>${escHtml(issue.source_name || '뉴스')}</span>
         <span class="meta-sep">·</span>
         <span class="meta-date">${timeAgo(issue.published_at)}</span>
-        ${issue.source_url ? `<a href="${escHtml(issue.source_url)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--blue);margin-left:4px">원문 보기 ↗</a>` : ''}
+        ${issue.source_url ? `<a href="${escHtml(issue.source_url)}" target="_blank" rel="noopener noreferrer" style="font-size:13.5px;color:var(--blue);margin-left:4px">원문 보기 ↗</a>` : ''}
       </div>
       <h1 class="issue-title">${escHtml(issue.title)}</h1>
       ${issue.summary ? `<p class="issue-summary">${escHtml(issue.summary)}</p>` : ''}
@@ -687,13 +687,13 @@ function renderPage(issue, analysis, companies) {
       if (!kp.length && !secs.length) return '';
       const tm = { pos:{l:'우호적',c:'#ff6b6b',b:'rgba(255,107,107,.14)'}, neg:{l:'비우호적',c:'#4d8dff',b:'rgba(77,141,255,.14)'}, neu:{l:'중립',c:'var(--text3)',b:'rgba(255,255,255,.06)'} };
       const kpHtml = kp.length ? `<div style="margin-bottom:${secs.length?16:0}px">
-        <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:9px">🔑 핵심 포인트</div>
-        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px">${kp.map(k=>`<li style="font-size:14px;color:var(--text);line-height:1.55;position:relative;padding-left:16px"><span style="position:absolute;left:0;color:var(--blue);font-weight:700">·</span>${escHtml(k)}</li>`).join('')}</ul></div>` : '';
+        <div style="font-size:14.5px;font-weight:700;color:var(--blue);margin-bottom:9px">🔑 핵심 포인트</div>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px">${kp.map(k=>`<li style="font-size:16px;color:var(--text);line-height:1.55;position:relative;padding-left:16px"><span style="position:absolute;left:0;color:var(--blue);font-weight:700">·</span>${escHtml(k)}</li>`).join('')}</ul></div>` : '';
       const secHtml = secs.length ? `<div>
-        <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:9px">📡 관련 산업 영향</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">${secs.map(s=>{const m=tm[s.tone]||tm.neu;return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;color:${m.c};background:${m.b}">${escHtml(s.name)}<span style="font-size:11px;opacity:.8">${m.l}</span></span>`;}).join('')}</div></div>` : '';
+        <div style="font-size:14.5px;font-weight:700;color:var(--blue);margin-bottom:9px">📡 관련 산업 영향</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">${secs.map(s=>{const m=tm[s.tone]||tm.neu;return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:15.5px;font-weight:600;padding:6px 13px;border-radius:999px;color:${m.c};background:${m.b}">${escHtml(s.name)}<span style="font-size:13.5px;opacity:.8">${m.l}</span></span>`;}).join('')}</div></div>` : '';
       return `<div class="ai-card">${kpHtml}${secHtml}
-        <div style="font-size:10.5px;color:var(--text3);margin-top:14px;line-height:1.5">산업 영향 방향은 뉴스 분류이며 특정 종목의 매수·매도 의견이 아닙니다.</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:14px;line-height:1.5">산업 영향 방향은 뉴스 분류이며 특정 종목의 매수·매도 의견이 아닙니다.</div>
       </div>`;
     })()}
 
@@ -708,7 +708,7 @@ function renderPage(issue, analysis, companies) {
     <div class="ripple-section">
       <div class="section-title">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 0"/><circle cx="12" cy="12" r="3"/></svg>
-        파급 섹터 분석 <span style="font-size:13px;color:var(--text2);font-weight:400">(${rippleEffects.length}개 섹터)</span>
+        파급 섹터 분석 <span style="font-size:15.5px;color:var(--text2);font-weight:400">(${rippleEffects.length}개 섹터)</span>
       </div>
       <div class="ripple-grid">${rippleCards}</div>
     </div>` : ''}
@@ -716,8 +716,8 @@ function renderPage(issue, analysis, companies) {
     ${posCompanies.length ? `
     <div class="companies-section">
       <div class="section-title">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--red-dim);color:var(--red);font-size:13px">▲</span>
-        긍정 영향 기업 <span style="font-size:13px;color:var(--text2);font-weight:400">(${posCompanies.length}개 · 수혜 예상)</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--red-dim);color:var(--red);font-size:15.5px">▲</span>
+        긍정 영향 기업 <span style="font-size:15.5px;color:var(--text2);font-weight:400">(${posCompanies.length}개 · 수혜 예상)</span>
       </div>
       <div class="companies-grid">${posCards}</div>
     </div>` : ''}
@@ -725,8 +725,8 @@ function renderPage(issue, analysis, companies) {
     ${negCount ? `
     <div class="companies-section">
       <div class="section-title">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--blue-dim);color:var(--blue);font-size:13px">▼</span>
-        부정 영향 기업 <span style="font-size:13px;color:var(--text2);font-weight:400">(${negCount}개 · 피해 우려)</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--blue-dim);color:var(--blue);font-size:15.5px">▼</span>
+        부정 영향 기업 <span style="font-size:15.5px;color:var(--text2);font-weight:400">(${negCount}개 · 피해 우려)</span>
       </div>
       <div class="companies-grid">${negCards}</div>
     </div>` : ''}

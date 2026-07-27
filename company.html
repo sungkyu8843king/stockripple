@@ -72,11 +72,11 @@ body {
 }
 .back-btn {
   display: flex; align-items: center; gap: 6px; color: var(--text2);
-  text-decoration: none; font-size: 13px; background: none; border: none; cursor: pointer;
+  text-decoration: none; font-size: 15.5px; background: none; border: none; cursor: pointer;
   padding: 5px 10px; border-radius: 6px; transition: all 0.15s;
 }
 .back-btn:hover { background: var(--bg3); color: var(--text); }
-.logo-sm { font-size: 14px; font-weight: 700; color: var(--text2); }
+.logo-sm { font-size: 16px; font-weight: 700; color: var(--text2); }
 .logo-sm span { color: var(--blue); }
 
 /* 메인 상단바(index.html)와 통일 — 로고/검색/네비/로그인 */
@@ -86,14 +86,14 @@ body {
   background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
   color: #fff;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 700;
+  font-size: 18px; font-weight: 700;
   box-shadow: 0 3px 10px rgba(36,87,230,0.30);
 }
-.logo-text { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
-.logo-sub { font-size: 10px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
+.logo-text { font-size: 19px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+.logo-sub { font-size: 13px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
 .header-nav { display: flex; gap: 2px; margin-left: auto; align-items: center; }
 .nav-btn {
-  padding: 7px 13px; border-radius: var(--r-md); font-size: 13px; font-weight: 500;
+  padding: 7px 13px; border-radius: var(--r-md); font-size: 15.5px; font-weight: 500;
   background: none; border: none; color: var(--text2); cursor: pointer;
   text-decoration: none; display: flex; align-items: center; gap: 6px;
   transition: all var(--t-fast) var(--ease); white-space: nowrap;
@@ -104,7 +104,7 @@ body {
 .nav-new::after { content: ""; position: absolute; top: 2px; right: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px var(--bg), 0 0 6px var(--red); }
 .nav-btn-primary {
   background: var(--blue); color: #fff; padding: 7px 16px; margin-left: 6px;
-  border-radius: var(--r-md); font-size: 13px; font-weight: 600;
+  border-radius: var(--r-md); font-size: 15.5px; font-weight: 600;
   text-decoration: none; cursor: pointer; border: none; transition: all var(--t-fast);
 }
 .nav-btn-primary:hover { background: #1e4ccc; }
@@ -112,7 +112,7 @@ body {
 .user-avatar-btn {
   width: 32px; height: 32px; border-radius: 50%;
   background: var(--blue-dim); color: var(--blue);
-  border: 1.5px solid var(--blue); font-size: 13px; font-weight: 700;
+  border: 1.5px solid var(--blue); font-size: 15.5px; font-weight: 700;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .user-dropdown {
@@ -122,7 +122,7 @@ body {
   box-shadow: var(--shadow-pop);
 }
 .dropdown-item {
-  display: block; width: 100%; padding: 10px 14px; font-size: 13px;
+  display: block; width: 100%; padding: 10px 14px; font-size: 15.5px;
   color: var(--text2); background: none; border: none; text-align: left;
   cursor: pointer; text-decoration: none; transition: all var(--t-fast);
 }
@@ -137,7 +137,7 @@ body {
 .header-search svg { color: var(--text3); flex-shrink: 0; }
 .header-search input {
   flex: 1; min-width: 0; border: none; outline: none; background: none;
-  font-size: 13px; color: var(--text); font-family: inherit;
+  font-size: 15.5px; color: var(--text); font-family: inherit;
 }
 .header-search input::placeholder { color: var(--text3); }
 @media (max-width: 900px) { .header-search { display: none; } }
@@ -159,16 +159,16 @@ body {
 .auth-close {
   position: absolute; top: 14px; right: 14px;
   background: none; border: none; color: var(--text3); cursor: pointer;
-  font-size: 16px; width: 28px; height: 28px; border-radius: var(--r-xs);
+  font-size: 18px; width: 28px; height: 28px; border-radius: var(--r-xs);
   display: flex; align-items: center; justify-content: center;
   transition: all var(--t-fast);
 }
 .auth-close:hover { background: var(--bg3); color: var(--text); }
-.auth-logo { font-size: 15px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
+.auth-logo { font-size: 17px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
 .auth-logo span { color: var(--blue); }
 .auth-title { font-size: 24px; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.02em; }
 .auth-btn-google {
-  width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 14px; font-weight: 500;
+  width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 16px; font-weight: 500;
   background: #fff; border: 1px solid #dadce0; color: #3c4043;
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
   transition: all var(--t-fast); margin-bottom: 20px;
@@ -178,39 +178,39 @@ body {
 .auth-btn-google:active { background: #f1f3f4; }
 .auth-divider {
   display: flex; align-items: center; gap: 12px;
-  margin-bottom: 18px; color: var(--text3); font-size: 12px;
+  margin-bottom: 18px; color: var(--text3); font-size: 14.5px;
 }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .auth-field { position: relative; margin-bottom: 12px; }
-.auth-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
+.auth-field label { display: block; font-size: 14.5px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
 .auth-input {
   width: 100%; padding: 10px 12px; background: var(--bg3); border: 1.5px solid var(--border);
-  border-radius: var(--r-sm); color: var(--text); font-size: 14px;
+  border-radius: var(--r-sm); color: var(--text); font-size: 16px;
   outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); font-family: inherit;
   box-sizing: border-box;
 }
 .auth-input:focus { border-color: var(--blue); box-shadow: var(--shadow-focus); background: var(--bg2); }
 .auth-input::placeholder { color: var(--text3); }
-.auth-error { font-size: 12px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
+.auth-error { font-size: 14.5px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
 .auth-error.success { color: var(--green); }
 .auth-submit-btn {
-  width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 14px; font-weight: 700;
+  width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 16px; font-weight: 700;
   background: var(--blue); border: none; color: #fff; cursor: pointer;
   transition: all var(--t-fast);
 }
 .auth-submit-btn:hover { background: #1e4ccc; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(36,87,230,0.35); }
 .auth-submit-btn:active { transform: none; box-shadow: none; }
 .auth-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-.auth-switch { margin-top: 18px; text-align: center; font-size: 13px; color: var(--text3); }
-.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 13px; font-weight: 600; }
+.auth-switch { margin-top: 18px; text-align: center; font-size: 15.5px; color: var(--text3); }
+.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15.5px; font-weight: 600; }
 .auth-link:hover { text-decoration: underline; }
 .auth-consent { margin-bottom: 14px; }
-.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text2); cursor: pointer; line-height: 1.5; }
+.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; color: var(--text2); cursor: pointer; line-height: 1.5; }
 .auth-consent-label input[type="checkbox"] { margin-top: 2px; width: 15px; height: 15px; flex-shrink: 0; accent-color: var(--blue); cursor: pointer; }
-.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 0; text-decoration: underline; }
+.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15px; font-weight: 600; padding: 0; text-decoration: underline; }
 .auth-privacy-text {
   margin-top: 8px; padding: 10px 12px; background: var(--bg3); border-radius: var(--r-sm);
-  font-size: 11.5px; color: var(--text3); line-height: 1.7;
+  font-size: 14px; color: var(--text3); line-height: 1.7;
 }
 
 .sp-card {
@@ -230,13 +230,13 @@ body {
 .sp-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .sp-ticker {
   font-family: var(--mono);
-  font-size: 12px; font-weight: 700;
+  font-size: 14.5px; font-weight: 700;
   padding: 3px 9px; border-radius: 6px; letter-spacing: .3px;
 }
-.sp-market { font-size: 11px; color: var(--text3); font-weight: 500; }
-.sp-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; }
-.sp-name-sub { font-size: 11px; color: var(--text3); font-weight: 400; }
-.sp-arrow { font-size: 11px; color: var(--blue); margin-top: 4px; font-weight: 500; }
+.sp-market { font-size: 13.5px; color: var(--text3); font-weight: 500; }
+.sp-name { font-size: 17px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.sp-name-sub { font-size: 13.5px; color: var(--text3); font-weight: 400; }
+.sp-arrow { font-size: 13.5px; color: var(--blue); margin-top: 4px; font-weight: 500; }
 
 /* 헤더 네비가 좁은 화면에서 잘리지 않고 줄바꿈되도록 (index.html과 동일 패턴 —
    min-width:auto 콘텐츠가 트랙을 강제로 넓혀 모바일 가로스크롤을 유발하는 문제 방지) */
@@ -250,7 +250,7 @@ body {
    header-nav의 고유 너비(콘텐츠 기준)가 줄지 않아 375px 등 좁은 화면에서 가로스크롤 발생 확인) */
 @media (max-width: 600px) {
   .logo-sub { display: none; }
-  .nav-btn { padding: 6px 9px; font-size: 12px; }
+  .nav-btn { padding: 6px 9px; font-size: 14.5px; }
   .header { padding: 0 16px; }
 }
 
@@ -260,7 +260,7 @@ body {
 .company-header { margin-bottom: 28px; }
 .company-header-top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .ticker-badge {
-  font-size: 14px; font-weight: 700; font-family: var(--mono);
+  font-size: 16px; font-weight: 700; font-family: var(--mono);
   padding: 6px 14px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;
 }
 .ticker-badge { font-family: var(--mono); border: 1px solid var(--border); }
@@ -268,9 +268,9 @@ body {
 .ticker-badge.us { background: var(--purple-dim); color: var(--purple); border-color: rgba(139,139,255,0.30); }
 .company-name-wrap { flex: 1; }
 .company-name-main { font-size: 28px; font-weight: 700; line-height: 1.2; margin-bottom: 4px; }
-.company-sub { font-size: 13px; color: var(--text3); }
+.company-sub { font-size: 15.5px; color: var(--text3); }
 .price-block { text-align: right; flex-shrink: 0; }
-.share-icon-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.share-icon-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .share-icon-btn:hover { background: var(--bg3); color: var(--text); }
 .current-price { font-size: 28px; font-weight: 700; }
 .current-price.flash-up { animation: priceFlashUp .9s ease-out; }
@@ -283,12 +283,12 @@ body {
   0%   { color: var(--blue); text-shadow: 0 0 10px rgba(77,141,255,.45); }
   100% { color: var(--text); text-shadow: none; }
 }
-.current-price-krw { font-size: 14px; font-weight: 600; color: var(--text2); margin-top: 1px; font-family: var(--mono); }
-.price-change { font-size: 14px; font-weight: 600; margin-top: 2px; }
+.current-price-krw { font-size: 16px; font-weight: 600; color: var(--text2); margin-top: 1px; font-family: var(--mono); }
+.price-change { font-size: 16px; font-weight: 600; margin-top: 2px; }
 .price-change.pos { color: var(--red); }
 .price-change.neg { color: var(--blue); }
-.price-src { font-size: 10px; color: var(--text3); font-weight: 500; margin-top: 3px; }
-.price-loading { font-size: 14px; color: var(--text3); }
+.price-src { font-size: 13px; color: var(--text3); font-weight: 500; margin-top: 3px; }
+.price-loading { font-size: 16px; color: var(--text3); }
 
 /* Stats Bar */
 .stats-bar {
@@ -298,14 +298,14 @@ body {
   background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
   padding: 14px 16px;
 }
-.stat-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+.stat-label { font-size: 13.5px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
 .stat-value { font-size: 22px; font-weight: 700; }
 .stat-value.green { color: var(--green); }
 .stat-value.blue { color: var(--blue); }
 .stat-value.yellow { color: var(--yellow); }
 
 /* Section Headers */
-.section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
 .section-title svg { color: var(--text3); }
 
 /* Chart Section */
@@ -316,12 +316,12 @@ body {
 }
 .chart-range-btns { display: flex; gap: 6px; margin-bottom: 16px; }
 .range-btn {
-  padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  padding: 4px 12px; border-radius: 6px; font-size: 14.5px; font-weight: 600;
   border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; transition: all 0.15s;
 }
 .range-btn.active, .range-btn:hover { background: var(--blue); border-color: var(--blue); color: #fff; }
 .chart-wrap { position: relative; height: 280px; }
-.chart-loading { text-align: center; padding: 60px; color: var(--text3); font-size: 13px; }
+.chart-loading { text-align: center; padding: 60px; color: var(--text3); font-size: 15.5px; }
 
 /* 고도화 캔들차트 (매물대 사이드바는 2026-07-22 제거, 차트 전체폭) */
 .adv-chart-box { min-width: 0; }
@@ -332,16 +332,16 @@ body {
 .history-table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .history-table { width: 100%; border-collapse: collapse; }
 .history-table th {
-  font-size: 11px; font-weight: 600; color: var(--text3); text-align: left;
+  font-size: 13.5px; font-weight: 600; color: var(--text3); text-align: left;
   padding: 12px 16px; background: var(--bg3); border-bottom: 1px solid var(--border);
   text-transform: uppercase; letter-spacing: 0.4px;
 }
 .history-table td {
-  padding: 13px 16px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle;
+  padding: 13px 16px; border-bottom: 1px solid var(--border); font-size: 15.5px; vertical-align: middle;
 }
 .history-table tr:last-child td { border-bottom: none; }
 .history-table tr:hover td { background: var(--bg3); }
-.date-cell { color: var(--text3); white-space: nowrap; font-size: 12px; }
+.date-cell { color: var(--text3); white-space: nowrap; font-size: 14.5px; }
 .issue-link {
   color: var(--text); text-decoration: none; font-weight: 500;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -353,7 +353,7 @@ body {
 .return-cell { white-space: nowrap; }
 .return-badge {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 5px;
+  font-size: 14.5px; font-weight: 600; padding: 3px 8px; border-radius: 5px;
 }
 .return-badge.accurate { background: var(--green-dim); color: var(--green); }
 .return-badge.inaccurate { background: var(--red-dim); color: var(--red); }
@@ -369,20 +369,20 @@ body {
 }
 .ai-summary-card::before { content:""; position:absolute; inset:0 0 auto 0; height:1px;
   background:linear-gradient(90deg, transparent, rgba(77,141,255,0.30), transparent); }
-.ai-disclaimer { font-size: 11px; color: var(--text3); line-height: 1.5; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ai-disclaimer { font-size: 13.5px; color: var(--text3); line-height: 1.5; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 .ai-disclaimer b { color: var(--text2); font-weight: 700; }
 .ai-badge-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
-.ai-badge { font-size: 11px; color: var(--blue); font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+.ai-badge { font-size: 13.5px; color: var(--blue); font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
 .ai-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 8px var(--blue); animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 .ai-block { margin-bottom: 16px; }
 .ai-block:last-child { margin-bottom: 0; }
-.ai-block-label { font-size: 12px; color: var(--text2); font-weight: 700; margin-bottom: 6px; letter-spacing: 0.2px; }
-.ai-block-text { font-size: 14px; line-height: 1.7; color: var(--text); }
+.ai-block-label { font-size: 14.5px; color: var(--text2); font-weight: 700; margin-bottom: 6px; letter-spacing: 0.2px; }
+.ai-block-text { font-size: 16px; line-height: 1.7; color: var(--text); }
 .ai-risks { display: flex; flex-direction: column; gap: 6px; }
-.ai-risk-item { font-size: 13.5px; color: var(--yellow); line-height: 1.55; padding-left: 18px; position: relative; font-weight: 500; }
+.ai-risk-item { font-size: 16px; color: var(--yellow); line-height: 1.55; padding-left: 18px; position: relative; font-weight: 500; }
 .ai-risk-item::before { content: '⚠️'; position: absolute; left: -2px; }
-.ai-watch-item { font-size: 13.5px; color: var(--green); line-height: 1.55; padding-left: 18px; position: relative; font-weight: 500; }
+.ai-watch-item { font-size: 16px; color: var(--green); line-height: 1.55; padding-left: 18px; position: relative; font-weight: 500; }
 .ai-watch-item::before { content: '👁'; position: absolute; left: -2px; }
 
 /* Trade box */
@@ -393,8 +393,8 @@ body {
 }
 .trade-cell { text-align: center; }
 .trade-cell + .trade-cell { border-left: 1px solid var(--border); }
-.trade-label { font-size: 10px; color: var(--text3); margin-bottom: 4px; }
-.trade-val { font-size: 16px; font-weight: 700; font-family: var(--mono); }
+.trade-label { font-size: 13px; color: var(--text3); margin-bottom: 4px; }
+.trade-val { font-size: 18px; font-weight: 700; font-family: var(--mono); }
 .trade-val.buy { color: var(--blue); }
 .trade-val.tg  { color: var(--green); }
 .trade-val.sl  { color: var(--red); }
@@ -402,7 +402,7 @@ body {
 /* Tech chips */
 .tech-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
 .tech-chip {
-  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 5px;
+  font-size: 13.5px; font-weight: 600; padding: 4px 10px; border-radius: 5px;
   background: var(--bg3); color: var(--text2);
 }
 
@@ -412,16 +412,16 @@ body {
   background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
   padding: 18px; margin-bottom: 12px;
 }
-.fund-group-title { font-size: 12px; color: var(--text3); font-weight: 700; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.6px; display: flex; align-items: center; gap: 6px; }
+.fund-group-title { font-size: 14.5px; color: var(--text3); font-weight: 700; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.6px; display: flex; align-items: center; gap: 6px; }
 .fund-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .fund-item { padding: 10px 12px; background: var(--bg3); border-radius: 8px; }
-.fund-label { font-size: 11px; color: var(--text3); margin-bottom: 4px; }
-.fund-val { font-size: 15px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+.fund-label { font-size: 13.5px; color: var(--text3); margin-bottom: 4px; }
+.fund-val { font-size: 17px; font-weight: 700; font-family: var(--mono); color: var(--text); }
 .fund-val.good { color: var(--green); }
 .fund-val.bad  { color: var(--red); }
 .fund-val.warn { color: var(--yellow); }
-.fund-val.dim  { color: var(--text3); font-size: 13px; }
-.fund-sub { font-size: 10px; color: var(--text3); margin-top: 2px; font-family: var(--mono); }
+.fund-val.dim  { color: var(--text3); font-size: 15.5px; }
+.fund-sub { font-size: 13px; color: var(--text3); margin-top: 2px; font-family: var(--mono); }
 .fund-sub.pos { color: var(--red); }
 .fund-sub.neg { color: var(--blue); }
 @media (max-width: 700px) {
@@ -433,10 +433,10 @@ body {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md, 14px);
   padding: 18px 20px; margin-bottom: 24px;
 }
-.quote-card-title { font-size: 13px; font-weight: 700; color: var(--text2); margin-bottom: 16px; }
+.quote-card-title { font-size: 15.5px; font-weight: 700; color: var(--text2); margin-bottom: 16px; }
 .range-row { margin-bottom: 18px; }
 .range-row:last-child { margin-bottom: 0; }
-.range-row-label { font-size: 11px; color: var(--text3); margin-bottom: 8px; }
+.range-row-label { font-size: 13.5px; color: var(--text3); margin-bottom: 8px; }
 .range-track { position: relative; height: 5px; background: var(--bg4); border-radius: 3px; }
 .range-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--blue); border-radius: 3px; opacity: 0.35; }
 .range-dot {
@@ -445,24 +445,24 @@ body {
   box-shadow: 0 1px 4px rgba(0,0,0,0.18);
 }
 .range-endpoints { display: flex; justify-content: space-between; margin-top: 8px; }
-.range-endpoint-label { font-size: 10px; color: var(--text3); }
-.range-endpoint-val { font-size: 12.5px; font-weight: 700; font-family: var(--mono); }
+.range-endpoint-label { font-size: 13px; color: var(--text3); }
+.range-endpoint-val { font-size: 15px; font-weight: 700; font-family: var(--mono); }
 .quote-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 18px; }
-.quote-stat-label { font-size: 10px; color: var(--text3); margin-bottom: 4px; }
-.quote-stat-val { font-size: 13.5px; font-weight: 700; font-family: var(--mono); }
+.quote-stat-label { font-size: 13px; color: var(--text3); margin-bottom: 4px; }
+.quote-stat-val { font-size: 16px; font-weight: 700; font-family: var(--mono); }
 @media (max-width: 700px) { .quote-stat-grid { grid-template-columns: repeat(2, 1fr); } }
 
 /* 애널리스트 컨센서스 (KR 종목 — 목표주가/상승여력만, 방향성 점수는 척도 확인 불가로 미표시) */
 .consensus-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
 .consensus-target-val { font-size: 24px; font-weight: 800; color: var(--blue); font-family: var(--mono); line-height: 1.2; }
-.consensus-target-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
+.consensus-target-sub { font-size: 13.5px; color: var(--text3); margin-top: 3px; }
 .consensus-upside { text-align: center; padding: 10px 18px; border-radius: 10px; }
 .consensus-upside-val { font-size: 20px; font-weight: 800; font-family: var(--mono); }
-.consensus-upside-label { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+.consensus-upside-label { font-size: 13px; color: var(--text3); margin-top: 2px; }
 
 /* 동종업계 비교 (KR 종목) */
-.peer-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.peer-table th { text-align: left; padding: 6px 8px; font-size: 11px; color: var(--text3); font-weight: 600; border-bottom: 1px solid var(--border); }
+.peer-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.peer-table th { text-align: left; padding: 6px 8px; font-size: 13.5px; color: var(--text3); font-weight: 600; border-bottom: 1px solid var(--border); }
 .peer-table td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
 .peer-table tr:last-child td { border-bottom: none; }
 .peer-table a { color: var(--text); text-decoration: none; font-weight: 600; }
@@ -476,7 +476,7 @@ body {
 }
 .tv-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .tv-tabs { display: flex; gap: 4px; }
-.tv-tab { padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); }
+.tv-tab { padding: 4px 12px; border-radius: 6px; font-size: 14.5px; font-weight: 600; cursor: pointer; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); }
 .tv-tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
 .tv-frame { width: 100%; height: 500px; border: none; }
 
@@ -529,15 +529,15 @@ body {
 }
 .cmp-verdict > .vbadge { align-self: center; margin: 15px 20px; }
 .vbadge {
-  display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700;
   color: var(--bg); border-radius: var(--r-pill); padding: 8px 17px; white-space: nowrap;
 }
 .vbadge.buy { background: linear-gradient(135deg, var(--blue), #7aa9ff); box-shadow: 0 0 22px -4px rgba(77,141,255,0.5); }
 .vbadge.neutral { background: var(--bg4); color: var(--text); box-shadow: none; }
 .vbadge .spark { width: 7px; height: 7px; border-radius: 50%; background: var(--bg); opacity: 0.7; }
 .vmeta { display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 13px 20px; border-left: 1px solid var(--border); }
-.vmeta .k { font-size: 10.5px; color: var(--text3); letter-spacing: 0.02em; }
-.vmeta .v { font-size: 17px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.01em; }
+.vmeta .k { font-size: 13px; color: var(--text3); letter-spacing: 0.02em; }
+.vmeta .v { font-size: 19px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.01em; }
 .vmeta .v.pos { color: var(--green); }
 .vmeta .v.neg { color: var(--red); }
 .vdivider { display: none; }
@@ -545,14 +545,14 @@ body {
 .cmp-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; min-height: 34px; }
 .cmp-chip {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-pill);
-  padding: 7px 13px; font-size: 12px; color: var(--text2); display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 13px; font-size: 14.5px; color: var(--text2); display: inline-flex; align-items: center; gap: 7px;
 }
 .cmp-chip .cdot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
-.cmp-chip b { font-family: var(--mono); font-weight: 600; color: var(--text); font-size: 12.5px; letter-spacing: -0.01em; }
+.cmp-chip b { font-family: var(--mono); font-weight: 600; color: var(--text); font-size: 15px; letter-spacing: -0.01em; }
 .cmp-chip b.pos { color: var(--green); } .cmp-chip b.neg { color: var(--red); }
 /* 지표 칩의 ? 설명 버튼 */
 .chip-q { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg3);
-  color: var(--text3); font-size: 10px; font-weight: 700; line-height: 1; cursor: pointer; padding: 0;
+  color: var(--text3); font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer; padding: 0;
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .12s; }
 .chip-q:hover { color: var(--blue); border-color: rgba(77,141,255,0.4); background: var(--blue-dim); }
 /* 지표 설명 팝오버 */
@@ -564,21 +564,21 @@ body {
   box-shadow: 0 24px 60px -12px rgba(0,0,0,0.6); animation: mpIn .16s ease; }
 @keyframes mpIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 .mp-close { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; border-radius: 8px; border: none;
-  background: var(--bg3); color: var(--text3); font-size: 13px; cursor: pointer; }
+  background: var(--bg3); color: var(--text3); font-size: 15.5px; cursor: pointer; }
 .mp-close:hover { color: var(--text); }
 .mp-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .mp-emoji { font-size: 26px; }
-.mp-name { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
-.mp-cur { font-size: 13px; color: var(--text2); background: var(--bg3); border-radius: 9px; padding: 8px 12px; margin-bottom: 14px; }
-.mp-cur b { font-family: var(--mono); color: var(--blue); font-size: 14px; }
+.mp-name { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.mp-cur { font-size: 15.5px; color: var(--text2); background: var(--bg3); border-radius: 9px; padding: 8px 12px; margin-bottom: 14px; }
+.mp-cur b { font-family: var(--mono); color: var(--blue); font-size: 16px; }
 .mp-sec { margin-bottom: 13px; }
-.mp-lbl { font-size: 11px; font-weight: 700; letter-spacing: 0.02em; color: var(--blue); margin-bottom: 5px; }
-.mp-sec p { font-size: 13.5px; line-height: 1.65; color: var(--text); margin: 0; }
-.mp-foot { font-size: 11px; color: var(--text3); border-top: 1px solid var(--border); padding-top: 11px; margin-top: 4px; }
+.mp-lbl { font-size: 13.5px; font-weight: 700; letter-spacing: 0.02em; color: var(--blue); margin-bottom: 5px; }
+.mp-sec p { font-size: 16px; line-height: 1.65; color: var(--text); margin: 0; }
+.mp-foot { font-size: 13.5px; color: var(--text3); border-top: 1px solid var(--border); padding-top: 11px; margin-top: 4px; }
 
 .cmp-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 24px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
 .cmp-tab {
-  font-size: 13.5px; font-weight: 550; color: var(--text3); background: none; border: none;
+  font-size: 16px; font-weight: 550; color: var(--text3); background: none; border: none;
   padding: 12px 15px; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -1px; letter-spacing: 0.01em;
 }
 .cmp-tab.active { color: var(--text); border-bottom-color: var(--blue); }
@@ -586,13 +586,13 @@ body {
 .cmp-panel { display: none; }
 .cmp-panel.active { display: block; animation: cmpFade 0.2s var(--ease); }
 @keyframes cmpFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-.cmp-empty { text-align: center; color: var(--text3); font-size: 13px; padding: 40px 20px; }
+.cmp-empty { text-align: center; color: var(--text3); font-size: 15.5px; padding: 40px 20px; }
 
 /* 섹션 헤더 (콕핏) */
 .ck-sec-head { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
 .ck-sec-head .tick { width: 3px; height: 14px; border-radius: 2px; background: var(--blue); flex-shrink: 0; }
-.ck-sec-head h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
-.ck-sec-head .note { margin-left: auto; font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+.ck-sec-head h3 { font-size: 15.5px; font-weight: 600; letter-spacing: 0.01em; }
+.ck-sec-head .note { margin-left: auto; font-size: 13px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
 .ck-sec-head + .ck-sec-head, .cmp-panel .ck-sec-head:not(:first-child) { margin-top: 26px; }
 
 /* 분석 이력 카드 (제목 + AI 분석 내용) */
@@ -600,12 +600,12 @@ body {
 .hist-card { display: block; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 17px; text-decoration: none; color: var(--text); transition: border-color var(--t-fast); box-shadow: 0 1px 0 var(--inset-hairline) inset; }
 .hist-card:hover { border-color: var(--border-strong); }
 .hist-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-.hist-date { font-size: 12px; font-family: var(--mono); color: var(--text3); font-variant-numeric: tabular-nums; }
-.hist-upside { font-size: 11px; font-weight: 700; font-family: var(--mono); padding: 2px 8px; border-radius: 6px; }
+.hist-date { font-size: 14.5px; font-family: var(--mono); color: var(--text3); font-variant-numeric: tabular-nums; }
+.hist-upside { font-size: 13.5px; font-weight: 700; font-family: var(--mono); padding: 2px 8px; border-radius: 6px; }
 .hist-upside.pos { color: var(--red); background: var(--red-dim); }
 .hist-upside.neg { color: var(--blue); background: var(--blue-dim); }
-.hist-title { font-size: 14.5px; font-weight: 650; line-height: 1.45; letter-spacing: -0.01em; margin-bottom: 6px; }
-.hist-reason { font-size: 13px; color: var(--text2); line-height: 1.65; }
+.hist-title { font-size: 16.5px; font-weight: 650; line-height: 1.45; letter-spacing: -0.01em; margin-bottom: 6px; }
+.hist-reason { font-size: 15.5px; color: var(--text2); line-height: 1.65; }
 
 /* ── 단일 스크롤 섹션 ── */
 .cmp-sec { margin-top: 30px; }
@@ -614,7 +614,7 @@ body {
 /* 히어로 경고/상태 뱃지 */
 .meta-badges { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 24px; margin: -4px 0 4px; }
 .meta-badges:empty { display: none; }
-.mbadge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
+.mbadge { font-size: 13.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
 .mbadge.danger { background: var(--red-dim); color: var(--red); border-color: rgba(220,47,62,0.35); }
 .mbadge.warn { background: var(--yellow-dim); color: var(--yellow); border-color: rgba(217,164,6,0.35); }
 .mbadge.ok { background: var(--blue-dim); color: var(--blue); border-color: rgba(77,141,255,0.30); }
@@ -623,50 +623,50 @@ body {
 /* Toss식 가로 스탯바 */
 .stat-bar { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 1px; background: var(--border); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-top: 12px; }
 .stat-cell { background: var(--bg2); padding: 12px 14px; min-width: 0; }
-.stat-k { font-size: 10.5px; color: var(--text3); margin-bottom: 4px; white-space: nowrap; }
-.stat-v { font-size: 13px; font-weight: 700; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-k { font-size: 13px; color: var(--text3); margin-bottom: 4px; white-space: nowrap; }
+.stat-v { font-size: 15.5px; font-weight: 700; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-range { padding: 14px 24px 4px; }
 .stat-range-track { position: relative; height: 5px; background: var(--bg4); border-radius: 3px; }
 .stat-range-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--blue); opacity: 0.35; border-radius: 3px; }
 .stat-range-dot { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; background: var(--blue); border: 2px solid var(--bg2); transform: translate(-50%,-50%); }
-.stat-range-ends { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10.5px; color: var(--text3); font-family: var(--mono); }
+.stat-range-ends { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; color: var(--text3); font-family: var(--mono); }
 @media (max-width: 640px) { .stat-bar { grid-template-columns: repeat(3, minmax(0,1fr)); } }
 
 /* 🌊 파급효과 */
 /* 수급 섹션 "읽는 법" 도움말 */
-.flow-help { font-size: 12px; color: var(--text2); line-height: 1.65; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 13px; margin: 0 0 14px; }
+.flow-help { font-size: 14.5px; color: var(--text2); line-height: 1.65; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 13px; margin: 0 0 14px; }
 .flow-help b { color: var(--text); }
 
 /* 📊 호가창 */
 .ob-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 8px 10px; }
 .ob-ladder { display: flex; flex-direction: column; }
 .ob-row { display: grid; grid-template-columns: 1fr 90px 1fr; align-items: center; height: 26px; }
-.ob-price { text-align: center; font-family: var(--mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ob-price { text-align: center; font-family: var(--mono); font-size: 15.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .ob-price.ask { color: var(--blue); }
 .ob-price.bid { color: var(--red); }
 .ob-vol { display: flex; align-items: center; gap: 6px; min-width: 0; height: 100%; }
 .ob-vol.ask { justify-content: flex-end; }
 .ob-vol.bid { justify-content: flex-start; }
-.ob-vnum { font-size: 10.5px; font-family: var(--mono); color: var(--text3); flex-shrink: 0; }
+.ob-vnum { font-size: 13px; font-family: var(--mono); color: var(--text3); flex-shrink: 0; }
 .ob-bar { height: 15px; border-radius: 3px; min-width: 2px; }
 .ob-bar.ask { background: rgba(77,141,255,0.22); }
 .ob-bar.bid { background: rgba(220,47,62,0.22); }
 .ob-spread { display: flex; justify-content: space-between; padding: 5px 12px; margin: 3px 0; border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
-.ob-spread-lbl { font-size: 10px; color: var(--text3); font-weight: 600; letter-spacing: 0.05em; }
+.ob-spread-lbl { font-size: 13px; color: var(--text3); font-weight: 600; letter-spacing: 0.05em; }
 .ob-balance { padding: 11px 12px 5px; }
-.ob-bal-head { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--text2); font-family: var(--mono); margin-bottom: 7px; }
-.ob-bal-head em { font-style: normal; font-size: 10px; color: var(--text3); margin-right: 4px; }
+.ob-bal-head { display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--text2); font-family: var(--mono); margin-bottom: 7px; }
+.ob-bal-head em { font-style: normal; font-size: 13px; color: var(--text3); margin-right: 4px; }
 .ob-bal-head em.ask { color: var(--blue); } .ob-bal-head em.bid { color: var(--red); }
-.ob-bal-lean { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; }
+.ob-bal-lean { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700; }
 .ob-bal-track { display: flex; height: 22px; border-radius: 7px; overflow: hidden; background: var(--bg3); }
-.ob-bal-bid, .ob-bal-ask { display: flex; align-items: center; font-size: 10.5px; font-weight: 700; font-family: var(--mono); color: #fff; transition: width .3s ease; min-width: 0; }
+.ob-bal-bid, .ob-bal-ask { display: flex; align-items: center; font-size: 13px; font-weight: 700; font-family: var(--mono); color: #fff; transition: width .3s ease; min-width: 0; }
 .ob-bal-bid { background: linear-gradient(90deg, rgba(220,47,62,0.55), rgba(220,47,62,0.85)); justify-content: flex-start; padding-left: 9px; }
 .ob-bal-ask { background: linear-gradient(90deg, rgba(77,141,255,0.85), rgba(77,141,255,0.55)); justify-content: flex-end; padding-right: 9px; }
 
 /* 📅 일별 시세 표 */
 .dt-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--bg2); }
-.dt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.dt-table th { font-size: 10.5px; color: var(--text3); font-weight: 600; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; background: var(--bg2); }
+.dt-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.dt-table th { font-size: 13px; color: var(--text3); font-weight: 600; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; background: var(--bg2); }
 .dt-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .dt-table tr:last-child td { border-bottom: none; }
 .dt-num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
@@ -678,62 +678,62 @@ body {
 
 /* 게이지 타일 (펀더멘털 표 안 디자인) */
 .gtile { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 16px; }
-.gtile .glab { font-size: 11px; color: var(--text3); letter-spacing: 0.02em; margin-bottom: 9px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.gtag { font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+.gtile .glab { font-size: 13.5px; color: var(--text3); letter-spacing: 0.02em; margin-bottom: 9px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.gtag { font-size: 12.5px; font-weight: 700; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
 .gtag.g { color: var(--green); background: var(--green-dim); }
 .gtag.n { color: var(--blue); background: var(--blue-dim); }
 .gtag.w { color: var(--yellow); background: var(--yellow-dim); }
 .gtag.b { color: var(--red); background: var(--red-dim); }
 .gtile .gnum { font-family: var(--mono); font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
-.gtile .gnum small { font-size: 14px; color: var(--text2); font-weight: 500; }
+.gtile .gnum small { font-size: 16px; color: var(--text2); font-weight: 500; }
 .gmeter { margin-top: 13px; }
 .gmeter-track { height: 5px; border-radius: 3px; background: var(--border); position: relative; overflow: hidden; }
 .gmeter-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 3px; }
 .gmeter-knob { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; transform: translate(-50%,-50%); border: 2.5px solid var(--bg2); }
-.gmeter-scale { display: flex; justify-content: space-between; margin-top: 6px; font-size: 9.5px; color: var(--text3); }
+.gmeter-scale { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12.5px; color: var(--text3); }
 
 /* 콕핏 데이터 테이블 */
 .ck-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 0 var(--inset-hairline) inset; }
-.ck-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.ck-tbl thead th { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); font-weight: 600; text-align: right; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.ck-tbl { width: 100%; border-collapse: collapse; font-size: 15px; }
+.ck-tbl thead th { font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); font-weight: 600; text-align: right; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .ck-tbl thead th:first-child { text-align: left; }
 .ck-tbl td { padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .ck-tbl td:first-child { text-align: left; font-family: 'Inter', sans-serif; color: var(--text2); }
 .ck-tbl tbody tr:last-child td { border-bottom: none; }
 .ck-tbl tbody tr:hover td { background: rgba(77,141,255,0.05); }
-.ck-cell { display: inline-block; min-width: 62px; padding: 3px 9px; border-radius: 6px; font-weight: 600; font-size: 12px; }
+.ck-cell { display: inline-block; min-width: 62px; padding: 3px 9px; border-radius: 6px; font-weight: 600; font-size: 14.5px; }
 .ck-cell.p { color: var(--red); background: var(--red-dim); }
 .ck-cell.n { color: var(--blue); background: var(--blue-dim); }
 
 /* 수급 흐름 모듈 */
 .hold-bar { height: 26px; border-radius: 8px; overflow: hidden; display: flex; margin: 6px 0 10px; }
-.hold-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--bg); overflow: hidden; white-space: nowrap; }
-.hold-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--text2); }
+.hold-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 13.5px; font-weight: 600; color: var(--bg); overflow: hidden; white-space: nowrap; }
+.hold-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--text2); }
 .hold-legend span { display: flex; align-items: center; gap: 6px; }
 .hold-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
 .hold-legend b { font-family: var(--mono); color: var(--text); }
 .flow-tiles { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 14px; }
 .ft { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 16px; }
 .ft-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.ft-name { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.ft-name { display: flex; align-items: center; gap: 8px; font-size: 15.5px; font-weight: 600; }
 .ft-name i { width: 8px; height: 8px; border-radius: 50%; }
-.ft-arrow { font-size: 11px; font-weight: 700; font-family: var(--mono); padding: 2px 8px; border-radius: 6px; }
+.ft-arrow { font-size: 13.5px; font-weight: 700; font-family: var(--mono); padding: 2px 8px; border-radius: 6px; }
 .ft-net { font-family: var(--mono); font-size: 21px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.ft-sub { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+.ft-sub { font-size: 13px; color: var(--text3); margin-top: 2px; }
 .ft-spark { height: 34px; margin-top: 10px; }
 .ft-spark svg { width: 100%; height: 100%; display: block; }
 .cum-box { position: relative; height: 150px; }
 .cum-box svg { width: 100%; height: 100%; display: block; }
-.zone-tag { position: absolute; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+.zone-tag { position: absolute; font-size: 13px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
 
 /* 상대수익률 비교 차트 */
 .rr-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
 .rr-legend { display: flex; gap: 16px; flex-wrap: wrap; }
-.rr-lg { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text2); }
+.rr-lg { display: flex; align-items: center; gap: 7px; font-size: 15px; color: var(--text2); }
 .rr-lg .ln { width: 16px; height: 2.5px; border-radius: 2px; }
 .rr-lg b { font-family: var(--mono); font-weight: 600; }
 .rr-ranges { margin-left: auto; display: flex; gap: 3px; }
-.rr-rg { font-size: 11px; font-weight: 600; color: var(--text3); background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 9px; cursor: pointer; }
+.rr-rg { font-size: 13.5px; font-weight: 600; color: var(--text3); background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 9px; cursor: pointer; }
 .rr-rg.on { color: var(--blue); background: var(--blue-dim); border-color: rgba(77,141,255,0.3); }
 .rr-box { position: relative; height: 230px; margin-top: 8px; }
 .rr-box svg { width: 100%; height: 100%; display: block; }
@@ -1085,8 +1085,8 @@ function buildQuoteCard(priceData) {
       <div class="quote-stat-grid">
         <div class="quote-stat"><div class="quote-stat-label">당일 거래량</div><div class="quote-stat-val">${fmtVol(priceData.volume)}${isKrw ? '주' : ''}</div></div>
         <div class="quote-stat"><div class="quote-stat-label">당일 거래대금 (추정)</div><div class="quote-stat-val">${fmtMoneyShort(tradingValue, isKrw)}</div></div>
-        <div class="quote-stat"><div class="quote-stat-label">상장일</div><div class="quote-stat-val" style="font-size:12.5px">${priceData.firstTradeDate ? fmtDate(priceData.firstTradeDate) : '—'}</div></div>
-        <div class="quote-stat"><div class="quote-stat-label">거래소</div><div class="quote-stat-val" style="font-size:12.5px">${escHtml(priceData.exchangeName || '—')}</div></div>
+        <div class="quote-stat"><div class="quote-stat-label">상장일</div><div class="quote-stat-val" style="font-size:15px">${priceData.firstTradeDate ? fmtDate(priceData.firstTradeDate) : '—'}</div></div>
+        <div class="quote-stat"><div class="quote-stat-label">거래소</div><div class="quote-stat-val" style="font-size:15px">${escHtml(priceData.exchangeName || '—')}</div></div>
       </div>
     </div>`;
 }
@@ -1213,7 +1213,7 @@ function buildPriceBlock(priceData) {
     const tq = (_tossQuote && _tossQuote.lastPrice != null) ? _tossQuote : null;
 
     const st = sessionMap[tq ? tq.session : priceData.marketState] || sessionMap.CLOSED;
-    priceHtml = `<div style="font-size:11px;color:${st.color};font-weight:600;margin-bottom:3px">${st.label}</div>`;
+    priceHtml = `<div style="font-size:13.5px;color:${st.color};font-weight:600;margin-bottom:3px">${st.label}</div>`;
 
     if (tq) {
       priceHtml += `<div class="current-price" id="cmpCurPrice" data-val="${tq.lastPrice}">${fmt.format(tq.lastPrice)}</div>`;
@@ -1233,7 +1233,7 @@ function buildPriceBlock(priceData) {
           // 세션이 CLOSED일 땐 위에 이미 "⚪ 마감"이 떠 있는데 여기 "정규" 태그까지 붙으면
           // "마감"과 "정규"가 동시에 보여 모순처럼 읽힌다(실측 피드백, 2026-07-21) — 정규장이
           // 실제로 진행 중일 때만 "정규" 태그를 붙이고, 마감 중엔 태그 없이 숫자만 보여준다.
-          const tagHtml = tq.session === 'REGULAR' ? ` <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span>` : '';
+          const tagHtml = tq.session === 'REGULAR' ? ` <span style="font-size:13px;color:var(--text3);font-weight:500">정규</span>` : '';
           priceHtml += `<div class="price-change ${cls}">${sign}${amtStr} (${sign}${Math.abs(tq.regularChangePercent).toFixed(2)}%)${tagHtml}</div>`;
         }
       }
@@ -1268,7 +1268,7 @@ function buildPriceBlock(priceData) {
         } else {
           // 위 세션 상태가 "마감"인데 여기 "정규" 태그까지 붙으면 모순처럼 보임 — 정규장이
           // 실제로 진행 중일 때만 태그를 붙인다(Toss 우선 경로와 동일 원칙).
-          const tagHtml = priceData.marketState === 'REGULAR' ? ` <span style="font-size:10px;color:var(--text3);font-weight:500">정규</span>` : '';
+          const tagHtml = priceData.marketState === 'REGULAR' ? ` <span style="font-size:13px;color:var(--text3);font-weight:500">정규</span>` : '';
           priceHtml += `<div class="price-change ${cls}">${sign}${amtStr} (${sign}${Math.abs(priceData.changePercent).toFixed(2)}%)${tagHtml}</div>`;
         }
       }
@@ -1638,7 +1638,7 @@ function loadAiPanelAd(container) {
   iframe.style.cssText = `border:0;width:320px;height:${isMobile ? 100 : 480}px;display:block;margin:10px auto 0;max-width:100%`;
   container.appendChild(iframe);
   const disclosure = document.createElement('div');
-  disclosure.style.cssText = 'text-align:center;font-size:10px;color:var(--text3);margin-top:6px';
+  disclosure.style.cssText = 'text-align:center;font-size:13px;color:var(--text3);margin-top:6px';
   disclosure.textContent = '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.';
   container.appendChild(disclosure);
 }
@@ -1690,7 +1690,7 @@ function renderTradeBox(records) {
   wrap.innerHTML = `
     <div class="section-title" style="margin-top:8px">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      AI 추천 매매 가이드 ${trade.tf ? `<span style="font-size:12px;color:var(--blue);font-weight:600;margin-left:6px">${tfLabel[trade.tf] || trade.tf}</span>` : ''}
+      AI 추천 매매 가이드 ${trade.tf ? `<span style="font-size:14.5px;color:var(--blue);font-weight:600;margin-left:6px">${tfLabel[trade.tf] || trade.tf}</span>` : ''}
     </div>
     <div class="trade-box">
       <div class="trade-cell">
@@ -1706,8 +1706,8 @@ function renderTradeBox(records) {
         <div class="trade-val sl">${trade.sl != null ? fmtP(trade.sl) : '—'}</div>
       </div>
     </div>
-    ${trade.th ? `<div style="font-size:13px;color:var(--green);margin-bottom:6px;line-height:1.55"><b>💡 매수 근거:</b> ${escHtml(trade.th)}</div>` : ''}
-    ${trade.rk ? `<div style="font-size:13px;color:var(--yellow);margin-bottom:16px;line-height:1.55;font-weight:500"><b>⚠️ 리스크:</b> ${escHtml(trade.rk)}</div>` : ''}
+    ${trade.th ? `<div style="font-size:15.5px;color:var(--green);margin-bottom:6px;line-height:1.55"><b>💡 매수 근거:</b> ${escHtml(trade.th)}</div>` : ''}
+    ${trade.rk ? `<div style="font-size:15.5px;color:var(--yellow);margin-bottom:16px;line-height:1.55;font-weight:500"><b>⚠️ 리스크:</b> ${escHtml(trade.rk)}</div>` : ''}
   `;
 }
 
@@ -1863,7 +1863,7 @@ function renderDailyTable(d) {
 async function loadTechChips(ticker) {
   const wrap = document.getElementById('techChipsWrap');
   if (!wrap) return;
-  wrap.innerHTML = '<div style="font-size:11px;color:var(--text3);margin:8px 0">기술 지표 로딩...</div>';
+  wrap.innerHTML = '<div style="font-size:13.5px;color:var(--text3);margin:8px 0">기술 지표 로딩...</div>';
   try {
     const r = await fetch(`/api/technicals?tickers=${encodeURIComponent(ticker)}`);
     if (!r.ok) { wrap.innerHTML = ''; return; }
@@ -1910,9 +1910,9 @@ async function loadAiSummary(ticker, displayName) {
       <div class="ai-badge-row">
         <span class="ai-dot"></span>
         <span class="ai-badge">AI 분석하기</span>
-        <span style="font-size:11px;color:var(--text3);margin-left:auto">로딩 중...</span>
+        <span style="font-size:13.5px;color:var(--text3);margin-left:auto">로딩 중...</span>
       </div>
-      <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">
+      <div style="text-align:center;padding:20px;color:var(--text3);font-size:15.5px">
         🤖 ${escHtml(displayName)} 종합 분석 생성 중... (약 10초)
       </div>
       <div id="aiPanelAdSlot"></div>
@@ -1931,7 +1931,7 @@ async function loadAiSummary(ticker, displayName) {
     // 그걸 그대로 보여주는 경우 — 완전히 안 나오는 것보다 낫다. 언제 생성된
     // 내용인지 알 수 있게 하단에 명시.
     const staleNote = d.stale && d.generated_at
-      ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text3);text-align:right">
+      ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:13.5px;color:var(--text3);text-align:right">
           ⏱ Last update: ${new Date(d.generated_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })}
         </div>`
       : '';
@@ -1941,7 +1941,7 @@ async function loadAiSummary(ticker, displayName) {
         <div class="ai-badge-row">
           <span class="ai-dot"></span>
           <span class="ai-badge">AI 분석하기</span>
-          <span style="font-size:11px;color:var(--text3);margin-left:auto">${d.analyses_count || 0}건 분석 통합</span>
+          <span style="font-size:13.5px;color:var(--text3);margin-left:auto">${d.analyses_count || 0}건 분석 통합</span>
         </div>
 
         ${d.overview ? `
@@ -1992,7 +1992,7 @@ async function loadAiSummary(ticker, displayName) {
     `;
   } catch(e) {
     await minAdDelay;
-    wrap.innerHTML = `<div class="ai-summary-card"><div style="color:var(--red);font-size:13px">AI 분석 로딩 실패: ${escHtml(e.message)}</div></div>`;
+    wrap.innerHTML = `<div class="ai-summary-card"><div style="color:var(--red);font-size:15.5px">AI 분석 로딩 실패: ${escHtml(e.message)}</div></div>`;
   }
 }
 
@@ -2004,7 +2004,7 @@ async function loadFundamentals(ticker, forceRefresh = false) {
     <div class="fund-section">
       <div class="section-title">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-        펀더멘털 <span style="font-size:11px;color:var(--text3);font-weight:400">불러오는 중...</span>
+        펀더멘털 <span style="font-size:13.5px;color:var(--text3);font-weight:400">불러오는 중...</span>
         <span class="spinner" style="width:14px;height:14px;border-width:2px;margin:0 0 0 8px"></span>
       </div>
     </div>`;
@@ -2032,13 +2032,13 @@ function renderFundamentalsError(wrap, ticker, message, hint = '', resetKst = ''
       <div class="section-title">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         펀더멘털
-        <button onclick="loadFundamentals('${escHtml(ticker)}', true)" style="margin-left:auto;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px">🔄 다시 시도</button>
+        <button onclick="loadFundamentals('${escHtml(ticker)}', true)" style="margin-left:auto;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:14.5px">🔄 다시 시도</button>
       </div>
       <div class="fund-group" style="text-align:center;padding:32px">
-        <div style="font-size:14px;color:var(--yellow);margin-bottom:8px">⚠️ ${escHtml(message)}</div>
-        ${hint ? `<div style="font-size:12px;color:var(--text2);margin-top:6px">${escHtml(hint)}</div>` : ''}
-        ${resetKst ? `<div style="font-size:13px;color:var(--blue);margin-top:14px;padding:10px;background:var(--bg3);border-radius:6px;display:inline-block">⏰ FMP 한도 리셋: <b>${escHtml(resetKst)}</b></div>` : ''}
-        <div style="font-size:11px;color:var(--text3);margin-top:14px">기존에 한 번 가져온 종목은 캐시로 자동 표시됨 (한도와 무관)</div>
+        <div style="font-size:16px;color:var(--yellow);margin-bottom:8px">⚠️ ${escHtml(message)}</div>
+        ${hint ? `<div style="font-size:14.5px;color:var(--text2);margin-top:6px">${escHtml(hint)}</div>` : ''}
+        ${resetKst ? `<div style="font-size:15.5px;color:var(--blue);margin-top:14px;padding:10px;background:var(--bg3);border-radius:6px;display:inline-block">⏰ FMP 한도 리셋: <b>${escHtml(resetKst)}</b></div>` : ''}
+        <div style="font-size:13.5px;color:var(--text3);margin-top:14px">기존에 한 번 가져온 종목은 캐시로 자동 표시됨 (한도와 무관)</div>
       </div>
     </div>`;
 }
@@ -2094,12 +2094,12 @@ function renderFundamentals(wrap, f, ticker) {
     <div class="fund-section">
       <div class="section-title">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-        펀더멘털 ${f.fiscalPeriod ? `<span style="font-size:11px;color:var(--text3);font-weight:400">${f.fiscalPeriod}${f.reportDate ? ` (${f.reportDate})` : ''}</span>` : ''}
-        ${f.source === 'db-cache' ? `<span style="font-size:10px;color:var(--green);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px">💾 캐시 ${f.cacheAgeHours}h 전</span>` : ''}
-        ${f.source === 'db-cache-stale' ? `<span style="font-size:10px;color:var(--yellow);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px" title="${f.warning || ''}">⚠️ stale ${f.cacheAgeHours}h 전</span>` : ''}
-        ${f.source === 'fmp-stable' ? `<span style="font-size:10px;color:var(--blue);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px">🆕 최신</span>` : ''}
-        ${f.source === 'naver' ? `<span style="font-size:10px;color:var(--green);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px">🇰🇷 네이버증권</span>` : ''}
-        <button onclick="loadFundamentals('${escHtml(ticker)}', true)" style="margin-left:auto;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px" title="캐시 무시하고 FMP에서 최신 데이터 가져오기">🔄 새로고침</button>
+        펀더멘털 ${f.fiscalPeriod ? `<span style="font-size:13.5px;color:var(--text3);font-weight:400">${f.fiscalPeriod}${f.reportDate ? ` (${f.reportDate})` : ''}</span>` : ''}
+        ${f.source === 'db-cache' ? `<span style="font-size:13px;color:var(--green);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px">💾 캐시 ${f.cacheAgeHours}h 전</span>` : ''}
+        ${f.source === 'db-cache-stale' ? `<span style="font-size:13px;color:var(--yellow);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px" title="${f.warning || ''}">⚠️ stale ${f.cacheAgeHours}h 전</span>` : ''}
+        ${f.source === 'fmp-stable' ? `<span style="font-size:13px;color:var(--blue);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px">🆕 최신</span>` : ''}
+        ${f.source === 'naver' ? `<span style="font-size:13px;color:var(--green);background:var(--bg3);padding:2px 7px;border-radius:4px;margin-left:6px">🇰🇷 네이버증권</span>` : ''}
+        <button onclick="loadFundamentals('${escHtml(ticker)}', true)" style="margin-left:auto;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:13.5px" title="캐시 무시하고 FMP에서 최신 데이터 가져오기">🔄 새로고침</button>
       </div>
 
       ${gTiles.length ? `<div class="fund-grid" style="margin-bottom:22px">${gTiles.join('')}</div>` : ''}
@@ -2192,7 +2192,7 @@ function renderFundamentals(wrap, f, ticker) {
 
       ${isKrw && (f.priceTargetMean != null) ? `
       <div class="fund-group">
-        <div class="fund-group-title">🎯 애널리스트 컨센서스 <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none;margin-left:4px">출처: 네이버 증권 (국내 증권사 리포트 집계)</span></div>
+        <div class="fund-group-title">🎯 애널리스트 컨센서스 <span style="font-size:13px;color:var(--text3);font-weight:400;text-transform:none;margin-left:4px">출처: 네이버 증권 (국내 증권사 리포트 집계)</span></div>
         <div class="consensus-row">
           <div>
             <div class="consensus-target-val">${Math.round(f.priceTargetMean).toLocaleString()}원</div>
@@ -2339,7 +2339,7 @@ async function init() {
       document.getElementById('pageWrap').innerHTML = `
         <div class="loading-state">
           <p style="color:var(--red)">❌ 종목 <strong>${escHtml(ticker)}</strong>을(를) 찾을 수 없습니다.</p>
-          <p style="color:var(--text3);font-size:13px;margin-top:8px">
+          <p style="color:var(--text3);font-size:15.5px;margin-top:8px">
             종목 정보를 찾을 수 없습니다.<br>
             한국 종목은 6자리 코드 + .KS 또는 .KQ (예: 028300.KQ, 005930.KS)<br>
             미국 종목은 영문 티커 (예: AAPL, MSFT, NVDA)
@@ -2370,52 +2370,52 @@ initAuth();
 async function loadSecFilings(ticker) {
   const wrap = document.getElementById('secFilingsWrap');
   if (!wrap) return;
-  wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px;font-size:13px;color:var(--text2)">📜 SEC 공시 불러오는 중...</div>`;
+  wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px;font-size:15.5px;color:var(--text2)">📜 SEC 공시 불러오는 중...</div>`;
   try {
     const r = await fetch('/api/admin?action=sec-filings&ticker=' + encodeURIComponent(ticker));
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:12px;color:var(--text3)">📜 SEC 공시 사용 불가 — ${escHtml(j.error || '')}</div>`;
+      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:14.5px;color:var(--text3)">📜 SEC 공시 사용 불가 — ${escHtml(j.error || '')}</div>`;
       return;
     }
     const d = await r.json();
     if (!d.filings?.length) {
-      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:12px;color:var(--text3)">📜 SEC 공시 없음</div>`;
+      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:14.5px;color:var(--text3)">📜 SEC 공시 없음</div>`;
       return;
     }
     const formColors = { '10-K':'var(--blue)', '10-Q':'var(--purple)', '8-K':'var(--yellow)', 'DEF 14A':'var(--green)' };
     const rows = d.filings.slice(0, 12).map(f => {
       const color = formColors[f.form] || 'var(--text2)';
       const formLabel = { '10-K':'연간보고서', '10-Q':'분기보고서', '8-K':'중요공시', 'DEF 14A':'주총소집' }[f.form] || f.form;
-      return `<a href="${escHtml(f.doc_url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);text-decoration:none;color:var(--text);font-size:12.5px;transition:color .12s">
+      return `<a href="${escHtml(f.doc_url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);text-decoration:none;color:var(--text);font-size:15px;transition:color .12s">
         <span style="display:flex;align-items:center;gap:8px;min-width:0">
-          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(0,0,0,0.04);color:${color};white-space:nowrap">${escHtml(f.form)}</span>
+          <span style="font-size:13px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(0,0,0,0.04);color:${color};white-space:nowrap">${escHtml(f.form)}</span>
           <span style="color:var(--text2);white-space:nowrap">${formLabel}</span>
-          ${f.period ? `<span style="color:var(--text3);font-size:11px">· ${escHtml(f.period)} 기준</span>` : ''}
+          ${f.period ? `<span style="color:var(--text3);font-size:13.5px">· ${escHtml(f.period)} 기준</span>` : ''}
         </span>
-        <span style="color:var(--text3);font-size:11px;white-space:nowrap">${escHtml(f.filed_at)} →</span>
+        <span style="color:var(--text3);font-size:13.5px;white-space:nowrap">${escHtml(f.filed_at)} →</span>
       </a>`;
     }).join('');
     wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:24px;box-shadow:var(--shadow-card)">
-      <div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
-        📜 SEC 공시 <span style="font-size:11px;color:var(--text3);font-weight:400">CIK ${escHtml(d.cik)}</span>
-        <span style="margin-left:auto;font-size:11px;color:var(--text3);font-weight:400">출처: SEC EDGAR</span>
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        📜 SEC 공시 <span style="font-size:13.5px;color:var(--text3);font-weight:400">CIK ${escHtml(d.cik)}</span>
+        <span style="margin-left:auto;font-size:13.5px;color:var(--text3);font-weight:400">출처: SEC EDGAR</span>
       </div>
       ${rows}
     </div>`;
-  } catch (e) { wrap.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">SEC 로드 실패: ${escHtml(e.message)}</div>`; }
+  } catch (e) { wrap.innerHTML = `<div style="color:var(--red);font-size:14.5px;padding:12px">SEC 로드 실패: ${escHtml(e.message)}</div>`; }
 }
 
 // ─── 📈 옵션 체인 요약 (US 종목) ───────────────────────────
 async function loadOptionsChain(ticker) {
   const wrap = document.getElementById('optionsWrap');
   if (!wrap) return;
-  wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px;font-size:13px;color:var(--text2)">📈 옵션 체인 불러오는 중...</div>`;
+  wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:18px;font-size:15.5px;color:var(--text2)">📈 옵션 체인 불러오는 중...</div>`;
   try {
     const r = await fetch('/api/admin?action=options-chain&ticker=' + encodeURIComponent(ticker));
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:12px;color:var(--text3)">📈 옵션 데이터 없음 — ${escHtml(j.error || '')}</div>`;
+      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:14.5px;color:var(--text3)">📈 옵션 데이터 없음 — ${escHtml(j.error || '')}</div>`;
       return;
     }
     const d = await r.json();
@@ -2423,34 +2423,34 @@ async function loadOptionsChain(ticker) {
     const pcrLabel = d.pcr == null ? '—' : d.pcr > 1.1 ? '약세 (Put 우세)' : d.pcr < 0.9 ? '강세 (Call 우세)' : '중립';
     const renderStrikes = (arr, label, color) => arr.length ? `
       <div style="margin-top:10px">
-        <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:4px">${label}</div>
-        <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+        <div style="font-size:13.5px;font-weight:700;color:${color};margin-bottom:4px">${label}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
           <thead><tr style="color:var(--text3)"><th style="text-align:left;padding:4px 6px">행사가</th><th style="text-align:right;padding:4px 6px">미결제</th><th style="text-align:right;padding:4px 6px">거래량</th><th style="text-align:right;padding:4px 6px">IV%</th></tr></thead>
           <tbody>${arr.map(o => `<tr><td style="padding:4px 6px;font-family:var(--font-mono,monospace)">$${o.strike}</td><td style="padding:4px 6px;text-align:right">${(o.openInterest||0).toLocaleString()}</td><td style="padding:4px 6px;text-align:right;color:var(--text2)">${(o.volume||0).toLocaleString()}</td><td style="padding:4px 6px;text-align:right;color:var(--blue)">${o.impliedVol != null ? o.impliedVol.toFixed(1) : '—'}</td></tr>`).join('')}</tbody>
         </table>
       </div>` : '';
     wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:24px;box-shadow:var(--shadow-card)">
-      <div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
-        📈 옵션 체인 ${d.expiration ? `<span style="font-size:11px;color:var(--text3);font-weight:400">만기 ${escHtml(d.expiration)}</span>` : ''}
-        <span style="margin-left:auto;font-size:11px;color:var(--text3);font-weight:400">출처: Yahoo Finance</span>
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        📈 옵션 체인 ${d.expiration ? `<span style="font-size:13.5px;color:var(--text3);font-weight:400">만기 ${escHtml(d.expiration)}</span>` : ''}
+        <span style="margin-left:auto;font-size:13.5px;color:var(--text3);font-weight:400">출처: Yahoo Finance</span>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
         <div style="background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase">ATM IV</div>
-          <div style="font-size:18px;font-weight:700;color:var(--blue)">${d.atmIV != null ? d.atmIV.toFixed(1) + '%' : '—'}</div>
+          <div style="font-size:13px;color:var(--text3);text-transform:uppercase">ATM IV</div>
+          <div style="font-size:20px;font-weight:700;color:var(--blue)">${d.atmIV != null ? d.atmIV.toFixed(1) + '%' : '—'}</div>
         </div>
         <div style="background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase">Put/Call OI</div>
-          <div style="font-size:18px;font-weight:700;color:${pcrColor}">${d.pcr != null ? d.pcr.toFixed(2) : '—'}</div>
-          <div style="font-size:10px;color:${pcrColor}">${pcrLabel}</div>
+          <div style="font-size:13px;color:var(--text3);text-transform:uppercase">Put/Call OI</div>
+          <div style="font-size:20px;font-weight:700;color:${pcrColor}">${d.pcr != null ? d.pcr.toFixed(2) : '—'}</div>
+          <div style="font-size:13px;color:${pcrColor}">${pcrLabel}</div>
         </div>
         <div style="background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase">총 Call OI</div>
-          <div style="font-size:16px;font-weight:700;color:var(--red)">${(d.totalCallOI||0).toLocaleString()}</div>
+          <div style="font-size:13px;color:var(--text3);text-transform:uppercase">총 Call OI</div>
+          <div style="font-size:18px;font-weight:700;color:var(--red)">${(d.totalCallOI||0).toLocaleString()}</div>
         </div>
         <div style="background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase">총 Put OI</div>
-          <div style="font-size:16px;font-weight:700;color:var(--blue)">${(d.totalPutOI||0).toLocaleString()}</div>
+          <div style="font-size:13px;color:var(--text3);text-transform:uppercase">총 Put OI</div>
+          <div style="font-size:18px;font-weight:700;color:var(--blue)">${(d.totalPutOI||0).toLocaleString()}</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
@@ -2458,7 +2458,7 @@ async function loadOptionsChain(ticker) {
         ${renderStrikes(d.putsTop||[],  '📉 풋옵션 Top 5 (OI 기준)', 'var(--blue)')}
       </div>
     </div>`;
-  } catch (e) { wrap.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">옵션 로드 실패: ${escHtml(e.message)}</div>`; }
+  } catch (e) { wrap.innerHTML = `<div style="color:var(--red);font-size:14.5px;padding:12px">옵션 로드 실패: ${escHtml(e.message)}</div>`; }
 }
 
 // ─── 🇰🇷 DART 상세 (KR 종목) ───────────────────────────────
@@ -2467,7 +2467,7 @@ async function loadInvestorTrend(ticker) {
   const wrap = document.getElementById('investorTrendWrap');
   if (!wrap) return;
   wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:24px">
-    <div style="font-size:14px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px">
+    <div style="font-size:16px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px">
       🧭 투자자별 매매동향 <span class="spinner" style="width:12px;height:12px;border-width:2px"></span>
     </div>
   </div>`;
@@ -2476,14 +2476,14 @@ async function loadInvestorTrend(ticker) {
     const r = await fetch('/api/stock?type=investors&ticker=' + encodeURIComponent(ticker) + '&count=20');
     const d = await r.json();
     if (!r.ok || !d.ok || !d.days?.length) {
-      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:12px;color:var(--text3)">
+      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:14.5px;color:var(--text3)">
         🧭 투자자별 매매동향 데이터 사용 불가 — ${escHtml(d.error || 'unknown')}
       </div>`;
       return;
     }
     wrap.innerHTML = renderInvestorTrend(d);
   } catch (e) {
-    wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:12px;color:var(--red)">투자자별 매매동향 로드 실패: ${escHtml(e.message)}</div>`;
+    wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:14.5px;color:var(--red)">투자자별 매매동향 로드 실패: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -2497,7 +2497,7 @@ async function loadEtfHolders(ticker) {
     const r = await fetch('/api/etf?action=holders&ticker=' + encodeURIComponent(ticker));
     const d = await r.json();
     if (!d.ok || !d.etfs?.length) {
-      wrap.innerHTML = `<div class="cmp-empty">이 종목을 상위 구성으로 담은 ETF가 아직 인덱스에 없어요.<br><span style="font-size:11px;color:var(--text3)">(주요 대형주는 지수·테마 ETF에서 곧 채워집니다)</span></div>`;
+      wrap.innerHTML = `<div class="cmp-empty">이 종목을 상위 구성으로 담은 ETF가 아직 인덱스에 없어요.<br><span style="font-size:13.5px;color:var(--text3)">(주요 대형주는 지수·테마 ETF에서 곧 채워집니다)</span></div>`;
       return;
     }
     wrap.innerHTML = renderEtfHolders(d);
@@ -2536,16 +2536,16 @@ function renderEtfHolders(d) {
       .etfh-row:last-child{border-bottom:none}
       .etfh-row:hover .etfh-nm{color:var(--blue)}
       .etfh-name{min-width:0}
-      .etfh-nm{font-size:13px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .1s}
-      .etfh-cat{font-size:10px;color:var(--text3);margin-top:2px;display:inline-block}
-      .etfh-w{font-size:12.5px;font-weight:700;font-family:var(--font-mono,monospace);text-align:right;color:var(--text2)}
-      .etfh-num{font-size:12px;font-weight:700;font-family:var(--font-mono,monospace);text-align:right}
+      .etfh-nm{font-size:15.5px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .1s}
+      .etfh-cat{font-size:13px;color:var(--text3);margin-top:2px;display:inline-block}
+      .etfh-w{font-size:15px;font-weight:700;font-family:var(--font-mono,monospace);text-align:right;color:var(--text2)}
+      .etfh-num{font-size:14.5px;font-weight:700;font-family:var(--font-mono,monospace);text-align:right}
       .etfh-up{color:var(--red)} .etfh-dn{color:var(--blue)} .etfh-flat{color:var(--text3)}
-      .etfh-head{font-size:10.5px;color:var(--text3);padding:10px 0 4px;display:grid;grid-template-columns:1fr 58px 60px 60px;gap:10px;text-transform:uppercase;letter-spacing:.02em}
+      .etfh-head{font-size:13px;color:var(--text3);padding:10px 0 4px;display:grid;grid-template-columns:1fr 58px 60px 60px;gap:10px;text-transform:uppercase;letter-spacing:.02em}
       .etfh-head span:not(:first-child){text-align:right}
       .etfh-more-wrap{display:none}
       .etfh-more-wrap.open{display:block}
-      .etfh-toggle{width:100%;margin-top:6px;padding:10px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--text2);font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+      .etfh-toggle{width:100%;margin-top:6px;padding:10px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--text2);font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
       .etfh-toggle:hover{background:var(--bg3);color:var(--text)}
       .etfh-toggle .etfh-chev{transition:transform .15s}
       .etfh-toggle.open .etfh-chev{transform:rotate(180deg)}
@@ -2636,8 +2636,8 @@ function renderInvestorTrend(d) {
     ${curHold != null ? `
     <div class="ck-panel" style="padding:16px 18px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <div><div style="font-size:11px;color:var(--text3);margin-bottom:2px">외국인 보유비중</div>
-          <div style="font-family:var(--mono);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums">${curHold.toFixed(2)}<small style="font-size:13px;color:var(--text2)">%</small></div></div>
+        <div><div style="font-size:13.5px;color:var(--text3);margin-bottom:2px">외국인 보유비중</div>
+          <div style="font-family:var(--mono);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums">${curHold.toFixed(2)}<small style="font-size:15.5px;color:var(--text2)">%</small></div></div>
         <div style="flex:1;min-width:160px;height:38px;margin-left:auto">${spark(holdVals, CA, 320, 38)}</div>
       </div>
     </div>` : ''}
@@ -2650,7 +2650,7 @@ function renderInvestorTrend(d) {
 
     <div class="ck-panel" style="padding:16px 18px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px;flex-wrap:wrap">
-        <div style="font-size:12.5px;font-weight:600">누적 순매수 추세 <span style="color:var(--text3);font-weight:400;font-size:11px">· 어디서 들어왔나 / 나갔나</span></div>
+        <div style="font-size:15px;font-weight:600">누적 순매수 추세 <span style="color:var(--text3);font-weight:400;font-size:13.5px">· 어디서 들어왔나 / 나갔나</span></div>
         <div class="rr-legend" style="margin-left:auto">
           <div class="rr-lg"><span class="ln" style="background:${CA}"></span>외국인</div>
           <div class="rr-lg"><span class="ln" style="background:${CM}"></span>기관</div>
@@ -2671,7 +2671,7 @@ async function loadDartDetail(ticker) {
   const wrap = document.getElementById('dartDetailWrap');
   if (!wrap) return;
   wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:24px">
-    <div style="font-size:14px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px">
+    <div style="font-size:16px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:8px">
       🇰🇷 DART 상세 공시 데이터 <span class="spinner" style="width:12px;height:12px;border-width:2px"></span>
     </div>
   </div>`;
@@ -2680,7 +2680,7 @@ async function loadDartDetail(ticker) {
     const r = await fetch('/api/admin?action=dart-company-detail&ticker=' + encodeURIComponent(ticker));
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:12px;color:var(--text3)">
+      wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:14.5px;color:var(--text3)">
         🇰🇷 DART 상세 데이터 사용 불가 — ${escHtml(j.error || 'unknown')}
         ${j.error?.includes('not synced') ? '<div style="margin-top:6px;color:var(--blue)">관리자가 <code>?action=dart-sync-corp-codes</code>를 실행해야 합니다.</div>' : ''}
       </div>`;
@@ -2689,7 +2689,7 @@ async function loadDartDetail(ticker) {
     const d = await r.json();
     wrap.innerHTML = renderDartDetail(d);
   } catch (e) {
-    wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:12px;color:var(--red)">DART 로드 실패: ${escHtml(e.message)}</div>`;
+    wrap.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:24px;font-size:14.5px;color:var(--red)">DART 로드 실패: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -2720,11 +2720,11 @@ function renderDartDetail(d) {
     </tr>`).join('');
     sections.push(`
       <div style="margin-bottom:18px">
-        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
-          👥 최대주주 현황 <span style="font-size:11px;color:var(--text3);font-weight:400">(${d.major_holders.length}명)</span>
+        <div style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          👥 최대주주 현황 <span style="font-size:13.5px;color:var(--text3);font-weight:400">(${d.major_holders.length}명)</span>
         </div>
         <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <table style="width:100%;border-collapse:collapse;font-size:14.5px">
             <thead style="background:var(--bg3)">
               <tr><th style="padding:6px 10px;text-align:left">성명/법인</th><th style="padding:6px 10px;text-align:left">관계</th><th style="padding:6px 10px;text-align:right">보유주식</th><th style="padding:6px 10px;text-align:right">지분율</th></tr>
             </thead>
@@ -2745,7 +2745,7 @@ function renderDartDetail(d) {
       if (v == null || v === '' || v === '-') return '';
       const n = parseFloat(String(v).replace(/,/g, ''));
       if (isNaN(n) || n === 0) return '';
-      return ` <span style="font-size:10px;color:${n > 0 ? 'var(--green)' : 'var(--red)'};margin-left:4px">${n > 0 ? '+' : ''}${n.toLocaleString()}</span>`;
+      return ` <span style="font-size:13px;color:${n > 0 ? 'var(--green)' : 'var(--red)'};margin-left:4px">${n > 0 ? '+' : ''}${n.toLocaleString()}</span>`;
     };
     const rows = d.shareholders.slice(0, 12).map(s => {
       // 직위/주요주주 표시
@@ -2760,9 +2760,9 @@ function renderDartDetail(d) {
     }).join('');
     sections.push(`
       <div style="margin-bottom:18px">
-        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">📊 임원·주요주주 보유 변동</div>
+        <div style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:8px">📊 임원·주요주주 보유 변동</div>
         <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <table style="width:100%;border-collapse:collapse;font-size:14.5px">
             <thead style="background:var(--bg3)"><tr><th style="padding:6px 10px;text-align:left">성명</th><th style="padding:6px 10px;text-align:left">직위/관계</th><th style="padding:6px 10px;text-align:right">보유 (주)</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
@@ -2775,14 +2775,14 @@ function renderDartDetail(d) {
     const rows = d.officers.slice(0, 15).map(o => `<tr>
       <td style="padding:6px 10px">${escHtml(o.nm || '—')}</td>
       <td style="padding:6px 10px;color:var(--text2)">${escHtml(o.ofcps || '—')}</td>
-      <td style="padding:6px 10px;color:var(--text3);font-size:11px">${escHtml(o.chrg_job || o.main_career || '—')}</td>
-      <td style="padding:6px 10px;color:var(--text3);font-size:11px">${escHtml(o.tenure_end_on || o.term_finish_dt || '—')}</td>
+      <td style="padding:6px 10px;color:var(--text3);font-size:13.5px">${escHtml(o.chrg_job || o.main_career || '—')}</td>
+      <td style="padding:6px 10px;color:var(--text3);font-size:13.5px">${escHtml(o.tenure_end_on || o.term_finish_dt || '—')}</td>
     </tr>`).join('');
     sections.push(`
       <div style="margin-bottom:18px">
-        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">🧑‍💼 임원 현황 <span style="font-size:11px;color:var(--text3);font-weight:400">(${d.officers.length}명)</span></div>
+        <div style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:8px">🧑‍💼 임원 현황 <span style="font-size:13.5px;color:var(--text3);font-weight:400">(${d.officers.length}명)</span></div>
         <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <table style="width:100%;border-collapse:collapse;font-size:14.5px">
             <thead style="background:var(--bg3)"><tr><th style="padding:6px 10px;text-align:left">성명</th><th style="padding:6px 10px;text-align:left">직위</th><th style="padding:6px 10px;text-align:left">담당업무/경력</th><th style="padding:6px 10px;text-align:left">임기만료</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
@@ -2814,9 +2814,9 @@ function renderDartDetail(d) {
     }).join('');
     sections.push(`
       <div style="margin-bottom:8px">
-        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">📈 재무지표 연간 추이</div>
+        <div style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:8px">📈 재무지표 연간 추이</div>
         <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <table style="width:100%;border-collapse:collapse;font-size:14.5px">
             <thead style="background:var(--bg3)"><tr><th style="padding:6px 10px;text-align:left">항목</th>${years.map(y => `<th style="padding:6px 10px;text-align:right">${y}</th>`).join('')}</tr></thead>
             <tbody>${rows}</tbody>
           </table>
@@ -2824,15 +2824,15 @@ function renderDartDetail(d) {
       </div>`);
   }
 
-  const cached = d.cached ? `<span style="color:var(--text3);font-size:10px;margin-left:8px">(캐시 · ${new Date(d.updated_at).toLocaleDateString('ko-KR')})</span>` : '';
+  const cached = d.cached ? `<span style="color:var(--text3);font-size:13px;margin-left:8px">(캐시 · ${new Date(d.updated_at).toLocaleDateString('ko-KR')})</span>` : '';
   const empty = !sections.length
-    ? '<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">DART 데이터가 비어있습니다 (사업보고서 미공시 또는 비상장)</div>'
+    ? '<div style="color:var(--text3);font-size:14.5px;text-align:center;padding:20px">DART 데이터가 비어있습니다 (사업보고서 미공시 또는 비상장)</div>'
     : sections.join('');
 
   return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:24px;box-shadow:var(--shadow-card)">
-    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+    <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--border)">
       🇰🇷 DART 상세 공시 데이터${cached}
-      <span style="margin-left:auto;font-size:11px;color:var(--text3);font-weight:400">출처: 전자공시시스템 (opendart.fss.or.kr)</span>
+      <span style="margin-left:auto;font-size:13.5px;color:var(--text3);font-weight:400">출처: 전자공시시스템 (opendart.fss.or.kr)</span>
     </div>
     ${empty}
   </div>`;
