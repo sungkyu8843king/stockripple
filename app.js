@@ -3344,19 +3344,24 @@ const HM_SESSION_BADGE = {
 // ─── Finviz 스타일 트리맵 (2026-07-27) ────────────────────────────────
 // 섹터로 묶고, 박스 크기는 Finviz와 동일하게 **시가총액** 비례.
 // 시총 = 실시간 가격 × 상장주식수. Yahoo v8 chart 응답엔 시총도 주식수도 없고 Yahoo v7·FMP는
-// 막혀 있어서, Toss meta(action=meta)가 주는 sharesOutstanding을 전 종목 한 번 긁어
-// /data/shares-outstanding.json 정적 파일로 커밋해뒀다(생성 방법은 CLAUDE.md 참고).
-// 주식수는 분기 단위로만 바뀌므로 정적 캐시로 충분하고, 가격은 실시간이라 시총도 실시간이다.
-// 종목당 1콜(762콜)인 라이브 조회를 완전히 없애면서 정확한 시총 정렬을 얻는 방식.
-// 주식수가 없는 종목은 거래대금으로 폴백(박스가 사라지지 않게).
+// 막혀 있어서, Toss meta(action=meta)가 주는 sharesOutstanding을 쓴다. 원래는 전 종목 한 번
+// 긁어 /data/shares-outstanding.json 정적 파일로만 커밋해뒀는데, 그러면 이후 신규 상장·
+// 히트맵 종목 추가 시 수동으로 다시 긁어 재배포해야 했다 — 이제 `shares_outstanding` 테이블
+// (db/shares-outstanding.sql)에 저장해두고 cron-daily가 주 1회(핸들러 자체 신선도가드) 자동
+// 갱신한다(api/admin.js handleCrawlSharesOutstanding). 주식수는 분기 단위로만 바뀌므로
+// 캐시로 충분하고, 가격은 실시간이라 시총도 실시간이다. 종목당 1콜(762콜)인 라이브 조회를
+// 완전히 없애면서 정확한 시총 정렬을 얻는 방식. 주식수가 없는 종목은 거래대금으로 폴백
+// (박스가 사라지지 않게). DB 조회가 실패하거나(마이그레이션 전) 비어 있으면 최초 커밋해둔
+// 정적 스냅샷으로 폴백 — 신규 종목만 빠질 뿐 히트맵 자체가 비지는 일은 없다.
 let _sharesOutstanding = null, _soPromise = null;
 function loadSharesOutstanding() {
   if (_sharesOutstanding) return Promise.resolve(_sharesOutstanding);
   if (!_soPromise) {
-    _soPromise = fetch('/data/shares-outstanding.json')
-      .then(r => r.ok ? r.json() : {})
-      .then(j => (_sharesOutstanding = j || {}))
-      .catch(() => (_sharesOutstanding = {}));
+    _soPromise = fetch('/api/admin?action=shares-outstanding')
+      .then(r => r.ok ? r.json() : { ok: false })
+      .then(j => (j.ok && j.data && Object.keys(j.data).length) ? j.data : Promise.reject())
+      .catch(() => fetch('/data/shares-outstanding.json').then(r => r.ok ? r.json() : {}).catch(() => ({})))
+      .then(j => (_sharesOutstanding = j || {}));
   }
   return _soPromise;
 }

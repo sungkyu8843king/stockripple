@@ -97,6 +97,18 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 
 **종목 검색(`action=holders&q=`)**: 티커 6자리면 바로 역조회, 아니면 `etf_holdings.stock_name` ILIKE로 후보 제안(자동완성) 후 선택 시 역조회. 역조회 결과는 편입비중뿐 아니라 그 ETF의 실시간 등락률·3개월수익률까지 목록 API와 조인해 같이 반환 — etf.html("종목으로 ETF 찾기")과 company.html(해당 종목 페이지) 둘 다 이 enriched 응답을 쓴다.
 
+## 히트맵 트리맵 시총 캐시 (`shares_outstanding` 테이블, 2026-07-27~28)
+
+`heatmap.html`의 Finviz 스타일 트리맵은 박스 크기를 **시가총액**(실시간가 × 상장주식수)으로 정한다. Yahoo v8 chart엔 시총·주식수가 없고 Yahoo v7·FMP는 막혀 있어, Toss meta(`action=meta`)가 주는 `sharesOutstanding`을 쓴다 — 히트맵 762종목 전부를 실시간 조회하면 렌더마다 762콜이라 대신 **캐시**한다.
+
+- 최초 구현(`5aae05c`)은 762종목을 로컬 스크립트로 한 번 긁어 `/data/shares-outstanding.json`(13KB, 저장소 커밋) 정적 파일로만 뒀다 — 히트맵에 신규 종목이 추가되거나 상장폐지되면 수동으로 다시 긁어 재배포해야 하는 한계가 있었다.
+- 이후 `shares_outstanding` 테이블(`db/shares-outstanding.sql`, anon 읽기 허용 — 발행주식수는 투자판단 데이터가 아니라 `expose_ripple_effects` 게이트 대상 아님)로 옮겨 **자동 갱신**되게 했다:
+  - `POST /api/admin?action=crawl-shares-outstanding`(`handleCrawlSharesOutstanding`, admin 인증) — 대상 티커는 서버가 직접 못 읽는 클라이언트 목록 대신 `/data/shares-outstanding.json`의 키를 그대로 재사용. Toss 프록시가 동시성에 민감해(concurrency 6에서 절반 실패 실측) **concurrency 3** + 50초 시간예산의 resumable 크롤(`start`/`nextStart`, `crawl-etf-holdings`와 동일 패턴). **7일 이내에 이미 갱신됐으면 스킵**(`force:true`로 강제 가능) — 주식수는 분기 단위로만 바뀌므로 매일 돌 필요가 없다.
+  - `cron-daily.js`가 매일 fire-and-forget으로 호출(핸들러 자체 신선도가드 덕에 실제 크롤은 주 1회만 실행).
+  - `GET /api/admin?action=shares-outstanding`(`handleSharesOutstandingGet`, 공개) — 테이블 전체를 `{ticker: shares}` 맵으로 반환, `s-maxage=86400` 캐시.
+  - `app.js`의 `loadSharesOutstanding()`이 이제 이 DB 엔드포인트를 우선 호출하고, 응답이 실패하거나 비어 있으면(마이그레이션 전 등) `/data/shares-outstanding.json` 정적 스냅샷으로 폴백 — 신규 종목의 주식수만 누락될 뿐 히트맵 자체가 비는 일은 없다.
+- 상장주식수가 없는 종목은 거래대금으로 폴백해 박스가 사라지지 않게 한다(`app.js` `renderHeatmapTreemap`).
+
 ## ⚠️ CSS Grid/Flex 아이템 `min-width:auto` 함정 — 모바일 가로스크롤의 반복 원인
 
 이 프로젝트에서 "모바일에서 화면이 넘친다/작게 보인다" 버그가 **여러 번** 재발했는데 전부 같은 원인이었다: Grid/Flex 아이템의 기본값은 `min-width:auto`라서, **줄바꿈 지점이 없는 콘텐츠**(원화 숫자 `₩1,406,000`, 티커, 긴 영문 이름)가 트랙/아이템을 콘텐츠 최소너비만큼 강제로 넓혀서 부모가 넘침 → 모바일 브라우저가 페이지 전체를 축소 렌더링하거나 가로스크롤 발생.

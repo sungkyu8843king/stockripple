@@ -23,6 +23,8 @@
  *  GET  /api/admin?action=analytics&type=daily|hourly|referrers|paths|dwell|live[&days=N] → 방문자 통계 조회
  *  GET  /api/admin?action=feature-flags       → Claude 토큰 사용 기능 on/off 상태 조회
  *  POST /api/admin?action=feature-flags {key?, keys?, enabled} → 개별/일괄 on/off (key·keys 생략 시 전체)
+ *  GET  /api/admin?action=shares-outstanding  → 히트맵 시총 계산용 상장주식수 캐시 조회 (공개)
+ *  POST /api/admin?action=crawl-shares-outstanding {start?, force?} → 상장주식수 크롤(7일 신선도가드, resumable)
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
@@ -87,6 +89,8 @@ export default async function handler(req, res) {
   // 옮긴 것(트래픽 급증 시 DB 보호 목적). 공개 조회이므로 인증 불필요.
   if (action === 'issues-feed')  return handleIssuesFeed(req, res);
   if (action === 'insights-raw') return handleInsightsRaw(req, res);
+  // shares-outstanding: 히트맵 트리맵 시총 계산용 상장주식수 캐시 조회 — 공개(가격만큼 민감하지 않은 정보)
+  if (action === 'shares-outstanding') return handleSharesOutstandingGet(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -110,6 +114,7 @@ export default async function handler(req, res) {
   if (action === 'fix-kr-broken-names') return handleFixKrBrokenNames(req, res);
   if (action === 'fix-broken-titles') return handleFixBrokenTitles(req, res);
   if (action === 'crawl-etf-holdings') return handleCrawlEtfHoldings(req, res);
+  if (action === 'crawl-shares-outstanding') return handleCrawlSharesOutstanding(req, res);
   if (action === 'chat-admin') return handleChatAdmin(req, res);
   if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
   if (action === 'daily-report') return handleDailyReportPost(req, res);
@@ -2644,6 +2649,84 @@ function krwToNumber(s) {
   if (found) return total;
   const n = parseFloat(str);
   return isFinite(n) ? n : null;
+}
+
+// ── 상장주식수 캐시 (히트맵 트리맵 시총 계산용) — db/shares-outstanding.sql ──
+// 시총 = 실시간가 × 주식수. 주식수는 분기 단위로만 바뀌므로 라이브 조회(762콜) 대신 캐시한다.
+// 대상 티커 목록은 /data/shares-outstanding.json(최초 수집분, 저장소에 커밋됨)의 키를 쓴다 —
+// 히트맵 티커가 app.js(클라이언트)에 있어 서버가 직접 못 읽기 때문.
+// Toss 프록시가 동시성에 민감해(6이면 절반 실패 실측) 낮은 동시성 + 시간예산으로 resumable 처리.
+async function handleCrawlSharesOutstanding(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const t0 = Date.now();
+  const TIME_BUDGET_MS = 50000;
+  const start = Math.max(0, parseInt(req.body?.start) || 0);
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req.headers.host}`;
+
+  // 7일 이내에 이미 갱신됐으면 스킵 (cron이 매일 불러도 실제 크롤은 주 1회)
+  if (start === 0 && !req.body?.force) {
+    const { data: fresh } = await supabase.from('shares_outstanding')
+      .select('updated_at').order('updated_at', { ascending: false }).limit(1);
+    const last = fresh?.[0]?.updated_at ? new Date(fresh[0].updated_at).getTime() : 0;
+    if (last && Date.now() - last < 7 * 86400000) {
+      return res.status(200).json({ ok: true, skipped: true, reason: 'fresh within 7d', lastUpdated: fresh[0].updated_at });
+    }
+  }
+
+  let tickers = [];
+  try {
+    const r = await fetch(`${base}/data/shares-outstanding.json`, { signal: AbortSignal.timeout(10000) });
+    tickers = Object.keys(await r.json());
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: 'ticker list load failed: ' + e.message });
+  }
+  if (!tickers.length) return res.status(200).json({ ok: false, error: 'empty ticker list' });
+
+  let i = start, updated = 0, failed = 0;
+  const CONC = 3;
+  const worker = async () => {
+    while (i < tickers.length && Date.now() - t0 < TIME_BUDGET_MS) {
+      const t = tickers[i++];
+      // KR은 .KS/.KQ 없이 6자리, BRK-B류는 Toss가 점 표기(BRK.B)를 씀
+      const sym = t.replace(/\.(KS|KQ)$/, '').replace(/-/g, '.');
+      try {
+        const r = await fetch(`${base}/api/toss?action=meta&symbol=${encodeURIComponent(sym)}`, { signal: AbortSignal.timeout(9000) });
+        const j = await r.json();
+        if (j?.ok && j.sharesOutstanding) {
+          await supabase.from('shares_outstanding')
+            .upsert({ ticker: t, shares: j.sharesOutstanding, updated_at: new Date().toISOString() }, { onConflict: 'ticker' });
+          updated++;
+        } else failed++;
+      } catch { failed++; }
+    }
+  };
+  await Promise.all(Array.from({ length: CONC }, worker));
+
+  const done = i >= tickers.length;
+  return res.status(200).json({ ok: true, done, updated, failed, nextStart: done ? null : i, total: tickers.length });
+}
+
+// 공개 조회 — 히트맵 클라이언트가 시총 계산에 쓴다. 하루 단위 엣지 캐시라 원본 호출은 하루 몇 번뿐.
+async function handleSharesOutstandingGet(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  try {
+    // 762행이라 PostgREST 기본 1000행 제한 안에 들어옴
+    const { data, error } = await supabase.from('shares_outstanding').select('ticker, shares').limit(2000);
+    if (error || !data?.length) {
+      // DB 미마이그레이션/비어있음 → 클라이언트가 정적 JSON 폴백을 쓰도록 빈 응답
+      res.setHeader('Cache-Control', 'public, s-maxage=300');
+      return res.status(200).json({ ok: false, data: {} });
+    }
+    const out = {};
+    for (const r of data) out[r.ticker] = Number(r.shares);
+    res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=172800');
+    return res.status(200).json({ ok: true, data: out });
+  } catch (e) {
+    res.setHeader('Cache-Control', 'public, s-maxage=300');
+    return res.status(200).json({ ok: false, data: {}, error: e.message });
+  }
 }
 
 async function handleCrawlEtfHoldings(req, res) {
