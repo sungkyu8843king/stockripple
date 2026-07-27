@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>(function(){try{if(localStorage.getItem('sr_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="/announcement-bar.js" defer></script>
@@ -24,7 +25,7 @@
 <style>
 :root {
   /* 소프트 핀테크 다크 (2026-07 전면 다크 전환) — 전체 사이트 톤 통일 */
-  --bg: #15171e; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
+  --bg: #15171e; --bg-rgb: 21,23,30; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
   --border: rgba(255,255,255,0.075); --border-strong: rgba(255,255,255,0.16); --border-soft: rgba(255,255,255,0.05);
   --text: #f2f4f8; --text2: #a6adbb; --text3: #6c7385;
   --blue: #4d8dff; --blue-dim: rgba(77,141,255,0.14);   /* 시그니처 액센트: 소프트 블루 */
@@ -38,8 +39,22 @@
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
   --shadow-pop: 0 20px 50px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
   --shadow-focus: 0 0 0 3px rgba(77,141,255,0.22);
+  --inset-hairline: rgba(255,255,255,0.03);
   --r-lg: 20px; --r-md: 16px; --r-sm: 12px; --r-xs: 7px; --r-xl: 20px; --r-pill: 999px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1); --t-fast: 120ms; --t-med: 200ms;
+}
+
+/* ── 라이트 모드 오버라이드 (2026-07-27) ── */
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --bg-rgb: 245,246,248; --bg2: #ffffff; --bg3: #eef0f3; --bg4: #e3e6eb;
+  --border: rgba(15,17,23,0.09); --border-strong: rgba(15,17,23,0.18); --border-soft: rgba(15,17,23,0.05);
+  --text: #14161c; --text2: #4b5163; --text3: #6b7280;
+  --red: #dc2626; --green: #15803d; --blue: #1d4ed8; --yellow: #a16207; --purple: #7c3aed; --amber: #a16207;
+  --shadow-sm: 0 2px 8px rgba(15,17,23,0.10);
+  --shadow-card: 0 10px 30px -14px rgba(15,17,23,0.16);
+  --shadow-pop: 0 20px 50px rgba(15,17,23,0.20), 0 4px 12px rgba(15,17,23,0.10);
+  --shadow-focus: 0 0 0 3px rgba(29,78,216,0.18);
+  --inset-hairline: rgba(15,17,23,0.04);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -48,7 +63,7 @@ body {
 
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(21,23,30,0.80); backdrop-filter: blur(14px) saturate(150%);
+  background: rgba(var(--bg-rgb),0.80); backdrop-filter: blur(14px) saturate(150%);
   border-bottom: 1px solid var(--border); padding: 0 24px;
 }
 .header-inner {
@@ -325,7 +340,7 @@ body {
   padding: 13px 16px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle;
 }
 .history-table tr:last-child td { border-bottom: none; }
-.history-table tr:hover td { background: rgba(255,255,255,0.02); }
+.history-table tr:hover td { background: var(--bg3); }
 .date-cell { color: var(--text3); white-space: nowrap; font-size: 12px; }
 .issue-link {
   color: var(--text); text-decoration: none; font-weight: 500;
@@ -582,7 +597,7 @@ body {
 
 /* 분석 이력 카드 (제목 + AI 분석 내용) */
 .hist-list { display: flex; flex-direction: column; gap: 10px; }
-.hist-card { display: block; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 17px; text-decoration: none; color: var(--text); transition: border-color var(--t-fast); box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset; }
+.hist-card { display: block; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 17px; text-decoration: none; color: var(--text); transition: border-color var(--t-fast); box-shadow: 0 1px 0 var(--inset-hairline) inset; }
 .hist-card:hover { border-color: var(--border-strong); }
 .hist-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .hist-date { font-size: 12px; font-family: var(--mono); color: var(--text3); font-variant-numeric: tabular-nums; }
@@ -678,7 +693,7 @@ body {
 .gmeter-scale { display: flex; justify-content: space-between; margin-top: 6px; font-size: 9.5px; color: var(--text3); }
 
 /* 콕핏 데이터 테이블 */
-.ck-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset; }
+.ck-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 0 var(--inset-hairline) inset; }
 .ck-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .ck-tbl thead th { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); font-weight: 600; text-align: right; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .ck-tbl thead th:first-child { text-align: left; }
@@ -830,7 +845,31 @@ async function loadPrice(ticker) {
 // ── 고도화 캔들차트 (lightweight-charts) + 매물대 ─────────────────
 // Yahoo 라인차트/TradingView 임베드를 대체. Toss 공식 일봉으로 캔들+거래량을 우리 테마로 렌더.
 let _advChart = null, _advResizeObs = null, _advRange = 66;
-const ADV_COLORS = { up:'#e5484d', down:'#4d8dff', text:'#8b93a1', grid:'rgba(255,255,255,0.06)' };
+// 2026-07-27: 라이트/다크 토글에 반응하도록 렌더 시점에 CSS 변수를 다시 읽는다(하드코딩 시
+// 라이트 모드에서 회색 텍스트/흰색 그리드가 그대로 남아 거의 안 보이게 됨).
+function getAdvColors(){
+  const cs = getComputedStyle(document.documentElement);
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  return {
+    up:'#e5484d', down:(cs.getPropertyValue('--blue').trim() || '#4d8dff'),
+    text:(cs.getPropertyValue('--text3').trim() || '#8b93a1'),
+    grid: isLight ? 'rgba(15,17,23,0.08)' : 'rgba(255,255,255,0.06)',
+  };
+}
+function cssVar(name, fallback){
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+// 라이트/다크 토글 시 이 페이지의 JS 렌더 차트(캔들·Chart.js·상대수익률 SVG)는 CSS만으론
+// 재도색되지 않으므로(그리드/축 색이 렌더 시점에 고정돼 캔버스에 그려짐) 마지막 데이터로
+// 다시 그린다 — 새 네트워크 요청 없이 캐시된 상태(_currentTicker/_currentRange/_relState)만 재사용.
+window.addEventListener('sr-theme-change', () => {
+  if (_currentTicker) {
+    loadAdvChart(_currentTicker, _advRange);
+    loadChartData(_currentTicker, _currentRange).then(data => { if (data) renderLineChart(data); });
+  }
+  if (_relState) buildRelativeChart(_relState.baseTicker, _relState.baseName, _relState.peerTicker, _relState.peerName, _relState.range);
+});
 
 async function initAdvChart(ticker){ _advRange = 66; await loadAdvChart(ticker, 66); }
 async function setAdvRange(n, btn){
@@ -855,6 +894,7 @@ function renderAdvChart(el, candles, currency){
   el.innerHTML = '';
   if (_advChart) { try { _advChart.remove(); } catch{} _advChart = null; }
   if (_advResizeObs) { try { _advResizeObs.disconnect(); } catch{} _advResizeObs = null; }
+  const ADV_COLORS = getAdvColors();
   const chart = LightweightCharts.createChart(el, {
     width: el.clientWidth || 600, height: 330,
     layout: { background:{ type:'solid', color:'transparent' }, textColor:ADV_COLORS.text, fontFamily:'Inter, sans-serif', fontSize:11 },
@@ -937,24 +977,24 @@ function renderLineChart(data) {
               return ' ' + fmt.format(v);
             }
           },
-          backgroundColor: '#12151f', borderColor: 'rgba(255,255,255,0.14)', borderWidth: 1,
-          titleColor: '#9aa4bf', bodyColor: '#eef1f8',
+          backgroundColor: cssVar('--bg4', '#12151f'), borderColor: cssVar('--border-strong', 'rgba(255,255,255,0.14)'), borderWidth: 1,
+          titleColor: cssVar('--text2', '#9aa4bf'), bodyColor: cssVar('--text', '#eef1f8'),
         }
       },
       scales: {
         x: {
           ticks: {
-            color: '#626b86', font: { size: 10 }, maxTicksLimit: 6,
+            color: cssVar('--text3', '#626b86'), font: { size: 10 }, maxTicksLimit: 6,
             callback(val, i) { return labels[i]?.slice(5); }
           },
-          grid: { color: 'rgba(255,255,255,0.05)' }
+          grid: { color: cssVar('--border-soft', 'rgba(255,255,255,0.05)') }
         },
         y: {
           ticks: {
-            color: '#626b86', font: { size: 10 },
+            color: cssVar('--text3', '#626b86'), font: { size: 10 },
             callback: v => currency === 'KRW' ? v.toLocaleString('ko-KR') : v.toFixed(0)
           },
-          grid: { color: 'rgba(255,255,255,0.05)' }
+          grid: { color: cssVar('--border-soft', 'rgba(255,255,255,0.05)') }
         }
       }
     }
@@ -1487,7 +1527,7 @@ async function buildRelativeChart(baseTicker, baseName, peerTicker, peerName, ra
       </div>
       <div class="rr-box" style="height:210px">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-          <line x1="0" y1="${y(0)}" x2="${W}" y2="${y(0)}" stroke="rgba(255,255,255,.14)" stroke-dasharray="4 5" stroke-width="1"/>
+          <line x1="0" y1="${y(0)}" x2="${W}" y2="${y(0)}" stroke="${cssVar('--border-strong','rgba(255,255,255,.14)')}" stroke-dasharray="4 5" stroke-width="1"/>
           ${line(na, CA)}${line(nb, CM)}
         </svg>
       </div>
@@ -2571,7 +2611,7 @@ function renderInvestorTrend(d) {
       return `<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" points="${pts}"/><circle cx="${W}" cy="${y(arr[arr.length - 1])}" r="3.5" fill="${color}"/>`;
     };
     return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-      <line x1="0" y1="${y(0)}" x2="${W}" y2="${y(0)}" stroke="rgba(255,255,255,.12)" stroke-dasharray="4 5" stroke-width="1"/>
+      <line x1="0" y1="${y(0)}" x2="${W}" y2="${y(0)}" stroke="${cssVar('--border-strong','rgba(255,255,255,.12)')}" stroke-dasharray="4 5" stroke-width="1"/>
       ${path(cumF, CA)}${path(cumI, CM)}</svg>`;
   })();
 

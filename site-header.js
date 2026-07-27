@@ -91,7 +91,7 @@ function _siteChromeInjectStyle() {
   const style = document.createElement('style');
   style.id = 'site-chrome-style';
   style.textContent = `
-.header{position:sticky;top:0;z-index:100;background:rgba(21,23,30,0.80);backdrop-filter:blur(14px) saturate(150%);border-bottom:1px solid var(--border);padding:0 24px}
+.header{position:sticky;top:0;z-index:100;background:rgba(var(--bg-rgb),0.80);backdrop-filter:blur(14px) saturate(150%);border-bottom:1px solid var(--border);padding:0 24px}
 .header-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;gap:16px;height:56px}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none}
 .logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--blue) 0%,var(--purple) 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;box-shadow:0 3px 10px rgba(36,87,230,0.30)}
@@ -110,6 +110,8 @@ function _siteChromeInjectStyle() {
 .nav-new::after{content:"";position:absolute;top:2px;right:1px;width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--bg),0 0 6px var(--red)}
 .nav-btn-primary{background:var(--blue);color:#fff;padding:7px 16px;margin-left:6px;border-radius:16px;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;border:none;transition:all .12s}
 .nav-btn-primary:hover{background:#1e4ccc}
+.theme-toggle{width:30px;height:30px;flex-shrink:0;border-radius:50%;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;margin-left:6px;transition:all .12s}
+.theme-toggle:hover{background:var(--bg4);color:var(--text);border-color:var(--border-strong)}
 .user-menu{position:relative;flex-shrink:0}
 .user-avatar-btn{width:32px;height:32px;border-radius:50%;background:var(--blue-dim);color:var(--blue);border:1.5px solid var(--blue);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .user-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:var(--bg2);border:1px solid var(--border);border-radius:16px;min-width:140px;overflow:hidden;z-index:500;box-shadow:0 20px 50px rgba(0,0,0,.6)}
@@ -203,6 +205,7 @@ function _siteHeaderHtml(activePath) {
         </div>
         <nav class="header-nav" id="headerNav">
           ${navHtml}
+          <button class="theme-toggle" id="themeToggleBtn" onclick="srToggleTheme()" aria-label="다크/라이트 모드 전환" title="다크/라이트 모드 전환">🌙</button>
           <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
           <div class="user-menu" id="userMenu" style="display:none">
             <button class="user-avatar-btn" id="userAvatar" onclick="toggleUserDropdown()"></button>
@@ -277,6 +280,30 @@ function renderSiteHeader(activePath) {
   const mount = document.getElementById('site-header-mount');
   if (!mount) return;
   mount.outerHTML = _siteHeaderHtml(activePath || location.pathname);
+  _updateThemeToggleIcon();
+}
+
+/* ══════════════════ 다크/라이트 테마 토글 (2026-07-27) ══════════════════
+   각 페이지 <head> 맨 앞의 인라인 스크립트가 localStorage(sr_theme)를 읽어 첫 페인트 전에
+   <html data-theme="light">를 이미 세팅해둔다(깜빡임 방지) — 여기서는 토글 버튼과 전환 로직만
+   담당. 차트가 있는 페이지(company/market-detail/analysis)는 'sr-theme-change' 커스텀 이벤트를
+   구독해 자체적으로 재도색한다(CSS 변수만으론 JS로 그린 chart canvas에 닿지 않으므로). */
+function srGetTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+function _updateThemeToggleIcon() {
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.textContent = srGetTheme() === 'light' ? '☀️' : '🌙';
+}
+function srSetTheme(theme) {
+  if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+  try { localStorage.setItem('sr_theme', theme); } catch {}
+  _updateThemeToggleIcon();
+  window.dispatchEvent(new CustomEvent('sr-theme-change', { detail: { theme } }));
+}
+function srToggleTheme() {
+  srSetTheme(srGetTheme() === 'light' ? 'dark' : 'light');
 }
 
 function renderSiteFooter() {

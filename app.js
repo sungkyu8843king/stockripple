@@ -363,12 +363,12 @@ async function loadSectorTemp() {
   const rowHtml = x => {
     const t = x.total || 1;
     const pw = (x.pos / t * 100), nw = (x.neu / t * 100), gw = (x.neg / t * 100);
-    const netCol = x.net > 0 ? '#ff6b6b' : x.net < 0 ? '#4d8dff' : 'var(--text3)';
+    const netCol = x.net > 0 ? 'var(--red)' : x.net < 0 ? 'var(--blue)' : 'var(--text3)';
     const netLbl = x.net > 0 ? `우호적 +${x.net}` : x.net < 0 ? `비우호적 ${x.net}` : '중립';
     return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
       <div style="width:92px;font-size:13px;font-weight:600;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(x.name)}</div>
       <div style="flex:1;display:flex;height:15px;border-radius:5px;overflow:hidden;background:var(--bg3);min-width:0" title="우호적 ${x.pos} · 중립 ${x.neu} · 비우호적 ${x.neg}">
-        <div style="width:${pw}%;background:#ff6b6b"></div><div style="width:${nw}%;background:rgba(255,255,255,.1)"></div><div style="width:${gw}%;background:#4d8dff"></div>
+        <div style="width:${pw}%;background:var(--red)"></div><div style="width:${nw}%;background:var(--bg4)"></div><div style="width:${gw}%;background:var(--blue)"></div>
       </div>
       <div style="width:76px;text-align:right;font-size:11.5px;font-weight:700;flex-shrink:0;color:${netCol}">${netLbl}</div>
     </div>`;
@@ -380,7 +380,7 @@ async function loadSectorTemp() {
         <span style="font-size:11.5px;color:var(--text3)">최근 뉴스 ${newsCount}건이 어떤 산업에 우호적/비우호적인지</span>
       </div>
       <div style="font-size:11.5px;color:var(--text3);margin-bottom:13px">
-        <span style="color:#ff6b6b;font-weight:700">■</span> 우호적 뉴스 &nbsp; <span style="color:rgba(255,255,255,.5);font-weight:700">■</span> 중립 &nbsp; <span style="color:#4d8dff;font-weight:700">■</span> 비우호적 뉴스
+        <span style="color:var(--red);font-weight:700">■</span> 우호적 뉴스 &nbsp; <span style="color:var(--text3);font-weight:700">■</span> 중립 &nbsp; <span style="color:var(--blue);font-weight:700">■</span> 비우호적 뉴스
       </div>
       ${list.map(rowHtml).join('')}
       <div style="font-size:10.5px;color:var(--text3);margin-top:12px;line-height:1.5">뉴스의 산업 영향 방향을 집계한 것으로, 특정 종목의 매수·매도 의견이 아닙니다.</div>

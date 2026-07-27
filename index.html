@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>(function(){try{if(localStorage.getItem('sr_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <!-- deploy-cache-probe: stockripple.vercel.app 도메인 캐시 재검증 테스트용 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -32,6 +33,7 @@
 :root {
   /* ── Canvas: 소프트 핀테크 다크 (2026-07 전면 다크 전환) ── */
   --bg:  #15171e;          /* page canvas */
+  --bg-rgb: 21,23,30;
   --bg2: #1e2129;          /* card surface */
   --bg3: #262a34;          /* nested / hover surface */
   --bg4: #2f333f;          /* chip / highest elevation */
@@ -92,6 +94,21 @@
   /* ── Layout ── */
   --page-max: 1400px;
   --page-pad: 28px;
+}
+
+/* ── 라이트 모드 오버라이드 (2026-07-27) — html[data-theme=light]일 때만 적용,
+   나머지는 위 다크 기본값을 그대로 상속. 액센트는 흰 배경에서도 대비가 유지되도록 더 짙게. ── */
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --bg-rgb: 245,246,248;
+  --bg2: #ffffff; --bg3: #eef0f3; --bg4: #e3e6eb;
+  --card: #ffffff;
+  --border: rgba(15,17,23,0.09); --border-strong: rgba(15,17,23,0.18); --border-soft: rgba(15,17,23,0.05); --border2: rgba(15,17,23,0.18);
+  --text: #14161c; --text2: #4b5163; --text3: #6b7280; --text-on-accent: #ffffff;
+  --red: #dc2626; --green: #15803d; --blue: #1d4ed8; --yellow: #a16207; --purple: #7c3aed; --amber: #a16207;
+  --shadow-sm: 0 2px 8px rgba(15,17,23,0.10);
+  --shadow-card: 0 10px 30px -14px rgba(15,17,23,0.16);
+  --shadow-pop: 0 20px 50px rgba(15,17,23,0.20), 0 4px 12px rgba(15,17,23,0.10);
+  --shadow-focus: 0 0 0 3px rgba(29,78,216,0.18);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -202,7 +219,7 @@ button { font-family: inherit; }
  * ═══════════════════════════════════════════ */
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(21,23,30,0.80);
+  background: rgba(var(--bg-rgb),0.80);
   backdrop-filter: blur(14px) saturate(160%);
   border-bottom: 1px solid var(--border);
   padding: 0 var(--page-pad);
@@ -1014,7 +1031,7 @@ button { font-family: inherit; }
 .dr-big .dr-cat { font-size:13.5px !important; padding:6px 10px; }
 @media (max-width: 1100px) { .dr-fab { display:flex; } }   /* 모바일에서 FAB 표시 (기본 규칙보다 뒤에 와야 우선 적용) */
 .arch-item { padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:6px; }
-.arch-item:hover { background:rgba(255,255,255,.04); }
+.arch-item:hover { background:var(--bg3); }
 .arch-back { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--blue); cursor:pointer; margin-bottom:10px; }
 .acc-tab { padding:4px 10px; font-size:11px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:999px; cursor:pointer; }
 .acc-tab.active { color:#fff; background:var(--blue); border-color:var(--blue); }

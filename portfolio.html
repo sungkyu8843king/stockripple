@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>(function(){try{if(localStorage.getItem('sr_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="/announcement-bar.js" defer></script>
@@ -21,7 +22,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:#15171e; --bg2:#1e2129; --bg3:#262a34; --bg4:#2f333f;
+  --bg:#15171e; --bg-rgb: 21,23,30; --bg2:#1e2129; --bg3:#262a34; --bg4:#2f333f;
   --border:rgba(255,255,255,0.075); --border-strong:rgba(255,255,255,0.16); --border-soft:rgba(255,255,255,0.05);
   --text:#f2f4f8; --text2:#a6adbb; --text3:#6c7385;
   --blue:#4d8dff; --green:#3ddb7f; --red:#ff6b6b; --yellow:#f0b45e; --purple:#9d7bff;
@@ -29,9 +30,18 @@
   --shadow-card: 0 10px 30px -14px rgba(0,0,0,0.55);
   --r-lg: 20px; --r-md: 14px; --r-sm: 10px;
 }
+
+/* ── 라이트 모드 오버라이드 (2026-07-27) ── */
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --bg-rgb: 245,246,248; --bg2: #ffffff; --bg3: #eef0f3; --bg4: #e3e6eb;
+  --border: rgba(15,17,23,0.09); --border-strong: rgba(15,17,23,0.18); --border-soft: rgba(15,17,23,0.05);
+  --text: #14161c; --text2: #4b5163; --text3: #6b7280;
+  --blue: #1d4ed8; --green: #15803d; --red: #dc2626; --yellow: #a16207; --purple: #7c3aed;
+  --shadow-card: 0 10px 30px -14px rgba(15,17,23,0.16);
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
-.header { position: sticky; top:0; z-index:100; background: rgba(21,23,30,0.80); backdrop-filter: blur(12px) saturate(180%); border-bottom: 1px solid var(--border); padding: 0 24px; }
+.header { position: sticky; top:0; z-index:100; background: rgba(var(--bg-rgb),0.80); backdrop-filter: blur(12px) saturate(180%); border-bottom: 1px solid var(--border); padding: 0 24px; }
 .header-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 16px; height: 56px; }
 .back-btn { display:flex; align-items:center; gap:6px; color: var(--text2); text-decoration:none; font-size:13px; padding:5px 10px; border-radius:6px; }
 .back-btn:hover { background: var(--bg3); color: var(--text); }
@@ -43,7 +53,7 @@ h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
 .subtitle { font-size: 13px; color: var(--text3); margin-bottom: 24px; }
 
 /* Auth gate — index.html/analysis.html과 동일한 로그인 UI로 통일 */
-.auth-card { background: #1e2129; border: 1px solid var(--border); border-radius: 20px; padding: 36px 32px 28px; max-width: 380px; margin: 60px auto; box-shadow: var(--shadow-card); position: relative; }
+.auth-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 36px 32px 28px; max-width: 380px; margin: 60px auto; box-shadow: var(--shadow-card); position: relative; }
 .auth-logo { font-size: 15px; font-weight: 800; color: var(--text2); margin-bottom: 14px; }
 .auth-logo span { color: var(--blue); }
 .auth-card h2 { font-size: 22px; font-weight: 800; margin-bottom: 18px; text-align: left; }
@@ -51,7 +61,7 @@ h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
 .auth-btn-google {
   width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
   padding: 11px; border: 1px solid var(--border-strong); border-radius: 10px;
-  background: #1e2129; color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer;
+  background: var(--bg2); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer;
   transition: background .15s;
 }
 .auth-btn-google:hover { background: var(--bg3); }
@@ -105,7 +115,7 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { font-size: 10px; font-weight: 600; color: var(--text3); text-align: left; padding: 10px 12px; background: var(--bg3); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.4px; }
 td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
-tr:hover td { background: rgba(255,255,255,.02); }
+tr:hover td { background: var(--bg3); }
 .ticker-chip { font-family:'SF Mono',monospace; font-size:11px; font-weight:700; padding:2px 7px; border-radius:4px; }
 .ticker-chip.kr { background:rgba(0,102,204,0.10); color:#4d8dff; }
 .ticker-chip.us { background:rgba(124,58,237,0.10); color:#9d7bff; }

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>(function(){try{if(localStorage.getItem('sr_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="/announcement-bar.js" defer></script>
@@ -21,7 +22,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #15171e; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
+  --bg: #15171e; --bg-rgb: 21,23,30; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
   --border: rgba(255,255,255,0.075); --border-strong: rgba(255,255,255,0.16); --border-soft: rgba(255,255,255,0.05);
   --text: #f2f4f8; --text2: #a6adbb; --text3: #6c7385;
   --blue: #4d8dff; --blue-dim: rgba(77,141,255,0.14);
@@ -30,13 +31,22 @@
   --yellow:#f0b45e; --purple:#9d7bff;
   --shadow-card: 0 10px 30px -14px rgba(0,0,0,0.55);
 }
+
+/* ── 라이트 모드 오버라이드 (2026-07-27) ── */
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --bg-rgb: 245,246,248; --bg2: #ffffff; --bg3: #eef0f3; --bg4: #e3e6eb;
+  --border: rgba(15,17,23,0.09); --border-strong: rgba(15,17,23,0.18); --border-soft: rgba(15,17,23,0.05);
+  --text: #14161c; --text2: #4b5163; --text3: #6b7280;
+  --blue: #1d4ed8; --green: #15803d; --red: #dc2626; --yellow: #a16207; --purple: #7c3aed;
+  --shadow-card: 0 10px 30px -14px rgba(15,17,23,0.16);
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
 /* Header */
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(21,23,30,0.80); backdrop-filter: blur(12px) saturate(180%);
+  background: rgba(var(--bg-rgb),0.80); backdrop-filter: blur(12px) saturate(180%);
   border-bottom: 1px solid var(--border); padding: 0 24px;
 }
 .header-inner {
