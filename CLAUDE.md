@@ -44,6 +44,7 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 | 페이지 | 역할 |
 |--------|------|
 | `index.html` | 홈 — 피드 + 각 섹션 미리보기 |
+| `news.html` | 뉴스 전용 피드 — 2026-07-27 "🌡️ 지금 산업 온도" 보드 추가(news_analysis.sectors 톤 집계) |
 | `heatmap.html` | 히트맵 전용 (섹터 드릴다운 뷰 포함) |
 | `kr-market.html` | 국장·미장 현황 (지수카드/인기검색/수급차트) |
 | `picks.html` | 매수 후보 — ⚠️ 2026-07-21부터 공개 노출 중단(아래 유사투자자문업 섹션), 데이터는 비공개 유지 |
@@ -67,6 +68,8 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 "매수 후보/신뢰도%/상승여력/파급효과 수혜기업" 등 **투자판단으로 읽힐 수 있는 데이터의 공개 노출을 전면 중단**했다. UI 제거만으론 부족해서(브라우저의 공개 anon key로 Supabase REST를 직접 치면 그대로 노출) **`db/disable-public-recommendations.sql`이 실제 차단 지점** — `analyses`/`analysis_companies`/`company_ai_summary`의 anon SELECT 정책을 DROP했다. service_role(서버 API)은 RLS 우회라 파이프라인은 계속 돈다. **새 기능을 만들 때 이 3개 테이블을 anon(브라우저 직접 쿼리)으로 읽는 코드를 다시 넣으면 안 됨** — 서버 API 경유로도 이 데이터를 공개 응답에 담지 말 것. 대체 파이프라인(투자판단 없는 순수 사실 서술만): `article_digest`(issues.ai_digest 컬럼, 기사 2~3문장 요약), `rank_reason`(rank_reasons 테이블, 홈 랭킹 종목별 12~28자 토스 스타일 테마 문구 — 예: "반도체주 동반 강세"). 재개 조건(신고 완료 등) 충족 시 원본 CREATE POLICY 복원으로 되돌릴 수 있다.
 
 **AI 큐 운영(토큰 절감, 2026-07-21~22)**: 스케줄 Claude Code 에이전트는 **KST 고정 12슬롯 시간표**로 돌고, agent-queue per-cycle 한도는 5/5로 축소됨(구 20/25). 파이프라인 추가 시 어드민 패널의 시간표 문서와 맞출 것.
+
+**`news_analysis` — article_digest 확장(2026-07-27, 다른 계정 작업)**: `article_digest` 파이프라인이 기존 `ai_digest`(순수 요약) 외에 같은 큐 항목 하나로 `issues.news_analysis` jsonb 컬럼(`{keypoints:["핵심1",...], sectors:[{name,tone:"pos|neg|neu"}]}`)도 함께 채우도록 확장됨(`db/news-analysis.sql` — **아직 실행 안 됨, 마이그레이션 전까지는 컬럼 없이 우아하게 폴백**). `sectors[].tone`은 "이 뉴스가 어떤 산업 테마에 우호적/비우호적인가"라는 편집성 분류일 뿐 특정 종목을 지목하지 않아 `analyses`/`analysis_companies`와 무관 — `expose_ripple_effects` 게이트 대상이 아니고 노출 여부와 무관하게 항상 응답에 포함됨. `news.html`에 이 톤을 최근~120건 집계한 "🌡️ 지금 산업 온도" 보드가 추가됐고, `analysis.html`(이슈 상세)에도 🔑 핵심 포인트 + 📡 산업 영향 톤 칩이 추가됨. 스케줄 Claude Code 에이전트(`stockripple-analyze-agent` SKILL.md)의 `article_digest` 응답 스키마도 이 3필드로 갱신해둠.
 
 **⚠️ 노출 게이트는 `analyze`가 아니라 `expose_ripple_effects`(2026-07-27 분리)**: 원래 `handleIssuesFeed`/`handleInsightsRaw`/`handleSectorMapGet`(`api/admin.js`) 셋 다 "매수후보/신뢰도/파급효과 데이터를 공개 응답에 넣을지"를 `analyze` 플래그 하나로 판단하고 있었다 — `analyze`는 원래 "분석 파이프라인을 실행할지"(비용/운영 목적)를 위한 플래그인데, 같은 스위치가 노출 여부까지 겸하고 있어서 **`analyze`를 다른 이유로(예: 파이프라인 재개 테스트) 다시 켜면 공개 API가 조용히 다시 노출**되는 사고가 있었다(2026-07-25에 켜진 채로 이틀간 방치돼 있다가 2026-07-27 뉴스피드 점검 중 발견). 지금은 별도 fail-closed 플래그 `expose_ripple_effects`(기본 false, `lib/feature-flags.js`의 `isFeatureEnabledStrict()`로 확인 — 행 없거나 조회 실패 시도 OFF)로 분리했다. **`analyze`는 파이프라인 on/off만 담당, 공개 노출은 오직 `expose_ripple_effects`가 결정** — 새 엔드포인트에서 이 3개 테이블(analyses/analysis_companies 조인, ripple_effects, confidence_score, 매수후보 companies)을 다시 노출하려 하면 반드시 `isFeatureEnabledStrict(supabase, 'expose_ripple_effects')`로 게이트할 것, `isFeatureEnabled(supabase, 'analyze')`로 게이트하면 이 사고가 재발한다.
 
