@@ -810,8 +810,13 @@ function renderChart(companies) {
 }
 
 async function init() {
+  // 공유 링크는 /analysis/{id} 형태(share-btn이 이 URL을 만든다). vercel.json이 이걸
+  // analysis.html로 rewrite하지만 rewrite는 서버 측이라 브라우저 주소는 그대로
+  // /analysis/{id}로 남는다 — 즉 location.search가 비어 있어서 예전에는 여기서
+  // 곧장 홈으로 돌려보냈다(공유받은 사람이 뉴스 대신 홈을 보게 되던 버그).
+  // 쿼리(?id=) 우선, 없으면 경로에서 파싱.
   const params = new URLSearchParams(location.search);
-  const id = params.get('id');
+  const id = params.get('id') || (location.pathname.match(/^\/analysis\/([^/?#]+)/)?.[1] ?? null);
   if (!id) { location.href = '/'; return; }
 
   const { data: issue, error: issueErr } = await sb
