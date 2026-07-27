@@ -2043,15 +2043,30 @@ function renderTopStocks(el) {
 }
 
 // 실적발표 캘린더 (강화: 위스퍼·IV·매출 포함)
+// 20개 고정 워치리스트(FMP, /api/earnings)가 아니라 시총 $10B+ 미국 대형주 전체를
+// 날짜별로 훑는 캘린더(/api/earnings-calendar, Nasdaq 공개 API) — 실적 시즌에 워치리스트
+// 밖 대형주가 많아도 다 보이게 하려고 2026-07-27 교체. days[].items[]를 기존 렌더링
+// 함수들이 기대하는 flat {ticker,company,date,callTime,...} 모양으로 펴서 반환한다.
+let _earnCalFlatCache = null;
+async function fetchEarningsCalendarFlat() {
+  if (_earnCalFlatCache) return _earnCalFlatCache;
+  try {
+    const r = await fetch('/api/earnings-calendar');
+    if (!r.ok) return (_earnCalFlatCache = []);
+    const j = await r.json();
+    if (!j.ok || !j.days?.length) return (_earnCalFlatCache = []);
+    return (_earnCalFlatCache = j.days.flatMap(day => day.items.map(it => ({
+      ticker: it.symbol, company: it.name, date: day.date,
+      callTime: it.time, epsConsensus: it.epsForecast, marketCap: it.marketCap,
+    }))));
+  } catch { return (_earnCalFlatCache = []); }
+}
+
 async function loadEarningsCalendar() {
   const el = document.getElementById('earningsCalendar');
   if (!el) return;
 
-  let apiItems = [];
-  try {
-    const r = await fetch('/api/earnings');
-    if (r.ok) { const j = await r.json(); if (j.ok && j.items?.length) apiItems = j.items; }
-  } catch {}
+  const apiItems = await fetchEarningsCalendarFlat();
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -2073,6 +2088,14 @@ async function loadEarningsCalendar() {
     if (key === 'hold')       return 'color:#facc15';
     return 'color:#f87171';
   };
+
+  // "실적" 서브탭이 사이드바 안에 숨어 있어 실적 시즌에도 존재를 못 알아채는 문제가
+  // 있었다 — 탭에 건수 배지를 달아 클릭 전에도 물량이 보이게 한다.
+  const pill = document.getElementById('earnCountPill');
+  if (pill) {
+    if (apiItems.length) { pill.textContent = apiItems.length; pill.style.display = 'inline-block'; }
+    else pill.style.display = 'none';
+  }
 
   if (!apiItems.length) {
     el.innerHTML = `<div style="color:var(--text3);font-size:14.5px;text-align:center;padding:16px 0">이번 주 실적발표 없음</div>`;
@@ -2558,9 +2581,7 @@ async function renderCalModal() {
         const j = await r.json();
         _calCache.eco = j.ok ? j.items : [];
       } else {
-        const r = await fetch('/api/earnings');
-        const j = await r.json();
-        _calCache.earnings = j.ok ? j.items : [];
+        _calCache.earnings = await fetchEarningsCalendarFlat();
       }
     } catch { _calCache[_curCalTab] = []; }
   }

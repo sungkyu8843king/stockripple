@@ -6,6 +6,7 @@
  * GET /api/market-data?source=quotes&tickers=...        (구 /api/quotes)
  * GET /api/market-data?source=technicals&tickers=...     (구 /api/technicals)
  * GET /api/market-data?source=earnings[&type=analyst]    (구 /api/earnings)
+ * GET /api/market-data?source=earnings-calendar          (구 /api/earnings-calendar) — 이번주·다음주 미국 대형주 실적 캘린더
  * GET /api/market-data?source=market-pulse[&type=trump]  (구 /api/market-pulse)
  * GET /api/market-data?source=kr-overtime&codes=...&session=pre|post (구 /api/kr-overtime)
  * GET /api/market-data?source=us-market&type=actives|gainers|losers  (미장현황 랭킹 — Yahoo 스크리너)
@@ -26,6 +27,7 @@ export default async function handler(req, res) {
     case 'quotes':       return handleQuotes(req, res);
     case 'technicals':   return handleTechnicals(req, res);
     case 'earnings':     return (req.query.type === 'analyst') ? handleAnalyst(res) : handleEarnings(res);
+    case 'earnings-calendar': return handleEarningsCalendar(res);
     case 'market-pulse':  {
       const type = (req.query.type || 'economic').toString();
       if (type === 'trump') return handleTrump(res);
@@ -1494,6 +1496,78 @@ async function handleEarnings(res) {
     fmp: { ok: !!fmpRes.data, count: fmpRes.count || 0 },
     ts: Date.now(),
   });
+}
+
+// ─── 실적 캘린더 (2026-07) ──────────────────────────────────────────
+// handleEarnings(위)는 20개 고정 티커만 FMP로 개별 조회 — 사이드바 "일정 → 실적" 탭
+// (app.js loadEarningsCalendar)이 이걸 쓰고 있는데, 실적 시즌에 훨씬 많은 대형주가
+// 발표해도 이 20개짜리 워치리스트 밖이면 전혀 안 보여서 "이렇게 많은데 사이트엔
+// 하나도 안 보인다"는 피드백을 받았다(2026-07-27). Nasdaq의 공개 날짜별 캘린더
+// API(무키, 인증 불필요 — fetchNasdaqEarningsDate와 같은 호스트)를 쓰면 "그날 발표하는
+// 전체 종목"을 한 번에 받을 수 있고 marketCap 필드까지 같이 온다 — 대형주만 거르는 데
+// 별도 조회가 필요 없다. loadEarningsCalendar/renderCalModal 둘 다 이 엔드포인트로 교체.
+const EARNINGS_CAL_MIN_CAP = 10e9;   // $10B 이상만 "대형주"로 노출 (소형주 스팸 방지)
+const EARNINGS_CAL_MAX_PER_DAY = 10;
+const KR_DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+function parseNasdaqMarketCap(s) {
+  if (!s) return null;
+  const n = parseFloat(String(s).replace(/[$,]/g, ''));
+  return isFinite(n) ? n : null;
+}
+
+// "$3.23" → 3.23, "($0.34)" → -0.34 (Nasdaq은 음수를 괄호로 표기)
+function parseNasdaqEps(s) {
+  if (!s || s === 'N/A') return null;
+  const neg = /^\(.*\)$/.test(String(s).trim());
+  const n = parseFloat(String(s).replace(/[()$,]/g, ''));
+  return isFinite(n) ? (neg ? -n : n) : null;
+}
+
+async function fetchNasdaqCalendarForDate(dateStr) {
+  try {
+    const r = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${dateStr}`, {
+      headers: EARNINGS_HEADERS, signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return j?.data?.rows || [];
+  } catch { return []; }
+}
+
+async function handleEarningsCalendar(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 실적 일정은 하루 안에 잘 안 바뀌므로(간혹 당일 정정 있음) 넉넉히 캐시 — handleEarnings와 동일 정책.
+  res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
+
+  // 오늘부터 평일 10일(=이번주+다음주). 주말도 그냥 요청하면 Nasdaq이 rows:null을
+  // 주니 스킵해도 무해하지만, 어차피 빈 응답이라 애초에 요청 자체를 건너뛴다.
+  const days = [];
+  for (let i = 0; days.length < 10; i++) {
+    const d = new Date(Date.now() + i * 86400000);
+    const dow = d.getUTCDay();
+    if (dow === 0 || dow === 6) continue;
+    days.push(d.toISOString().slice(0, 10));
+  }
+
+  const results = await Promise.all(days.map(fetchNasdaqCalendarForDate));
+
+  const out = days.map((date, idx) => {
+    const items = (results[idx] || [])
+      .map(r => ({
+        symbol: r.symbol,
+        name: (r.name || '').trim(),
+        time: r.time === 'time-after-hours' ? 'AMC' : r.time === 'time-pre-market' ? 'BMO' : null,
+        marketCap: parseNasdaqMarketCap(r.marketCap),
+        epsForecast: parseNasdaqEps(r.epsForecast),
+      }))
+      .filter(it => it.symbol && it.marketCap != null && it.marketCap >= EARNINGS_CAL_MIN_CAP)
+      .sort((a, b) => b.marketCap - a.marketCap)
+      .slice(0, EARNINGS_CAL_MAX_PER_DAY);
+    return { date, weekday: KR_DOW[new Date(date + 'T12:00:00Z').getUTCDay()], items };
+  }).filter(day => day.items.length > 0);
+
+  return res.status(200).json({ ok: true, days: out, minCapUsd: EARNINGS_CAL_MIN_CAP, ts: Date.now() });
 }
 
 // ─── Analyst handler ──────────────────────────────────────────────
