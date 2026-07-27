@@ -3351,17 +3351,19 @@ const HM_SESSION_BADGE = {
 // 갱신한다(api/admin.js handleCrawlSharesOutstanding). 주식수는 분기 단위로만 바뀌므로
 // 캐시로 충분하고, 가격은 실시간이라 시총도 실시간이다. 종목당 1콜(762콜)인 라이브 조회를
 // 완전히 없애면서 정확한 시총 정렬을 얻는 방식. 주식수가 없는 종목은 거래대금으로 폴백
-// (박스가 사라지지 않게). DB 조회가 실패하거나(마이그레이션 전) 비어 있으면 최초 커밋해둔
-// 정적 스냅샷으로 폴백 — 신규 종목만 빠질 뿐 히트맵 자체가 비지는 일은 없다.
+// (박스가 사라지지 않게). 정적 스냅샷을 baseline으로 깔고 DB 값으로 덮어쓰는 **병합** 방식 —
+// (한쪽만 택하는 방식이면 DB 응답이 s-maxage=86400 CDN 캐시라 크롤 직후에도 최대 하루간
+// 예전 스냅샷을 계속 돌려줄 수 있어, 그사이 신규 종목이 오히려 통째로 빠지는 역효과가 있었다)
+// DB가 비어 있거나 실패해도 baseline은 항상 762개 그대로 남으므로 히트맵이 비는 일은 없고,
+// DB가 일부만 갱신됐어도(크롤 진행 중 등) 그만큼만 정확도가 올라간다.
 let _sharesOutstanding = null, _soPromise = null;
 function loadSharesOutstanding() {
   if (_sharesOutstanding) return Promise.resolve(_sharesOutstanding);
   if (!_soPromise) {
-    _soPromise = fetch('/api/admin?action=shares-outstanding')
-      .then(r => r.ok ? r.json() : { ok: false })
-      .then(j => (j.ok && j.data && Object.keys(j.data).length) ? j.data : Promise.reject())
-      .catch(() => fetch('/data/shares-outstanding.json').then(r => r.ok ? r.json() : {}).catch(() => ({})))
-      .then(j => (_sharesOutstanding = j || {}));
+    _soPromise = Promise.all([
+      fetch('/data/shares-outstanding.json').then(r => r.ok ? r.json() : {}).catch(() => ({})),
+      fetch('/api/admin?action=shares-outstanding').then(r => r.ok ? r.json() : { ok: false }).catch(() => ({ ok: false })),
+    ]).then(([staticSnap, dbResp]) => (_sharesOutstanding = { ...staticSnap, ...(dbResp.ok ? dbResp.data : {}) }));
   }
   return _soPromise;
 }
