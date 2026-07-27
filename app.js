@@ -3342,10 +3342,24 @@ const HM_SESSION_BADGE = {
 };
 
 // ─── Finviz 스타일 트리맵 (2026-07-27) ────────────────────────────────
-// 섹터로 묶고, 박스 크기는 거래대금(가격×거래량) 비례. Yahoo v8 chart 응답엔 시가총액이
-// 없고 종목별 시총 조회는 762종목 × 1콜이라 비싸서, 이미 받아오는 volume·price로 계산되는
-// 거래대금을 크기 기준으로 쓴다 — "오늘 돈이 몰린 곳"이라 일간 히트맵엔 오히려 잘 맞고,
-// 대형주가 크게 잡히는 Finviz 특유의 시각도 그대로 나온다.
+// 섹터로 묶고, 박스 크기는 Finviz와 동일하게 **시가총액** 비례.
+// 시총 = 실시간 가격 × 상장주식수. Yahoo v8 chart 응답엔 시총도 주식수도 없고 Yahoo v7·FMP는
+// 막혀 있어서, Toss meta(action=meta)가 주는 sharesOutstanding을 전 종목 한 번 긁어
+// /data/shares-outstanding.json 정적 파일로 커밋해뒀다(생성 방법은 CLAUDE.md 참고).
+// 주식수는 분기 단위로만 바뀌므로 정적 캐시로 충분하고, 가격은 실시간이라 시총도 실시간이다.
+// 종목당 1콜(762콜)인 라이브 조회를 완전히 없애면서 정확한 시총 정렬을 얻는 방식.
+// 주식수가 없는 종목은 거래대금으로 폴백(박스가 사라지지 않게).
+let _sharesOutstanding = null, _soPromise = null;
+function loadSharesOutstanding() {
+  if (_sharesOutstanding) return Promise.resolve(_sharesOutstanding);
+  if (!_soPromise) {
+    _soPromise = fetch('/data/shares-outstanding.json')
+      .then(r => r.ok ? r.json() : {})
+      .then(j => (_sharesOutstanding = j || {}))
+      .catch(() => (_sharesOutstanding = {}));
+  }
+  return _soPromise;
+}
 // 레이아웃은 이분할(binary split) 트리맵 — squarified만큼 정사각에 가깝진 않지만 코드가
 // 훨씬 짧고 이 규모(섹터당 수십 개)에선 시각적 차이가 거의 없다.
 function _tmLayout(list, x, y, w, h) {
@@ -3399,10 +3413,14 @@ function renderHeatmapTreemap(grid, items) {
   const isNarrow = window.innerWidth <= 700;
   const limit = isNarrow ? 60 : TM_MAX_TILES;
   const totalCount = items.length;
-  // 거래대금 상위만 — 전 종목(500+)을 한 화면에 넣으면 타일이 6px까지 작아져 못 읽는다.
-  // 거래대금이 0/누락이면 최소값을 줘서 박스가 사라지지 않게 한다.
+  // 시총 상위만 — 전 종목(500+)을 한 화면에 넣으면 타일이 6px까지 작아져 못 읽는다.
+  const so = _sharesOutstanding || {};
   const withVal = items
-    .map(it => ({ ...it, _v: Math.max(1, (it.tradingValue || 0)) }))
+    .map(it => {
+      const shares = so[it.ticker];
+      const mcap = (shares && it.price != null) ? shares * it.price : 0;
+      return { ...it, _mcap: mcap, _v: Math.max(1, mcap || it.tradingValue || 0) };
+    })
     .sort((a, b) => b._v - a._v)
     .slice(0, limit);
   // 섹터 그룹핑 → 섹터 총 거래대금 순
@@ -3431,8 +3449,8 @@ function renderHeatmapTreemap(grid, items) {
 
   grid.innerHTML = `<div class="tm-wrap" style="position:relative;width:100%;aspect-ratio:${isNarrow ? '3/4' : '16/10'};background:#0d1117;border-radius:10px;overflow:hidden">${html}</div>
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;font-size:11px;color:var(--text3);flex-wrap:wrap">
-      <span>거래대금 상위 ${withVal.length}종목 / 전체 ${totalCount}</span><span style="opacity:.4">|</span>
-      <span>박스 크기 = 거래대금</span><span style="opacity:.4">|</span>
+      <span>시가총액 상위 ${withVal.length}종목 / 전체 ${totalCount}</span><span style="opacity:.4">|</span>
+      <span>박스 크기 = 시가총액</span><span style="opacity:.4">|</span>
       <span style="display:inline-flex;align-items:center;gap:5px">
         <i style="width:13px;height:13px;border-radius:3px;background:${heatmapColorFor(-5).bg};display:inline-block"></i>-5%
         <i style="width:13px;height:13px;border-radius:3px;background:${heatmapColorFor(0).bg};display:inline-block;margin-left:4px"></i>0%
@@ -4649,7 +4667,11 @@ async function loadHeatmap() {
     let liveSession = null;   // 'pre' | 'post' | 'kr-ot' | null(정규/마감)
     let domState = null;      // 다수결 marketState (상태 배지용)
 
-    const r = await fetch(`/api/quotes?tickers=${tickers.join(',')}&range=${_hmRange}`);
+    // 시총 정렬용 상장주식수는 최초 1회만 받아 캐시(정적 JSON, CDN 캐시됨)
+    const [r] = await Promise.all([
+      fetch(`/api/quotes?tickers=${tickers.join(',')}&range=${_hmRange}`),
+      loadSharesOutstanding(),
+    ]);
     const j = await r.json();
     if (!j.ok) throw new Error('fetch failed');
     const data = j.data || {};
