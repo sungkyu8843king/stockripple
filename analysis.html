@@ -660,6 +660,24 @@ function renderPage(issue, analysis, companies) {
       <div class="ai-text">${escHtml(issue.ai_digest)}</div>
     </div>` : '')}
 
+    ${(() => {
+      // 뉴스 키포인트 + 관련 산업 방향성(news_analysis) — 종목 미지정 편집성 태깅.
+      const na = issue.news_analysis || {};
+      const kp = Array.isArray(na.keypoints) ? na.keypoints.slice(0, 3) : [];
+      const secs = Array.isArray(na.sectors) ? na.sectors.slice(0, 3) : [];
+      if (!kp.length && !secs.length) return '';
+      const tm = { pos:{l:'우호적',c:'#ff6b6b',b:'rgba(255,107,107,.14)'}, neg:{l:'비우호적',c:'#4d8dff',b:'rgba(77,141,255,.14)'}, neu:{l:'중립',c:'var(--text3)',b:'rgba(255,255,255,.06)'} };
+      const kpHtml = kp.length ? `<div style="margin-bottom:${secs.length?16:0}px">
+        <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:9px">🔑 핵심 포인트</div>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px">${kp.map(k=>`<li style="font-size:14px;color:var(--text);line-height:1.55;position:relative;padding-left:16px"><span style="position:absolute;left:0;color:var(--blue);font-weight:700">·</span>${escHtml(k)}</li>`).join('')}</ul></div>` : '';
+      const secHtml = secs.length ? `<div>
+        <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:9px">📡 관련 산업 영향</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">${secs.map(s=>{const m=tm[s.tone]||tm.neu;return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;color:${m.c};background:${m.b}">${escHtml(s.name)}<span style="font-size:11px;opacity:.8">${m.l}</span></span>`;}).join('')}</div></div>` : '';
+      return `<div class="ai-card">${kpHtml}${secHtml}
+        <div style="font-size:10.5px;color:var(--text3);margin-top:14px;line-height:1.5">산업 영향 방향은 뉴스 분류이며 특정 종목의 매수·매도 의견이 아닙니다.</div>
+      </div>`;
+    })()}
+
     ${(posCompanies.length || negCount) ? `
     <div class="invest-point">
       <div class="ip-title">💡 이 뉴스의 투자 포인트</div>
