@@ -3392,11 +3392,19 @@ function _tmTileHtml(node, isKr) {
     onmouseover="this.style.filter='brightness(1.25)'" onmouseout="this.style.filter=''">${label}${pctHtml}</a>`;
 }
 
+const TM_MAX_TILES = 120;   // 이보다 많으면 박스가 20px 미만으로 뭉개져 라벨이 아예 안 보인다
 function renderHeatmapTreemap(grid, items) {
   if (!items.length) { grid.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">데이터가 없어요.</div>'; return; }
   const isKr = _hmMkt === 'kr';
+  const isNarrow = window.innerWidth <= 700;
+  const limit = isNarrow ? 60 : TM_MAX_TILES;
+  const totalCount = items.length;
+  // 거래대금 상위만 — 전 종목(500+)을 한 화면에 넣으면 타일이 6px까지 작아져 못 읽는다.
   // 거래대금이 0/누락이면 최소값을 줘서 박스가 사라지지 않게 한다.
-  const withVal = items.map(it => ({ ...it, _v: Math.max(1, (it.tradingValue || 0)) }));
+  const withVal = items
+    .map(it => ({ ...it, _v: Math.max(1, (it.tradingValue || 0)) }))
+    .sort((a, b) => b._v - a._v)
+    .slice(0, limit);
   // 섹터 그룹핑 → 섹터 총 거래대금 순
   const groups = {};
   for (const it of withVal) {
@@ -3421,8 +3429,9 @@ function renderHeatmapTreemap(grid, items) {
     </div>`;
   }).join('');
 
-  grid.innerHTML = `<div class="tm-wrap" style="position:relative;width:100%;aspect-ratio:16/10;background:#0d1117;border-radius:10px;overflow:hidden">${html}</div>
+  grid.innerHTML = `<div class="tm-wrap" style="position:relative;width:100%;aspect-ratio:${isNarrow ? '3/4' : '16/10'};background:#0d1117;border-radius:10px;overflow:hidden">${html}</div>
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;font-size:11px;color:var(--text3);flex-wrap:wrap">
+      <span>거래대금 상위 ${withVal.length}종목 / 전체 ${totalCount}</span><span style="opacity:.4">|</span>
       <span>박스 크기 = 거래대금</span><span style="opacity:.4">|</span>
       <span style="display:inline-flex;align-items:center;gap:5px">
         <i style="width:13px;height:13px;border-radius:3px;background:${heatmapColorFor(-5).bg};display:inline-block"></i>-5%
@@ -4709,8 +4718,9 @@ async function loadHeatmap() {
     }
     const countEl = document.getElementById('heatmapItemCount');
     if (countEl) {
+      // 표시 종목 수는 트리맵 하단 범례가 안내하므로 여기선 데이터 결손만 알린다.
       const missing = tickers.length - items.length;
-      countEl.textContent = `${items.length}개 종목${missing > 0 ? ` · ${missing}개 데이터 없음` : ''}`;
+      countEl.textContent = missing > 0 ? `${missing}개 종목 데이터 없음` : '';
     }
   } catch (e) {
     if (needsRebuild) grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--red);font-size:14.5px;padding:20px">로드 실패: ${e.message}</div>`;
