@@ -27,7 +27,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAdmin, verifyUser } from '../lib/auth.js';
-import { FEATURE_FLAG_DEFS, isFeatureEnabled } from '../lib/feature-flags.js';
+import { FEATURE_FLAG_DEFS, isFeatureEnabled, isFeatureEnabledStrict } from '../lib/feature-flags.js';
 import { submitAgentJob, extractJobText, parseJobJson, JOB_STUCK_TIMEOUT_MS } from '../lib/agent-jobs.js';
 
 // 일부 액션(dart-sync, sec-13f, extract-investments)은 무거우므로 최대 60초 허용
@@ -1857,10 +1857,11 @@ async function handleIssuesFeed(req, res) {
   const q = (req.query.q || '').toString().trim();
   const pageSize = Math.min(Math.max(parseInt(req.query.pageSize) || 9, 1), 30);
 
-  // 유사투자자문업 리스크 대응(2026-07-21)으로 analyze 파이프라인을 끈 뒤로 is_analyzed가
-  // 다시는 true가 되지 않는다(그 필드를 마킹하는 코드가 analyze.js 안에만 있음) — analyze가
-  // 꺼진 동안은 피드 필터를 ai_digest(analyze와 무관하게 계속 채워지는 순수 요약) 존재 여부로 대체.
-  const includeAnalyses = await isFeatureEnabled(supabase, 'analyze');
+  // 유사투자자문업 리스크 대응(2026-07-21) + 노출 게이트 분리(2026-07-27): 공개 노출 여부는
+  // analyze(파이프라인 실행 on/off, 비용관리용) 플래그가 아니라 전용 fail-closed 플래그
+  // expose_ripple_effects로 판단한다 — analyze를 비용/운영 목적으로 다시 켜도 이 플래그가
+  // OFF(기본값)인 한 매수후보/신뢰도/파급효과 데이터는 공개 응답에 절대 안 실린다.
+  const includeAnalyses = await isFeatureEnabledStrict(supabase, 'expose_ripple_effects');
   const applyFilters = qb => {
     let out = includeAnalyses ? qb.eq('is_analyzed', true) : qb.neq('ai_digest', '');
     if (sector !== 'all') out = out.contains('sectors', [sector]);
@@ -1930,9 +1931,10 @@ async function handleIssuesFeed(req, res) {
 async function handleInsightsRaw(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-  // 유사투자자문업 리스크 대응(2026-07-21): 'analyze' 플래그가 꺼져 있으면 매수 후보
-  // 카드 자체를 안 내려준다 — app.js loadInsights는 data가 비면 섹션을 숨긴다.
-  if (!(await isFeatureEnabled(supabase, 'analyze'))) {
+  // 유사투자자문업 리스크 대응(2026-07-21) + 노출 게이트 분리(2026-07-27): 매수 후보 카드
+  // 노출은 전용 fail-closed 플래그 expose_ripple_effects로만 판단(analyze와 무관) —
+  // app.js loadInsights는 data가 비면 섹션을 숨긴다.
+  if (!(await isFeatureEnabledStrict(supabase, 'expose_ripple_effects'))) {
     return res.status(200).json({ ok: true, data: [] });
   }
   try {
@@ -2977,9 +2979,10 @@ function smTagsOf(text) {
 }
 
 async function handleSectorMapGet(req, res) {
-  // 유사투자자문업 리스크 대응(2026-07-21): 종목 랭킹/매수논리(top_stocks, sectors[].companies)가
-  // 이 응답의 핵심이라 'analyze' 플래그가 꺼져 있으면 빈 맵으로 응답한다.
-  if (!(await isFeatureEnabled(supabase, 'analyze'))) {
+  // 유사투자자문업 리스크 대응(2026-07-21) + 노출 게이트 분리(2026-07-27): 종목 랭킹/매수논리
+  // (top_stocks, sectors[].companies) 노출은 전용 fail-closed 플래그 expose_ripple_effects로만
+  // 판단한다(analyze와 무관) — 꺼져 있으면(기본값) 빈 맵으로 응답.
+  if (!(await isFeatureEnabledStrict(supabase, 'expose_ripple_effects'))) {
     res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
     return res.status(200).json({
       ok: true, window_days: 30, based_on: 0, generated_at: new Date().toISOString(),

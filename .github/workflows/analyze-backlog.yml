@@ -125,3 +125,24 @@ jobs:
           curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=ai-market-summary" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
             | jq -c '{ok,generated,reason,headline}' 2>/dev/null || echo "  (non-JSON)"
+
+      # 2026-07-27 추가: article_digest/rank_reason은 매수판단(analyze)과 무관한 순수 요약
+      # 파이프라인이라(유사투자자문업 리스크와 무관) 계속 돌아야 하는데, 이걸 큐(agent_jobs)에
+      # 제출하는 curl 호출 자체가 어디에도 없어서 ai_digest가 안 채워지고 있었다(is_analyzed도
+      # analyze 플래그가 꺼지면서 못 세팅되니, 공개 피드가 ai_digest 유무로 필터링하는데 그마저
+      # 안 채워져 피드가 통째로 멈춤 — 2026-07-27 실측, 13시간+ 공백). 응답 자체는 스케줄
+      # Claude Code 에이전트(SKILL.md)가 채운다 — 여기선 큐에 프롬프트만 쌓는다.
+      - name: 기사 요약(article_digest) 제출
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=article-digest-backfill" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
+            -d '{"limit": 60}' \
+            | jq -c '{ok,scanned,submitted,disabled}' 2>/dev/null || echo "  (non-JSON)"
+
+      - name: 랭킹 사유(rank_reason) 제출
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=rank-reason-backfill" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
+            | jq -c '{ok,scanned,submitted,disabled}' 2>/dev/null || echo "  (non-JSON)"
