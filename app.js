@@ -269,6 +269,23 @@ function renderIssueCard(issue) {
   const sectors = (issue.sectors || []).slice(0, 4);
   const sectorTags = sectors.map(s => `<span class="sector-tag ${getSectorClass(s)}">${s}</span>`).join('');
 
+  // news_analysis(키포인트 + 섹터 방향성) — 종목 미지정 산업 테마 방향 태깅(2026-07-27).
+  const na = issue.news_analysis || {};
+  const keypoints = (Array.isArray(na.keypoints) ? na.keypoints : []).slice(0, 3);
+  const toneSectors = (Array.isArray(na.sectors) ? na.sectors : []).slice(0, 3);
+  const _toneMeta = {
+    pos: { label: '우호적', c: '#ff6b6b', bg: 'rgba(255,107,107,.14)' },
+    neg: { label: '비우호적', c: '#4d8dff', bg: 'rgba(77,141,255,.14)' },
+    neu: { label: '중립', c: 'var(--text3)', bg: 'rgba(255,255,255,.06)' },
+  };
+  const keypointsHtml = keypoints.length ? `<ul style="margin:9px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px">${
+    keypoints.map(k => `<li style="font-size:12px;color:var(--text2);line-height:1.5;position:relative;padding-left:13px"><span style="position:absolute;left:0;color:var(--blue);font-weight:700">·</span>${escHtml(k)}</li>`).join('')
+  }</ul>` : '';
+  const toneChips = toneSectors.map(s => {
+    const m = _toneMeta[s.tone] || _toneMeta.neu;
+    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;color:${m.c};background:${m.bg}">${escHtml(s.name)}<span style="font-size:10px;opacity:.8">${m.label}</span></span>`;
+  }).join('');
+
   const companyRows = companies.map(c => {
     const co = c.companies;
     if (!co) return '';
@@ -294,7 +311,10 @@ function renderIssueCard(issue) {
       <div class="card-body">
         <div class="card-title">${escHtml(issue.title)}</div>
         ${analysis?.ai_summary ? `<div class="card-ai-summary">${escHtml(analysis.ai_summary)}</div>` : (issue.ai_digest ? `<div class="card-ai-summary">📝 ${escHtml(issue.ai_digest)}</div>` : '')}
-        ${sectors.length ? `<div class="card-flow-label">📡 파급 섹터</div><div class="card-sectors">${sectorTags}</div>` : ''}
+        ${keypointsHtml}
+        ${toneSectors.length
+          ? `<div class="card-flow-label">📡 관련 산업 영향</div><div class="card-sectors">${toneChips}</div>`
+          : (sectors.length ? `<div class="card-flow-label">📡 파급 섹터</div><div class="card-sectors">${sectorTags}</div>` : '')}
       </div>
       ${companies.length ? `<div class="card-companies"><div class="card-flow-label">🎯 수혜 예상 종목</div>${companyRows}</div>` : ''}
       <div class="card-footer">

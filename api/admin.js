@@ -1317,29 +1317,47 @@ function buildExtractInvestmentsDynamicBlock(issue) {
   return `뉴스 제목: ${issue.title}\n요약: ${issue.summary || '없음'}\n\n위 뉴스에 대해 위 규칙에 따라 JSON으로만 응답하세요.`;
 }
 
-// 유사투자자문업 리스크와 무관한 순수 기사 요약 — analyses/analysis_companies와 완전히 별개로
-// issues.ai_digest 컬럼에 직접 저장한다(2026-07-21, db/article-digest.sql).
-const ARTICLE_DIGEST_STATIC_PROMPT = `당신은 뉴스 요약 전문가입니다. 아래 뉴스 정보를 한국어로 1~3문장으로 객관적으로 요약하세요.
+// 유사투자자문업 리스크와 무관한 순수 기사 요약 + 키포인트 + 섹터 방향성(톤).
+// analyses/analysis_companies와 완전히 별개(2026-07-21 ai_digest, 2026-07-27 news_analysis 확장).
+// ⚠️ sectors[].tone은 "특정 종목의 매수/매도"가 아니라 "이 뉴스가 어떤 산업 테마에 우호적/
+//    비우호적/중립인가"라는 편집성 뉴스 분류다(신문의 산업 코멘트 수준). 종목명을 지정하지 않는다.
+const ARTICLE_DIGEST_STATIC_PROMPT = `당신은 금융 뉴스 분석가입니다. 아래 뉴스를 한국어로 분석해 요약·핵심포인트·관련 산업 방향을 JSON으로 반환하세요.
 
 엄격한 규칙 (매우 중요):
-- 주어진 정보에 있는 사실 전달에만 집중할 것.
-- 특정 종목의 매수·매도를 권유하거나 추천하는 표현은 절대 쓰지 말 것.
-- "수혜", "기회", "유망", "투자 포인트", "주목" 같은 투자판단성 표현을 쓰지 말 것.
-- "이 뉴스로 어떤 기업이 이득/손해를 본다"는 식의 파급효과·인과 해석을 하지 말 것 — 주어진 내용만 요약.
-- 확실하지 않은 내용을 추측해서 채우지 말 것.
-- ⚠️ "본문이 제공되지 않았다", "내용이 없다", "제목만 있다", "확인할 수 없다" 같은 정보 부족에 대한 메타 언급을 독자에게 절대 노출하지 말 것.
-- 제공된 정보가 제목뿐이거나 짧으면, 그 안에 담긴 사실만 자연스러운 완결 문장 1~2개로 서술할 것(제목을 매끄러운 문장으로 다듬는 수준). 길이를 억지로 늘리지 말 것.
-- 요약할 사실이 정말 아무것도 없으면 summary를 빈 문자열("")로 반환할 것.
+- 주어진 정보에 있는 사실에만 근거할 것. 확실하지 않으면 추측해서 채우지 말 것.
+- ⚠️ 특정 종목(회사/티커)의 매수·매도를 권유하거나, 특정 종목이 오른다/내린다고 지목하지 말 것.
+- "수혜주", "유망", "투자 포인트", "매수 기회", "목표가" 같은 투자판단성 표현 절대 금지.
+- "본문이 제공되지 않았다"/"내용이 없다"/"제목만 있다" 같은 정보 부족 메타 언급 절대 금지.
+
+각 필드 작성 규칙:
+1) summary: 1~3문장 객관적 요약. 제목만 주어졌으면 제목을 매끄러운 완결 문장으로. 요약할 게 정말 없으면 "".
+2) keypoints: 이 뉴스의 핵심 사실을 8~20자 짧은 구로 2~3개(명사구, 마침표 없이). 예: ["엔비디아 신형 GPU 공개","공급 2026년 시작"]. 없으면 빈 배열.
+3) sectors: 이 뉴스와 명확히 관련된 산업 테마 1~3개. 각 항목 { "name": "산업명", "tone": "pos|neg|neu" }.
+   - name은 넓은 산업 테마로(예: 반도체, 2차전지, 바이오, 자동차, 인터넷/플랫폼, 방산, 조선, 금융, 에너지, 게임, 유통, 건설, 통신, 엔터, 항공, 원자재). 회사명 금지.
+   - tone: 이 뉴스가 그 산업에 우호적이면 "pos", 비우호적이면 "neg", 방향이 불분명하면 "neu".
+   - 뉴스와 산업의 연결이 명확할 때만. 억지로 만들지 말 것(불분명하면 빈 배열).
 
 다음 JSON만 반환하세요 (다른 텍스트 없이):
-{ "summary": "요약 (요약할 내용이 없으면 빈 문자열)" }`;
+{ "summary": "...", "keypoints": ["...","..."], "sectors": [{"name":"반도체","tone":"pos"}] }`;
 
 function buildArticleDigestDynamicBlock(issue) {
   const hasSummary = issue.summary && issue.summary.trim();
-  const body = hasSummary
-    ? `뉴스 제목: ${issue.title}\n기사 요약: ${issue.summary.trim()}`
-    : `뉴스 제목: ${issue.title}`;
-  return `${body}\n\n위 뉴스를 위 규칙에 따라 JSON으로만 요약하세요.`;
+  const hasSectors = Array.isArray(issue.sectors) && issue.sectors.length;
+  const lines = [`뉴스 제목: ${issue.title}`];
+  if (hasSummary) lines.push(`기사 요약: ${issue.summary.trim()}`);
+  if (hasSectors) lines.push(`참고용 사전 분류 산업(맞으면 활용, 아니면 무시): ${issue.sectors.slice(0, 4).join(', ')}`);
+  return `${lines.join('\n')}\n\n위 뉴스를 위 규칙에 따라 JSON으로만 분석하세요.`;
+}
+const DIGEST_TONES = new Set(['pos', 'neg', 'neu']);
+function cleanNewsSectors(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.filter(s => s && typeof s.name === 'string' && s.name.trim())
+    .slice(0, 3)
+    .map(s => ({ name: String(s.name).trim().slice(0, 20), tone: DIGEST_TONES.has(s.tone) ? s.tone : 'neu' }));
+}
+function cleanKeypoints(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.filter(k => typeof k === 'string' && k.trim()).slice(0, 3).map(k => k.trim().slice(0, 40));
 }
 
 // AI가 규칙을 어기고 "본문이 제공되지 않았다" 류 정보부족 메타 코멘트를 요약으로 내놓는 경우가
@@ -1352,14 +1370,21 @@ async function handleArticleDigestBackfill(req, res) {
   }
   const limit = Math.min(parseInt(req.body?.limit || req.query?.limit, 10) || 60, 100);
 
-  // ai_digest가 아직 없는 최신 이슈들. is_analyzed 여부와 무관 — 순수 기사 요약이라 AI
-  // 파급효과 분석(analyze) 완료 여부와 별개로 채울 수 있다.
-  const { data: issues, error } = await supabase
+  // news_analysis(요약+키포인트+섹터톤)가 아직 없는 최신 이슈들. news_analysis 기준으로 잡으면
+  // 신규 이슈(ai_digest도 없음)와 구 이슈(ai_digest만 있고 키포인트/섹터톤 없음)를 함께 커버.
+  // is_analyzed 여부와 무관 — analyze 파이프라인과 별개로 채운다.
+  let { data: issues, error } = await supabase
     .from('issues')
-    .select('id, title, summary')
-    .is('ai_digest', null)
+    .select('id, title, summary, sectors')
+    .is('news_analysis', null)
     .order('published_at', { ascending: false })
     .limit(limit);
+  // news_analysis 컬럼 마이그레이션 전이면(에러 메시지에 컬럼명 포함) 구버전 선정(ai_digest 기준)으로 폴백.
+  if (error && /news_analysis/.test(error.message || '')) {
+    ({ data: issues, error } = await supabase
+      .from('issues').select('id, title, summary, sectors')
+      .is('ai_digest', null).order('published_at', { ascending: false }).limit(limit));
+  }
   if (error) return res.status(500).json({ error: error.message });
   if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, submitted: 0 });
 
@@ -1386,14 +1411,21 @@ async function finalizeArticleDigest(row) {
       const parsed = parseJobJson(text);
       const summary = (parsed.summary || '').toString().trim();
       // 빈 요약이거나 "본문 제공 안 됨" 류 메타 코멘트면 요약 대신 빈 문자열 sentinel을 저장한다.
-      // null로 두면 backfill(.is('ai_digest',null))이 매번 다시 집어 무한 재시도하므로,
-      // ''로 "처리했으나 요약 없음"을 표시 → 재시도 방지. 프론트는 ''을 falsy로 보고 원제목 폴백.
       const isJunk = !summary || DIGEST_META_JUNK_RE.test(summary);
       const clean = isJunk ? '' : summary.slice(0, 500);
-      await supabase.from('issues')
-        .update({ ai_digest: clean, ai_digest_at: new Date().toISOString() })
+      // news_analysis는 처리 여부 표시도 겸한다(null이면 backfill이 계속 재선정) — 키포인트/
+      // 섹터톤이 비어도 항상 객체를 저장해 재시도를 막는다.
+      const news_analysis = { keypoints: cleanKeypoints(parsed.keypoints), sectors: cleanNewsSectors(parsed.sectors) };
+      let { error: upErr } = await supabase.from('issues')
+        .update({ ai_digest: clean, ai_digest_at: new Date().toISOString(), news_analysis })
         .eq('id', issueId);
-      if (clean) results.updated++; else results.skipped++;
+      // news_analysis 컬럼 마이그레이션 전이면 그 컬럼 빼고 재시도(요약만이라도 저장).
+      if (upErr && /news_analysis/.test(upErr.message || '')) {
+        await supabase.from('issues')
+          .update({ ai_digest: clean, ai_digest_at: new Date().toISOString() })
+          .eq('id', issueId);
+      }
+      if (clean || news_analysis.keypoints.length || news_analysis.sectors.length) results.updated++; else results.skipped++;
     } catch (e) {
       results.errors.push({ issue_id: issueId, error: e.message?.slice(0, 200) });
     }
@@ -1887,17 +1919,20 @@ async function handleIssuesFeed(req, res) {
     // 내려준다. (includeAnalyses는 위에서 이미 계산됨 — applyFilters도 같은 값을 씀)
     // ai_digest(순수 기사 요약, 매수판단 없음)는 analyze 플래그와 무관하게 항상 포함 —
     // analyses/analysis_companies와 완전히 별개 파이프라인이라 게이트할 이유가 없다.
+    // news_analysis(키포인트+섹터톤): analyses/analysis_companies와 무관한 독립 편집 필드라
+    // 노출 게이트와 상관없이 항상 포함(종목 미지정 산업 방향 태깅, 2026-07-27).
     const selectCols = includeAnalyses
-      ? `id, title, summary, source_name, published_at, sectors, is_analyzed, ai_digest,
+      ? `id, title, summary, source_name, published_at, sectors, is_analyzed, ai_digest, news_analysis,
         analyses!inner(id, confidence_score, ripple_effects, ai_summary,
           analysis_companies(upside_pct, ripple_sector, is_accurate_1d, actual_return_1d, is_accurate_7d, actual_return_7d,
             companies(ticker, name_ko, name_en, market)
           )
         )`
-      : 'id, title, summary, source_name, published_at, sectors, is_analyzed, ai_digest';
-    const dataQuery = applyFilters(
-      supabase.from('issues').select(selectCols).order('published_at', { ascending: false })
+      : 'id, title, summary, source_name, published_at, sectors, is_analyzed, ai_digest, news_analysis';
+    const buildDataQuery = (cols) => applyFilters(
+      supabase.from('issues').select(cols).order('published_at', { ascending: false })
     ).range((page - 1) * pageSize, page * pageSize - 1);
+    const dataQuery = buildDataQuery(selectCols);
 
     // count:'exact'는 Postgres가 매칭 행을 실제로 다 세야 해서(대형/블로트된 테이블일수록)
     // 느림 — 페이지네이션 UI는 정확한 숫자가 필요 없으므로 통계 기반 추정치인 count:'estimated' 사용.
@@ -1910,6 +1945,14 @@ async function handleIssuesFeed(req, res) {
 
     if (dataRes.status === 'rejected' || dataRes.value?.error) {
       const msg = dataRes.status === 'rejected' ? String(dataRes.reason?.message || dataRes.reason) : dataRes.value.error.message;
+      // news_analysis 컬럼 마이그레이션 전이면 그 컬럼만 빼고 재시도(피드가 통째로 죽지 않게).
+      if (/news_analysis/.test(msg || '')) {
+        const retry = await withTimeout(buildDataQuery(selectCols.replace(', news_analysis', '')), 8000).catch(e => ({ error: { message: String(e?.message || e) } }));
+        if (!retry?.error) {
+          res.setHeader('Cache-Control', 'public, s-maxage=45, stale-while-revalidate=300');
+          return res.status(200).json({ ok: true, data: retry.data || [], totalCount: (retry.data || []).length, page, pageSize });
+        }
+      }
       res.setHeader('Cache-Control', 'no-store');
       return res.status(200).json({ ok: false, error: msg, data: [], totalCount: 0 });
     }
