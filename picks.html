@@ -92,7 +92,7 @@
   --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 26px; --fs-3xl: 36px;
 
   /* ── Layout ── */
-  --page-max: 1400px;
+  --page-max: 1600px;
   --page-pad: 28px;
 }
 
@@ -362,7 +362,7 @@ button { font-family: inherit; }
 .main-content { padding: 0; }
 .layout-with-sidebar {
   max-width: var(--page-max); margin: 0 auto; padding: 22px var(--page-pad) 48px;
-  display: grid; grid-template-columns: minmax(0,1fr) 328px; gap: 24px; align-items: start;
+  display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: 26px; align-items: start;
 }
 @media (max-width: 1100px) {
   /* minmax(0,1fr) 필수 — 그냥 1fr이면 그리드 트랙 최소 너비가 내용물의
@@ -778,10 +778,10 @@ button { font-family: inherit; }
 }
 .sidebar-card-header {
   padding: 11px 16px; border-bottom: 1px solid var(--border-soft);
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
   background: var(--bg3);
 }
-.sidebar-card-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; letter-spacing: -0.01em; }
+.sidebar-card-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; letter-spacing: -0.01em; min-width: 0; white-space: nowrap; }
 .live-dot {
   width: 6px; height: 6px; border-radius: 50%; background: var(--green);
   animation: pulse 1.5s ease infinite;

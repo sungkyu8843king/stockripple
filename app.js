@@ -3925,8 +3925,15 @@ async function loadAiMarketSummary() {
       body.innerHTML = `<div style="color:var(--text3);font-size:13.5px;text-align:center;padding:10px">아직 생성 전 — 다음 일일 cron 시 자동 생성됩니다</div>`;
       return;
     }
-    const updatedAt = d.created_at ? new Date(d.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-    document.getElementById('aiMSCreatedAt').textContent = updatedAt;
+    // 생성시각은 aiSummaryHTML의 메타 줄에 이미 들어가므로 헤더에서는 뺐다(좁은
+    // 사이드바에서 제목이 두 줄로 밀리는 원인). 다른 페이지가 아직 이 span을
+    // 갖고 있을 수 있어 optional 처리.
+    const created = document.getElementById('aiMSCreatedAt');
+    if (created) {
+      created.textContent = d.created_at
+        ? new Date(d.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+        : '';
+    }
     body.innerHTML = aiSummaryHTML(d);
     // 데스크톱 사이드바에 실제로 렌더링돼 보이는 순간 "봤음" 처리 — 이게 없으면 모바일
     // 바텀시트(renderDrSheet)를 열 때만 markAiMsSeen이 호출돼서, 데스크톱에서는 계속

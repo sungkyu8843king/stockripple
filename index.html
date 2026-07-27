@@ -92,7 +92,7 @@
   --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 26px; --fs-3xl: 36px;
 
   /* ── Layout ── */
-  --page-max: 1400px;
+  --page-max: 1600px;
   --page-pad: 28px;
 }
 
@@ -332,7 +332,7 @@ button { font-family: inherit; }
 .main-content { padding: 0; }
 .layout-with-sidebar {
   max-width: var(--page-max); margin: 0 auto; padding: 22px var(--page-pad) 48px;
-  display: grid; grid-template-columns: minmax(0,1fr) 328px; gap: 24px; align-items: start;
+  display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: 26px; align-items: start;
 }
 @media (max-width: 1100px) {
   /* minmax(0,1fr) 필수 — 그냥 1fr이면 그리드 트랙 최소 너비가 내용물의
@@ -359,6 +359,29 @@ button { font-family: inherit; }
 .sh-desc  { font-size: 14px; color: var(--text3); font-weight: 500; }
 .section-head-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .section-block { margin-bottom: 28px; }
+
+/* 👋 첫 방문자 소개 스트립 */
+.intro-strip {
+  display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;
+  padding: 18px 20px; border-radius: 14px;
+  background: var(--bg2); border: 1px solid var(--border); border-left: 4px solid var(--blue);
+}
+.intro-strip[hidden] { display: none; }
+.intro-strip-body { flex: 1; min-width: 0; }
+.intro-strip-title { font-size: 17px; font-weight: 800; margin-bottom: 8px; }
+.intro-strip-text { font-size: 15.5px; line-height: 1.7; color: var(--text2); margin: 0; }
+.intro-strip-text b { color: var(--text1); font-weight: 700; }
+.intro-strip-note { margin-top: 8px; }
+.intro-strip-close {
+  flex-shrink: 0; align-self: center; padding: 11px 16px; border-radius: 10px; cursor: pointer;
+  font-size: 14.5px; font-weight: 700; white-space: nowrap;
+  background: var(--blue); color: #fff; border: none;
+}
+.intro-strip-close:hover { filter: brightness(1.08); }
+@media (max-width: 640px) {
+  .intro-strip { flex-direction: column; gap: 12px; padding: 16px; }
+  .intro-strip-close { align-self: stretch; }
+}
 /* 홈 미리보기: 히트맵/국장현황은 일부만 보여주고 전체는 /heatmap.html, /kr-market.html로 유도
    (정보 밀도 완화 — 전체 랭킹/탭은 전용 페이지에서) */
 /* 히트맵은 섹터 뷰(박스 11개, 작음)일 땐 크롭 없이 전부 보여주고, 전체보기/드릴다운
@@ -843,10 +866,10 @@ button { font-family: inherit; }
 }
 .sidebar-card-header {
   padding: 11px 16px; border-bottom: 1px solid var(--border-soft);
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
   background: var(--bg3);
 }
-.sidebar-card-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; letter-spacing: -0.01em; }
+.sidebar-card-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; letter-spacing: -0.01em; min-width: 0; white-space: nowrap; }
 .live-dot {
   width: 6px; height: 6px; border-radius: 50%; background: var(--green);
   animation: pulse 1.5s ease infinite;
@@ -1240,12 +1263,31 @@ button { font-family: inherit; }
   <!-- 메인 피드 -->
   <div id="mainCol">
 
+    <!-- 👋 첫 방문자 소개 (한 번 닫으면 localStorage로 다시 안 뜸) -->
+    <div class="intro-strip" id="introStrip" hidden>
+      <div class="intro-strip-body">
+        <div class="intro-strip-title">👋 StockRipple은 이런 곳이에요</div>
+        <p class="intro-strip-text">
+          뉴스 하나가 <b>어떤 회사 주가까지 흔드는지</b> 따라가 보여주는 곳입니다.
+          예를 들어 "반도체 수출이 늘었다"는 뉴스가 나오면, 그게 어떤 업종과 회사에
+          영향을 주는지 AI가 연결해 정리해 줍니다.
+        </p>
+        <p class="intro-strip-text intro-strip-note">
+          아래로 내리면 <b>오늘의 시장 지표</b>, <b>사람들이 많이 보는 종목</b>,
+          <b>뉴스별 분석</b> 순서로 볼 수 있어요. 투자 권유가 아니라 정보 제공 서비스입니다.
+        </p>
+      </div>
+      <button type="button" class="intro-strip-close" onclick="dismissIntro()" aria-label="소개 닫기">알겠어요 ✕</button>
+    </div>
+
+
     <!-- 📊 시장 지표 대시보드 -->
     <div id="mktDashSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
           <span class="sh-mark"></span>
           <span class="sh-title">시장 지표</span>
+          <span class="sh-desc">오늘 주요 지수·환율·유가가 오르내린 정도</span>
         </div>
       </div>
       <div class="mkt-status" id="mktStatus"></div>
@@ -1295,7 +1337,7 @@ button { font-family: inherit; }
         <div class="section-head-l">
           <span class="sh-mark"></span>
           <span class="sh-title">실시간 랭킹</span>
-          <span class="sh-desc">토스 공식 · 장 마감 시 마지막 정규장 기준</span>
+          <span class="sh-desc">지금 사람들이 가장 많이 보고 사고파는 종목 (토스 공식 · 장 마감 시 마지막 정규장 기준)</span>
         </div>
         <div class="section-head-r">
           <span style="font-size:13.5px;color:var(--text3)" id="rankingsUpdated">—</span>
@@ -1329,7 +1371,7 @@ button { font-family: inherit; }
         <div class="section-head-l">
           <span class="sh-mark" style="background:var(--purple)"></span>
           <span class="sh-title">최신 분석 이슈</span>
-          <span class="sh-desc">뉴스 → 파급 섹터 → 수혜 기업 분석</span>
+          <span class="sh-desc">뉴스 하나가 어떤 업종과 회사 주가까지 흔드는지 따라가 봅니다</span>
           <span id="feedLiveTag" style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
         </div>
         <span style="font-size:13.5px;color:var(--text3)" id="issuesCount"></span>
@@ -1397,6 +1439,7 @@ button { font-family: inherit; }
         <div class="section-head-l">
           <span class="sh-mark" style="background:var(--red)"></span>
           <span class="sh-title">마켓 히트맵</span>
+          <span class="sh-desc">빨간색은 오른 종목, 파란색은 내린 종목 — 칸이 클수록 큰 회사</span>
           <span id="heatmapUpdatedAt" class="sh-desc">—</span>
           <span id="heatmapMarketStatus" style="font-size:13px;font-weight:600;padding:2px 8px;border-radius:999px"></span>
         </div>
@@ -1438,6 +1481,7 @@ button { font-family: inherit; }
         <div class="section-head-l">
           <span class="sh-mark" style="background:var(--yellow)"></span>
           <span class="sh-title">국장 현황</span>
+          <span class="sh-desc">한국 주식시장이 오늘 어떻게 움직였는지</span>
           <span id="krMarketUpdatedAt" class="sh-desc">—</span>
         </div>
         <div class="section-head-r">
@@ -1472,10 +1516,7 @@ button { font-family: inherit; }
     <div class="sidebar-card" id="aiMarketSummaryCard">
       <div class="sidebar-card-header">
         <span class="sidebar-card-title">🤖 AI 시장 종합<span class="dr-dot" id="aiMSDot" style="display:none"></span></span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <button type="button" class="rp-archive-btn" onclick="openReportArchive('ai')">🗂 지난 리포트</button>
-          <span style="font-size:13.5px;color:var(--text3)" id="aiMSCreatedAt">—</span>
-        </div>
+        <button type="button" class="rp-archive-btn" onclick="openReportArchive('ai')">🗂 지난 리포트</button>
       </div>
       <div style="padding:12px 16px" id="aiMarketSummaryBody">
         <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
@@ -1985,6 +2026,21 @@ async function initRankings(){
   _rkTimer = setInterval(async () => { if(document.hidden) return; await _rkEnsure(true); _rkRender(); }, 10000);
 }
 initRankings();
+
+// 👋 첫 방문자 소개 스트립 — 한 번 닫으면 다시 안 띄운다.
+const INTRO_KEY = 'sr_intro_dismissed';
+function dismissIntro() {
+  const el = document.getElementById('introStrip');
+  if (el) el.hidden = true;
+  try { localStorage.setItem(INTRO_KEY, '1'); } catch {}
+}
+(function initIntro() {
+  let seen = false;
+  try { seen = localStorage.getItem(INTRO_KEY) === '1'; } catch {}
+  if (seen) return;
+  const el = document.getElementById('introStrip');
+  if (el) el.hidden = false;
+})();
 </script>
 </body>
 </html>
