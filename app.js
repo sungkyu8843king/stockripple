@@ -3454,7 +3454,12 @@ function renderHeatmapTreemap(grid, items) {
     </div>`;
   }).join('');
 
-  grid.innerHTML = `<div class="tm-wrap" style="position:relative;width:100%;aspect-ratio:${isNarrow ? '3/4' : '16/10'};background:#0d1117;border-radius:10px;overflow:hidden">${html}</div>
+  // 높이를 폭 비례(aspect-ratio)가 아니라 뷰포트 높이 기준으로 고정 — 페이지가 넓은
+  // 모니터에서는 폭이 커질수록 aspect-ratio 방식은 높이도 같이 커져서(1600px 폭이면
+  // 16:10에 1000px) 트리맵 하나가 화면 세로를 다 잡아먹었다. Finviz류 히트맵은 한눈에
+  // 훑어보는 용도라 스크롤 없이 한 화면에 들어와야 의미가 있다.
+  const tmHeight = isNarrow ? 'clamp(360px, 68vh, 560px)' : 'clamp(420px, 62vh, 620px)';
+  grid.innerHTML = `<div class="tm-wrap" style="position:relative;width:100%;height:${tmHeight};background:#0d1117;border-radius:10px;overflow:hidden">${html}</div>
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;font-size:11px;color:var(--text3);flex-wrap:wrap">
       <span>시가총액 상위 ${withVal.length}종목 / 전체 ${totalCount}</span><span style="opacity:.4">|</span>
       <span>박스 크기 = 시가총액</span><span style="opacity:.4">|</span>
