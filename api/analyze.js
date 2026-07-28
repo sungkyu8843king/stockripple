@@ -532,24 +532,41 @@ async function handleBatchSubmit(req, res, opts = {}) {
   if (engine === 'agent') {
     // Anthropic을 전혀 호출하지 않음 — 렌더링된 프롬프트 전문만 큐에 적재하고 끝.
     // 실제 "추론"은 스케줄 Claude Code 에이전트가 이 행을 읽어 response에 답을 써넣는 방식으로 수행.
-    const prompts = [];
-    for (const issue of issues) {
-      const strategicCtx = await buildStrategicCtx(issue);
-      prompts.push({
-        issueId: issue.id,
-        static: ANALYZE_STATIC_PROMPT,
-        dynamic: buildAnalyzeDynamicBlock(issue, strategicCtx),
+    // ⚠️ 한 analyze_batches 행에는 반드시 BATCH_SUBMIT_LIMIT(40)건 이하만 담을 것 — finalizeDiscoverStage가
+    // 한 행의 issueIds를 서버리스 함수 1회 호출 안에서 동기 처리하는데, 100건(월요일 백로그 보정 limit)을
+    // 한 행에 몰아넣으면 Vercel 함수 타임아웃에 걸려 영원히 완료되지 못하고 processing↔submitted를
+    // 무한 반복하며 이후 모든 뉴스분석 제출을 막는 사고가 2026-07-20/2026-07-27 두 차례 재발했음
+    // (상세: PROCESSING_STUCK_TIMEOUT_MS 주석). limit이 40을 넘는 날엔 여러 행으로 쪼개 제출한다 —
+    // 각 행은 여전히 40건 이하라 개별적으로 안전하게 완주하고, 한 행이 타임아웃에 걸려도
+    // 이미 완료된 다른 행들은 그대로 유지되며 다음 폴링이 남은 행만 재시도한다.
+    const chunks = [];
+    for (let i = 0; i < issues.length; i += BATCH_SUBMIT_LIMIT) {
+      chunks.push(issues.slice(i, i + BATCH_SUBMIT_LIMIT));
+    }
+
+    const rows = [];
+    for (const chunk of chunks) {
+      const prompts = [];
+      for (const issue of chunk) {
+        const strategicCtx = await buildStrategicCtx(issue);
+        prompts.push({
+          issueId: issue.id,
+          static: ANALYZE_STATIC_PROMPT,
+          dynamic: buildAnalyzeDynamicBlock(issue, strategicCtx),
+        });
+      }
+      rows.push({
+        engine: 'agent',
+        stage: 'discover',
+        status: 'submitted',
+        payload: { issueIds: chunk.map(i => i.id) },
+        prompts,
       });
     }
-    const { error: insertErr } = await supabase.from('analyze_batches').insert({
-      engine: 'agent',
-      stage: 'discover',
-      status: 'submitted',
-      payload: { issueIds: issues.map(i => i.id) },
-      prompts,
-    });
+
+    const { error: insertErr } = await supabase.from('analyze_batches').insert(rows);
     if (insertErr) return res.status(500).json({ error: 'failed to save agent queue row: ' + insertErr.message });
-    return res.status(200).json({ ok: true, submitted: issues.length, engine: 'agent', staleSkipped: staleSkipped || 0 });
+    return res.status(200).json({ ok: true, submitted: issues.length, engine: 'agent', batches: rows.length, staleSkipped: staleSkipped || 0 });
   }
 
   const requests = [];
