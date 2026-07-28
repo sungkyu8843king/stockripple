@@ -79,6 +79,7 @@ a{color:inherit}
 .eh-surprise.beat{background:rgba(255,107,107,.14);color:var(--red)}
 .eh-surprise.miss{background:rgba(77,141,255,.14);color:var(--blue)}
 .eh-surprise.meet{background:var(--bg4);color:var(--text2)}
+.eh-manual-badge{font-size:11px;font-weight:700;color:var(--green);background:rgba(61,219,127,.14);padding:2px 7px;border-radius:999px;flex-shrink:0}
 
 .eh-empty{text-align:center;padding:60px 20px;color:var(--text3)}
 .eh-loading{text-align:center;padding:60px 20px;color:var(--text3)}
@@ -364,6 +365,7 @@ function ehReportedCard(it, date) {
       <div class="eh-card-top">
         <span class="eh-sym">${ehEsc(it.symbol)}</span>
         <span class="eh-name">${ehEsc(it.name)}</span>
+        ${it.manual ? '<span class="eh-manual-badge" title="관리자가 직접 입력한 실제 발표 수치">✓ 확인</span>' : ''}
       </div>
       <div style="margin-bottom:8px">${surpriseHtml}</div>
       <div class="eh-metrics">

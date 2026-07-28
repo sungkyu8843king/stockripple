@@ -4492,7 +4492,18 @@ async function checkNewReports() {
   }
   refreshReportBadges();
   if (toToast.length) {
-    const openFirst = async () => { await openReportArchive(toToastParams[0]); renderArchDetail(0); };
+    // 토스트를 눌러 아카이브 모달로 본 것도 markReportSeen/markAiMsSeen을 안 태우면
+    // localStorage seen값이 안 갱신돼서, 페이지를 새로고침/이동하면 _drToasted(메모리
+    // 전용)만 리셋되고 seen값은 그대로라 같은 리포트가 또 "새 업데이트"로 뜬다(피드백,
+    // 2026-07-29). 모달을 연 시점에 바로 읽음 처리.
+    const openFirst = async () => {
+      await openReportArchive(toToastParams[0]);
+      renderArchDetail(0);
+      const p = toToastParams[0];
+      if (p === 'dr-kr') markReportSeen('KR');
+      else if (p === 'dr-us') markReportSeen('US');
+      else if (p === 'ai') markAiMsSeen();
+    };
     try { showToast(`📰 새 ${toToast.join('·')} 업데이트가 올라왔어요 — 눌러서 보기`, 'info', openFirst); } catch {}
   }
 }

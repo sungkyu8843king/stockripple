@@ -45,6 +45,10 @@ const SHELL_HTML = `
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5 12 2"/></svg>
       🌟 전략투자
     </button>
+    <button class="nav-item" data-panel="earnings-manual">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M8 8h8M8 16h5"/></svg>
+      📊 실적 발표 관리
+    </button>
     <div class="nav-section">설정</div>
     <button class="nav-item" data-panel="accuracy">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -202,6 +206,12 @@ const SHELL_HTML = `
           (2026-07-14에 20→5로 축소 — 한 사이클이 40분/5시간 사용량 절반을 태운 사고 때문).
           실행 cron은 <code>15 1-23/2 * * *</code>(매 홀수시 15분, 위 시각 라벨과 일치).
         </p>
+        <p style="font-size:11px;color:var(--text3);margin:6px 0 0">
+          ⚠️ 2026-07-28 추가: 위 표와 별개로 <b>짝수시(0,2,4...22시) 15분</b>에도 스케줄 에이전트(<code>stockripple-news-only-agent</code>,
+          cron <code>15 0-22/2 * * *</code>)가 한 번 더 돈다 — 단 이쪽은 <b>뉴스분석 제출 + 이슈 discover/decide(analyze_batches)만</b> 처리하고
+          위 표의 슬롯별 추가 제출(AI 시장종합/종목분석/데일리 등, agent_jobs 큐 전체)은 절대 건드리지 않는다. 즉 뉴스 이슈 판단만 2시간 → 1시간 주기로 좁힌 것이고
+          나머지 파이프라인은 이 표(홀수시 2시간 주기) 그대로.
+        </p>
       </div>
     </div>
 
@@ -337,6 +347,70 @@ const SHELL_HTML = `
       <!-- 목록 -->
       <div id="invList" style="display:flex;flex-direction:column;gap:10px"></div>
       <div id="invPagination" style="display:flex;justify-content:center;gap:8px;margin-top:18px"></div>
+    </div>
+
+    <!-- Earnings Manual -->
+    <div class="panel-section" id="panel-earnings-manual">
+      <div class="section-header">
+        <h2>📊 실적 발표 관리</h2>
+        <p>Nasdaq 캘린더가 방금 나온 실적의 실제 EPS를 며칠씩 늦게 채우는 경우가 있어(실측),
+           그 사이 "발표 예정/발표 완료" 어디에도 안 뜨는 종목을 여기서 직접 입력해두면
+           earnings.html에 즉시(Nasdaq 데이터보다 우선순위로) 반영됩니다.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-title" id="emFormTitle">➕ 실적 추가/수정</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+          <div>
+            <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">티커*</label>
+            <input id="emSymbol" placeholder="예: AAPL" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;text-transform:uppercase">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">기업명</label>
+            <input id="emName" placeholder="예: Apple Inc." style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">발표일(미국 거래일)*</label>
+            <input id="emDate" type="date" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">시점</label>
+            <select id="emTime" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+              <option value="">미정</option>
+              <option value="BMO">BMO (장전)</option>
+              <option value="AMC">AMC (장후)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">실제 EPS</label>
+            <input id="emEpsActual" type="number" step="0.01" placeholder="예: 1.22" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">예상 EPS</label>
+            <input id="emEpsEstimate" type="number" step="0.01" placeholder="예: 1.62" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">서프라이즈%(선택, 비우면 자동계산)</label>
+            <input id="emSurprisePct" type="number" step="0.1" placeholder="예: -24.7" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">시가총액 USD(선택)</label>
+            <input id="emMarketCap" type="number" placeholder="예: 190973590196" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn btn-primary" onclick="emSave()">💾 저장</button>
+          <button class="btn btn-ghost" id="emCancelBtn" style="display:none" onclick="emResetForm()">취소</button>
+        </div>
+        <div id="emFormMsg" style="font-size:12px;margin-top:8px"></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>티커</th><th>기업명</th><th>발표일</th><th>시점</th><th>실제 EPS</th><th>예상 EPS</th><th>서프라이즈%</th><th>관리</th></tr></thead>
+          <tbody id="emTable"><tr><td colspan="8" class="loading-row">불러오는 중...</td></tr></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Accuracy -->

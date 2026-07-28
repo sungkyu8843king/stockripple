@@ -1589,6 +1589,46 @@ async function handleEarningsCalendar(req, res) {
     return { date, weekday: KR_DOW[new Date(date + 'T12:00:00Z').getUTCDay()], items };
   }).filter(day => day.items.length > 0);
 
+  // 관리자가 직접 입력한 실제 발표 수치(earnings_manual) 병합 — Nasdaq 캘린더가 방금 나온
+  // 실적의 eps를 며칠씩 늦게 채워서(실측, 2026-07-29) 그 사이 "발표 예정"에서도 빠지고
+  // "발표 완료"에도 안 뜨는 사각지대를 관리자가 직접 메울 수 있게 한다. 같은 symbol+날짜면
+  // 관리자 입력이 Nasdaq 데이터를 덮어쓰고(우선순위), 원래 그 날짜 버킷이 없으면(예: 이미
+  // wantDays 창을 벗어난 오래전 발표) 새로 만든다 — 시총/개수 제한 없이 관리자 판단 그대로 노출.
+  if (reported) {
+    try {
+      const { data: manualRows } = await supabase.from('earnings_manual')
+        .select('*').order('report_date', { ascending: false }).limit(100);
+      if (manualRows?.length) {
+        const byDate = new Map(out.map(d => [d.date, d]));
+        for (const m of manualRows) {
+          const date = (m.report_date || '').toString().slice(0, 10);
+          if (!date) continue;
+          let day = byDate.get(date);
+          if (!day) {
+            day = { date, weekday: KR_DOW[new Date(date + 'T12:00:00Z').getUTCDay()], items: [] };
+            byDate.set(date, day);
+            out.push(day);
+          }
+          const epsActual = m.eps_actual != null ? Number(m.eps_actual) : null;
+          const epsForecast = m.eps_estimate != null ? Number(m.eps_estimate) : null;
+          const surprisePct = m.surprise_pct != null ? Number(m.surprise_pct)
+            : (epsActual != null && epsForecast) ? Math.round(((epsActual - epsForecast) / Math.abs(epsForecast)) * 1000) / 10 : null;
+          const item = {
+            symbol: (m.symbol || '').toUpperCase(),
+            name: m.name || m.symbol,
+            time: m.time || null,
+            marketCap: m.market_cap != null ? Number(m.market_cap) : null,
+            epsForecast, epsActual, surprisePct,
+            manual: true,
+          };
+          const idx = day.items.findIndex(it => it.symbol === item.symbol);
+          if (idx >= 0) day.items[idx] = item; else day.items.push(item);
+        }
+        out.sort((a, b) => b.date.localeCompare(a.date));
+      }
+    } catch {}
+  }
+
   return res.status(200).json({ ok: true, scope, days: out, minCapUsd: EARNINGS_CAL_MIN_CAP, ts: Date.now() });
 }
 

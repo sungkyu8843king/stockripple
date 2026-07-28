@@ -131,6 +131,9 @@ export default async function handler(req, res) {
     return req.method === 'GET' ? handleFeatureFlagsGet(req, res) : handleFeatureFlagsPost(req, res);
   }
   if (action === 'agent-poll') return handleAgentPoll(req, res);
+  if (action === 'earnings-manual-list')   return handleEarningsManualList(req, res);
+  if (action === 'earnings-manual-upsert') return handleEarningsManualUpsert(req, res);
+  if (action === 'earnings-manual-delete') return handleEarningsManualDelete(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -1798,6 +1801,55 @@ async function handleDeleteInvestment(req, res) {
     .update({ status: 'rejected' }).eq('id', id);
   if (error) return res.status(500).json({ error: error.message });
   return res.status(200).json({ ok: true, deleted: 'soft' });
+}
+
+// ════════════════════════════════════════════════════════════
+// 8-1) 실적 발표 수동 입력 관리 (2026-07-29) — Nasdaq 캘린더가 방금 나온 실적의 실제
+//      EPS를 며칠씩 늦게 채우는 문제(실측)를 관리자가 직접 메울 수 있게 하는 어드민 CRUD.
+//      api/market-data.js handleEarningsCalendar(scope=reported)가 이 테이블을 Nasdaq
+//      데이터와 병합해서(같은 symbol+날짜면 이 값이 우선) 즉시 "발표 완료"에 반영한다.
+// ════════════════════════════════════════════════════════════
+async function handleEarningsManualList(req, res) {
+  const { data, error } = await supabase.from('earnings_manual')
+    .select('*').order('report_date', { ascending: false }).limit(200);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, items: data || [] });
+}
+
+async function handleEarningsManualUpsert(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const b = req.body || {};
+  const symbol = (b.symbol || '').toString().trim().toUpperCase();
+  const reportDate = (b.report_date || '').toString().trim();
+  if (!symbol || !/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) {
+    return res.status(400).json({ error: 'symbol, report_date(YYYY-MM-DD) required' });
+  }
+  const time = ['BMO', 'AMC'].includes((b.time || '').toString().toUpperCase()) ? b.time.toUpperCase() : null;
+  const num = v => (v === '' || v == null) ? null : Number(v);
+  const row = {
+    symbol, report_date: reportDate, time,
+    name: (b.name || '').toString().trim() || null,
+    eps_actual: num(b.eps_actual),
+    eps_estimate: num(b.eps_estimate),
+    surprise_pct: num(b.surprise_pct),
+    market_cap: num(b.market_cap),
+    updated_at: new Date().toISOString(),
+  };
+  if (b.id) row.id = parseInt(b.id, 10);
+
+  const { data, error } = await supabase.from('earnings_manual')
+    .upsert(row, { onConflict: 'symbol,report_date' }).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, item: data });
+}
+
+async function handleEarningsManualDelete(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const id = parseInt(req.body?.id, 10);
+  if (!id) return res.status(400).json({ error: 'id required' });
+  const { error } = await supabase.from('earnings_manual').delete().eq('id', id);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true });
 }
 
 // ════════════════════════════════════════════════════════════
@@ -3565,6 +3617,29 @@ async function fetchDrIndexQuote(symbol, name) {
   } catch { return null; }
 }
 
+// 데일리 리포트의 "다가오는 핵심 이벤트"에 실적 발표를 넣을 때 AI가 정확한 날짜를 쓰도록,
+// earnings.html이 쓰는 실제 실적 캘린더(Nasdaq + 관리자 수동 보정 병합)를 그대로 재사용해
+// 앞으로 5거래일치 대형주 실적을 텍스트로 뽑아준다(2026-07-29). 서버 간 호출이라 실패해도
+// 리포트 생성 자체는 막지 않고 그냥 이 블록만 빈 문자열로 스킵된다.
+async function fetchUpcomingEarningsStr(req) {
+  try {
+    const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req?.headers?.host || 'stockripple-sungkyu.vercel.app'}`;
+    const r = await fetch(`${base}/api/earnings-calendar?scope=upcoming&days=5`, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return '';
+    const j = await r.json();
+    if (!j.ok) return '';
+    const lines = [];
+    for (const day of j.days || []) {
+      for (const it of day.items.slice(0, 4)) {
+        lines.push(`- ${it.symbol}(${it.name}) — ${day.date}${it.time ? ` ${it.time}` : ''}`);
+      }
+    }
+    return lines.slice(0, 15).join('\n');
+  } catch { return ''; }
+}
+
 // 리포트 대상 거래일: 해당 시장 타임존의 오늘 날짜 (장 마감 직후 생성 기준)
 function drReportDate(market) {
   return new Date().toLocaleDateString('en-CA', { timeZone: market === 'KR' ? 'Asia/Seoul' : 'America/New_York' });
@@ -3976,6 +4051,12 @@ async function handleDailyReportPost(req, res) {
       }).join('\n')
     : '(등록된 예정 catalyst 없음)';
 
+  // 실적발표 캘린더(2026-07-29) — catalysts 테이블의 AI 추출 항목은 뉴스 제목만 보고 날짜를
+  // 짐작해서 "이번 주 중(구체 날짜 미확정)" 같은 모호한 표기가 잦았다. earnings.html이 쓰는
+  // 실제 Nasdaq 캘린더(+관리자 수동 보정) 엔드포인트를 그대로 재사용해 정확한 날짜를 준다 —
+  // US 시장만(대형주 $10B+ 한정 데이터라 KR 리포트엔 안 붙임).
+  const earningsStr = market === 'US' ? await fetchUpcomingEarningsStr(req) : '';
+
   const prompt = `당신은 한국어 금융 시장 분석가입니다. ${reportDate}일자 ${marketLabel} 장 마감 데일리 리포트를 작성하세요.
 
 ■ 실제 지수 마감 데이터 (이 수치만 사용, 지어내지 말 것):
@@ -3983,7 +4064,11 @@ ${idxStr || '(지수 데이터 없음)'}
 
 ■ 다가오는 대형 catalyst (예정 이벤트 — 오늘 뉴스에 없더라도 시장이 주목하는 핵심):
 ${catStr}
-
+${earningsStr ? `
+■ 다가오는 실적 발표 일정 (실제 Nasdaq 캘린더 기준 — 이 목록의 날짜만 정확한 것으로 취급할 것,
+  아래 없는 종목의 실적 날짜는 절대 추측/창작하지 말 것):
+${earningsStr}
+` : ''}
 ■ 지난 24시간 뉴스/이슈 ${issues?.length || 0}건:
 ${ctx.slice(0, 10000)}
 
@@ -3994,7 +4079,10 @@ ${ctx.slice(0, 10000)}
    단, "지난 24시간 뉴스"에 그 catalyst가 이미 실제로 발생(실적 발표됨·FDA 결과 나옴·상장 완료 등)했다는
    내용이 있으면 — 그 사실은 이미 recap/top_events에 반영했을 것이므로 — upcoming_catalysts에는
    "예정"인 것처럼 다시 넣지 말고 제외한다. 같은 리포트 안에서 "이미 발표됨"과 "예정"을 동시에
-   말하는 자기모순을 절대 만들지 말 것.
+   말하는 자기모순을 절대 만들지 말 것.${earningsStr ? `
+   실적 발표를 upcoming_catalysts에 넣을 때는 반드시 위 "다가오는 실적 발표 일정" 목록의
+   날짜를 그대로 쓸 것 — "이번 주 중", "구체 날짜 미확정" 같은 모호한 표현 금지, 그 목록에
+   없는 종목의 실적 날짜는 아예 언급하지 말 것.` : ''}
 4. 사실 기반·객관적·한국어. 추측/날짜 창작 금지 — 지수·본문·catalyst 목록에 있는 것만 사용.${focus === 'earnings' ? `
 5. ⭐ 이번 리포트는 장 마감 직후 실적 발표가 몰리는 시간대에 생성됩니다. "지난 24시간 뉴스"에 있는
    실적 발표(어닝서프라이즈/쇼크, 가이던스 상향·하향, EPS·매출 발표 등) 관련 이슈를 최우선으로
