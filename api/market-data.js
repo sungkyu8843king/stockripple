@@ -27,7 +27,8 @@ export default async function handler(req, res) {
     case 'quotes':       return handleQuotes(req, res);
     case 'technicals':   return handleTechnicals(req, res);
     case 'earnings':     return (req.query.type === 'analyst') ? handleAnalyst(res) : handleEarnings(res);
-    case 'earnings-calendar': return handleEarningsCalendar(res);
+    case 'earnings-calendar': return handleEarningsCalendar(req, res);
+    case 'earnings-detail':   return handleEarningsDetail(req, res);
     case 'market-pulse':  {
       const type = (req.query.type || 'economic').toString();
       if (type === 'trump') return handleTrump(res);
@@ -1535,16 +1536,23 @@ async function fetchNasdaqCalendarForDate(dateStr) {
   } catch { return []; }
 }
 
-async function handleEarningsCalendar(res) {
+// scope='upcoming'(기본, 오늘부터 앞으로) | 'reported'(어제부터 뒤로 — 실제 발표된 실적)
+// 기본값은 기존 사이드바(app.js loadEarningsCalendar)가 파라미터 없이 부르므로 절대 바꾸지 말 것.
+// reported 모드에선 Nasdaq 과거 캘린더가 eps(실제)·surprise(%)까지 같이 준다 — 발표 완료
+// 목록을 별도 조회 없이 이 한 번으로 구성할 수 있다(실측 확인, 2026-07-28).
+async function handleEarningsCalendar(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   // 실적 일정은 하루 안에 잘 안 바뀌므로(간혹 당일 정정 있음) 넉넉히 캐시 — handleEarnings와 동일 정책.
   res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
 
-  // 오늘부터 평일 10일(=이번주+다음주). 주말도 그냥 요청하면 Nasdaq이 rows:null을
-  // 주니 스킵해도 무해하지만, 어차피 빈 응답이라 애초에 요청 자체를 건너뛴다.
+  const scope = (req?.query?.scope || 'upcoming').toString();
+  const reported = scope === 'reported';
+  const wantDays = Math.min(Math.max(parseInt(req?.query?.days) || 10, 1), 15);
+
+  // 평일만 수집 — 주말은 Nasdaq이 rows:null을 주므로 요청 자체를 건너뛴다.
   const days = [];
-  for (let i = 0; days.length < 10; i++) {
-    const d = new Date(Date.now() + i * 86400000);
+  for (let i = reported ? 1 : 0; days.length < wantDays; i++) {
+    const d = new Date(Date.now() + (reported ? -i : i) * 86400000);
     const dow = d.getUTCDay();
     if (dow === 0 || dow === 6) continue;
     days.push(d.toISOString().slice(0, 10));
@@ -1554,20 +1562,82 @@ async function handleEarningsCalendar(res) {
 
   const out = days.map((date, idx) => {
     const items = (results[idx] || [])
-      .map(r => ({
-        symbol: r.symbol,
-        name: (r.name || '').trim(),
-        time: r.time === 'time-after-hours' ? 'AMC' : r.time === 'time-pre-market' ? 'BMO' : null,
-        marketCap: parseNasdaqMarketCap(r.marketCap),
-        epsForecast: parseNasdaqEps(r.epsForecast),
-      }))
-      .filter(it => it.symbol && it.marketCap != null && it.marketCap >= EARNINGS_CAL_MIN_CAP)
+      .map(r => {
+        const epsActual = reported ? parseNasdaqEps(r.eps) : null;
+        const epsForecast = parseNasdaqEps(r.epsForecast);
+        const surprisePct = reported && r.surprise != null && r.surprise !== ''
+          ? (isFinite(parseFloat(r.surprise)) ? parseFloat(r.surprise) : null) : null;
+        return {
+          symbol: r.symbol,
+          name: (r.name || '').trim(),
+          time: r.time === 'time-after-hours' ? 'AMC' : r.time === 'time-pre-market' ? 'BMO' : null,
+          marketCap: parseNasdaqMarketCap(r.marketCap),
+          epsForecast,
+          ...(reported ? { epsActual, surprisePct } : {}),
+        };
+      })
+      // reported 모드는 "실제로 실적이 나온 것"만 — 예정일만 잡혀 있고 아직 값이 없는 행은 뺀다.
+      .filter(it => it.symbol && it.marketCap != null && it.marketCap >= EARNINGS_CAL_MIN_CAP
+        && (!reported || it.epsActual != null))
       .sort((a, b) => b.marketCap - a.marketCap)
       .slice(0, EARNINGS_CAL_MAX_PER_DAY);
     return { date, weekday: KR_DOW[new Date(date + 'T12:00:00Z').getUTCDay()], items };
   }).filter(day => day.items.length > 0);
 
-  return res.status(200).json({ ok: true, days: out, minCapUsd: EARNINGS_CAL_MIN_CAP, ts: Date.now() });
+  return res.status(200).json({ ok: true, scope, days: out, minCapUsd: EARNINGS_CAL_MIN_CAP, ts: Date.now() });
+}
+
+// ─── 실적 상세 (2026-07-28) — earnings.html 종목 클릭 시 ────────────────
+// Nasdaq earnings-surprise: 최근 4개 분기의 실제 EPS·컨센서스·서프라이즈% 이력.
+// + Yahoo 일봉 3개월: 발표 전후 주가 흐름을 같이 보여주기 위함(발표일 마커는 클라이언트가 찍음).
+async function handleEarningsDetail(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=21600');
+  const symbol = (req?.query?.symbol || '').toString().trim().toUpperCase();
+  if (!symbol || !/^[A-Z][A-Z0-9.\-]{0,9}$/.test(symbol)) {
+    return res.status(400).json({ ok: false, error: 'valid symbol required' });
+  }
+
+  const [surpriseRes, chartRes] = await Promise.allSettled([
+    fetch(`https://api.nasdaq.com/api/company/${encodeURIComponent(symbol)}/earnings-surprise`,
+      { headers: EARNINGS_HEADERS, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null),
+    fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=3mo`,
+      { headers: EARNINGS_HEADERS, signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null),
+  ]);
+
+  // 분기 이력 — Nasdaq은 최신순으로 준다. dateReported는 "4/30/2026" 형식이라 ISO로 정규화.
+  let quarters = [];
+  const rows = surpriseRes.status === 'fulfilled'
+    ? (surpriseRes.value?.data?.earningsSurpriseTable?.rows || []) : [];
+  quarters = rows.map(r => {
+    const m = String(r.dateReported || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    const iso = m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : null;
+    const eps = r.eps != null && r.eps !== '' ? Number(r.eps) : null;
+    const est = r.consensusForecast != null && r.consensusForecast !== '' ? Number(r.consensusForecast) : null;
+    const sp = r.percentageSurprise != null && r.percentageSurprise !== '' ? Number(r.percentageSurprise) : null;
+    return {
+      fiscalQuarter: r.fiscalQtrEnd || null,
+      reportedDate: iso,
+      epsActual: isFinite(eps) ? eps : null,
+      epsEstimate: isFinite(est) ? est : null,
+      surprisePct: isFinite(sp) ? sp : null,
+    };
+  }).filter(q => q.epsActual != null || q.epsEstimate != null);
+
+  // 주가 3개월 일봉
+  let points = [], currency = 'USD', name = symbol, currentPrice = null;
+  const cr = chartRes.status === 'fulfilled' ? chartRes.value?.chart?.result?.[0] : null;
+  if (cr) {
+    const ts = cr.timestamp || [];
+    const closes = cr.indicators?.quote?.[0]?.close || [];
+    points = ts.map((t, i) => ({ date: new Date(t * 1000).toISOString().slice(0, 10), close: closes[i] }))
+      .filter(p => p.close != null);
+    currency = cr.meta?.currency || 'USD';
+    name = cr.meta?.longName || cr.meta?.shortName || symbol;
+    currentPrice = cr.meta?.regularMarketPrice ?? cr.meta?.previousClose ?? null;
+  }
+
+  return res.status(200).json({ ok: true, symbol, name, currency, currentPrice, quarters, points, ts: Date.now() });
 }
 
 // ─── Analyst handler ──────────────────────────────────────────────

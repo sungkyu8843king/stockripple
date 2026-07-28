@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<script>(function(){try{if(localStorage.getItem('sr_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="/sr-pulse.js" defer></script>
+<title>실적발표 캘린더 — StockRipple</title>
+<meta name="description" content="이번주·지난주 미국 대형주 실적발표 — 발표 예정 종목과 발표 완료 종목의 실제 EPS·컨센서스·서프라이즈를 한눈에.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="StockRipple">
+<meta property="og:title" content="실적발표 캘린더 — StockRipple">
+<meta property="og:description" content="이번주·지난주 미국 대형주 실적발표 — 발표 예정 종목과 발표 완료 종목의 실제 EPS·컨센서스·서프라이즈를 한눈에.">
+<meta property="og:url" content="https://stockripple.vercel.app/earnings.html">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="실적발표 캘린더 — StockRipple">
+<meta name="twitter:description" content="이번주·지난주 미국 대형주 실적발표 — 발표 예정 종목과 발표 완료 종목의 실제 EPS·컨센서스·서프라이즈를 한눈에.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15171e; --bg-rgb: 21,23,30; --bg2:#1e2129; --bg3:#262a34; --bg4:#2f333f;
+  --border:rgba(255,255,255,0.075); --border-strong:rgba(255,255,255,0.16);
+  --text:#f2f4f8; --text2:#a6adbb; --text3:#6c7385;
+  --red:#ff6b6b; --green:#3ddb7f; --blue:#4d8dff; --yellow:#f0b45e; --purple:#9d7bff;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --bg-rgb: 245,246,248; --bg2: #ffffff; --bg3: #eef0f3; --bg4: #e3e6eb;
+  --border: rgba(15,17,23,0.09); --border-strong: rgba(15,17,23,0.18);
+  --text: #14161c; --text2: #4b5163; --text3: #6b7280;
+  --red: #dc2626; --green: #15803d; --blue: #1d4ed8; --yellow: #a16207; --purple: #7c3aed;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
+button,input,select,textarea{font-family:inherit}
+a{color:inherit}
+.header{position:sticky;top:0;z-index:100;background:rgba(var(--bg-rgb),0.80);backdrop-filter:blur(14px) saturate(150%);border-bottom:1px solid var(--border);padding:0 24px}
+.header-inner{max-width:1320px;margin:0 auto;display:flex;align-items:center;gap:16px;height:56px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
+.logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--blue) 0%,var(--purple) 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;box-shadow:0 3px 10px rgba(36,87,230,0.30)}
+
+.wrap{max-width:1320px;margin:0 auto;padding:22px 20px 60px}
+.eh-hero{margin-bottom:22px}
+.eh-title{font-size:24px;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:10px}
+.eh-sub{font-size:15px;color:var(--text3);margin-top:6px}
+
+.eh-tabs{display:flex;gap:8px;margin-bottom:20px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:5px}
+.eh-tab{flex:1;text-align:center;padding:11px;border-radius:10px;border:none;background:transparent;color:var(--text2);font-size:15.5px;font-weight:700;cursor:pointer;transition:background .12s}
+.eh-tab.active{background:var(--blue);color:#fff}
+.eh-tab .cnt{font-size:12.5px;font-weight:700;opacity:.85;margin-left:4px}
+
+.eh-day{margin-bottom:26px}
+.eh-day-head{display:flex;align-items:baseline;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.eh-day-date{font-size:16.5px;font-weight:800}
+.eh-day-count{font-size:13.5px;color:var(--text3)}
+.eh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+
+.eh-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;cursor:default;transition:border-color .12s,transform .12s}
+.eh-card.clickable{cursor:pointer}
+.eh-card.clickable:hover{border-color:var(--border-strong);transform:translateY(-1px)}
+.eh-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.eh-sym{font-family:var(--mono);font-weight:800;font-size:15px;color:var(--blue)}
+.eh-name{font-size:13.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;margin-left:8px}
+.eh-timing{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;flex-shrink:0}
+.eh-timing.bmo{background:var(--blue-dim,rgba(77,141,255,.14));color:var(--blue)}
+.eh-timing.amc{background:var(--purple-dim,rgba(157,123,255,.16));color:var(--purple)}
+.eh-kst{font-size:12.5px;color:var(--text3);margin-bottom:8px}
+.eh-metrics{display:flex;gap:14px;font-size:13.5px}
+.eh-metric-label{color:var(--text3);font-size:12px}
+.eh-metric-val{font-family:var(--mono);font-weight:700}
+.eh-surprise{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:800;padding:3px 9px;border-radius:999px}
+.eh-surprise.beat{background:rgba(255,107,107,.14);color:var(--red)}
+.eh-surprise.miss{background:rgba(77,141,255,.14);color:var(--blue)}
+.eh-surprise.meet{background:var(--bg4);color:var(--text2)}
+
+.eh-empty{text-align:center;padding:60px 20px;color:var(--text3)}
+.eh-loading{text-align:center;padding:60px 20px;color:var(--text3)}
+.eh-spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;margin:0 auto 12px;animation:eh-spin .7s linear infinite}
+@keyframes eh-spin{to{transform:rotate(360deg)}}
+
+/* 상세 모달 */
+.eh-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9500;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.eh-overlay.open{display:flex}
+.eh-modal{width:min(560px,100%);max-height:88vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:18px;box-shadow:0 30px 70px rgba(0,0,0,.5)}
+.eh-modal-head{display:flex;align-items:center;gap:12px;padding:20px 22px 14px;border-bottom:1px solid var(--border)}
+.eh-modal-sym{font-family:var(--mono);font-weight:800;font-size:20px;color:var(--blue)}
+.eh-modal-name{font-size:14.5px;color:var(--text2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eh-modal-price{font-family:var(--mono);font-weight:700;font-size:15.5px}
+.eh-modal-close{background:var(--bg3);border:none;color:var(--text2);width:32px;height:32px;border-radius:9px;font-size:16px;cursor:pointer;flex-shrink:0}
+.eh-modal-body{padding:20px 22px 26px}
+
+.eh-hero-surprise{text-align:center;padding:18px 0 22px}
+.eh-hero-badge{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:800;padding:6px 16px;border-radius:999px;margin-bottom:10px}
+.eh-hero-badge.beat{background:rgba(255,107,107,.14);color:var(--red)}
+.eh-hero-badge.miss{background:rgba(77,141,255,.14);color:var(--blue)}
+.eh-hero-badge.meet{background:var(--bg4);color:var(--text2)}
+.eh-hero-pct{font-size:40px;font-weight:800;font-family:var(--mono);letter-spacing:-0.02em}
+.eh-hero-pct.beat{color:var(--red)} .eh-hero-pct.miss{color:var(--blue)} .eh-hero-pct.meet{color:var(--text)}
+.eh-hero-cap{font-size:13px;color:var(--text3);margin-top:4px}
+
+.eh-compare{display:flex;flex-direction:column;gap:10px;margin-bottom:24px}
+.eh-cmp-row{display:flex;align-items:center;gap:10px}
+.eh-cmp-label{width:64px;flex-shrink:0;font-size:13.5px;color:var(--text3);font-weight:600}
+.eh-cmp-track{flex:1;height:10px;background:var(--bg3);border-radius:6px;overflow:hidden}
+.eh-cmp-fill{height:100%;border-radius:6px;width:0%}
+.eh-cmp-fill.actual{background:linear-gradient(90deg,var(--blue),var(--purple))}
+.eh-cmp-fill.estimate{background:var(--text3);opacity:.6}
+.eh-cmp-val{width:64px;flex-shrink:0;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px}
+
+.eh-section-title{font-size:13.5px;font-weight:700;color:var(--text3);letter-spacing:.03em;margin:22px 0 10px;text-transform:uppercase}
+.eh-quarters{display:flex;gap:8px}
+.eh-q{flex:1;text-align:center;background:var(--bg3);border-radius:10px;padding:10px 6px}
+.eh-q-label{font-size:11.5px;color:var(--text3);margin-bottom:6px}
+.eh-q-bar-track{height:44px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:6px}
+.eh-q-bar{width:14px;border-radius:3px 3px 0 0}
+.eh-q-pct{font-size:11.5px;font-weight:700;font-family:var(--mono)}
+
+.eh-price-chart{position:relative;height:120px;margin-top:6px}
+.eh-price-chart svg{width:100%;height:100%;display:block}
+.eh-price-note{font-size:12px;color:var(--text3);text-align:center;margin-top:6px}
+
+.eh-modal-empty{text-align:center;color:var(--text3);padding:20px;font-size:13.5px}
+@media (max-width:640px){ .eh-grid{grid-template-columns:1fr} .eh-quarters{flex-wrap:wrap} .eh-q{min-width:60px} }
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/earnings.html');</script>
+
+<div class="wrap">
+  <div class="eh-hero">
+    <div class="eh-title">📊 실적발표 캘린더</div>
+    <div class="eh-sub">이번주·지난주 미국 대형주(시총 $10B+) 실적 — 발표 예정 종목과 발표 완료 종목을 한눈에</div>
+  </div>
+
+  <div class="eh-tabs">
+    <button class="eh-tab active" id="ehTabUpcoming" onclick="ehSwitchTab('upcoming')">📅 발표 예정<span class="cnt" id="ehCntUpcoming"></span></button>
+    <button class="eh-tab" id="ehTabReported" onclick="ehSwitchTab('reported')">✅ 발표 완료<span class="cnt" id="ehCntReported"></span></button>
+  </div>
+
+  <div id="ehBody"><div class="eh-loading"><div class="eh-spinner"></div>불러오는 중...</div></div>
+</div>
+
+<!-- 상세 모달 -->
+<div class="eh-overlay" id="ehOverlay" onclick="if(event.target===this)ehCloseDetail()">
+  <div class="eh-modal">
+    <div class="eh-modal-head">
+      <div>
+        <div class="eh-modal-sym" id="ehModalSym">—</div>
+        <div class="eh-modal-name" id="ehModalName">—</div>
+      </div>
+      <div class="eh-modal-price" id="ehModalPrice"></div>
+      <button class="eh-modal-close" onclick="ehCloseDetail()">✕</button>
+    </div>
+    <div class="eh-modal-body" id="ehModalBody"></div>
+  </div>
+</div>
+
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
+<script>
+// ─── 데이터 캐시 ────────────────────────────────────────────
+let ehTab = 'upcoming';
+const ehCache = { upcoming: null, reported: null };
+
+function ehEsc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// BMO/AMC(미국 동부시간 기준)만으로는 한국시간으로 언제인지 알기 어렵다는 기존 피드백을
+// 반영 — index.html 사이드바(app.js earningsCallTimeToKst)와 동일 로직을 이 페이지는
+// app.js를 안 불러오므로 자체 구현. 개장 09:30 ET(BMO) / 마감 16:00 ET(AMC) 기준으로
+// 그 거래일의 실제 한국시간을 환산(서머타임 EDT/EST 자동 판정).
+function ehEtOffsetHours(dateStr) {
+  const probe = new Date(`${dateStr}T16:00:00Z`);
+  const tz = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' })
+    .formatToParts(probe).find(p => p.type === 'timeZoneName')?.value || '';
+  return tz.includes('EDT') ? 4 : 5;
+}
+function ehCallTimeToKst(dateStr, callTime) {
+  if (!dateStr || !callTime) return null;
+  const etHour = callTime === 'BMO' ? 9 : 16;
+  const etMin = callTime === 'BMO' ? 30 : 0;
+  const offset = ehEtOffsetHours(dateStr);
+  const utcMs = new Date(`${dateStr}T${String(etHour).padStart(2,'0')}:${String(etMin).padStart(2,'0')}:00Z`).getTime() + offset * 3600000;
+  const kst = new Date(utcMs);
+  const hm = kst.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+  const kstDateStr = kst.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+  return { hm, rolledToNextDay: kstDateStr > dateStr, whenLabel: callTime === 'BMO' ? '개장 전' : '마감 후' };
+}
+
+function ehFmtDate(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' });
+}
+function ehFmtEps(v) { return v == null ? '—' : `$${v.toFixed(2)}`; }
+
+async function ehLoad(scope) {
+  if (ehCache[scope]) return ehCache[scope];
+  const r = await fetch(`/api/earnings-calendar?scope=${scope}&days=10`);
+  const j = await r.json();
+  return (ehCache[scope] = j.ok ? j.days : []);
+}
+
+async function ehSwitchTab(tab) {
+  ehTab = tab;
+  document.getElementById('ehTabUpcoming').classList.toggle('active', tab === 'upcoming');
+  document.getElementById('ehTabReported').classList.toggle('active', tab === 'reported');
+  await ehRender();
+}
+
+function ehSurpriseCls(pct) {
+  if (pct == null) return 'meet';
+  return pct > 0.5 ? 'beat' : pct < -0.5 ? 'miss' : 'meet';
+}
+
+async function ehRender() {
+  const body = document.getElementById('ehBody');
+  body.innerHTML = '<div class="eh-loading"><div class="eh-spinner"></div>불러오는 중...</div>';
+  const days = await ehLoad(ehTab);
+
+  const totalUpcoming = ehCache.upcoming ? ehCache.upcoming.reduce((s, d) => s + d.items.length, 0) : null;
+  const totalReported = ehCache.reported ? ehCache.reported.reduce((s, d) => s + d.items.length, 0) : null;
+  document.getElementById('ehCntUpcoming').textContent = totalUpcoming != null ? ` ${totalUpcoming}` : '';
+  document.getElementById('ehCntReported').textContent = totalReported != null ? ` ${totalReported}` : '';
+
+  if (!days.length) {
+    body.innerHTML = `<div class="eh-empty">📭 ${ehTab === 'upcoming' ? '예정된' : '최근 발표된'} 대형주 실적이 없어요.</div>`;
+    return;
+  }
+
+  body.innerHTML = days.map(day => `
+    <div class="eh-day">
+      <div class="eh-day-head">
+        <span class="eh-day-date">${ehFmtDate(day.date)}</span>
+        <span class="eh-day-count">${day.items.length}건</span>
+      </div>
+      <div class="eh-grid">
+        ${day.items.map(it => ehTab === 'upcoming' ? ehUpcomingCard(it, day.date) : ehReportedCard(it, day.date)).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function ehUpcomingCard(it, date) {
+  const kst = ehCallTimeToKst(date, it.time);
+  const timingHtml = it.time
+    ? `<span class="eh-timing ${it.time.toLowerCase()}">${it.time}</span>` : '';
+  const kstHtml = kst
+    ? `<div class="eh-kst">${kst.whenLabel} · 한국시간 ${kst.hm}${kst.rolledToNextDay ? ' (익일)' : ''}</div>`
+    : '<div class="eh-kst">발표 시각 미정</div>';
+  return `
+    <div class="eh-card">
+      <div class="eh-card-top">
+        <span class="eh-sym">${ehEsc(it.symbol)}</span>
+        <span class="eh-name">${ehEsc(it.name)}</span>
+        ${timingHtml}
+      </div>
+      ${kstHtml}
+      <div class="eh-metrics">
+        <div><div class="eh-metric-label">컨센서스 EPS</div><div class="eh-metric-val">${ehFmtEps(it.epsForecast)}</div></div>
+      </div>
+    </div>`;
+}
+
+function ehReportedCard(it, date) {
+  const cls = ehSurpriseCls(it.surprisePct);
+  const sign = it.surprisePct != null && it.surprisePct > 0 ? '+' : '';
+  const surpriseHtml = it.surprisePct != null
+    ? `<span class="eh-surprise ${cls}">${cls === 'beat' ? '▲' : cls === 'miss' ? '▼' : '·'} ${sign}${it.surprisePct.toFixed(1)}%</span>`
+    : `<span class="eh-surprise meet">서프라이즈 미집계</span>`;
+  return `
+    <div class="eh-card clickable" onclick="ehOpenDetail('${ehEsc(it.symbol)}','${ehEsc(it.name)}')">
+      <div class="eh-card-top">
+        <span class="eh-sym">${ehEsc(it.symbol)}</span>
+        <span class="eh-name">${ehEsc(it.name)}</span>
+      </div>
+      <div style="margin-bottom:8px">${surpriseHtml}</div>
+      <div class="eh-metrics">
+        <div><div class="eh-metric-label">실제 EPS</div><div class="eh-metric-val">${ehFmtEps(it.epsActual)}</div></div>
+        <div><div class="eh-metric-label">예상 EPS</div><div class="eh-metric-val">${ehFmtEps(it.epsForecast)}</div></div>
+      </div>
+    </div>`;
+}
+
+// ─── 상세 모달 ──────────────────────────────────────────────
+function ehCloseDetail() {
+  document.getElementById('ehOverlay').classList.remove('open');
+}
+
+async function ehOpenDetail(symbol, name) {
+  const overlay = document.getElementById('ehOverlay');
+  overlay.classList.add('open');
+  document.getElementById('ehModalSym').textContent = symbol;
+  document.getElementById('ehModalName').textContent = name;
+  document.getElementById('ehModalPrice').textContent = '';
+  const bodyEl = document.getElementById('ehModalBody');
+  bodyEl.innerHTML = '<div class="eh-loading"><div class="eh-spinner"></div>불러오는 중...</div>';
+
+  try {
+    const r = await fetch(`/api/earnings-detail?symbol=${encodeURIComponent(symbol)}`);
+    const d = await r.json();
+    if (!d.ok) { bodyEl.innerHTML = '<div class="eh-modal-empty">데이터를 불러올 수 없어요.</div>'; return; }
+    ehRenderDetail(d);
+  } catch {
+    bodyEl.innerHTML = '<div class="eh-modal-empty">데이터를 불러올 수 없어요.</div>';
+  }
+}
+
+function ehRenderDetail(d) {
+  document.getElementById('ehModalName').textContent = d.name || d.symbol;
+  document.getElementById('ehModalPrice').textContent = d.currentPrice != null
+    ? (d.currency === 'KRW' ? '₩' + Math.round(d.currentPrice).toLocaleString('ko-KR') : '$' + Number(d.currentPrice).toFixed(2))
+    : '';
+
+  const latest = d.quarters?.[0];
+  const cls = latest ? ehSurpriseCls(latest.surprisePct) : 'meet';
+  const sign = latest?.surprisePct != null && latest.surprisePct > 0 ? '+' : '';
+  const badgeLabel = cls === 'beat' ? '🎯 컨센서스 상회' : cls === 'miss' ? '⚠️ 컨센서스 하회' : '컨센서스 부합';
+
+  const heroHtml = latest ? `
+    <div class="eh-hero-surprise">
+      <div class="eh-hero-badge ${cls}">${badgeLabel}</div>
+      <div class="eh-hero-pct ${cls}" id="ehHeroPct">0%</div>
+      <div class="eh-hero-cap">${latest.fiscalQuarter || ''} · ${latest.reportedDate || ''} 발표</div>
+    </div>
+    <div class="eh-compare">
+      <div class="eh-cmp-row">
+        <span class="eh-cmp-label">실제 EPS</span>
+        <div class="eh-cmp-track"><div class="eh-cmp-fill actual" id="ehFillActual"></div></div>
+        <span class="eh-cmp-val">${ehFmtEps(latest.epsActual)}</span>
+      </div>
+      <div class="eh-cmp-row">
+        <span class="eh-cmp-label">예상 EPS</span>
+        <div class="eh-cmp-track"><div class="eh-cmp-fill estimate" id="ehFillEstimate"></div></div>
+        <span class="eh-cmp-val">${ehFmtEps(latest.epsEstimate)}</span>
+      </div>
+    </div>` : '<div class="eh-modal-empty">최근 분기 실적 데이터가 없어요.</div>';
+
+  const quartersHtml = d.quarters?.length ? `
+    <div class="eh-section-title">🕐 최근 4개 분기 서프라이즈</div>
+    <div class="eh-quarters">
+      ${d.quarters.slice(0, 4).reverse().map(q => {
+        const qc = ehSurpriseCls(q.surprisePct);
+        const color = qc === 'beat' ? 'var(--red)' : qc === 'miss' ? 'var(--blue)' : 'var(--text3)';
+        const pct = q.surprisePct != null ? Math.max(4, Math.min(44, Math.abs(q.surprisePct) * 1.2)) : 4;
+        const qLabel = (q.fiscalQuarter || '').replace(/^\w+\s/, '');
+        return `<div class="eh-q">
+          <div class="eh-q-label">${ehEsc(qLabel)}</div>
+          <div class="eh-q-bar-track"><div class="eh-q-bar" style="height:${pct}px;background:${color}"></div></div>
+          <div class="eh-q-pct" style="color:${color}">${q.surprisePct != null ? (q.surprisePct>0?'+':'')+q.surprisePct.toFixed(1)+'%' : '—'}</div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const chartHtml = d.points?.length >= 2 ? `
+    <div class="eh-section-title">📈 최근 3개월 주가 (발표일 표시)</div>
+    <div class="eh-price-chart" id="ehPriceChart"></div>
+    <div class="eh-price-note">점선 = 최근 발표일 · ${d.currency === 'KRW' ? '원화' : 'USD'}</div>` : '';
+
+  document.getElementById('ehModalBody').innerHTML = heroHtml + quartersHtml + chartHtml;
+
+  // width/height에 CSS transition을 걸지 않는다 — 이 프로젝트 브라우저 환경에서 JS로
+  // 바꾼 opacity/padding/transform이 transition 선언이 있으면 아예 반영이 안 되는 버그를
+  // 여러 차례 실측으로 확인했다(2026-07-28). 애니메이션 없이 즉시 값으로 렌더.
+  if (latest) {
+    requestAnimationFrame(() => {
+      const pctEl = document.getElementById('ehHeroPct');
+      if (pctEl) pctEl.textContent = latest.surprisePct != null ? `${sign}${latest.surprisePct.toFixed(1)}%` : '집계 전';
+      const maxEps = Math.max(Math.abs(latest.epsActual || 0), Math.abs(latest.epsEstimate || 0), 0.01);
+      const fa = document.getElementById('ehFillActual'), fe = document.getElementById('ehFillEstimate');
+      if (fa) fa.style.width = Math.min(100, Math.abs(latest.epsActual || 0) / maxEps * 100) + '%';
+      if (fe) fe.style.width = Math.min(100, Math.abs(latest.epsEstimate || 0) / maxEps * 100) + '%';
+    });
+  }
+
+  if (d.points?.length >= 2) ehRenderPriceChart(d.points, latest?.reportedDate);
+}
+
+// 발표일 세로 점선 마커가 있는 심플 라인 차트. transition은 안 씀 —
+// 이 프로젝트 브라우저 환경에서 opacity/margin/padding처럼 애니메이션 속성이 JS로
+// 바뀔 때 반영이 안 되는 버그를 실측으로 여러 번 확인해서(2026-07-28), 이 차트도
+// 처음부터 정적으로 그린다.
+function ehRenderPriceChart(points, markDate) {
+  const el = document.getElementById('ehPriceChart');
+  if (!el) return;
+  const w = 500, h = 120;
+  const vals = points.map(p => p.close);
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max - min) || 1;
+  const step = w / (points.length - 1);
+  const coords = points.map((p, i) => [i * step, (h - 8) - ((p.close - min) / span) * (h - 16)]);
+  const linePath = coords.map((c, i) => `${i ? 'L' : 'M'}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join('');
+  const color = vals[vals.length - 1] >= vals[0] ? 'var(--red)' : 'var(--blue)';
+
+  let markerSvg = '';
+  if (markDate) {
+    const idx = points.findIndex(p => p.date >= markDate);
+    if (idx >= 0) {
+      const x = idx * step;
+      markerSvg = `<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${h}" stroke="var(--yellow)" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <circle cx="${x.toFixed(1)}" cy="${coords[idx][1].toFixed(1)}" r="4" fill="var(--yellow)" stroke="var(--bg2)" stroke-width="1.5"/>`;
+    }
+  }
+
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    ${markerSvg}
+  </svg>`;
+}
+
+ehRender();
+initAuth();
+</script>
+</body>
+</html>

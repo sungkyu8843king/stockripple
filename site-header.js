@@ -87,6 +87,7 @@ const SITE_NAV_ITEMS = [
   { href: '/heatmap.html', label: '🔥 히트맵' },
   { href: '/kr-market.html', label: '📊 시장 현황' },
   { href: '/etf.html', label: '🧺 ETF', flag: 'nav-new' },
+  { href: '/earnings.html', label: '📊 실적발표', flag: 'nav-new' },
   { href: '/talks.html', label: '💬 말말말', flag: 'nav-new' },
   { href: '/portfolio.html', label: '📝 페이퍼 트레이딩' },
 ];
