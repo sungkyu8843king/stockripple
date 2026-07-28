@@ -336,23 +336,28 @@ function ehRenderDetail(d, calItem) {
   } : apiLatest);
   const cls = latest ? ehSurpriseCls(latest.surprisePct) : 'meet';
   const sign = latest?.surprisePct != null && latest.surprisePct > 0 ? '+' : '';
-  const badgeLabel = cls === 'beat' ? '🎯 컨센서스 상회' : cls === 'miss' ? '⚠️ 컨센서스 하회' : '컨센서스 부합';
+  const badgeLabel = latest?.surprisePct == null ? '서프라이즈 미집계'
+    : cls === 'beat' ? '🎯 컨센서스 상회' : cls === 'miss' ? '⚠️ 컨센서스 하회' : '컨센서스 부합';
+  const heroPctText = latest?.surprisePct != null ? `${sign}${latest.surprisePct.toFixed(1)}%` : '집계 전';
+  const maxEps = latest ? Math.max(Math.abs(latest.epsActual || 0), Math.abs(latest.epsEstimate || 0), 0.01) : 1;
+  const actualWidth = latest ? Math.min(100, Math.abs(latest.epsActual || 0) / maxEps * 100) : 0;
+  const estimateWidth = latest ? Math.min(100, Math.abs(latest.epsEstimate || 0) / maxEps * 100) : 0;
 
   const heroHtml = latest ? `
     <div class="eh-hero-surprise">
       <div class="eh-hero-badge ${cls}">${badgeLabel}</div>
-      <div class="eh-hero-pct ${cls}" id="ehHeroPct">0%</div>
+      <div class="eh-hero-pct ${cls}">${heroPctText}</div>
       <div class="eh-hero-cap">${latest.fiscalQuarter || ''} · ${latest.reportedDate || ''} 발표</div>
     </div>
     <div class="eh-compare">
       <div class="eh-cmp-row">
         <span class="eh-cmp-label">실제 EPS</span>
-        <div class="eh-cmp-track"><div class="eh-cmp-fill actual" id="ehFillActual"></div></div>
+        <div class="eh-cmp-track"><div class="eh-cmp-fill actual" style="width:${actualWidth}%"></div></div>
         <span class="eh-cmp-val">${ehFmtEps(latest.epsActual)}</span>
       </div>
       <div class="eh-cmp-row">
         <span class="eh-cmp-label">예상 EPS</span>
-        <div class="eh-cmp-track"><div class="eh-cmp-fill estimate" id="ehFillEstimate"></div></div>
+        <div class="eh-cmp-track"><div class="eh-cmp-fill estimate" style="width:${estimateWidth}%"></div></div>
         <span class="eh-cmp-val">${ehFmtEps(latest.epsEstimate)}</span>
       </div>
     </div>` : '<div class="eh-modal-empty">최근 분기 실적 데이터가 없어요.</div>';
@@ -383,20 +388,6 @@ function ehRenderDetail(d, calItem) {
     <div class="eh-price-note">점선 = 최근 발표일 · ${d.currency === 'KRW' ? '원화' : 'USD'}</div>` : '';
 
   document.getElementById('ehModalBody').innerHTML = heroHtml + quartersHtml + chartHtml;
-
-  // width/height에 CSS transition을 걸지 않는다 — 이 프로젝트 브라우저 환경에서 JS로
-  // 바꾼 opacity/padding/transform이 transition 선언이 있으면 아예 반영이 안 되는 버그를
-  // 여러 차례 실측으로 확인했다(2026-07-28). 애니메이션 없이 즉시 값으로 렌더.
-  if (latest) {
-    requestAnimationFrame(() => {
-      const pctEl = document.getElementById('ehHeroPct');
-      if (pctEl) pctEl.textContent = latest.surprisePct != null ? `${sign}${latest.surprisePct.toFixed(1)}%` : '집계 전';
-      const maxEps = Math.max(Math.abs(latest.epsActual || 0), Math.abs(latest.epsEstimate || 0), 0.01);
-      const fa = document.getElementById('ehFillActual'), fe = document.getElementById('ehFillEstimate');
-      if (fa) fa.style.width = Math.min(100, Math.abs(latest.epsActual || 0) / maxEps * 100) + '%';
-      if (fe) fe.style.width = Math.min(100, Math.abs(latest.epsEstimate || 0) / maxEps * 100) + '%';
-    });
-  }
 
   if (d.points?.length >= 2) ehRenderPriceChart(d.points, latest?.reportedDate);
 }
