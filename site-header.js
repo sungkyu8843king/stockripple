@@ -591,9 +591,13 @@ function consolidateMobileFabs() {
   dock.id = 'srFabDock';
   dock.style.cssText = 'position:fixed;right:16px;bottom:20px;z-index:9300;display:flex;flex-direction:column;align-items:flex-end;gap:10px';
 
+  // transition 없음 — opacity/transform에 transition을 걸면(어느 값으로도) 이후 JS로
+  // 바꾼 값이 computed style에 전혀 반영이 안 되는 현상을 실측으로 확인했다(펼쳐도 opacity:0
+  // 그대로 남아 버튼이 눌리지도 보이지도 않는 상태가 됨 — chat.js의 padding-right
+  // transition 버그와 동일 유형, 2026-07-28). 애니메이션은 포기하고 즉시 전환만.
   const stack = document.createElement('div');
   stack.id = 'srFabStack';
-  stack.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:10px;opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease';
+  stack.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:10px;opacity:0;pointer-events:none;transform:translateY(8px)';
   dock.appendChild(stack);
 
   candidates.forEach(({ el, label }) => {
@@ -606,7 +610,7 @@ function consolidateMobileFabs() {
   const main = document.createElement('button');
   main.id = 'srFabMain';
   main.setAttribute('aria-label', '메뉴 열기');
-  main.style.cssText = 'width:56px;height:56px;border-radius:50%;border:none;background:var(--blue);color:#fff;font-size:24px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;transition:transform .18s ease;flex-shrink:0';
+  main.style.cssText = 'width:56px;height:56px;border-radius:50%;border:none;background:var(--blue);color:#fff;font-size:24px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;flex-shrink:0';
   main.textContent = '⋯';
   dock.appendChild(main);
   document.body.appendChild(dock);

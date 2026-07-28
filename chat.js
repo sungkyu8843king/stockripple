@@ -73,7 +73,10 @@
      이라 CLAUDE.md가 경고하는 "overflow-x:hidden을 html에 걸면 iOS Safari에서 sticky가
      깨진다" 케이스와는 무관(overflow 속성이 아니라 padding일 뿐이고, 모바일엔 이 클래스
      자체가 안 붙는다). */
-  @media (min-width:1200px){ html.sr-chat-pinned-open{ padding-right:340px; transition:padding-right .22s ease; } }`;
+  /* transition:padding-right 없음 — 실측 결과 이 속성에 transition을 걸면(어느 값으로도)
+     html 루트에서 padding-right 자체가 아예 반영되지 않는 현상이 재현됐다(프로덕션에서
+     직접 확인 — transition 제거 시 즉시 정상화). 애니메이션은 포기하고 즉시 전환만. */
+  @media (min-width:1200px){ html.sr-chat-pinned-open{ padding-right:340px; } }`;
   document.head.appendChild(css);
 
   const btn = document.createElement('button');
