@@ -600,11 +600,23 @@ function consolidateMobileFabs() {
   stack.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:10px;opacity:0;pointer-events:none;transform:translateY(8px)';
   dock.appendChild(stack);
 
+  // 아이콘만으로는 뭘 하는 버튼인지 구분이 안 됐다(실시간채팅/의견주기 둘 다 💬라 동일하게
+  // 보임 — 스크린샷으로 확인, 2026-07-28) — 아이콘 왼쪽에 항상 보이는 텍스트 라벨 칩을
+  // 붙인다. 크기도 버튼마다 제각각(54/56/48px)이라 스택이 삐뚤빼뚤해 보였던 것도 통일.
   candidates.forEach(({ el, label }) => {
     el.style.position = 'static';
-    el.style.bottom = ''; el.style.right = '';
-    if (!el.title) el.title = label;
-    stack.appendChild(el);
+    el.style.bottom = ''; el.style.right = ''; el.style.left = '';
+    el.style.width = '48px'; el.style.height = '48px'; el.style.fontSize = '19px';
+    el.title = label;
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px';
+    const chip = document.createElement('span');
+    chip.textContent = label;
+    chip.style.cssText = 'background:var(--bg4,#2f333f);color:var(--text,#f2f4f8);font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.28);white-space:nowrap;border:1px solid var(--border-strong,rgba(255,255,255,.16))';
+    row.appendChild(chip);
+    row.appendChild(el);
+    stack.appendChild(row);
   });
 
   const main = document.createElement('button');
@@ -621,7 +633,9 @@ function consolidateMobileFabs() {
     stack.style.opacity = open ? '1' : '0';
     stack.style.pointerEvents = open ? 'auto' : 'none';
     stack.style.transform = open ? 'translateY(0)' : 'translateY(8px)';
-    main.style.transform = open ? 'rotate(45deg)' : '';
+    // 회전만으로는(⋯ → 45도) "닫기"라는 게 잘 안 읽혀서 다른 닫기 버튼들과 같은 ✕로 교체.
+    main.textContent = open ? '✕' : '⋯';
+    main.setAttribute('aria-label', open ? '메뉴 닫기' : '메뉴 열기');
   };
   main.addEventListener('click', () => setOpen(!open));
   // 안에서 뭔가(채팅/리포트/의견주기) 열었으면 그 액션이 먼저 실행되게 살짝 지연 후 접어준다.
