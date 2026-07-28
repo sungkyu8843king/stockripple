@@ -1550,8 +1550,13 @@ async function handleEarningsCalendar(req, res) {
   const wantDays = Math.min(Math.max(parseInt(req?.query?.days) || 10, 1), 15);
 
   // 평일만 수집 — 주말은 Nasdaq이 rows:null을 주므로 요청 자체를 건너뛴다.
+  // ⚠️ reported 모드도 오늘(i=0)부터 포함해야 한다 — 원래 i=1(어제)부터였는데, 오늘 장전
+  // (BMO) 발표는 대부분 사용자가 페이지를 보는 시점(오전~낮)엔 이미 다 끝나 있어서 "오늘
+  // 장전 발표된 실적이 하나도 안 보인다"는 피드백(2026-07-28)을 받았다. 아직 발표 전인
+  // 오늘 항목(예: 오늘 장마감후 예정)은 아래 epsActual != null 필터가 알아서 걸러내므로
+  // 오늘을 포함해도 "아직 안 나온 실적"이 새는 일은 없다.
   const days = [];
-  for (let i = reported ? 1 : 0; days.length < wantDays; i++) {
+  for (let i = 0; days.length < wantDays; i++) {
     const d = new Date(Date.now() + (reported ? -i : i) * 86400000);
     const dow = d.getUTCDay();
     if (dow === 0 || dow === 6) continue;
