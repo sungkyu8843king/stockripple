@@ -85,9 +85,12 @@ a{color:inherit}
 .eh-overlay.open{display:flex}
 .eh-modal{width:min(560px,100%);max-height:88vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:18px;box-shadow:0 30px 70px rgba(0,0,0,.5)}
 .eh-modal-head{display:flex;align-items:center;gap:12px;padding:20px 22px 14px;border-bottom:1px solid var(--border)}
+.eh-modal-head-info{flex:1;min-width:0}
 .eh-modal-sym{font-family:var(--mono);font-weight:800;font-size:20px;color:var(--blue)}
-.eh-modal-name{font-size:14.5px;color:var(--text2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eh-modal-name{font-size:14.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eh-modal-price-wrap{display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0}
 .eh-modal-price{font-family:var(--mono);font-weight:700;font-size:15.5px}
+.eh-modal-price-krw{font-family:var(--mono);font-weight:600;font-size:12px;color:var(--text3);margin-top:1px}
 .eh-modal-close{background:var(--bg3);border:none;color:var(--text2);width:32px;height:32px;border-radius:9px;font-size:16px;cursor:pointer;flex-shrink:0}
 .eh-modal-body{padding:20px 22px 26px}
 
@@ -107,7 +110,8 @@ a{color:inherit}
 .eh-cmp-fill{height:100%;border-radius:6px;width:0%}
 .eh-cmp-fill.actual{background:linear-gradient(90deg,var(--blue),var(--purple))}
 .eh-cmp-fill.estimate{background:var(--text3);opacity:.6}
-.eh-cmp-val{width:64px;flex-shrink:0;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px}
+.eh-cmp-val{min-width:74px;flex-shrink:0;text-align:right;font-family:var(--mono);font-weight:700;font-size:14px}
+.eh-cmp-val-krw{font-size:11px;font-weight:600;color:var(--text3);margin-top:1px}
 
 .eh-section-title{font-size:13.5px;font-weight:700;color:var(--text3);letter-spacing:.03em;margin:22px 0 10px;text-transform:uppercase}
 .eh-quarters{display:flex;gap:8px}
@@ -117,9 +121,11 @@ a{color:inherit}
 .eh-q-bar{width:14px;border-radius:3px 3px 0 0}
 .eh-q-pct{font-size:11.5px;font-weight:700;font-family:var(--mono)}
 
-.eh-price-chart{position:relative;height:120px;margin-top:6px}
+.eh-price-chart{position:relative;height:120px;margin-top:6px;cursor:crosshair}
 .eh-price-chart svg{width:100%;height:100%;display:block}
 .eh-price-note{font-size:12px;color:var(--text3);text-align:center;margin-top:6px}
+.eh-chart-tooltip{position:absolute;top:0;left:0;display:none;pointer-events:none;transform:translate(-50%,calc(-100% - 10px));background:var(--bg4);border:1px solid var(--border-strong);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;font-family:var(--mono);color:var(--text);white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:5}
+.eh-chart-tooltip .eh-tt-date{color:var(--text3);font-weight:600;margin-right:6px}
 
 .eh-modal-empty{text-align:center;color:var(--text3);padding:20px;font-size:13.5px}
 @media (max-width:640px){ .eh-grid{grid-template-columns:1fr} .eh-quarters{flex-wrap:wrap} .eh-q{min-width:60px} }
@@ -149,11 +155,14 @@ a{color:inherit}
 <div class="eh-overlay" id="ehOverlay" onclick="if(event.target===this)ehCloseDetail()">
   <div class="eh-modal">
     <div class="eh-modal-head">
-      <div>
+      <div class="eh-modal-head-info">
         <div class="eh-modal-sym" id="ehModalSym">—</div>
         <div class="eh-modal-name" id="ehModalName">—</div>
       </div>
-      <div class="eh-modal-price" id="ehModalPrice"></div>
+      <div class="eh-modal-price-wrap">
+        <div class="eh-modal-price" id="ehModalPrice"></div>
+        <div class="eh-modal-price-krw" id="ehModalPriceKrw"></div>
+      </div>
       <button class="eh-modal-close" onclick="ehCloseDetail()">✕</button>
     </div>
     <div class="eh-modal-body" id="ehModalBody"></div>
@@ -166,6 +175,15 @@ a{color:inherit}
 // ─── 데이터 캐시 ────────────────────────────────────────────
 let ehTab = 'upcoming';
 const ehCache = { upcoming: null, reported: null };
+let ehFxRate = null; // USD/KRW, company.html과 동일하게 /api/toss?action=fx 사용
+
+async function ehLoadFxRate() {
+  try {
+    const r = await fetch('/api/toss?action=fx');
+    const j = await r.json();
+    if (j.ok && j.rate) ehFxRate = j.rate;
+  } catch {}
+}
 
 function ehEsc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
@@ -196,6 +214,23 @@ function ehFmtDate(dateStr) {
   return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' });
 }
 function ehFmtEps(v) { return v == null ? '—' : `$${v.toFixed(2)}`; }
+function ehFmtKrw(usdVal) {
+  if (usdVal == null || !ehFxRate) return '';
+  return `₩${Math.round(usdVal * ehFxRate).toLocaleString('ko-KR')}`;
+}
+
+// Nasdaq fiscalQtrEnd는 "Mar 2026" 처럼 분기 마감월만 준다 — 마감월 기준 캘린더 분기로
+// 환산(1~3월 마감=Q1, 4~6월=Q2 ...). 회계연도가 달력과 어긋나는 회사도 있어 완벽하진
+// 않지만 대다수 실적 캘린더 사이트가 쓰는 관례와 동일.
+const EH_MONTH_NUM = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12 };
+function ehQuarterLabel(fiscalQtrEnd) {
+  if (!fiscalQtrEnd) return '';
+  const m = fiscalQtrEnd.match(/^(\w{3})\s+(\d{4})$/);
+  if (!m) return fiscalQtrEnd;
+  const mn = EH_MONTH_NUM[m[1]];
+  if (!mn) return fiscalQtrEnd;
+  return `Q${Math.ceil(mn / 3)} ${m[2]}`;
+}
 
 async function ehLoad(scope) {
   if (ehCache[scope]) return ehCache[scope];
@@ -304,6 +339,7 @@ async function ehOpenDetail(symbol, date) {
   document.getElementById('ehModalSym').textContent = symbol;
   document.getElementById('ehModalName').textContent = calItem?.name || symbol;
   document.getElementById('ehModalPrice').textContent = '';
+  document.getElementById('ehModalPriceKrw').textContent = '';
   const bodyEl = document.getElementById('ehModalBody');
   bodyEl.innerHTML = '<div class="eh-loading"><div class="eh-spinner"></div>불러오는 중...</div>';
 
@@ -322,6 +358,7 @@ function ehRenderDetail(d, calItem) {
   document.getElementById('ehModalPrice').textContent = d.currentPrice != null
     ? (d.currency === 'KRW' ? '₩' + Math.round(d.currentPrice).toLocaleString('ko-KR') : '$' + Number(d.currentPrice).toFixed(2))
     : '';
+  document.getElementById('ehModalPriceKrw').textContent = (d.currentPrice != null && d.currency !== 'KRW') ? ehFmtKrw(d.currentPrice) : '';
 
   // Nasdaq quarters[0]이 이 카드가 가리키는 발표(calItem.date)보다 오래된 분기면(API 반영 지연)
   // 캘린더 자체 데이터를 "latest"로 우선 사용해 카드-모달 수치 불일치를 막는다.
@@ -347,18 +384,18 @@ function ehRenderDetail(d, calItem) {
     <div class="eh-hero-surprise">
       <div class="eh-hero-badge ${cls}">${badgeLabel}</div>
       <div class="eh-hero-pct ${cls}">${heroPctText}</div>
-      <div class="eh-hero-cap">${latest.fiscalQuarter || ''} · ${latest.reportedDate || ''} 발표</div>
+      <div class="eh-hero-cap">${ehQuarterLabel(latest.fiscalQuarter)} · ${latest.reportedDate || ''} 발표</div>
     </div>
     <div class="eh-compare">
       <div class="eh-cmp-row">
         <span class="eh-cmp-label">실제 EPS</span>
         <div class="eh-cmp-track"><div class="eh-cmp-fill actual" style="width:${actualWidth}%"></div></div>
-        <span class="eh-cmp-val">${ehFmtEps(latest.epsActual)}</span>
+        <div class="eh-cmp-val">${ehFmtEps(latest.epsActual)}${ehFmtKrw(latest.epsActual) ? `<div class="eh-cmp-val-krw">${ehFmtKrw(latest.epsActual)}</div>` : ''}</div>
       </div>
       <div class="eh-cmp-row">
         <span class="eh-cmp-label">예상 EPS</span>
         <div class="eh-cmp-track"><div class="eh-cmp-fill estimate" style="width:${estimateWidth}%"></div></div>
-        <span class="eh-cmp-val">${ehFmtEps(latest.epsEstimate)}</span>
+        <div class="eh-cmp-val">${ehFmtEps(latest.epsEstimate)}${ehFmtKrw(latest.epsEstimate) ? `<div class="eh-cmp-val-krw">${ehFmtKrw(latest.epsEstimate)}</div>` : ''}</div>
       </div>
     </div>` : '<div class="eh-modal-empty">최근 분기 실적 데이터가 없어요.</div>';
 
@@ -373,7 +410,7 @@ function ehRenderDetail(d, calItem) {
         const qc = ehSurpriseCls(q.surprisePct);
         const color = qc === 'beat' ? 'var(--red)' : qc === 'miss' ? 'var(--blue)' : 'var(--text3)';
         const pct = q.surprisePct != null ? Math.max(4, Math.min(44, Math.abs(q.surprisePct) * 1.2)) : 4;
-        const qLabel = (q.fiscalQuarter || '').replace(/^\w+\s/, '');
+        const qLabel = ehQuarterLabel(q.fiscalQuarter);
         return `<div class="eh-q">
           <div class="eh-q-label">${ehEsc(qLabel)}</div>
           <div class="eh-q-bar-track"><div class="eh-q-bar" style="height:${pct}px;background:${color}"></div></div>
@@ -389,14 +426,23 @@ function ehRenderDetail(d, calItem) {
 
   document.getElementById('ehModalBody').innerHTML = heroHtml + quartersHtml + chartHtml;
 
-  if (d.points?.length >= 2) ehRenderPriceChart(d.points, latest?.reportedDate);
+  if (d.points?.length >= 2) ehRenderPriceChart(d.points, latest?.reportedDate, d.currency);
+}
+
+function ehFmtChartDate(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' });
+}
+function ehFmtChartPrice(v, currency) {
+  return currency === 'KRW' ? `₩${Math.round(v).toLocaleString('ko-KR')}` : `$${v.toFixed(2)}`;
 }
 
 // 발표일 세로 점선 마커가 있는 심플 라인 차트. transition은 안 씀 —
 // 이 프로젝트 브라우저 환경에서 opacity/margin/padding처럼 애니메이션 속성이 JS로
 // 바뀔 때 반영이 안 되는 버그를 실측으로 여러 번 확인해서(2026-07-28), 이 차트도
-// 처음부터 정적으로 그린다.
-function ehRenderPriceChart(points, markDate) {
+// 처음부터 정적으로 그린다. 마우스오버 툴팁만 별도 hover 레이어(SVG 위 캡처용 투명
+// rect)로 실시간 업데이트 — 이건 transition이 아니라 attribute 직접 갱신이라 문제없음.
+function ehRenderPriceChart(points, markDate, currency) {
   const el = document.getElementById('ehPriceChart');
   if (!el) return;
   const w = 500, h = 120;
@@ -417,13 +463,49 @@ function ehRenderPriceChart(points, markDate) {
     }
   }
 
-  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" id="ehPriceSvg">
     <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
     ${markerSvg}
-  </svg>`;
+    <line id="ehHoverLine" x1="0" y1="0" x2="0" y2="${h}" stroke="var(--text3)" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>
+    <circle id="ehHoverDot" r="3.5" fill="${color}" stroke="var(--bg2)" stroke-width="1.5" opacity="0"/>
+  </svg>
+  <div class="eh-chart-tooltip" id="ehChartTooltip"></div>`;
+
+  const svgEl = document.getElementById('ehPriceSvg');
+  const hoverLine = document.getElementById('ehHoverLine');
+  const hoverDot = document.getElementById('ehHoverDot');
+  const tooltip = document.getElementById('ehChartTooltip');
+
+  function updateHover(clientX) {
+    const rect = svgEl.getBoundingClientRect();
+    if (!rect.width) return;
+    const relX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+    const svgX = relX * (w / rect.width);
+    const idx = Math.max(0, Math.min(points.length - 1, Math.round(svgX / step)));
+    const [cx, cy] = coords[idx];
+    hoverLine.setAttribute('x1', cx); hoverLine.setAttribute('x2', cx); hoverLine.setAttribute('opacity', '1');
+    hoverDot.setAttribute('cx', cx); hoverDot.setAttribute('cy', cy); hoverDot.setAttribute('opacity', '1');
+    tooltip.innerHTML = `<span class="eh-tt-date">${ehFmtChartDate(points[idx].date)}</span>${ehFmtChartPrice(points[idx].close, currency)}`;
+    tooltip.style.display = 'block';
+    const leftPx = Math.max(4, Math.min(rect.width - 4, (cx / w) * rect.width));
+    tooltip.style.left = leftPx + 'px';
+    tooltip.style.top = cy + 'px';
+  }
+  function hideHover() {
+    hoverLine.setAttribute('opacity', '0');
+    hoverDot.setAttribute('opacity', '0');
+    tooltip.style.display = 'none';
+  }
+
+  el.addEventListener('mousemove', e => updateHover(e.clientX));
+  el.addEventListener('mouseleave', hideHover);
+  el.addEventListener('touchstart', e => { if (e.touches[0]) updateHover(e.touches[0].clientX); }, { passive: true });
+  el.addEventListener('touchmove', e => { if (e.touches[0]) updateHover(e.touches[0].clientX); }, { passive: true });
+  el.addEventListener('touchend', hideHover);
 }
 
 ehRender();
+ehLoadFxRate();
 initAuth();
 </script>
 </body>
