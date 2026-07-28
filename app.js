@@ -1095,10 +1095,10 @@ function bindMktChartHover(containerEl) {
 // "항상 겹치는 2개는 히어로에만, 나머지 2개는 그리드에" 상태를 유지한다.
 const MKT_DASH_ITEMS = [
   { id: 'sp500',  name: 'S&P 500',        fmt: 'n', mk: 'us' },
-  { id: 'dow',    name: '다우존스',         fmt: 'n', mk: 'us', rotating: true },
-  { id: 'kosdaq', name: '코스닥',           fmt: 'n', mk: 'kr', rotating: true },
   { id: 'nasdaq', name: '나스닥',           fmt: 'n', mk: 'us', rotating: true },
+  { id: 'dow',    name: '다우존스',         fmt: 'n', mk: 'us', rotating: true },
   { id: 'kospi',  name: '코스피',           fmt: 'n', mk: 'kr', rotating: true },
+  { id: 'kosdaq', name: '코스닥',           fmt: 'n', mk: 'kr', rotating: true },
   { id: 'vix',    name: 'VIX',             fmt: 'n', mk: 'us' },
   { id: 'usdkrw', name: '달러환율',         fmt: 'n', mk: 'fx' },
   { id: 'sox',    name: '필라델피아반도체',   fmt: 'n', mk: 'us' },
