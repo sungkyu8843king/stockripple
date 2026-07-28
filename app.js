@@ -243,7 +243,9 @@ function showNewIssues() {
   currentPage = 1;
   loadIssues();
   const top = document.getElementById('issuesContainer');
-  if (top) top.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // behavior:'smooth'는 이 프로젝트 브라우저 환경에서 스크롤 자체가 아예 안 되는 버그를
+  // 실측으로 확인(2026-07-28, changePage와 동일 원인) — instant로 통일.
+  if (top) top.scrollIntoView({ behavior: 'instant', block: 'start' });
 }
 
 // 장중 브라우저 구동 수집 트리거 — 서버가 장중게이트·레이트리밋 처리(사이트 열려 있는 동안만 수집)
@@ -411,10 +413,15 @@ function renderPagination() {
 function changePage(p) {
   currentPage = p;
   loadIssues();
-  // 페이지 이동 시 이슈 섹션 상단으로 스크롤
+  // 이슈 섹션 상단으로만 스크롤 — 예전엔 이 바로 다음에 window.scrollTo({top:0})를
+  // 또 불러서 페이지 최상단(히어로/시장지표 위)까지 튕겨버렸다(2026-07-28 피드백:
+  // "다음 페이지로 가면 제일 상단으로 가버린다"). 이슈 섹션이 화면에 이미 보이는
+  // 위치면 그마저도 건드리지 않는다(멀쩡히 보던 위치에서 안 움직이는 게 최선).
   const issuesTop = document.getElementById('issuesContainer');
-  if (issuesTop) issuesTop.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (issuesTop) {
+    const r = issuesTop.getBoundingClientRect();
+    if (r.top < 0 || r.top > 200) issuesTop.scrollIntoView({ behavior: 'instant', block: 'start' });
+  }
 }
 
 

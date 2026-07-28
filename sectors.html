@@ -638,7 +638,9 @@ function select(tag, keepScroll) {
 
   // 선택 섹터 종목 전체
   document.getElementById('flowStocks').innerHTML = coGroup(`💼 ${tag} 수혜 종목 전체`, s.companies);
-  if (!keepScroll) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // behavior:'smooth'는 이 프로젝트 브라우저 환경에서 스크롤 자체가 아예 안 되는 버그를
+  // 실측으로 확인(app.js changePage와 동일 원인, 2026-07-28) — instant로 통일.
+  if (!keepScroll) card.scrollIntoView({ behavior: 'instant', block: 'nearest' });
 }
 
 function coGroup(title, comps) {
@@ -708,7 +710,7 @@ function renderList() {
       ? (chg >= 0.8 ? '<span class="sec-badge hot">강세</span>' : chg <= -0.8 ? '<span class="sec-badge cold">약세</span>' : '')
       : (s.heat >= 1.3 ? '<span class="sec-badge accel">가속</span>' : '');
     const dot = chg != null ? (chg >= 0 ? 'var(--red)' : 'var(--blue)') : 'var(--border2)';
-    return `<div class="sec-row" onclick="select('${escHtml(s.tag)}');document.getElementById('flowCard').scrollIntoView({behavior:'smooth'})">
+    return `<div class="sec-row" onclick="select('${escHtml(s.tag)}');document.getElementById('flowCard').scrollIntoView({behavior:'instant'})">
       <span class="sec-dot" style="background:${dot}"></span>
       <div class="sec-main">
         <div class="sec-name-line"><span class="sec-name">${escHtml(s.tag)}</span>${badge}</div>
