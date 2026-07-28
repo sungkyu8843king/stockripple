@@ -264,14 +264,22 @@ function ehUpcomingCard(it, date) {
     </div>`;
 }
 
+// 캘린더 행 자체의 실제/예상 EPS를 상세 모달을 열 때 넘겨줄 수 있도록 심볼+날짜로 보관.
+// Nasdaq의 종목별 surprise-history API는 방금 발표된 분기를 즉시 반영하지 못해(2026-07-28
+// 실측, CDNS 등에서 확인) quarters[0]이 이 카드가 보여주는 분기보다 한 분기 전일 수 있다 —
+// 모달 히어로 영역은 이 캘린더 데이터를 우선 신뢰해야 카드-모달 간 수치가 어긋나지 않는다.
+const ehItemLookup = {};
+
 function ehReportedCard(it, date) {
   const cls = ehSurpriseCls(it.surprisePct);
   const sign = it.surprisePct != null && it.surprisePct > 0 ? '+' : '';
   const surpriseHtml = it.surprisePct != null
     ? `<span class="eh-surprise ${cls}">${cls === 'beat' ? '▲' : cls === 'miss' ? '▼' : '·'} ${sign}${it.surprisePct.toFixed(1)}%</span>`
     : `<span class="eh-surprise meet">서프라이즈 미집계</span>`;
+  const lookupKey = `${it.symbol}|${date}`;
+  ehItemLookup[lookupKey] = { ...it, date };
   return `
-    <div class="eh-card clickable" onclick="ehOpenDetail('${ehEsc(it.symbol)}','${ehEsc(it.name)}')">
+    <div class="eh-card clickable" onclick="ehOpenDetail('${ehEsc(it.symbol)}','${ehEsc(date)}')">
       <div class="eh-card-top">
         <span class="eh-sym">${ehEsc(it.symbol)}</span>
         <span class="eh-name">${ehEsc(it.name)}</span>
@@ -289,11 +297,12 @@ function ehCloseDetail() {
   document.getElementById('ehOverlay').classList.remove('open');
 }
 
-async function ehOpenDetail(symbol, name) {
+async function ehOpenDetail(symbol, date) {
+  const calItem = ehItemLookup[`${symbol}|${date}`] || null;
   const overlay = document.getElementById('ehOverlay');
   overlay.classList.add('open');
   document.getElementById('ehModalSym').textContent = symbol;
-  document.getElementById('ehModalName').textContent = name;
+  document.getElementById('ehModalName').textContent = calItem?.name || symbol;
   document.getElementById('ehModalPrice').textContent = '';
   const bodyEl = document.getElementById('ehModalBody');
   bodyEl.innerHTML = '<div class="eh-loading"><div class="eh-spinner"></div>불러오는 중...</div>';
@@ -302,19 +311,29 @@ async function ehOpenDetail(symbol, name) {
     const r = await fetch(`/api/earnings-detail?symbol=${encodeURIComponent(symbol)}`);
     const d = await r.json();
     if (!d.ok) { bodyEl.innerHTML = '<div class="eh-modal-empty">데이터를 불러올 수 없어요.</div>'; return; }
-    ehRenderDetail(d);
+    ehRenderDetail(d, calItem);
   } catch {
     bodyEl.innerHTML = '<div class="eh-modal-empty">데이터를 불러올 수 없어요.</div>';
   }
 }
 
-function ehRenderDetail(d) {
-  document.getElementById('ehModalName').textContent = d.name || d.symbol;
+function ehRenderDetail(d, calItem) {
+  document.getElementById('ehModalName').textContent = d.name || calItem?.name || d.symbol;
   document.getElementById('ehModalPrice').textContent = d.currentPrice != null
     ? (d.currency === 'KRW' ? '₩' + Math.round(d.currentPrice).toLocaleString('ko-KR') : '$' + Number(d.currentPrice).toFixed(2))
     : '';
 
-  const latest = d.quarters?.[0];
+  // Nasdaq quarters[0]이 이 카드가 가리키는 발표(calItem.date)보다 오래된 분기면(API 반영 지연)
+  // 캘린더 자체 데이터를 "latest"로 우선 사용해 카드-모달 수치 불일치를 막는다.
+  const apiLatest = d.quarters?.[0];
+  const apiLatestIsCurrent = apiLatest?.reportedDate && calItem?.date && apiLatest.reportedDate >= calItem.date;
+  const latest = (apiLatestIsCurrent && apiLatest) || (calItem ? {
+    fiscalQuarter: apiLatest?.fiscalQuarter || '',
+    reportedDate: calItem.date,
+    epsActual: calItem.epsActual,
+    epsEstimate: calItem.epsForecast,
+    surprisePct: calItem.surprisePct,
+  } : apiLatest);
   const cls = latest ? ehSurpriseCls(latest.surprisePct) : 'meet';
   const sign = latest?.surprisePct != null && latest.surprisePct > 0 ? '+' : '';
   const badgeLabel = cls === 'beat' ? '🎯 컨센서스 상회' : cls === 'miss' ? '⚠️ 컨센서스 하회' : '컨센서스 부합';
@@ -338,10 +357,14 @@ function ehRenderDetail(d) {
       </div>
     </div>` : '<div class="eh-modal-empty">최근 분기 실적 데이터가 없어요.</div>';
 
-  const quartersHtml = d.quarters?.length ? `
+  const quartersList = (!apiLatestIsCurrent && calItem)
+    ? [{ fiscalQuarter: apiLatest?.fiscalQuarter || '', reportedDate: calItem.date, epsActual: calItem.epsActual, epsEstimate: calItem.epsForecast, surprisePct: calItem.surprisePct }, ...(d.quarters || [])]
+    : (d.quarters || []);
+
+  const quartersHtml = quartersList.length ? `
     <div class="eh-section-title">🕐 최근 4개 분기 서프라이즈</div>
     <div class="eh-quarters">
-      ${d.quarters.slice(0, 4).reverse().map(q => {
+      ${quartersList.slice(0, 4).reverse().map(q => {
         const qc = ehSurpriseCls(q.surprisePct);
         const color = qc === 'beat' ? 'var(--red)' : qc === 'miss' ? 'var(--blue)' : 'var(--text3)';
         const pct = q.surprisePct != null ? Math.max(4, Math.min(44, Math.abs(q.surprisePct) * 1.2)) : 4;
