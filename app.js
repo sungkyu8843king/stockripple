@@ -905,17 +905,36 @@ function sparkPath(points) {
 // baseline(전일 종가 등 기준가)이 주어지면 그 위치에 옅은 점선을 그려 등락폭을 감으로 알 수 있게 한다.
 // live=true면 마지막 지점에 레이더 핑(ping) 애니메이션을 붙여 "그 장이 지금 열려 있어
 // 이 선이 계속 이어지는 중"이라는 걸 보여준다 — 장이 닫혀 있으면(오늘 종가까지 확정) 안 붙는다.
-function areaSparkSvg(points, w, h, color, baseline, live) {
+//
+// session={start,end}(ms epoch)이 주어지면 "세션 앵커" 모드 — x축을 포인트 인덱스가 아니라
+// 실제 [세션 시작, 세션 종료] 구간에서의 시각 비율로 배치한다(times 필요). 장이 방금 열려
+// 데이터가 30분치뿐이면 선도 폭의 일부만 차지하고 나머지는 비워둔다 — 예전엔 있는 포인트를
+// 무조건 폭 전체에 늘려 그려서, 장이 막 열렸을 뿐인데도 하루치가 다 지난 것처럼 보였다
+// (2026-07-28, 레퍼런스 앱과 비교해 사용자가 지적). session이 없으면(세션 개념이 뚜렷하지
+// 않은 지표 — 원자재/암호화폐/환율 등) 기존처럼 인덱스 균등분배로 폭 전체를 채운다.
+function areaSparkSvg(points, w, h, color, baseline, live, times, session) {
   if (!Array.isArray(points) || points.length < 2) return '';
   const min = Math.min(...points), max = Math.max(...points);
   const span = (max - min) || 1;
-  const step = w / (points.length - 1);
-  const coords = points.map((p, i) => [i * step, (h - 1) - ((p - min) / span) * (h - 2)]);
+  const yOf = p => (h - 1) - ((p - min) / span) * (h - 2);
+
+  let coords;
+  if (session && Array.isArray(times) && times.length === points.length) {
+    const sessSpan = (session.end - session.start) || 1;
+    coords = points.map((p, i) => [
+      Math.min(w, Math.max(0, ((times[i] - session.start) / sessSpan) * w)),
+      yOf(p),
+    ]);
+  } else {
+    const step = w / (points.length - 1);
+    coords = points.map((p, i) => [i * step, yOf(p)]);
+  }
+  const lastX = coords[coords.length - 1][0];
   const linePath = coords.map((c, i) => `${i ? 'L' : 'M'}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join('');
   const gid = 'msg' + Math.random().toString(36).slice(2, 9);
   let baseLine = '';
   if (typeof baseline === 'number' && isFinite(baseline)) {
-    const by = Math.min(h - 0.5, Math.max(0.5, (h - 1) - ((baseline - min) / span) * (h - 2)));
+    const by = Math.min(h - 0.5, Math.max(0.5, yOf(baseline)));
     baseLine = `<line x1="0" y1="${by.toFixed(1)}" x2="${w}" y2="${by.toFixed(1)}" stroke-width="1" style="stroke:var(--text3);stroke-dasharray:3,3;opacity:.5"/>`;
   }
   let liveDot = '';
@@ -926,12 +945,14 @@ function areaSparkSvg(points, w, h, color, baseline, live) {
     <circle class="mkt-spark-ping" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}"/>
     <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="${(r * 0.6).toFixed(1)}" fill="${color}" stroke="var(--bg2)" stroke-width="${(r * 0.25).toFixed(2)}"/>`;
   }
+  // 영역 채우기는 실제로 그려진 선(0~lastX)까지만 — 세션 앵커 모드에서 남은(미래) 구간은
+  // 완전히 빈 채로 남겨 "아직 안 지난 시간"임을 보여준다.
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
     <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="${color}" stop-opacity="0.32"/>
       <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
     </linearGradient></defs>
-    <path d="${linePath} L${w},${h} L0,${h} Z" fill="url(#${gid})" stroke="none"/>
+    <path d="${linePath} L${lastX.toFixed(1)},${h} L0,${h} Z" fill="url(#${gid})" stroke="none"/>
     ${baseLine}
     <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
     ${liveDot}
@@ -946,7 +967,7 @@ function areaSparkSvg(points, w, h, color, baseline, live) {
 // 거기 붙여둔 가이드선/점/툴팁 오버레이 DOM이 두 번째 폴링에서 그대로 날아가는 버그가
 // 있었다 — SVG는 전용 자식 슬롯(.mkt-spark-svg-slot)에만 넣고, 오버레이는 그 슬롯의
 // 형제로 컨테이너에 최초 1회만 붙여 재렌더에서 살아남게 한다.
-function renderMktSpark(containerEl, points, w, h, color, baseline, live, times) {
+function renderMktSpark(containerEl, points, w, h, color, baseline, live, times, session) {
   if (!containerEl) return;
   let slot = containerEl.querySelector(':scope > .mkt-spark-svg-slot');
   if (!slot) {
@@ -954,13 +975,13 @@ function renderMktSpark(containerEl, points, w, h, color, baseline, live, times)
     slot.className = 'mkt-spark-svg-slot';
     containerEl.prepend(slot);
   }
-  slot.innerHTML = areaSparkSvg(points, w, h, color, baseline, live);
-  setMktChartData(containerEl, points, times);
+  slot.innerHTML = areaSparkSvg(points, w, h, color, baseline, live, times, session);
+  setMktChartData(containerEl, points, times, session);
 }
 
-function setMktChartData(containerEl, points, times) {
+function setMktChartData(containerEl, points, times, session) {
   if (!containerEl) return;
-  containerEl._mktChart = { points, times };
+  containerEl._mktChart = { points, times, session };
   if (!containerEl.dataset.chartBound) {
     containerEl.dataset.chartBound = '1';
     bindMktChartHover(containerEl);
@@ -985,11 +1006,28 @@ function bindMktChartHover(containerEl) {
     const rect = containerEl.getBoundingClientRect();
     if (!rect.width) return false;
     const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    const idx = Math.round(frac * (c.points.length - 1));
+
+    // 세션 앵커 모드는 포인트가 폭에 균등분배되지 않으므로(장중이면 초반 구간에만 몰려
+    // 있음) 손가락 위치를 "그 위치가 해당하는 실제 시각"으로 변환한 뒤 가장 가까운
+    // 포인트를 찾는다. 세션 정보가 없는 지표(원자재 등)는 기존처럼 인덱스 균등분배.
+    let idx, xPct;
+    if (c.session && c.times) {
+      const targetT = c.session.start + frac * (c.session.end - c.session.start);
+      idx = 0;
+      let bestDiff = Infinity;
+      for (let i = 0; i < c.times.length; i++) {
+        const diff = Math.abs(c.times[i] - targetT);
+        if (diff < bestDiff) { bestDiff = diff; idx = i; }
+      }
+      xPct = Math.min(100, Math.max(0, ((c.times[idx] - c.session.start) / (c.session.end - c.session.start)) * 100));
+    } else {
+      idx = Math.round(frac * (c.points.length - 1));
+      xPct = (idx / (c.points.length - 1)) * 100;
+    }
+
     const val = c.points[idx];
     const min = Math.min(...c.points), max = Math.max(...c.points);
     const span = (max - min) || 1;
-    const xPct = (idx / (c.points.length - 1)) * 100;
     const yPct = (1 - (val - min) / span) * 100;
 
     guide.style.left = xPct + '%';
@@ -1046,6 +1084,13 @@ const MKT_DASH_ITEMS = [
   { id: 'gold',   name: '금',              fmt: '$', mk: 'commodity' },
   { id: 'oil',    name: 'WTI 원유',         fmt: '$', mk: 'commodity' },
 ];
+
+// /api/indices가 kr/us 지표엔 세션 앵커 정보(sessionStart/End/Live)를 내려준다 —
+// areaSparkSvg/hover가 쓰는 {start,end} 형태로 뽑아준다. 세션 개념이 없는 지표(원자재 등)는
+// null → areaSparkSvg가 자동으로 기존 인덱스 균등분배 방식으로 폴백한다.
+function mktSessionOf(d) {
+  return (d?.sessionStart != null && d?.sessionEnd != null) ? { start: d.sessionStart, end: d.sessionEnd } : null;
+}
 
 // 시장 개장 여부(KST 휴리스틱) — 시장지표 카드의 초록 동그라미 포인트용.
 // KST = UTC+9. epoch에 9h 더한 뒤 getUTC*로 읽으면 브라우저 타임존과 무관하게 정확한 KST 벽시계.
@@ -1186,7 +1231,7 @@ function renderMarketDash(data) {
     const chartEl = document.getElementById('mktHeroChart');
     if (chartEl && Array.isArray(nd.spark) && nd.spark.length > 1) {
       const color = nd.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
-      renderMktSpark(chartEl, nd.spark, 300, 64, color, nd.prevClose, mktIsOpen(heroMeta.mk), nd.sparkT);
+      renderMktSpark(chartEl, nd.spark, 300, 64, color, nd.prevClose, nd.sessionLive ?? mktIsOpen(heroMeta.mk), nd.sparkT, mktSessionOf(nd));
     }
     if (nd.fiftyTwoWeekLow != null && nd.fiftyTwoWeekHigh != null) {
       const wrap = document.getElementById('mktHero52w');
@@ -1227,7 +1272,7 @@ function renderMarketDash(data) {
     const subChartEl = document.getElementById('mktHeroSubChart');
     if (subChartEl && Array.isArray(sd.spark) && sd.spark.length > 1) {
       const color = sd.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
-      renderMktSpark(subChartEl, sd.spark, 300, 64, color, sd.prevClose, mktIsOpen(subMeta.mk), sd.sparkT);
+      renderMktSpark(subChartEl, sd.spark, 300, 64, color, sd.prevClose, sd.sessionLive ?? mktIsOpen(subMeta.mk), sd.sparkT, mktSessionOf(sd));
     }
     if (sd.fiftyTwoWeekLow != null && sd.fiftyTwoWeekHigh != null) {
       const wrap = document.getElementById('mktHeroSub52w');
@@ -1280,8 +1325,8 @@ function renderMarketDash(data) {
     if (sparkEl && Array.isArray(d.spark) && d.spark.length > 1) {
       const color = d.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
       // 이 작은 카드(46×28)는 호버 툴팁을 붙이기엔 너무 좁아서 라이브 핑만 붙인다 —
-      // 히어로 카드(위)만 손으로 짚어보는 인터랙션 대상.
-      sparkEl.innerHTML = areaSparkSvg(d.spark, 46, 28, color, d.prevClose, mktIsOpen(it.mk));
+      // 히어로 카드(위)만 손으로 짚어보는 인터랙션 대상. 세션 앵커(시작~장마감 축)는 붙인다.
+      sparkEl.innerHTML = areaSparkSvg(d.spark, 46, 28, color, d.prevClose, d.sessionLive ?? mktIsOpen(it.mk), d.sparkT, mktSessionOf(d));
     }
   });
 }

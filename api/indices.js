@@ -8,6 +8,66 @@ const SYMBOL_MAP = {
   sox: '^SOX', nq: 'NQ=F',
 };
 
+// 세션 앵커 차트(2026-07-28) — 홈 대시보드 차트가 "최근 24시간 창을 24포인트로 다운샘플해
+// 폭 전체에 늘려 그리기" 방식이라, 장이 방금 열려 30분치 데이터뿐이어도 하루치가 다 지난
+// 것처럼 선이 폭 전체를 채웠다(토스 앱 등 레퍼런스와 비교해 사용자가 지적). 이제 코스피/
+// 코스닥/나스닥/다우/S&P500/VIX/SOX/나스닥100선물처럼 "하루 단위 정규 세션"이 뚜렷한
+// 지표는 x축을 실제 [세션 시작, 세션 종료] 시각에 고정하고, 장중이면 지금까지 온 데이터만
+// 그려서 나머지 폭은 비워둔다(클라이언트가 sessionStart/sessionEnd/sessionLive로 레이아웃).
+// 나머지(BTC/금/유가/환율/니케이/항셍 등 24시간 가깝게 돌거나 별도 시간대인 지표)는 기존
+// "최근 24시간 롤링 윈도우" 방식을 그대로 쓴다(세션 개념이 뚜렷하지 않거나 대시보드에
+// 안 쓰여서 정밀한 세션 계산의 이득이 적음).
+const SESSION_MARKET = {
+  kospi: 'kr', kosdaq: 'kr',
+  nasdaq: 'us', dow: 'us', sp500: 'us', vix: 'us', sox: 'us', nq: 'us',
+};
+
+// 휴일 캘린더까지는 안 보되(다른 곳의 mktIsOpen과 동일한 근사 수준), 주말은 최근 평일로
+// 되감는다. 반환값은 전부 ms epoch. live=true면 지금이 세션 진행 중이란 뜻 — 클라이언트가
+// "지금까지만 그리고 나머지는 비워두기"를 결정하는 데 쓴다.
+function computeSessionWindow(mk) {
+  const nowMs = Date.now();
+  const kstNow = new Date(nowMs + 9 * 3600000);
+  const y = kstNow.getUTCFullYear(), mo = kstNow.getUTCMonth(), d = kstNow.getUTCDate();
+  const kstMidnightMs = Date.UTC(y, mo, d) - 9 * 3600000; // 오늘 00:00 KST → UTC ms
+  const isWeekday = (dow) => dow >= 1 && dow <= 5;
+
+  if (mk === 'kr') {
+    const dow = kstNow.getUTCDay();
+    const openMs = kstMidnightMs + 9 * 3600000;      // 09:00 KST
+    const closeMs = kstMidnightMs + 15.5 * 3600000;  // 15:30 KST
+    if (isWeekday(dow) && nowMs >= openMs && nowMs < closeMs) {
+      return { start: openMs, end: closeMs, live: true };
+    }
+    // 세션 밖 — 가장 최근 평일 세션으로 되감기(오늘이 아직 개장 전이면 어제부터 검색)
+    let cursorMidnight = nowMs < openMs ? kstMidnightMs - 86400000 : kstMidnightMs;
+    let cursorDow = new Date(cursorMidnight + 9 * 3600000).getUTCDay();
+    while (!isWeekday(cursorDow)) { cursorMidnight -= 86400000; cursorDow = (cursorDow + 6) % 7; }
+    return { start: cursorMidnight + 9 * 3600000, end: cursorMidnight + 15.5 * 3600000, live: false };
+  }
+
+  if (mk === 'us') {
+    // 미국 정규장 22:30(KST, 전날 저녁)~05:00(KST, 당일 새벽) — 자정을 넘겨 이어진다.
+    const todayEveningStart = kstMidnightMs + 22.5 * 3600000; // 오늘 22:30 KST
+    const todayMorningEnd = kstMidnightMs + 5 * 3600000;      // 오늘 05:00 KST(어제 저녁 시작분의 끝)
+    const yestEveningStart = todayEveningStart - 86400000;
+    const yestDow = new Date(yestEveningStart + 9 * 3600000).getUTCDay();
+    if (nowMs >= yestEveningStart && nowMs < todayMorningEnd && isWeekday(yestDow)) {
+      return { start: yestEveningStart, end: todayMorningEnd, live: nowMs < todayMorningEnd };
+    }
+    const todayDow = kstNow.getUTCDay();
+    if (nowMs >= todayEveningStart && isWeekday(todayDow)) {
+      return { start: todayEveningStart, end: todayEveningStart + 6.5 * 3600000, live: true };
+    }
+    // 세션 밖(낮 시간대) — 가장 최근에 끝난 세션으로 되감기(주말이면 금요일 저녁 세션까지)
+    let cursorStart = yestEveningStart;
+    let cursorDow = yestDow;
+    while (!isWeekday(cursorDow)) { cursorStart -= 86400000; cursorDow = (cursorDow + 6) % 7; }
+    return { start: cursorStart, end: cursorStart + 6.5 * 3600000, live: false };
+  }
+  return null;
+}
+
 // GET /api/indices?chart=nasdaq&range=6mo — 단일 지표의 일봉 히스토리(시장지표 상세페이지 차트용).
 // TradingView 무료 임베드가 IXIC/KOSPI/KOSDAQ/VIX/SOX/NQ 등 절반 가까이 심볼을 지원 안 해서
 // (2026-07 실측 확인) 자체 차트로 대체 — 이미 신뢰하는 Yahoo 소스라 별도 검증 불필요.
@@ -110,10 +170,9 @@ export default async function handler(req, res) {
         change = meta.regularMarketChange ?? null;
       }
 
-      // 스파크라인: 마지막 봉 기준 최근 24시간 창의 15분봉 종가, 최대 24포인트로 다운샘플.
-      // sparkT(같은 인덱스의 실제 봉 시각, ms epoch)도 같이 내려줘서 클라이언트가 차트
-      // 호버/드래그 시 "그 지점이 몇 시였는지" 보여줄 수 있게 한다(값만으론 시간을 알 수 없음).
-      let spark = null, sparkT = null;
+      // 스파크라인. sparkT(같은 인덱스의 실제 봉 시각, ms epoch)를 항상 같이 내려줘서
+      // 클라이언트가 호버/드래그 시 "몇 시였는지" 보여줄 수 있게 한다.
+      let spark = null, sparkT = null, sessionStart = null, sessionEnd = null, sessionLive = null;
       const intraResult = intra?.chart?.result?.[0];
       const intraTs = intraResult?.timestamp || [];
       const intraRaw = intraResult?.indicators?.quote?.[0]?.close || [];
@@ -121,7 +180,26 @@ export default async function handler(req, res) {
       for (let i = 0; i < intraRaw.length; i++) {
         if (intraRaw[i] != null && intraTs[i] != null) pts.push({ t: intraTs[i], c: intraRaw[i] });
       }
-      if (pts.length >= 3) {
+
+      const sessionMk = SESSION_MARKET[id];
+      if (sessionMk && pts.length) {
+        // 세션 앵커 모드: [세션 시작, 세션 종료] 안에 든 봉만 — x축은 클라이언트가 이
+        // 구간에 맞춰 그린다(장중이면 지금까지 온 데이터까지만 실제로 그리고 나머지는 공백).
+        const win = computeSessionWindow(sessionMk);
+        if (win) {
+          const inSession = pts.filter(p => p.t * 1000 >= win.start && p.t * 1000 <= win.end);
+          if (inSession.length >= 2) {
+            spark = inSession.map(p => Number(Number(p.c).toPrecision(6)));
+            sparkT = inSession.map(p => p.t * 1000);
+            sessionStart = win.start;
+            sessionEnd = win.end;
+            sessionLive = win.live;
+          }
+        }
+      }
+      if (spark == null && pts.length >= 3) {
+        // 폴백(세션 앵커 대상이 아니거나 그 구간에 데이터가 모자랄 때): 마지막 봉 기준
+        // 최근 24시간 창을 최대 24포인트로 다운샘플해 폭 전체에 그리는 기존 방식.
         const lastT = pts[pts.length - 1].t;
         const windowed = pts.filter(p => p.t >= lastT - 24 * 3600);
         const src = windowed.length >= 3 ? windowed : pts;
@@ -136,6 +214,7 @@ export default async function handler(req, res) {
 
       return {
         id, price, changePercent, change, prevClose, currency: meta.currency, spark, sparkT,
+        sessionStart, sessionEnd, sessionLive,
         fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? null,
         fiftyTwoWeekLow: meta.fiftyTwoWeekLow ?? null,
       };
