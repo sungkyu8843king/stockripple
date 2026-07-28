@@ -3816,11 +3816,21 @@ async function checkFuturesSidecar() {
     }
 
     const dir = ratio > 0 ? '매수' : '매도';
-    const message = `🚨 [속보] 코스피200 선물 ${ratio > 0 ? '+' : ''}${ratio.toFixed(2)}% — ${dir}사이드카 발동 조건 감지 (KRX 공식 확인 전)`;
+    // 🚨는 announcement-bar.js가 모든 배너 앞에 공통으로 붙이므로 여기서 또 넣으면 중복
+    // 표기된다(2026-07-28 발견). "KRX 공식 확인 전"이라는 모호한 문구 대신, 몇 시
+    // 몇 분에 이 근사치 조건을 감지했는지 구체적으로 보여준다.
+    const kstNow = new Date(Date.now() + 9 * 3600000);
+    const detectedAt = `${String(kstNow.getUTCHours()).padStart(2, '0')}시 ${String(kstNow.getUTCMinutes()).padStart(2, '0')}분 감지`;
+    const message = `[속보] 코스피200 선물 ${ratio > 0 ? '+' : ''}${ratio.toFixed(2)}% — ${dir}사이드카 발동 조건 (${detectedAt})`;
     const startedAt = new Date().toISOString();
+    // 90초마다 재확인하면서 조건이 계속 참인 동안은 매번 만료시각을 30분 뒤로 미룬다 —
+    // 실제로 선물이 안정되면(조건이 거짓이 되면) 재호출이 안 일어나 마지막으로 세팅된
+    // 만료시각이 그대로 지나가 자동 종료된다. 뉴스 키워드 기반 배너(analyze.js, 2시간)
+    // 보다 훨씬 짧게 잡은 건 이건 KRX 공식 발동이 아니라 근사 감지라 노이즈성이 크기 때문.
+    const SIDECAR_TTL_MS = 30 * 60 * 1000;
     await supabase.from('site_announcement').upsert({
       id: 1, active: true, message, source: 'auto', source_issue_id: null,
-      auto_expires_at: new Date(now + 2 * 3600000).toISOString(), updated_at: startedAt,
+      auto_expires_at: new Date(now + SIDECAR_TTL_MS).toISOString(), updated_at: startedAt,
     });
     if (!cur?.active) {
       await supabase.from('announcement_log').update({ ended_at: startedAt }).is('ended_at', null);

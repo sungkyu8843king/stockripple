@@ -43,7 +43,9 @@ async function maybeAutoAnnounce(issue, matchedKeyword) {
     await supabase.from('announcement_log').update({ ended_at: new Date().toISOString() }).is('ended_at', null);
 
     const now = new Date();
-    const message = `🚨 [속보] ${issue.title}`.slice(0, 500);
+    // 🚨는 announcement-bar.js가 모든 배너 앞에 공통으로 붙이므로 여기서 넣으면 중복 표기된다
+    // (checkFuturesSidecar의 사이드카 배너에서 실제로 겪은 버그, 2026-07-28 — 같은 실수 방지).
+    const message = `[속보] ${issue.title}`.slice(0, 500);
     await supabase.from('site_announcement').upsert({
       id: 1, active: true, message, source: 'auto', source_issue_id: issue.id,
       auto_expires_at: new Date(now.getTime() + AUTO_ANNOUNCE_TTL_MS).toISOString(),
