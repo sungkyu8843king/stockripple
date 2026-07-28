@@ -13,7 +13,7 @@ function showPanel(name) {
   if (name === 'accuracy') loadAccuracy();
   if (name === 'backtest' && !window._btLoaded) { window._btLoaded = true; loadBacktest(); }
   if (name === 'investments') invLoad();
-  if (name === 'earnings-manual') emLoad();
+  if (name === 'earnings-manual') { emLoad(); emLoadGaps(); }
   if (name === 'views') loadViewStats();
   if (name === 'analytics') loadAnalyticsAll();
   if (name === 'feedback') loadFeedback();
@@ -1180,6 +1180,54 @@ async function emDelete(id) {
   const data = await callApi('/api/admin?action=earnings-manual-delete', { id }, null);
   if (!data) { showToast('삭제 실패', 'error'); return; }
   showToast('삭제 완료', 'success');
+  emLoad();
+}
+
+// 발표일은 지났는데 Nasdaq이 아직 실제 EPS를 안 채운 종목 목록 — 관리자는 EPS 칸만
+// 채우면 됨(티커/날짜/예상치는 이미 캘린더에서 가져온 값 그대로 저장).
+async function emLoadGaps() {
+  const box = document.getElementById('emGapTable');
+  const countEl = document.getElementById('emGapCount');
+  box.innerHTML = '<tr><td colspan="7" class="loading-row">불러오는 중...</td></tr>';
+  try {
+    const r = await fetch('/api/earnings-calendar?scope=gaps&days=10', {
+      headers: { Authorization: 'Bearer ' + (await getAuthToken()) },
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'gaps failed');
+    window._emGaps = j.items || [];
+    countEl.textContent = j.items.length ? `(${j.items.length}건)` : '(없음)';
+    if (!j.items.length) {
+      box.innerHTML = '<tr><td colspan="7" class="loading-row">비어있는 종목이 없습니다 🎉</td></tr>';
+      return;
+    }
+    box.innerHTML = j.items.map((it, i) => `<tr id="emGapRow-${i}">
+      <td style="font-weight:700">${escHtml(it.symbol)}</td>
+      <td>${escHtml(it.name || '—')}</td>
+      <td>${escHtml(it.date)}</td>
+      <td>${escHtml(it.time || '—')}</td>
+      <td>${it.epsForecast != null ? it.epsForecast : '—'}</td>
+      <td><input id="emGapEps-${i}" type="number" step="0.01" placeholder="실제 EPS" style="width:100px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px"></td>
+      <td><button class="btn btn-primary" style="padding:5px 12px;font-size:12px" onclick="emSaveGap(${i})">저장</button></td>
+    </tr>`).join('');
+  } catch (e) {
+    box.innerHTML = `<tr><td colspan="7" style="color:var(--red)">로드 실패: ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function emSaveGap(i) {
+  const it = (window._emGaps || [])[i];
+  const input = document.getElementById(`emGapEps-${i}`);
+  const epsActual = input?.value;
+  if (!epsActual) { showToast('실제 EPS를 입력하세요', 'error'); return; }
+  const body = {
+    symbol: it.symbol, report_date: it.date, name: it.name, time: it.time,
+    eps_actual: epsActual, eps_estimate: it.epsForecast, market_cap: it.marketCap,
+  };
+  const data = await callApi('/api/admin?action=earnings-manual-upsert', body, null);
+  if (!data) { showToast('저장 실패', 'error'); return; }
+  showToast(`${it.symbol} 저장 완료`, 'success');
+  document.getElementById(`emGapRow-${i}`)?.remove();
   emLoad();
 }
 

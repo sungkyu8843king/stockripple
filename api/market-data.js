@@ -15,6 +15,7 @@
  * 프론트엔드 fetch 호출은 전혀 바뀌지 않는다.
  */
 import { createClient } from '@supabase/supabase-js';
+import { verifyAdmin } from '../lib/auth.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -1542,10 +1543,14 @@ async function fetchNasdaqCalendarForDate(dateStr) {
 // 목록을 별도 조회 없이 이 한 번으로 구성할 수 있다(실측 확인, 2026-07-28).
 async function handleEarningsCalendar(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  // 실적 일정은 하루 안에 잘 안 바뀌므로(간혹 당일 정정 있음) 넉넉히 캐시 — handleEarnings와 동일 정책.
-  res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
 
   const scope = (req?.query?.scope || 'upcoming').toString();
+  // gaps: 어드민 전용 — "실적 발표는 지났는데(Nasdaq eps 필드가 아직 비어있음) 관리자가
+  // 아직 수동 입력도 안 한" 종목만 뽑아서 어드민 패널의 "실제 EPS만 입력" 목록에 쓴다.
+  if (scope === 'gaps') return handleEarningsGaps(req, res);
+
+  // 실적 일정은 하루 안에 잘 안 바뀌므로(간혹 당일 정정 있음) 넉넉히 캐시 — handleEarnings와 동일 정책.
+  res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400');
   const reported = scope === 'reported';
   const wantDays = Math.min(Math.max(parseInt(req?.query?.days) || 10, 1), 15);
 
@@ -1630,6 +1635,51 @@ async function handleEarningsCalendar(req, res) {
   }
 
   return res.status(200).json({ ok: true, scope, days: out, minCapUsd: EARNINGS_CAL_MIN_CAP, ts: Date.now() });
+}
+
+// GET ?source=earnings-calendar&scope=gaps (어드민 전용) — 최근 wantDays 평일 중 Nasdaq
+// 캘린더의 eps 필드가 아직 비어있고(=아직 실제 EPS 미반영) earnings_manual에도 없는(=관리자가
+// 아직 안 채운) 대형주만 뽑는다. 어드민 패널이 이 목록을 보여주고 관리자는 "실제 EPS"
+// 칸만 채우면 되도록(2026-07-29 피드백 — 티커/날짜/예상치를 매번 새로 타이핑할 필요 없게).
+async function handleEarningsGaps(req, res) {
+  const _a = await verifyAdmin(req.headers.authorization);
+  if (!_a.ok) return res.status(401).json({ error: _a.error });
+  res.setHeader('Cache-Control', 'no-store');
+
+  const wantDays = Math.min(Math.max(parseInt(req?.query?.days) || 10, 1), 15);
+  const days = [];
+  for (let i = 0; days.length < wantDays; i++) {
+    const d = new Date(Date.now() - i * 86400000);
+    const dow = d.getUTCDay();
+    if (dow === 0 || dow === 6) continue;
+    days.push(d.toISOString().slice(0, 10));
+  }
+  const results = await Promise.all(days.map(fetchNasdaqCalendarForDate));
+
+  const { data: manualRows } = await supabase.from('earnings_manual').select('symbol, report_date');
+  const manualSet = new Set((manualRows || []).map(m => `${(m.symbol || '').toUpperCase()}|${(m.report_date || '').toString().slice(0, 10)}`));
+
+  const items = [];
+  days.forEach((date, idx) => {
+    (results[idx] || []).forEach(r => {
+      if (!r.symbol) return;
+      const marketCap = parseNasdaqMarketCap(r.marketCap);
+      if (marketCap == null || marketCap < EARNINGS_CAL_MIN_CAP) return;
+      if (parseNasdaqEps(r.eps) != null) return; // Nasdaq이 이미 채웠으면 gap 아님
+      if (manualSet.has(`${r.symbol.toUpperCase()}|${date}`)) return; // 관리자가 이미 처리함
+      items.push({
+        symbol: r.symbol,
+        name: (r.name || '').trim(),
+        date,
+        time: r.time === 'time-after-hours' ? 'AMC' : r.time === 'time-pre-market' ? 'BMO' : null,
+        marketCap,
+        epsForecast: parseNasdaqEps(r.epsForecast),
+      });
+    });
+  });
+  items.sort((a, b) => b.date.localeCompare(a.date) || b.marketCap - a.marketCap);
+
+  return res.status(200).json({ ok: true, items, ts: Date.now() });
 }
 
 // ─── 실적 상세 (2026-07-28) — earnings.html 종목 클릭 시 ────────────────

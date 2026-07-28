@@ -359,7 +359,22 @@ const SHELL_HTML = `
       </div>
 
       <div class="card" style="margin-bottom:18px">
-        <div class="card-title" id="emFormTitle">➕ 실적 추가/수정</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div class="card-title" style="margin:0">❓ 아직 실제 EPS 없는 종목 <span id="emGapCount" style="color:var(--text3);font-weight:400"></span></div>
+          <button class="btn btn-ghost" onclick="emLoadGaps()">🔄 새로고침</button>
+        </div>
+        <p style="font-size:12.5px;color:var(--text2);margin:0 0 12px">최근 발표일이 지났는데 Nasdaq 캘린더에 실제 EPS가 아직 안 채워진 대형주($10B+) —
+           실제 EPS만 입력하고 저장하면 바로 아래 목록에 추가되고 이 줄은 사라집니다.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>티커</th><th>기업명</th><th>발표일</th><th>시점</th><th>예상 EPS</th><th>실제 EPS 입력</th><th></th></tr></thead>
+            <tbody id="emGapTable"><tr><td colspan="7" class="loading-row">불러오는 중...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-title" id="emFormTitle">➕ 실적 직접 추가/수정</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
           <div>
             <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">티커*</label>
