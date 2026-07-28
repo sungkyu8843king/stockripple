@@ -214,8 +214,8 @@ function ehFmtDate(dateStr) {
   return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' });
 }
 function ehFmtDateShort(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00Z');
-  return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' });
+  const [, m, d] = dateStr.split('-');
+  return `${Number(m)}/${Number(d)}`;
 }
 function ehFmtEps(v) { return v == null ? '—' : `$${v.toFixed(2)}`; }
 function ehFmtKrw(usdVal) {
