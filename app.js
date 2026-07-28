@@ -1230,7 +1230,10 @@ function renderMarketDash(data) {
     }
     const chartEl = document.getElementById('mktHeroChart');
     if (chartEl && Array.isArray(nd.spark) && nd.spark.length > 1) {
-      const color = nd.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
+      // 국내 관례(상승 빨강/하락 파랑) — 예전엔 서구권 관례(초록/빨강)를 써서 등락 텍스트
+      // (빨강/파랑)와 차트 색이 반대로 보였다(2026-07-28 스크린샷으로 확인). --red/--blue와
+      // 동일한 hex(다크 테마 기준)로 맞춤.
+      const color = nd.changePercent >= 0 ? '#ff6b6b' : '#4d8dff';
       renderMktSpark(chartEl, nd.spark, 300, 64, color, nd.prevClose, nd.sessionLive ?? mktIsOpen(heroMeta.mk), nd.sparkT, mktSessionOf(nd));
     }
     if (nd.fiftyTwoWeekLow != null && nd.fiftyTwoWeekHigh != null) {
@@ -1271,7 +1274,7 @@ function renderMarketDash(data) {
     }
     const subChartEl = document.getElementById('mktHeroSubChart');
     if (subChartEl && Array.isArray(sd.spark) && sd.spark.length > 1) {
-      const color = sd.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
+      const color = sd.changePercent >= 0 ? '#ff6b6b' : '#4d8dff';
       renderMktSpark(subChartEl, sd.spark, 300, 64, color, sd.prevClose, sd.sessionLive ?? mktIsOpen(subMeta.mk), sd.sparkT, mktSessionOf(sd));
     }
     if (sd.fiftyTwoWeekLow != null && sd.fiftyTwoWeekHigh != null) {
@@ -1323,7 +1326,7 @@ function renderMarketDash(data) {
     }
     const sparkEl = document.getElementById(`mktCardSpark-${it.id}`);
     if (sparkEl && Array.isArray(d.spark) && d.spark.length > 1) {
-      const color = d.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
+      const color = d.changePercent >= 0 ? '#ff6b6b' : '#4d8dff';
       // 이 작은 카드(46×28)는 호버 툴팁을 붙이기엔 너무 좁아서 라이브 핑만 붙인다 —
       // 히어로 카드(위)만 손으로 짚어보는 인터랙션 대상. 세션 앵커(시작~장마감 축)는 붙인다.
       sparkEl.innerHTML = areaSparkSvg(d.spark, 46, 28, color, d.prevClose, d.sessionLive ?? mktIsOpen(it.mk), d.sparkT, mktSessionOf(d));
