@@ -4087,6 +4087,45 @@ async function handleFeatureFlagsPost(req, res) {
   return res.status(200).json({ ok: true, updated: rows.map(r => r.key), enabled });
 }
 
+// ── 텔레그램 개인 알림 (2026-07-28) — account.html "알림 설정" 탭이 만들어두기만 하고
+// 실제로 보내는 코드가 없던 기능(user_settings.telegram_chat_id/notify_new_analysis
+// 컬럼은 있고 저장도 되지만, 그걸 읽어서 발송하는 쪽이 아예 없었음). AI 시장 종합/국장·
+// 미장 데일리 리포트 3종이 finalize(=DB 저장 완료)될 때, 구독 설정한 사용자 전원에게
+// 헤드라인+스니펫과 "더 보러 가기" 링크를 보낸다. 개별 chat_id가 무효하거나 텔레그램
+// API가 실패해도 리포트 저장 자체(finalize)를 절대 막으면 안 되므로 예외를 전부 삼킨다.
+function _escTg(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+async function notifyReportSubscribers(req, title, snippet, reportParam) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return;
+  try {
+    const { data: subs } = await supabase.from('user_settings')
+      .select('telegram_chat_id')
+      .eq('notify_new_analysis', true)
+      .not('telegram_chat_id', 'is', null);
+    if (!subs?.length) return;
+
+    const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req?.headers?.host || 'stockripple-sungkyu.vercel.app'}`;
+    // index.html의 ?report= 쿼리(2026-07-28 추가)가 로드 시 해당 리포트 모달을 자동으로
+    // 열어 상세까지 바로 보여준다 — 링크를 눌렀을 때 홈에 뚝 떨어뜨리지 않기 위함.
+    const url = `${base}/?report=${reportParam}`;
+    const text = `<b>${_escTg(title)}</b>\n\n${_escTg(snippet)}\n\n<a href="${url}">더 보러 가기 →</a>`;
+
+    await Promise.all(subs.map(s =>
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: s.telegram_chat_id, text, parse_mode: 'HTML' }),
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {})
+    ));
+  } catch (e) {
+    console.error('notifyReportSubscribers failed:', e.message);
+  }
+}
+
 // ════════════════════════════════════════════════════════════
 // 21) agent_jobs 폴링 — analyze.js의 batch-poll과 별개. extract_investments/
 //     ai_market_summary/weekly_schedule/catalysts/daily_report/company_summary
@@ -4150,6 +4189,19 @@ async function handleAgentPoll(req, res) {
       const result = await finalizer(row, req);
       await supabase.from('agent_jobs').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', row.id);
       outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'completed', result });
+
+      // 텔레그램 구독자 알림 — 3종 리포트가 막 저장 완료된 시점. notifyReportSubscribers는
+      // 내부에서 모든 예외를 삼키므로 여기서 실패해도 위 completed 처리에는 영향 없다.
+      if (row.pipeline === 'ai_market_summary' && row.stage === 'main' && result) {
+        const teaser = (result.bullish_drivers?.[0] || result.bearish_drivers?.[0] || result.key_events_today?.[0] || '');
+        notifyReportSubscribers(req, `🤖 AI 시장 종합: ${result.headline || ''}`, teaser, 'ai').catch(() => {});
+      }
+      if (row.pipeline === 'daily_report' && row.stage === 'main' && result) {
+        const mktLabel = result.market === 'KR' ? '🇰🇷 국장' : '🇺🇸 미장';
+        const reportParam = result.market === 'KR' ? 'dr-kr' : 'dr-us';
+        const teaser = (result.recap?.[0] || result.top_events?.[0] || '');
+        notifyReportSubscribers(req, `${mktLabel} 데일리 리포트: ${result.headline || ''}`, teaser, reportParam).catch(() => {});
+      }
     } catch (e) {
       await supabase.from('agent_jobs').update({ status: 'submitted' }).eq('id', row.id);
       outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'error', error: e.message });

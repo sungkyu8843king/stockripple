@@ -4766,6 +4766,19 @@ function renderArchDetail(idx) {
   body.innerHTML = `<div class="ra-report">${_archTab === 'ai' ? aiSummaryHTML(d) : dailyReportHTML(d, false)}</div>`;
 }
 
+// 텔레그램 알림의 "더 보러 가기" 링크(?report=ai|dr-kr|dr-us, api/admin.js
+// notifyReportSubscribers가 생성)로 들어오면 목록 경유 없이 그 리포트 상세를 바로
+// 열어준다 — 홈에 뚝 떨어뜨리면 알림 눌러 들어온 의미가 없어짐(2026-07-28). 이 트리거는
+// 반드시 _archTab/_archCache(let/const) 선언과 openReportArchive/renderArchDetail
+// 정의보다 뒤에 있어야 한다 — 앞에 두면 TDZ(ReferenceError: Cannot access '_archTab'
+// before initialization)로 조용히 죽는다(실제로 겪은 버그, 로컬 테스트로 확인).
+(async function _autoOpenReportFromQuery() {
+  const tab = new URLSearchParams(location.search).get('report');
+  if (!['ai', 'dr-kr', 'dr-us'].includes(tab)) return;
+  await openReportArchive(tab);
+  renderArchDetail(0); // 최신순 정렬이라 0번 = 알림이 온 바로 그 리포트
+})();
+
 // ─── 📊 섹터 모멘텀 (1d) ─────────────────────────────────
 const SECTOR_ETFS = [
   { t:'XLK', n:'기술' }, { t:'XLF', n:'금융' }, { t:'XLV', n:'헬스케어' },
