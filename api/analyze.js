@@ -23,10 +23,12 @@ function detectBreakingNews(title) {
   if (!title) return null;
   return BREAKING_KEYWORDS.find(k => title.includes(k)) || null;
 }
-// 자동 배너 노출 유지 시간 — 서킷브레이커·사이드카 등 이벤트 창을 덮되 하루종일
-// 남지 않도록 2시간 뒤 자동 만료. 만료 처리는 handleGetAnnouncement가 조회 시점에
-// lazily 수행한다(별도 cron 불필요 — 배너는 매 페이지 로드마다 폴링됨).
-const AUTO_ANNOUNCE_TTL_MS = 2 * 3600 * 1000;
+// 자동 배너 노출 유지 시간 — checkFuturesSidecar(api/admin.js)의 사이드카 배너와 동일
+// 규칙(2026-07-28 통일): 최초 감지 시점 값을 그대로 30분 유지 후 자동 종료. 이 함수는
+// 이미 이슈 단위로 한 번만 세팅하고 재호출은 위 40번째 줄에서 걸러지므로(같은 이슈로
+// 중복 트리거 안 됨) 값 드리프트 문제는 원래 없었지만, TTL은 기존 2시간에서 통일했다.
+// 만료 처리는 handleGetAnnouncement가 조회 시점에 lazily 수행(별도 cron 불필요).
+const AUTO_ANNOUNCE_TTL_MS = 30 * 60 * 1000;
 
 async function maybeAutoAnnounce(issue, matchedKeyword) {
   try {

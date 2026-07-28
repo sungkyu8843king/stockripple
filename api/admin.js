@@ -3814,6 +3814,12 @@ async function checkFuturesSidecar() {
       // 이게 없으면 다음 90초 리프레시에서 조건이 여전히 참이라 바로 다시 켜져버린다.
       if (cur.auto_expires_at && new Date(cur.auto_expires_at) > new Date()) return;
     }
+    // 이미 떠 있는 auto 배너(사이드카든 뉴스속보든)가 있으면 값을 새로 갈아끼우지 않는다 —
+    // 90초마다 재확인하며 그때그때 값(등락률·감지시각)으로 계속 덮어썼더니 화면에 뜬 값이
+    // 계속 바뀌어 보이는 문제가 있었다(2026-07-28 피드백). "처음 감지된 값 그대로 30분
+    // 유지 후 종료, 그 다음에 뜨는 게 다른 이벤트면 그건 새로 반영"이 원하는 동작이라,
+    // 슬롯이 비어 있을 때(아무 배너도 없거나 만료돼 꺼졌을 때)만 새로 만든다.
+    if (cur?.active && cur?.source === 'auto') return;
 
     const dir = ratio > 0 ? '매수' : '매도';
     // 🚨는 announcement-bar.js가 모든 배너 앞에 공통으로 붙이므로 여기서 또 넣으면 중복
@@ -3823,19 +3829,16 @@ async function checkFuturesSidecar() {
     const detectedAt = `${String(kstNow.getUTCHours()).padStart(2, '0')}시 ${String(kstNow.getUTCMinutes()).padStart(2, '0')}분 감지`;
     const message = `[속보] 코스피200 선물 ${ratio > 0 ? '+' : ''}${ratio.toFixed(2)}% — ${dir}사이드카 발동 조건 (${detectedAt})`;
     const startedAt = new Date().toISOString();
-    // 90초마다 재확인하면서 조건이 계속 참인 동안은 매번 만료시각을 30분 뒤로 미룬다 —
-    // 실제로 선물이 안정되면(조건이 거짓이 되면) 재호출이 안 일어나 마지막으로 세팅된
-    // 만료시각이 그대로 지나가 자동 종료된다. 뉴스 키워드 기반 배너(analyze.js, 2시간)
-    // 보다 훨씬 짧게 잡은 건 이건 KRX 공식 발동이 아니라 근사 감지라 노이즈성이 크기 때문.
+    // 최초 감지 시점에 딱 한 번만 세팅하고 이후 재확인에선(위 return으로) 손대지 않는다 —
+    // 30분 뒤 이 시각 그대로 자동 종료(handleGetAnnouncement의 lazy expire). 뉴스 키워드
+    // 기반 배너(analyze.js)도 동일 규칙(같은 30분)을 쓴다.
     const SIDECAR_TTL_MS = 30 * 60 * 1000;
     await supabase.from('site_announcement').upsert({
       id: 1, active: true, message, source: 'auto', source_issue_id: null,
       auto_expires_at: new Date(now + SIDECAR_TTL_MS).toISOString(), updated_at: startedAt,
     });
-    if (!cur?.active) {
-      await supabase.from('announcement_log').update({ ended_at: startedAt }).is('ended_at', null);
-      await supabase.from('announcement_log').insert({ source: 'auto', message, started_at: startedAt });
-    }
+    await supabase.from('announcement_log').update({ ended_at: startedAt }).is('ended_at', null);
+    await supabase.from('announcement_log').insert({ source: 'auto', message, started_at: startedAt });
   } catch (e) {
     console.error('futures sidecar check failed:', e.message);
   }
