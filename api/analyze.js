@@ -46,8 +46,12 @@ async function maybeAutoAnnounce(issue, matchedKeyword) {
 
     const now = new Date();
     // 🚨는 announcement-bar.js가 모든 배너 앞에 공통으로 붙이므로 여기서 넣으면 중복 표기된다
-    // (checkFuturesSidecar의 사이드카 배너에서 실제로 겪은 버그, 2026-07-28 — 같은 실수 방지).
-    const message = `[속보] ${issue.title}`.slice(0, 500);
+    // (checkFuturesSidecar의 사이드카 배너에서 실제로 겪은 버그, 2026-07-28). 같은 이유로
+    // issue.title 자체가 이미 "[속보]"로 시작하는 경우가 있어(수집기가 붙인 것) 여기서
+    // 또 붙이면 "[속보] [속보] ..."로 중복 표기된다(실제로 발생해 확인, 2026-07-28) — 이미
+    // 있으면 건너뛴다.
+    const titleHasTag = /^\s*\[속보\]/.test(issue.title || '');
+    const message = (titleHasTag ? issue.title : `[속보] ${issue.title}`).slice(0, 500);
     await supabase.from('site_announcement').upsert({
       id: 1, active: true, message, source: 'auto', source_issue_id: issue.id,
       auto_expires_at: new Date(now.getTime() + AUTO_ANNOUNCE_TTL_MS).toISOString(),
