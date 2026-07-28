@@ -1087,10 +1087,18 @@ function bindMktChartHover(containerEl) {
 }
 
 // 🎯 지금 매수 후보 위 "시장 지표" 대시보드 — 홈 전용(mktDashGrid 없는 페이지는 no-op)
+// ⚠️ kospi/kosdaq/nasdaq/dow 4개는 히어로/서브 히어로 슬롯(heroMarketMeta/subMarketMeta)과
+// 겹친다 — 예전엔 이 목록에 kosdaq/dow만 고정으로 박혀 있어서, 미국 장중(히어로=나스닥+다우)엔
+// 다우가 히어로에도 작은 그리드에도 중복으로 뜨고 코스피는 아예 어디에도 안 나왔다(국내
+// 장중엔 반대로 나스닥이 통째로 사라짐). 4개 다 목록엔 넣어두고 rotating:true로 표시,
+// renderMarketDash가 매 렌더마다 현재 히어로/서브 히어로 키에 해당하는 카드만 숨겨서
+// "항상 겹치는 2개는 히어로에만, 나머지 2개는 그리드에" 상태를 유지한다.
 const MKT_DASH_ITEMS = [
   { id: 'sp500',  name: 'S&P 500',        fmt: 'n', mk: 'us' },
-  { id: 'dow',    name: '다우존스',         fmt: 'n', mk: 'us' },
-  { id: 'kosdaq', name: '코스닥',           fmt: 'n', mk: 'kr' },
+  { id: 'dow',    name: '다우존스',         fmt: 'n', mk: 'us', rotating: true },
+  { id: 'kosdaq', name: '코스닥',           fmt: 'n', mk: 'kr', rotating: true },
+  { id: 'nasdaq', name: '나스닥',           fmt: 'n', mk: 'us', rotating: true },
+  { id: 'kospi',  name: '코스피',           fmt: 'n', mk: 'kr', rotating: true },
   { id: 'vix',    name: 'VIX',             fmt: 'n', mk: 'us' },
   { id: 'usdkrw', name: '달러환율',         fmt: 'n', mk: 'fx' },
   { id: 'sox',    name: '필라델피아반도체',   fmt: 'n', mk: 'us' },
@@ -1311,7 +1319,7 @@ function renderMarketDash(data) {
   if (!grid.dataset.cardsBuilt) {
     grid.dataset.cardsBuilt = '1';
     const cardsHtml = MKT_DASH_ITEMS.map(it => `
-      <a class="mkt-card mkt-card-link" href="/market-detail.html?sym=${it.id}">
+      <a class="mkt-card mkt-card-link" data-mkt-id="${it.id}" href="/market-detail.html?sym=${it.id}">
         <div class="mkt-card-main">
           <div class="mkt-card-name"><span class="mkt-live-dot" id="mktDot-${it.id}"></span>${it.name}</div>
           <div class="mkt-card-val" id="mktCardVal-${it.id}">—</div>
@@ -1325,6 +1333,15 @@ function renderMarketDash(data) {
       </a>`;
     grid.insertAdjacentHTML('beforeend', cardsHtml);
   }
+  // rotating 카드(kospi/kosdaq/nasdaq/dow) 중 지금 히어로/서브 히어로로 떠 있는 2개는
+  // 작은 그리드에서 숨긴다 — cardsBuilt 캐시와 무관하게 히어로가 국내장↔미국장 경계를
+  // 넘어갈 때마다(하루 두 번) 매 렌더 호출에서 다시 계산해야 한다.
+  const activeRotatingIds = new Set([heroMeta.key, subMeta.key]);
+  MKT_DASH_ITEMS.forEach(it => {
+    if (!it.rotating) return;
+    const card = grid.querySelector(`[data-mkt-id="${it.id}"]`);
+    if (card) card.style.display = activeRotatingIds.has(it.id) ? 'none' : '';
+  });
   updateMktDots();
 
   MKT_DASH_ITEMS.forEach(it => {
