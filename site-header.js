@@ -586,7 +586,11 @@ function consolidateMobileFabs() {
     { el: document.querySelector('#srChatBtn'), label: '실시간 채팅' },
     { el: document.querySelector('.fb-fab'), label: '의견 주기' },
   ].filter(c => c.el && getComputedStyle(c.el).display !== 'none');
-  if (candidates.length < 2) return; // 1개뿐이면 묶을 이유가 없음 — 기존 자리 그대로
+  // 원래는 "1개뿐이면 묶을 이유 없음"이었으나, fb-fab가 없는 페이지(earnings.html 등)에서
+  // 채팅 버튼 혼자 구버전 원형 스타일(💬, 위치도 다름)로 남아 있어 페이지마다 우측 하단
+  // 아이콘이 서로 달라 보인다는 피드백(2026-07-28) — 1개여도 항상 동일한 "⋯" 독 스타일로
+  // 통일한다.
+  if (!candidates.length) return;
 
   const dock = document.createElement('div');
   dock.id = 'srFabDock';

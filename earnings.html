@@ -206,7 +206,7 @@ function ehCallTimeToKst(dateStr, callTime) {
   const kst = new Date(utcMs);
   const hm = kst.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
   const kstDateStr = kst.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
-  return { hm, rolledToNextDay: kstDateStr > dateStr, whenLabel: callTime === 'BMO' ? '개장 전' : '마감 후' };
+  return { hm, kstDate: kstDateStr, rolledToNextDay: kstDateStr > dateStr, whenLabel: callTime === 'BMO' ? '개장 전' : '마감 후' };
 }
 
 function ehFmtDate(dateStr) {
@@ -251,6 +251,25 @@ function ehSurpriseCls(pct) {
   return pct > 0.5 ? 'beat' : pct < -0.5 ? 'miss' : 'meet';
 }
 
+// 마감 후(AMC) 발표는 한국시간으로 환산하면 거의 항상 다음날 새벽으로 넘어간다(16:00 ET +
+// 시차 9시간 = 다음날 05~06시) — 그런데 API가 주는 day.date는 미국 거래일 기준이라, 그대로
+// 그 날짜 밑에 카드를 그리면 "7/28 화요일" 섹션 안에 "한국시간 익일(=7/29) 05:00" 카드가
+// 섞여 보여서 사용자가 헷갈린다(피드백, 2026-07-28). 실제 한국시간 날짜로 다시 묶는다 —
+// 개장 전(BMO) 카드는 당일 저녁이라 안 넘어가므로 그대로 남고, AMC 카드만 다음 날짜
+// 그룹으로 옮겨간다. 카드 자체에 찍히는 시각(hh:mm)은 원래 미국 거래일(day.date) 기준으로
+// 계산해야 정확하므로 usDate는 그대로 들고 다닌다.
+function ehRegroupUpcoming(days) {
+  const groups = {};
+  for (const day of days) {
+    for (const it of day.items) {
+      const kst = ehCallTimeToKst(day.date, it.time);
+      const effDate = kst ? kst.kstDate : day.date;
+      (groups[effDate] || (groups[effDate] = [])).push({ it, usDate: day.date });
+    }
+  }
+  return Object.keys(groups).sort().map(date => ({ date, entries: groups[date] }));
+}
+
 async function ehRender() {
   const body = document.getElementById('ehBody');
   body.innerHTML = '<div class="eh-loading"><div class="eh-spinner"></div>불러오는 중...</div>';
@@ -266,6 +285,21 @@ async function ehRender() {
     return;
   }
 
+  if (ehTab === 'upcoming') {
+    const groups = ehRegroupUpcoming(days);
+    body.innerHTML = groups.map(g => `
+      <div class="eh-day">
+        <div class="eh-day-head">
+          <span class="eh-day-date">${ehFmtDate(g.date)}</span>
+          <span class="eh-day-count">${g.entries.length}건</span>
+        </div>
+        <div class="eh-grid">
+          ${g.entries.map(({ it, usDate }) => ehUpcomingCard(it, usDate)).join('')}
+        </div>
+      </div>`).join('');
+    return;
+  }
+
   body.innerHTML = days.map(day => `
     <div class="eh-day">
       <div class="eh-day-head">
@@ -273,7 +307,7 @@ async function ehRender() {
         <span class="eh-day-count">${day.items.length}건</span>
       </div>
       <div class="eh-grid">
-        ${day.items.map(it => ehTab === 'upcoming' ? ehUpcomingCard(it, day.date) : ehReportedCard(it, day.date)).join('')}
+        ${day.items.map(it => ehReportedCard(it, day.date)).join('')}
       </div>
     </div>`).join('');
 }
