@@ -671,6 +671,10 @@ body {
 .dt-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .dt-table tr:last-child td { border-bottom: none; }
 .dt-num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+/* .dt-table th의 text-align:left가 명시도(0,1,1)로 .dt-num 단독(0,1,0)보다 세서 숫자
+   헤더(종가/전일대비/…)가 값과 반대로 왼쪽 정렬돼 열이 어긋나 보였다(스크린샷으로 확인,
+   2026-07-28) — 헤더 전용으로 한 번 더 못박아 값과 정렬을 맞춘다. */
+.dt-table th.dt-num { text-align: right; }
 .dt-date { color: var(--text2); font-family: var(--mono); }
 .dt-close { font-weight: 700; }
 .dt-dim { color: var(--text3); }

@@ -219,12 +219,20 @@ function updateFeedLiveTag() {
 }
 
 // 기본 뷰(1페이지·전체·검색없음)에서만 장중에 새 이슈 개수를 폴링해 배너로 알림 (피드를 강제로 갈아엎지 않음)
+//
+// ⚠️ 2026-07-28 버그 수정: 여기서 is_analyzed=true로 세고 있었는데, 실제로 화면에 뜨는
+// 피드(loadIssues → handleIssuesFeed)는 expose_ripple_effects 플래그가 꺼져 있는 한(현재
+// 기본값, 유사투자자문업 대응으로 anon 노출 차단 — CLAUDE.md 참고) ai_digest != '' 기준으로
+// 필터링한다. 두 기준이 가리키는 행 집합이 서로 달라서, "새 이슈 N건"이 뜨는데 탭해서
+// 다시 불러와도(loadIssues) 그 N건이 애초에 실제 피드 기준으로는 안 보이는 행들이라 배너가
+// 절대 안 없어지고 계속 다시 뜨는 버그가 있었다(실측: is_analyzed=true 11건 vs 실제 표시
+// 기준 ai_digest!='' 59건 — 서로 다른 집합). 실제 피드와 동일한 기준으로 맞춤.
 async function pollNewIssues() {
   if (currentPage !== 1 || currentCategory !== 'all' || currentSector !== 'all' || searchQuery) return;
   if (!anyMarketOpenNow().any || !_feedTopTs) return;
   try {
     const { count } = await sb.from('issues').select('id', { count: 'exact', head: true })
-      .eq('is_analyzed', true).gt('published_at', _feedTopTs);
+      .neq('ai_digest', '').gt('published_at', _feedTopTs);
     const banner = document.getElementById('newIssueBanner');
     const cnt = document.getElementById('newIssueCount');
     if (banner && cnt && count > 0) { cnt.textContent = count; banner.style.display = 'block'; }
@@ -4427,9 +4435,13 @@ function refreshReportBadges() {
 }
 
 // 새 리포트/AI 종합 감지 → 뱃지 갱신 + 토스트 (최초 방문은 기준선만 설정, 알림 없음)
+// 토스트를 눌렀을 때 실제로 그 리포트를 볼 수 있도록(2026-07-28, 예전엔 텍스트만 뜨고
+// 눌러도 반응이 없었다) 리포트 종류별 openReportArchive 파라미터도 같이 모아둔다 —
+// 여러 개가 동시에 올라왔으면 먼저 감지된 것(순서상 국장 > 미장 > AI 종합)을 연다.
 async function checkNewReports() {
   await Promise.all([getDrData('US'), getDrData('KR'), getAiMsData()]);
   const toToast = [];
+  const toToastParams = [];
   for (const mkt of ['KR', 'US']) {
     const d = _drCache[mkt];
     if (!d || !d.report_date) continue;
@@ -4441,6 +4453,7 @@ async function checkNewReports() {
     if (_drIsUnseen(mkt) && !_drToasted.has(mkt + d.report_date)) {
       _drToasted.add(mkt + d.report_date);
       toToast.push(mkt === 'KR' ? '국장' : '미장');
+      toToastParams.push(mkt === 'KR' ? 'dr-kr' : 'dr-us');
     }
   }
   const aiD = _aiMsCache;
@@ -4450,11 +4463,13 @@ async function checkNewReports() {
     } else if (_aiMsIsUnseen() && !_drToasted.has('AI' + aiD.created_at)) {
       _drToasted.add('AI' + aiD.created_at);
       toToast.push('AI 시장 종합');
+      toToastParams.push('ai');
     }
   }
   refreshReportBadges();
   if (toToast.length) {
-    try { showToast(`📰 새 ${toToast.join('·')} 업데이트가 올라왔어요`, 'info'); } catch {}
+    const openFirst = async () => { await openReportArchive(toToastParams[0]); renderArchDetail(0); };
+    try { showToast(`📰 새 ${toToast.join('·')} 업데이트가 올라왔어요 — 눌러서 보기`, 'info', openFirst); } catch {}
   }
 }
 

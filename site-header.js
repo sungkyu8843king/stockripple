@@ -56,15 +56,20 @@ function escHtml(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function showToast(msg, type = 'info') {
+// onClick을 넘기면 토스트가 클릭 가능해진다(예: "새 리포트 올라왔어요" → 누르면 그 리포트로
+// 바로 이동, 2026-07-28 추가) — 예전엔 텍스트만 있고 눌러도 아무 반응이 없었다. 클릭하면
+// 콜백 실행 후 토스트를 바로 닫는다(다시 눌리는 걸 방지).
+function showToast(msg, type = 'info', onClick = null) {
   const t = document.getElementById('toast');
   if (!t) return;
   const icons = { success: '✓', error: '✗', info: 'ℹ' };
   t.className = `toast ${type}`;
   t.innerHTML = `<span>${icons[type] || ''}</span><span>${escHtml(msg)}</span>`;
   t.classList.add('show');
+  t.style.cursor = onClick ? 'pointer' : '';
+  t.onclick = onClick ? () => { t.classList.remove('show'); onClick(); } : null;
   clearTimeout(t._hideTimer);
-  t._hideTimer = setTimeout(() => t.classList.remove('show'), 3000);
+  t._hideTimer = setTimeout(() => t.classList.remove('show'), onClick ? 6000 : 3000);
 }
 // 옛 페이지들이 쓰던 이름 — 그대로 동작하도록 별칭 유지
 function showShareToast(msg) { showToast(msg, 'info'); }
@@ -564,17 +569,79 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeSearchPicker({ target: { id: 'searchPickerModal' } });
 });
 
+// ── 모바일 하단 FAB 통합(2026-07-28) ──────────────────────────────
+// 의견주기(.fb-fab)/데일리리포트(.dr-fab, index.html만)/실시간채팅(#srChatBtn, chat.js가
+// 동적 주입) 각자 원이 좌우 하단에 따로 떠서, 채팅까지 켜지면 모바일 화면이 번잡했다.
+// 존재하는 걸 모아(2개 이상일 때만) 우측 하단 원 하나로 묶고 눌러서 펼치게 한다 — 각
+// 버튼은 원래 DOM 그대로 위치만 옮기므로(reparent) 기존 onclick/뱃지 로직은 안 건드린다.
+// 데스크톱(폭>768)은 각자 원래 위치 그대로 둔다(공간 여유 있고, PC는 채팅을 사이드
+// 고정 패널로 따로 노출하므로 srChatBtn 자체가 기본적으로 안 보임).
+function consolidateMobileFabs() {
+  if (window.innerWidth > 1100) return; // .dr-fab가 보이기 시작하는 기준(1100px)과 맞춤
+  if (document.getElementById('srFabDock')) return; // 이미 통합됨(중복 실행 방지)
+
+  const candidates = [
+    { el: document.querySelector('.dr-fab'), label: '데일리 리포트' },
+    { el: document.querySelector('#srChatBtn'), label: '실시간 채팅' },
+    { el: document.querySelector('.fb-fab'), label: '의견 주기' },
+  ].filter(c => c.el && getComputedStyle(c.el).display !== 'none');
+  if (candidates.length < 2) return; // 1개뿐이면 묶을 이유가 없음 — 기존 자리 그대로
+
+  const dock = document.createElement('div');
+  dock.id = 'srFabDock';
+  dock.style.cssText = 'position:fixed;right:16px;bottom:20px;z-index:9300;display:flex;flex-direction:column;align-items:flex-end;gap:10px';
+
+  const stack = document.createElement('div');
+  stack.id = 'srFabStack';
+  stack.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:10px;opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease';
+  dock.appendChild(stack);
+
+  candidates.forEach(({ el, label }) => {
+    el.style.position = 'static';
+    el.style.bottom = ''; el.style.right = '';
+    if (!el.title) el.title = label;
+    stack.appendChild(el);
+  });
+
+  const main = document.createElement('button');
+  main.id = 'srFabMain';
+  main.setAttribute('aria-label', '메뉴 열기');
+  main.style.cssText = 'width:56px;height:56px;border-radius:50%;border:none;background:var(--blue);color:#fff;font-size:24px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;transition:transform .18s ease;flex-shrink:0';
+  main.textContent = '⋯';
+  dock.appendChild(main);
+  document.body.appendChild(dock);
+
+  let open = false;
+  const setOpen = (v) => {
+    open = v;
+    stack.style.opacity = open ? '1' : '0';
+    stack.style.pointerEvents = open ? 'auto' : 'none';
+    stack.style.transform = open ? 'translateY(0)' : 'translateY(8px)';
+    main.style.transform = open ? 'rotate(45deg)' : '';
+  };
+  main.addEventListener('click', () => setOpen(!open));
+  // 안에서 뭔가(채팅/리포트/의견주기) 열었으면 그 액션이 먼저 실행되게 살짝 지연 후 접어준다.
+  stack.addEventListener('click', (e) => {
+    if (open && e.target.closest('button, a')) setTimeout(() => setOpen(false), 150);
+  });
+}
+
 // ── 실시간 채팅 위젯 로더 — 어드민 플래그(chat)가 켜져 있을 때만 /chat.js를 동적 주입.
 // 꺼져 있으면 아무것도 안 만듦(요구사항: '사용할 때만 나오도록'). fail-closed.
+// consolidateMobileFabs는 이 fetch 체인의 모든 분기(채팅 켜짐/꺼짐/로드실패) 끝에서
+// 정확히 한 번씩 호출 — #srChatBtn이 생기는 시점(비동기)까지 기다렸다가 통합해야
+// 하기 때문에 DOMContentLoaded 시점에 바로 부르면 채팅 버튼을 놓친다.
 document.addEventListener('DOMContentLoaded', () => {
   if (location.pathname.startsWith('/admin')) return;
   fetch('/api/feedback?action=chat-config')
     .then(r => r.json())
     .then(j => {
-      if (!j?.enabled) return;
+      if (!j?.enabled) { consolidateMobileFabs(); return; }
       const sc = document.createElement('script');
       sc.src = '/chat.js';
+      sc.onload = () => consolidateMobileFabs();
+      sc.onerror = () => consolidateMobileFabs();
       document.body.appendChild(sc);
     })
-    .catch(() => {});
+    .catch(() => consolidateMobileFabs());
 });

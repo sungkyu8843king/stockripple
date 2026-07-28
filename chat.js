@@ -61,7 +61,19 @@
   #srChatInput button{background:var(--blue);border:none;color:#fff;font-weight:700;font-size:15.5px;border-radius:10px;padding:0 16px;cursor:pointer}
   #srChatInput button:disabled{opacity:.5;cursor:default}
   .src-note{font-size:13px;color:var(--text3);padding:0 16px 10px;flex-shrink:0}
-  @media (max-width:640px){ #srChatBtn{bottom:76px;right:12px} }`;
+  @media (max-width:640px){ #srChatBtn{bottom:76px;right:12px} }
+  /* PC 고정 패널(2026-07-28) — 넓은 화면은 기본으로 열어두고 본문이 패널을 피해 여백을
+     둔다. html(documentElement)에 거는 이유 두 가지: (1) 이 스크립트가 모든 페이지에
+     공통 로드되는데 페이지마다 본문 컨테이너 클래스명이 달라서(main-content/page-wrap
+     등) 특정 클래스에 못 걸고, html은 어느 페이지에서나 동일하게 sticky 헤더까지 포함해
+     전체가 같이 줄어든다. (2) body에 직접 걸면(margin-right든 padding-right든) 이
+     프로젝트의 프리뷰 툴에서 우측 값만 실제로 반영이 안 되는 현상을 실측으로 확인했다
+     (margin-left/padding-left/top/bottom은 정상, 오직 우측만 무시됨 — body 자체의
+     특이 동작으로 추정) — html에 걸면 문제없이 반영된다. 데스크톱 전용(min-width:1200px)
+     이라 CLAUDE.md가 경고하는 "overflow-x:hidden을 html에 걸면 iOS Safari에서 sticky가
+     깨진다" 케이스와는 무관(overflow 속성이 아니라 padding일 뿐이고, 모바일엔 이 클래스
+     자체가 안 붙는다). */
+  @media (min-width:1200px){ html.sr-chat-pinned-open{ padding-right:340px; transition:padding-right .22s ease; } }`;
   document.head.appendChild(css);
 
   const btn = document.createElement('button');
@@ -71,7 +83,7 @@
   panel.id = 'srChatPanel';
   panel.innerHTML = `
     <div class="src-head"><span class="live"></span><b>실시간 채팅</b><span class="me" id="srChatMe"></span>
-      <button class="src-close" onclick="document.getElementById('srChatPanel').classList.remove('open')">✕</button></div>
+      <button class="src-close" id="srChatClose" title="숨기기">✕</button></div>
     <div id="srChatList"></div>
     <div id="srChatInput"><input id="srChatText" maxlength="300" placeholder="메시지 입력 (최대 300자)"><button id="srChatSend">전송</button></div>
     <div class="src-note">신고 3회 누적 시 임시 숨김 · 매매 권유/비방은 제재될 수 있어요</div>`;
@@ -200,16 +212,41 @@
       .subscribe();
   }
 
+  // ── PC 고정 패널(2026-07-28) ────────────────────────────────
+  // 넓은 화면(≥1200px)에서는 기본으로 열어두고, 본문이 패널에 가리지 않게 body에
+  // 여백 클래스를 같이 토글한다. "숨기기"를 누르면 접히고, 그 선택은 localStorage에
+  // 저장돼 다음 방문에도 유지된다(매번 다시 열리면 오히려 성가심) — FAB을 다시 누르면
+  // 언제든 재오픈 가능하고, 그러면 숨김 선택이 해제된다.
+  const PIN_BREAKPOINT = 1200;
+  const HIDDEN_KEY = 'sr_chat_pinned_hidden';
+  const isDesktopWide = () => window.innerWidth >= PIN_BREAKPOINT;
+
+  function openPanel() {
+    panel.classList.add('open');
+    document.documentElement.classList.toggle('sr-chat-pinned-open', isDesktopWide());
+    unread = 0; badge.style.display = 'none';
+    renderMe();
+    if (!seen.size) loadInitial();
+    subscribe();
+    list.scrollTop = list.scrollHeight;
+  }
+  function closePanel() {
+    panel.classList.remove('open');
+    document.documentElement.classList.remove('sr-chat-pinned-open');
+    if (isDesktopWide()) lsSet(HIDDEN_KEY, true);
+  }
+
   btn.addEventListener('click', () => {
-    const opening = !panel.classList.contains('open');
-    panel.classList.toggle('open');
-    if (opening) {
-      unread = 0; badge.style.display = 'none';
-      renderMe();
-      if (!seen.size) loadInitial();
-      subscribe();
-      list.scrollTop = list.scrollHeight;
+    if (panel.classList.contains('open')) {
+      closePanel();
+    } else {
+      if (isDesktopWide()) lsSet(HIDDEN_KEY, false);
+      openPanel();
       setTimeout(() => input.focus(), 250);
     }
   });
+  panel.querySelector('#srChatClose').addEventListener('click', closePanel);
+
+  // 최초 진입 시 데스크톱 + 사용자가 이전에 명시적으로 숨긴 적 없으면 기본으로 열어둠.
+  if (isDesktopWide() && !lsGet(HIDDEN_KEY, false)) openPanel();
 })();
