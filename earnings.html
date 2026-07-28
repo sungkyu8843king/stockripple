@@ -213,6 +213,10 @@ function ehFmtDate(dateStr) {
   const d = new Date(dateStr + 'T12:00:00Z');
   return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' });
 }
+function ehFmtDateShort(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' });
+}
 function ehFmtEps(v) { return v == null ? '—' : `$${v.toFixed(2)}`; }
 function ehFmtKrw(usdVal) {
   if (usdVal == null || !ehFxRate) return '';
@@ -316,8 +320,11 @@ function ehUpcomingCard(it, date) {
   const kst = ehCallTimeToKst(date, it.time);
   const timingHtml = it.time
     ? `<span class="eh-timing ${it.time.toLowerCase()}">${it.time}</span>` : '';
+  // 카드는 이제 실제 한국시간 날짜 그룹 밑에 놓이므로(ehRegroupUpcoming) "(익일)"이라고
+  // 또 붙이면 그룹 헤더보다 하루 더 뒤인 것처럼 보여 오히려 헷갈린다 — 대신 마감후 발표가
+  // 어느 미국 거래일 장 마감 기준인지를 보여준다.
   const kstHtml = kst
-    ? `<div class="eh-kst">${kst.whenLabel} · 한국시간 ${kst.hm}${kst.rolledToNextDay ? ' (익일)' : ''}</div>`
+    ? `<div class="eh-kst">${kst.whenLabel}${kst.rolledToNextDay ? ` (미국 ${ehFmtDateShort(date)}장)` : ''} · 한국시간 ${kst.hm}</div>`
     : '<div class="eh-kst">발표 시각 미정</div>';
   return `
     <div class="eh-card">
