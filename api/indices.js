@@ -110,8 +110,10 @@ export default async function handler(req, res) {
         change = meta.regularMarketChange ?? null;
       }
 
-      // 스파크라인: 마지막 봉 기준 최근 24시간 창의 15분봉 종가, 최대 24포인트로 다운샘플
-      let spark = null;
+      // 스파크라인: 마지막 봉 기준 최근 24시간 창의 15분봉 종가, 최대 24포인트로 다운샘플.
+      // sparkT(같은 인덱스의 실제 봉 시각, ms epoch)도 같이 내려줘서 클라이언트가 차트
+      // 호버/드래그 시 "그 지점이 몇 시였는지" 보여줄 수 있게 한다(값만으론 시간을 알 수 없음).
+      let spark = null, sparkT = null;
       const intraResult = intra?.chart?.result?.[0];
       const intraTs = intraResult?.timestamp || [];
       const intraRaw = intraResult?.indicators?.quote?.[0]?.close || [];
@@ -121,18 +123,19 @@ export default async function handler(req, res) {
       }
       if (pts.length >= 3) {
         const lastT = pts[pts.length - 1].t;
-        const windowed = pts.filter(p => p.t >= lastT - 24 * 3600).map(p => p.c);
-        const src = windowed.length >= 3 ? windowed : pts.map(p => p.c);
+        const windowed = pts.filter(p => p.t >= lastT - 24 * 3600);
+        const src = windowed.length >= 3 ? windowed : pts;
         const step = Math.max(1, Math.ceil(src.length / 24));
-        spark = src.filter((_, i) => i % step === 0);
-        if (spark[spark.length - 1] !== src[src.length - 1]) {
-          spark.push(src[src.length - 1]);  // 마지막 값은 항상 포함
+        let sampled = src.filter((_, i) => i % step === 0);
+        if (sampled[sampled.length - 1] !== src[src.length - 1]) {
+          sampled.push(src[src.length - 1]);  // 마지막 값은 항상 포함
         }
-        spark = spark.map(v => Number(Number(v).toPrecision(6)));
+        spark = sampled.map(p => Number(Number(p.c).toPrecision(6)));
+        sparkT = sampled.map(p => p.t * 1000);
       }
 
       return {
-        id, price, changePercent, change, prevClose, currency: meta.currency, spark,
+        id, price, changePercent, change, prevClose, currency: meta.currency, spark, sparkT,
         fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? null,
         fiftyTwoWeekLow: meta.fiftyTwoWeekLow ?? null,
       };

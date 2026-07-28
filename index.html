@@ -542,8 +542,39 @@ button { font-family: inherit; }
 .mkt-hero-tag { font-size: 13px; color: var(--text3); margin-top: 1px; }
 .mkt-hero-val { font-size: 21px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .mkt-hero-chg { font-size: 14px; font-weight: 700; font-family: var(--font-mono); margin-top: 1px; }
-.mkt-hero-chart { height: 44px; margin: 6px 0 3px; }
+.mkt-hero-chart { height: 44px; margin: 6px 0 3px; position: relative; }
 .mkt-hero-chart svg { width: 100%; height: 100%; display: block; }
+.mkt-spark-svg-slot { display: block; width: 100%; height: 100%; }
+
+/* 차트 끝점 "라이브" 핑 — 해당 장이 열려 있을 때만(areaSparkSvg live=true) 붙는다 */
+@keyframes mktSparkPing { 0% { transform: scale(1); opacity: .65; } 75%, 100% { transform: scale(2.4); opacity: 0; } }
+.mkt-spark-ping { transform-box: fill-box; transform-origin: center; animation: mktSparkPing 1.8s cubic-bezier(.0,.0,.2,1) infinite; }
+
+/* 차트 호버/드래그 툴팁 — 히어로 카드 차트에서만 사용(setMktChartData가 붙이는 오버레이) */
+.mkt-chart-guide {
+  position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-strong);
+  opacity: 0; pointer-events: none; transform: translateX(-50%); transition: opacity .1s;
+}
+.mkt-chart-hover-dot {
+  position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--text);
+  border: 2px solid var(--bg2); box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  opacity: 0; pointer-events: none; transform: translate(-50%,-50%); transition: opacity .1s;
+}
+.mkt-chart-tip {
+  position: absolute; top: -4px; transform: translate(-50%,-100%);
+  background: var(--bg4); border: 1px solid var(--border-strong); border-radius: 6px;
+  padding: 4px 8px; font-size: 12.5px; font-weight: 700; white-space: nowrap;
+  display: flex; gap: 6px; align-items: baseline; z-index: 5;
+  opacity: 0; pointer-events: none; transition: opacity .1s; box-shadow: var(--shadow-sm);
+}
+.mkt-chart-tip.align-l { transform: translate(-8%,-100%); }
+.mkt-chart-tip.align-r { transform: translate(-92%,-100%); }
+.mkt-chart-tip-time { color: var(--text3); font-weight: 600; font-family: var(--font-mono); font-size: 11px; }
+.mkt-chart-tip-val { font-family: var(--font-mono); color: var(--text); }
+.mkt-chart-interactive.showing-tip .mkt-chart-guide,
+.mkt-chart-interactive.showing-tip .mkt-chart-hover-dot,
+.mkt-chart-interactive.showing-tip .mkt-chart-tip { opacity: 1; }
+.mkt-chart-interactive { cursor: crosshair; touch-action: pan-y; }
 .mkt-52w { margin-top: 3px; }
 .mkt-52w-label { font-size: 12.5px; color: var(--text3); margin-bottom: 3px; display: flex; justify-content: space-between; }
 .mkt-52w-track { height: 4px; border-radius: 3px; background: var(--bg4); position: relative; }

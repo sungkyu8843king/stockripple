@@ -903,7 +903,9 @@ function sparkPath(points) {
 
 // 채워진 영역(area) 스파크라인 SVG — 시장 지표 대시보드 전용(홈 히어로/카드).
 // baseline(전일 종가 등 기준가)이 주어지면 그 위치에 옅은 점선을 그려 등락폭을 감으로 알 수 있게 한다.
-function areaSparkSvg(points, w, h, color, baseline) {
+// live=true면 마지막 지점에 레이더 핑(ping) 애니메이션을 붙여 "그 장이 지금 열려 있어
+// 이 선이 계속 이어지는 중"이라는 걸 보여준다 — 장이 닫혀 있으면(오늘 종가까지 확정) 안 붙는다.
+function areaSparkSvg(points, w, h, color, baseline, live) {
   if (!Array.isArray(points) || points.length < 2) return '';
   const min = Math.min(...points), max = Math.max(...points);
   const span = (max - min) || 1;
@@ -916,6 +918,14 @@ function areaSparkSvg(points, w, h, color, baseline) {
     const by = Math.min(h - 0.5, Math.max(0.5, (h - 1) - ((baseline - min) / span) * (h - 2)));
     baseLine = `<line x1="0" y1="${by.toFixed(1)}" x2="${w}" y2="${by.toFixed(1)}" stroke-width="1" style="stroke:var(--text3);stroke-dasharray:3,3;opacity:.5"/>`;
   }
+  let liveDot = '';
+  if (live) {
+    const [lx, ly] = coords[coords.length - 1];
+    const r = Math.max(1.6, h * 0.045);
+    liveDot = `
+    <circle class="mkt-spark-ping" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}"/>
+    <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="${(r * 0.6).toFixed(1)}" fill="${color}" stroke="var(--bg2)" stroke-width="${(r * 0.25).toFixed(2)}"/>`;
+  }
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
     <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="${color}" stop-opacity="0.32"/>
@@ -924,7 +934,103 @@ function areaSparkSvg(points, w, h, color, baseline) {
     <path d="${linePath} L${w},${h} L0,${h} Z" fill="url(#${gid})" stroke="none"/>
     ${baseLine}
     <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+    ${liveDot}
   </svg>`;
+}
+
+// ─── 시장지표 차트 호버/드래그 툴팁 (2026-07-28) ───────────────────────
+// areaSparkSvg가 만드는 차트는 값만 있고 시각 라벨이 없어 손으로 짚어봐도 "언제"인지
+// 알 수 없었다 — /api/indices가 spark와 같은 인덱스의 sparkT(ms epoch)를 같이 내려주므로
+// 그걸 이용해 포인터 위치에 가장 가까운 지점의 시각+값을 보여준다. 차트 컨테이너는 가격
+// 폴링마다 재렌더되는데, 처음엔 컨테이너 자체(chartEl.innerHTML=svg)를 통째로 갈아끼웠더니
+// 거기 붙여둔 가이드선/점/툴팁 오버레이 DOM이 두 번째 폴링에서 그대로 날아가는 버그가
+// 있었다 — SVG는 전용 자식 슬롯(.mkt-spark-svg-slot)에만 넣고, 오버레이는 그 슬롯의
+// 형제로 컨테이너에 최초 1회만 붙여 재렌더에서 살아남게 한다.
+function renderMktSpark(containerEl, points, w, h, color, baseline, live, times) {
+  if (!containerEl) return;
+  let slot = containerEl.querySelector(':scope > .mkt-spark-svg-slot');
+  if (!slot) {
+    slot = document.createElement('span');
+    slot.className = 'mkt-spark-svg-slot';
+    containerEl.prepend(slot);
+  }
+  slot.innerHTML = areaSparkSvg(points, w, h, color, baseline, live);
+  setMktChartData(containerEl, points, times);
+}
+
+function setMktChartData(containerEl, points, times) {
+  if (!containerEl) return;
+  containerEl._mktChart = { points, times };
+  if (!containerEl.dataset.chartBound) {
+    containerEl.dataset.chartBound = '1';
+    bindMktChartHover(containerEl);
+  }
+}
+
+function bindMktChartHover(containerEl) {
+  containerEl.classList.add('mkt-chart-interactive');
+  const tip = document.createElement('div');
+  tip.className = 'mkt-chart-tip';
+  const guide = document.createElement('div');
+  guide.className = 'mkt-chart-guide';
+  const dot = document.createElement('div');
+  dot.className = 'mkt-chart-hover-dot';
+  containerEl.append(guide, dot, tip);
+
+  let dragging = false;
+
+  const update = (clientX) => {
+    const c = containerEl._mktChart;
+    if (!c?.points || c.points.length < 2) return false;
+    const rect = containerEl.getBoundingClientRect();
+    if (!rect.width) return false;
+    const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const idx = Math.round(frac * (c.points.length - 1));
+    const val = c.points[idx];
+    const min = Math.min(...c.points), max = Math.max(...c.points);
+    const span = (max - min) || 1;
+    const xPct = (idx / (c.points.length - 1)) * 100;
+    const yPct = (1 - (val - min) / span) * 100;
+
+    guide.style.left = xPct + '%';
+    dot.style.left = xPct + '%';
+    dot.style.top = yPct + '%';
+
+    const t = c.times?.[idx];
+    const timeLabel = t ? new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+    tip.innerHTML = `${timeLabel ? `<span class="mkt-chart-tip-time">${timeLabel}</span>` : ''}<span class="mkt-chart-tip-val">${fmtIdx(val, 'n')}</span>`;
+    // 툴팁이 카드 좌우 밖으로 나가지 않게: 왼쪽 끝 근처면 왼쪽 정렬, 오른쪽 끝 근처면 오른쪽 정렬
+    tip.style.left = xPct + '%';
+    tip.classList.toggle('align-l', xPct < 15);
+    tip.classList.toggle('align-r', xPct > 85);
+
+    containerEl.classList.add('showing-tip');
+    return true;
+  };
+  const hide = () => { containerEl.classList.remove('showing-tip'); dragging = false; };
+
+  containerEl.addEventListener('mousemove', e => update(e.clientX));
+  containerEl.addEventListener('mouseleave', hide);
+  containerEl.addEventListener('touchstart', e => {
+    if (update(e.touches[0].clientX)) dragging = true;
+  }, { passive: true });
+  containerEl.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    containerEl.dataset.wasDragging = '1'; // 터치엔드에서 클릭(=페이지 이동)을 막기 위한 플래그
+    update(e.touches[0].clientX);
+    e.preventDefault(); // 드래그로 짚어보는 동안 페이지 스크롤 방지
+  }, { passive: false });
+  containerEl.addEventListener('touchend', hide);
+  containerEl.addEventListener('touchcancel', hide);
+  // 차트는 클릭 가능한 카드(<a>) 안에 있다 — 드래그해서 값을 짚어본 것뿐인데
+  // 손을 떼며 상세페이지로 이동해버리지 않도록, 드래그 중이었으면 클릭을 죽인다.
+  containerEl.addEventListener('click', e => {
+    if (containerEl.dataset.wasDragging === '1') {
+      containerEl.dataset.wasDragging = '';
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
 }
 
 // 🎯 지금 매수 후보 위 "시장 지표" 대시보드 — 홈 전용(mktDashGrid 없는 페이지는 no-op)
@@ -963,9 +1069,10 @@ function updateMktDots(){
   if (subDot) subDot.classList.toggle('on', mktIsOpen(subMarketMeta().mk));
 }
 
-// 홈 "시장 지표" 히어로 카드 — 평일 08:50~18:00 KST는 코스피, 그 외(평일 저녁·밤·주말)는
-// 나스닥을 보여준다(국내 장중에는 국내 지수가, 그 외 시간대는 미국 지수가 더 유용하다는 판단).
-// 서브 히어로(작은 카드)는 항상 히어로의 반대 지수 — 두 시장을 한 화면에서 같이 볼 수 있게.
+// 홈 "시장 지표" 히어로 카드 — 평일 08:50~18:00 KST는 국내 장(코스피/코스닥), 그 외
+// (평일 저녁·밤·주말)는 미국 장(나스닥/다우)을 보여준다. 2026-07-28까지는 서브 히어로가
+// "히어로의 반대 시장"(코스피↔나스닥)이었는데, 사용자 요청으로 "같은 장의 두 지수"로
+// 바꿨다 — 국내 장중엔 코스피+코스닥, 미국 장중엔 나스닥+다우가 1·2번에 나란히 뜬다.
 function heroMarketMeta(){
   const kst = new Date(Date.now() + 9*3600000);
   const day = kst.getUTCDay(), mins = kst.getUTCHours()*60 + kst.getUTCMinutes();
@@ -976,8 +1083,8 @@ function heroMarketMeta(){
 }
 function subMarketMeta(){
   return heroMarketMeta().key === 'kospi'
-    ? { key: 'nasdaq', name: '나스닥', tag: 'NASDAQ Composite', mk: 'us', sym: 'nasdaq' }
-    : { key: 'kospi',  name: '코스피', tag: 'KOSPI Composite',  mk: 'kr', sym: 'kospi' };
+    ? { key: 'kosdaq', name: '코스닥',   tag: 'KOSDAQ Composite', mk: 'kr', sym: 'kosdaq' }
+    : { key: 'dow',    name: '다우존스', tag: 'Dow Jones Industrial Average', mk: 'us', sym: 'dow' };
 }
 
 // "더 많은 지표 보기" 토글 — 모바일 전용(데스크톱은 CSS가 버튼을 숨기고 항상 펼침 상태로 강제)
@@ -1079,7 +1186,7 @@ function renderMarketDash(data) {
     const chartEl = document.getElementById('mktHeroChart');
     if (chartEl && Array.isArray(nd.spark) && nd.spark.length > 1) {
       const color = nd.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
-      chartEl.innerHTML = areaSparkSvg(nd.spark, 300, 64, color, nd.prevClose);
+      renderMktSpark(chartEl, nd.spark, 300, 64, color, nd.prevClose, mktIsOpen(heroMeta.mk), nd.sparkT);
     }
     if (nd.fiftyTwoWeekLow != null && nd.fiftyTwoWeekHigh != null) {
       const wrap = document.getElementById('mktHero52w');
@@ -1096,7 +1203,7 @@ function renderMarketDash(data) {
     }
   }
 
-  // 서브 히어로 — 히어로의 반대 지수, 이제 히어로와 동일한 정보(차트+52주 범위)를 보여준다
+  // 서브 히어로 — 히어로와 같은 장의 다른 지수(subMarketMeta 참고), 히어로와 동일한 정보(차트+52주 범위)를 보여준다
   const subMeta = subMarketMeta();
   const subA = document.getElementById('mktHeroSub');
   if (subA && subA.dataset.subKey !== subMeta.key) {
@@ -1120,7 +1227,7 @@ function renderMarketDash(data) {
     const subChartEl = document.getElementById('mktHeroSubChart');
     if (subChartEl && Array.isArray(sd.spark) && sd.spark.length > 1) {
       const color = sd.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
-      subChartEl.innerHTML = areaSparkSvg(sd.spark, 300, 64, color, sd.prevClose);
+      renderMktSpark(subChartEl, sd.spark, 300, 64, color, sd.prevClose, mktIsOpen(subMeta.mk), sd.sparkT);
     }
     if (sd.fiftyTwoWeekLow != null && sd.fiftyTwoWeekHigh != null) {
       const wrap = document.getElementById('mktHeroSub52w');
@@ -1172,7 +1279,9 @@ function renderMarketDash(data) {
     const sparkEl = document.getElementById(`mktCardSpark-${it.id}`);
     if (sparkEl && Array.isArray(d.spark) && d.spark.length > 1) {
       const color = d.changePercent >= 0 ? '#3ddb7f' : '#ff6b6b';
-      sparkEl.innerHTML = areaSparkSvg(d.spark, 46, 28, color, d.prevClose);
+      // 이 작은 카드(46×28)는 호버 툴팁을 붙이기엔 너무 좁아서 라이브 핑만 붙인다 —
+      // 히어로 카드(위)만 손으로 짚어보는 인터랙션 대상.
+      sparkEl.innerHTML = areaSparkSvg(d.spark, 46, 28, color, d.prevClose, mktIsOpen(it.mk));
     }
   });
 }
