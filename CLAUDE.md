@@ -46,7 +46,7 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 | `index.html` | 홈 — 피드 + 각 섹션 미리보기 |
 | `news.html` | 뉴스 전용 피드 — 2026-07-27 "🌡️ 지금 산업 온도" 보드 추가(news_analysis.sectors 톤 집계) |
 | `heatmap.html` | 히트맵 전용 (섹터 드릴다운 뷰 포함) |
-| `kr-market.html` | 국장·미장 현황 (지수카드/인기검색/수급차트) |
+| `kr-market.html` | 국장·미장 현황 — 2026-07-31 전면 재설계(밤사이 브리지·시장 온도계·수급차트·뉴스vs주가·시간대 모드, 아래 전용 섹션 참고) |
 | `picks.html` | 매수 후보 — ⚠️ 2026-07-21부터 공개 노출 중단(아래 유사투자자문업 섹션), 데이터는 비공개 유지 |
 | `sectors.html` | 섹터 지도 |
 | `analysis.html` | 이슈 상세 — 2026-07-21 대폭 축소(수혜기업/신뢰도 제거, ai_digest 요약 중심) |
@@ -69,6 +69,8 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 
 **AI 큐 운영(토큰 절감, 2026-07-21~22)**: 스케줄 Claude Code 에이전트는 **KST 고정 12슬롯 시간표**로 돌고, agent-queue per-cycle 한도는 5/5로 축소됨(구 20/25). 파이프라인 추가 시 어드민 패널의 시간표 문서와 맞출 것.
 
+**뉴스 이슈 분석 짝수시 추가(2026-07-28)**: 위 12슬롯 시간표(`stockripple-analyze-agent`, cron `15 1-23/2 * * *`, 홀수시)와 별도로, 짝수시 전용 자매 스케줄 작업 `stockripple-news-only-agent`(cron `15 0-22/2 * * *`)가 추가됨 — 이 작업은 뉴스분석 제출 + `analyze_batches`(이슈 discover/decide) 처리만 하고 `agent_jobs`(나머지 6개 파이프라인 + article_digest/rank_reason)는 전혀 건드리지 않는다. 목적은 뉴스 이슈 판단 신선도를 2시간 주기에서 1시간 주기로 좁히는 것 — 나머지 파이프라인과 슬롯별 추가 제출(AI 시장종합/종목분석/데일리 등)은 여전히 홀수시 2시간 주기 그대로. 두 스케줄 작업 모두 `C:\Users\S9_User\.claude\scheduled-tasks\`에 SKILL.md로 존재.
+
 **`news_analysis` — article_digest 확장(2026-07-27, 다른 계정 작업)**: `article_digest` 파이프라인이 기존 `ai_digest`(순수 요약) 외에 같은 큐 항목 하나로 `issues.news_analysis` jsonb 컬럼(`{keypoints:["핵심1",...], sectors:[{name,tone:"pos|neg|neu"}]}`)도 함께 채우도록 확장됨(`db/news-analysis.sql` — **아직 실행 안 됨, 마이그레이션 전까지는 컬럼 없이 우아하게 폴백**). `sectors[].tone`은 "이 뉴스가 어떤 산업 테마에 우호적/비우호적인가"라는 편집성 분류일 뿐 특정 종목을 지목하지 않아 `analyses`/`analysis_companies`와 무관 — `expose_ripple_effects` 게이트 대상이 아니고 노출 여부와 무관하게 항상 응답에 포함됨. `news.html`에 이 톤을 최근~120건 집계한 "🌡️ 지금 산업 온도" 보드가 추가됐고, `analysis.html`(이슈 상세)에도 🔑 핵심 포인트 + 📡 산업 영향 톤 칩이 추가됨. 스케줄 Claude Code 에이전트(`stockripple-analyze-agent` SKILL.md)의 `article_digest` 응답 스키마도 이 3필드로 갱신해둠.
 
 **⚠️ 노출 게이트는 `analyze`가 아니라 `expose_ripple_effects`(2026-07-27 분리)**: 원래 `handleIssuesFeed`/`handleInsightsRaw`/`handleSectorMapGet`(`api/admin.js`) 셋 다 "매수후보/신뢰도/파급효과 데이터를 공개 응답에 넣을지"를 `analyze` 플래그 하나로 판단하고 있었다 — `analyze`는 원래 "분석 파이프라인을 실행할지"(비용/운영 목적)를 위한 플래그인데, 같은 스위치가 노출 여부까지 겸하고 있어서 **`analyze`를 다른 이유로(예: 파이프라인 재개 테스트) 다시 켜면 공개 API가 조용히 다시 노출**되는 사고가 있었다(2026-07-25에 켜진 채로 이틀간 방치돼 있다가 2026-07-27 뉴스피드 점검 중 발견). 지금은 별도 fail-closed 플래그 `expose_ripple_effects`(기본 false, `lib/feature-flags.js`의 `isFeatureEnabledStrict()`로 확인 — 행 없거나 조회 실패 시도 OFF)로 분리했다. **`analyze`는 파이프라인 on/off만 담당, 공개 노출은 오직 `expose_ripple_effects`가 결정** — 새 엔드포인트에서 이 3개 테이블(analyses/analysis_companies 조인, ripple_effects, confidence_score, 매수후보 companies)을 다시 노출하려 하면 반드시 `isFeatureEnabledStrict(supabase, 'expose_ripple_effects')`로 게이트할 것, `isFeatureEnabled(supabase, 'analyze')`로 게이트하면 이 사고가 재발한다.
@@ -78,6 +80,18 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 `market-detail.html`이 원래 TradingView `widgetembed` iframe을 썼는데, 실측(2026-07)해보니 12개 시장지표 중 **NASDAQ:IXIC(나스닥종합)/KRX:KOSPI/KRX:KOSDAQ/TVC:VIX/NASDAQ:SOX/CME_MINI:NQ1!(나스닥100선물) 6개가 "TradingView 에서만 제공되는 심볼입니다" 에러**로 아예 안 뜸(TVC:/CBOE: 등 다른 프리픽스로 바꿔도 동일 — 해당 지수 자체가 무료 임베드 티어에서 제외된 것). FOREXCOM:SPXUSD/FOREXCOM:DJI/FX_IDC:USDKRW/BITSTAMP:BTCUSD/TVC:GOLD/TVC:USOIL는 정상 작동. → **해결책은 TradingView 심볼을 계속 바꿔가며 찾는 게 아니라 자체 차트로 대체**: `api/indices.js`의 `?chart=심볼id&range=` 브랜치가 Yahoo 일봉을 반환하고, `market-detail.html`이 lightweight-charts(area series)로 직접 그림 — 12개 전부 이 방식이라 TradingView 가용성 문제 자체가 없음. 다른 화면에 차트를 새로 넣을 때도 TradingView 무료 임베드부터 시도하지 말고 이 패턴(Yahoo 히스토리 + lightweight-charts)을 먼저 고려할 것.
 
 ---
+
+## 시장현황(`kr-market.html`) v2 — 2026-07-31 전면 재설계
+
+랭킹 나열 위주였던 페이지를 "지금 뭘 봐야 하는지"에 답하는 화면으로 재구성했다. **모든 신규 로직은 `kr-market.html` 맨 아래 인라인 `<script>`(IIFE)에 있고 `app.js`에 의존하지 않는다** — `app.js`는 5개 페이지 공유라 여기에 이 페이지 전용 코드를 더 넣지 말 것. 기존 랭킹 블록(`loadKrMarket`/`switchKrMarket`)만 `app.js` 것을 계속 쓰는데, 그건 **`index.html`도 같이 쓰므로 지우면 안 된다**.
+
+- **① 밤사이 브리지**: 하드코딩된 `BRIDGE` 테이블(미국 종목군 → 한국 공급망 대응 종목군, 4개 테마)로 양쪽 평균 등락률을 구해 차이를 '갭'으로 표시. `국장 미반영(+)`/`국장 선반영(−)`, |갭|≥3%p면 ⚡. 데이터는 `/api/indices` + `/api/quotes`(KR·US 티커 혼합 조회 가능). 테마·종목을 늘리려면 `BRIDGE` 배열만 고치면 된다.
+- **② 시장 온도계**: VIX·외국인 5일 순매수·USD/KRW 등락률·코스피 52주 위치를 각각 0~100으로 정규화 후 가중평균(1.1/1.1/0.9/0.9) → 반원 SVG 게이지. 구성요소가 하나라도 빠지면 남은 것만으로 계산한다(전부 실패해야 에러 표시).
+- **③ 투자자별 수급**: **네이버 캡처 PNG를 버렸다.** 다크모드에서 흰 판이 뜨고 확대·툴팁이 불가능했음. 지금은 `/api/toss?action=investor-trading` 20거래일 JSON으로 자체 SVG 막대차트(개인/외국인/기관 3계열, 일별↔누적 토글, hover 툴팁). 차트 SVG는 `min-width:520px`이고 `.fl-chart`가 `overflow-x:auto` — **페이지 전체가 아니라 차트 안에서만 가로 스크롤**된다.
+- **④ 뉴스 온도 vs 실제 주가**: `issues.news_analysis.sectors[].tone` 집계(최근 120건, `app.js`의 `loadSectorTemp`와 같은 소스)를 `SEC_MAP`(산업명 키워드 → 대표 종목 티커)으로 실제 평균 등락률과 교차해 "뉴스↑ 주가↓" 괴리를 찾는다. 산업명은 AI가 자유 생성하므로 `SEC_MAP`은 **부분일치(`includes`)** 로 매칭하고, 같은 종목군에 매핑된 산업은 뉴스 건수 최다 1개만 남긴다. `sectors[].tone`은 `expose_ripple_effects` 게이트 대상이 아님(위 섹션 참고).
+- **⑤ NOW 바**: KST 시각으로 개장준비/장중/마감/미장대기/미장장중/새벽/휴장 7개 모드를 판정해 문구·강조색·남은시간을 바꾼다. **로컬 시계가 어긋난 전례가 있어 `Date.now()+9h`로 UTC에서 직접 환산**한다(`kstNow()`).
+
+시각 토큰은 기존 것만 쓴다(`--bg2`/`--border`/`--blue`/`--font-mono` 등). 한국 관례대로 **상승=`--red`, 하락=`--blue`** — 신규 코드에서도 반드시 지킬 것.
 
 ## ETF 서브시스템 (2026-07 신규)
 
