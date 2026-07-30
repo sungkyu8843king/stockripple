@@ -26,6 +26,7 @@ export default async function handler(req, res) {
   const source = (req.query.source || '').toString();
   switch (source) {
     case 'quotes':       return handleQuotes(req, res);
+    case 'kr-proxy':     return handleKrProxy(req, res);
     case 'technicals':   return handleTechnicals(req, res);
     case 'earnings':     return (req.query.type === 'analyst') ? handleAnalyst(res) : handleEarnings(res);
     case 'earnings-calendar': return handleEarningsCalendar(req, res);
@@ -638,6 +639,122 @@ const SHARED_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'application/json, */*',
 };
+
+// ════════════════════════════════════════════════════════════════════════
+// kr-proxy — GET ?source=kr-proxy
+// 국장 마감 중에 "해외에서 거래되는 한국물"이 지금 어떻게 움직이는지 모아준다.
+// 국장 재개장 시 예상 가격을 역산하기 위한 원재료(raw signal)만 제공하고,
+// 가중치·베타 같은 모델 파라미터는 클라이언트(kr-market.html)가 갖는다 —
+// 모델을 고도화할 때 서버 재배포 없이 프론트만 고치면 되게 하려는 의도.
+//
+// 각 소스는 실패해도 전체를 깨뜨리지 않고 available:false로만 표시된다.
+// (특히 바이낸스는 지역/네트워크에 따라 아예 막히는 환경이 있어 필수 아님)
+// ════════════════════════════════════════════════════════════════════════
+
+// 해외 상장 한국물 — 국장 종목과 1:1로 대응되는 ADR/ETF
+const KR_PROXY_SYMBOLS = {
+  EWY: { kind: 'etf', label: 'MSCI 한국 ETF' },        // 한국 시장 전체
+  '^SOX': { kind: 'index', label: '필라델피아 반도체' },  // 반도체 섹터
+  'KRW=X': { kind: 'fx', label: '원/달러' },
+  SKM: { kind: 'adr', label: 'SK텔레콤', kr: '017670.KS' },
+  KB:  { kind: 'adr', label: 'KB금융',   kr: '105560.KS' },
+  PKX: { kind: 'adr', label: '포스코홀딩스', kr: '005490.KS' },
+  LPL: { kind: 'adr', label: 'LG디스플레이', kr: '034220.KS' },
+  WF:  { kind: 'adr', label: '우리금융',  kr: '316140.KS' },
+  SHG: { kind: 'adr', label: '신한지주',  kr: '055550.KS' },
+  KEP: { kind: 'adr', label: '한국전력',  kr: '015760.KS' },
+};
+
+// 바이낸스에 상장된 주식 perp(토큰화 주식 선물). 심볼 표기는 거래소마다 다르고
+// 상장/폐지가 잦아 후보를 여러 개 두고 먼저 잡히는 것을 쓴다.
+const BINANCE_STOCK_PERPS = {
+  '005930.KS': ['SAMSUNGUSDT', 'SAMSUNGELECUSDT'],
+  '000660.KS': ['SKHYNIXUSDT', 'HYNIXUSDT'],
+};
+
+async function fetchYahooChange(ticker) {
+  try {
+    const r = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`,
+      { headers: SHARED_HEADERS, signal: AbortSignal.timeout(5000) }
+    );
+    if (!r.ok) return null;
+    const meta = (await r.json())?.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+    // 정규장 종료 후에도 시간외가가 있으면 그쪽이 "지금 값"에 더 가깝다
+    const prev = meta.chartPreviousClose ?? meta.previousClose ?? null;
+    const live = meta.postMarketPrice ?? meta.regularMarketPrice ?? meta.preMarketPrice ?? null;
+    if (live == null || !prev) return null;
+    return {
+      price: live,
+      prevClose: prev,
+      changePercent: ((live - prev) / prev) * 100,
+      marketState: meta.marketState ?? null,
+      currency: meta.currency ?? null,
+    };
+  } catch { return null; }
+}
+
+// 바이낸스 주식 perp — 24시간 돌아서 국장·미장이 다 닫힌 시간에도 유일하게 살아있는 신호.
+// 다만 지역 차단·심볼 폐지 가능성이 있어 3초 안에 안 오면 그냥 포기한다.
+async function fetchBinancePerps() {
+  const out = { available: false, reason: null, items: {} };
+  try {
+    const r = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', {
+      headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(3500),
+    });
+    if (!r.ok) { out.reason = `HTTP ${r.status}`; return out; }
+    const arr = await r.json();
+    if (!Array.isArray(arr)) { out.reason = 'unexpected payload'; return out; }
+    const bySym = new Map(arr.map(x => [x.symbol, x]));
+    for (const [krTicker, cands] of Object.entries(BINANCE_STOCK_PERPS)) {
+      const hit = cands.map(s => bySym.get(s)).find(Boolean);
+      if (!hit) continue;
+      const chg = Number(hit.priceChangePercent);
+      if (!isFinite(chg)) continue;
+      out.items[krTicker] = {
+        symbol: hit.symbol, price: Number(hit.lastPrice) || null,
+        changePercent: chg, quoteVolume: Number(hit.quoteVolume) || null,
+      };
+    }
+    out.available = Object.keys(out.items).length > 0;
+    if (!out.available) out.reason = 'no matching stock perp symbol';
+    return out;
+  } catch (e) {
+    out.reason = e.name === 'TimeoutError' ? 'timeout (지역 차단 가능)' : (e.message || 'unreachable').slice(0, 80);
+    return out;
+  }
+}
+
+async function handleKrProxy(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 해외 신호는 실시간성이 중요하지만 국장 재개장 전까지 쓰는 값이라 30초면 충분하다
+  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=90');
+
+  const syms = Object.keys(KR_PROXY_SYMBOLS);
+  const [quoteList, binance] = await Promise.all([
+    mapWithConcurrency(syms, 6, async (s) => [s, await fetchYahooChange(s)]),
+    fetchBinancePerps(),
+  ]);
+
+  const overseas = {};
+  for (const [sym, q] of quoteList) {
+    if (!q) continue;
+    overseas[sym] = { ...KR_PROXY_SYMBOLS[sym], ...q };
+  }
+
+  return res.status(200).json({
+    ok: true,
+    ts: Date.now(),
+    overseas,                                   // EWY/^SOX/환율/ADR 등 야후 기반 신호
+    binance,                                    // { available, reason, items{krTicker:{...}} }
+    coverage: {
+      overseas: Object.keys(overseas).length,
+      expected: syms.length,
+      binance: binance.available ? Object.keys(binance.items).length : 0,
+    },
+  });
+}
 
 // ════════════════════════════════════════════════════════════════════════
 // quotes — GET ?source=quotes&tickers=AAPL,MSFT,005930.KS[&range=1mo][&include=series]
