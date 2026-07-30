@@ -3843,8 +3843,6 @@ const KR_INDEX_DEFS = [
   { t: '^KQ11',  label: '코스닥' },
   { t: '^KS200', label: '코스피200' },
 ];
-const KR_FLOW_CHART_IMG = { KOSPI: 'siseMainKOSPI', KOSDAQ: 'siseMainKOSDAQ', KPI200: 'siseMainKPI200' };
-let _krFlowMkt = 'KOSPI';
 
 // 억원 단위 축약 포맷 (+/- 부호 포함)
 function fmtEok(v) {
@@ -3854,44 +3852,8 @@ function fmtEok(v) {
   return `${sign}${eok >= 10000 ? (eok / 10000).toFixed(1) + '조' : Math.round(eok).toLocaleString() + '억'}`;
 }
 
-function switchKrFlowChart(mkt) {
-  _krFlowMkt = mkt;
-  document.querySelectorAll('.kf-tab').forEach(b => b.classList.toggle('active', b.dataset.kf === mkt));
-  const img = document.getElementById('krFlowChartImg');
-  const dataWrap = document.getElementById('krFlowDataWrap');
-  const srcNote = document.getElementById('krFlowSrcNote');
-
-  // 코스피200은 토스 투자자별 매매대금 API가 지원하지 않아(KOSPI/KOSDAQ만) 기존 네이버 이미지 유지
-  if (mkt === 'KPI200') {
-    if (img) { img.style.display = 'block'; img.src = `https://ssl.pstatic.net/imgfinance/chart/sise/${KR_FLOW_CHART_IMG[mkt]}.png?sid=${Date.now()}`; }
-    if (dataWrap) dataWrap.style.display = 'none';
-    if (srcNote) srcNote.textContent = '📡 데이터: 네이버 증권 · 개인·외국인·기관 누적 순매수 + 지수 추이(당일)';
-    return;
-  }
-
-  if (img) img.style.display = 'none';
-  if (dataWrap) {
-    dataWrap.style.display = 'block';
-    dataWrap.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div>';
-  }
-  if (srcNote) srcNote.textContent = '📡 데이터: 토스증권 공식 API · 개인·외국인·기관 일별 순매수 (매수대금 − 매도대금)';
-
-  fetch(`/api/toss?action=investor-trading&symbol=${mkt}&count=6`)
-    .then(r => r.json())
-    .then(j => {
-      if (_krFlowMkt !== mkt || !dataWrap) return; // 탭이 그 사이 바뀌었으면 버림
-      if (!j.ok || !j.records?.length) { dataWrap.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">데이터 없음</div>'; return; }
-      const rows = j.records.map(r => {
-        const cell = (label, v) => `<div style="text-align:center"><div style="font-size:12.5px;color:var(--text3);margin-bottom:2px">${label}</div><div style="font-size:14px;font-weight:700;font-family:var(--font-mono);color:${v >= 0 ? 'var(--red)' : 'var(--blue)'}">${fmtEok(v)}</div></div>`;
-        return `<div style="display:grid;grid-template-columns:52px repeat(3,1fr);gap:6px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--border-soft)">
-          <div style="font-size:13px;color:var(--text3)">${r.date.slice(5).replace('-', '/')}</div>
-          ${cell('개인', r.individual)}${cell('외국인', r.foreigner)}${cell('기관', r.institution)}
-        </div>`;
-      }).join('');
-      dataWrap.innerHTML = `<div style="display:grid;grid-template-columns:52px repeat(3,1fr);gap:6px;padding:0 4px 6px;font-size:12.5px;color:var(--text3);font-weight:700;text-transform:uppercase;border-bottom:1px solid var(--border)"><div></div><div style="text-align:center">개인</div><div style="text-align:center">외국인</div><div style="text-align:center">기관</div></div>${rows}`;
-    })
-    .catch(() => { if (dataWrap) dataWrap.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로드 실패</div>'; });
-}
+// 투자자별 수급은 2026-07-31 시장현황 개편으로 kr-market.html 인라인 차트가 전담한다
+// (네이버 캡처 이미지 → 토스 API 기반 자체 SVG 차트). 여기 있던 switchKrFlowChart는 제거됨.
 
 async function loadKrSummary() {
   const cardsEl = document.getElementById('krIndexCards');
@@ -3910,7 +3872,6 @@ async function loadKrSummary() {
     }).join('');
 
     renderKrPopularSearch(searchRes?.items || []);
-    switchKrFlowChart(_krFlowMkt);
 
     const upd = document.getElementById('krSummaryUpdatedAt');
     if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) + ' 기준';
@@ -4022,7 +3983,7 @@ let _marketSection = 'kr';
 const MARKET_SECTION_META = {
   kr: {
     title: '국장 현황',
-    sub: '코스피·코스닥 거래량 TOP · 상한가 · 하한가 · 수급 TOP · 거래량 급증 랭킹',
+    sub: '밤사이 미국 흐름이 오늘 국장에 남긴 것 · 시장 온도계 · 투자자별 수급 · 뉴스 대비 주가',
   },
   us: {
     title: '미장 현황',

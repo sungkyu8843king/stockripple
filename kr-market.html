@@ -467,18 +467,6 @@ button { font-family: inherit; }
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
   padding: 18px 20px;
 }
-.flow-chart-wrap {
-  background: var(--bg); border: 1px solid var(--border-soft); border-radius: var(--r-md);
-  padding: 10px;
-}
-/* 코스피200 탭만 토스 투자자별 API가 미지원이라 네이버 PNG를 쓴다(다른 탭은 네이티브 표).
-   그 이미지는 559px짜리 흰 배경 차트라 (1) 폭을 꽉 채우면 1.5배 확대돼 뭉개지고
-   (2) 다크 모드에서 흰 판이 그대로 떠 이질적이었다 — 원본 크기까지만 키우고 항상
-   흰 판 위에 올려 두 모드 모두에서 일관되게 보이게 한다. */
-#krFlowChartImg {
-  max-width: 559px; margin: 0 auto;
-  background: #fff; border-radius: 6px; padding: 6px;
-}
 .icon-btn {
   background: var(--bg3); border: none; color: var(--text2);
   padding: 5px 9px; border-radius: var(--r-sm); font-size: 14px; cursor: pointer;
@@ -1081,6 +1069,93 @@ button { font-family: inherit; }
   .nav-btn { padding: 6px 9px; font-size: 14.5px; }
 }
 
+/* ═══════════════════════════════════════════════════════════
+ * 시장현황 v2 (2026-07-31 전면 재설계)
+ * 밤사이 브리지 · 시장 온도계 · 수급 차트 · 뉴스vs주가 · 시간대 모드
+ * 기존 토큰(--bg2/--border/--blue…)만 사용해 사이트 톤 유지
+ * ═══════════════════════════════════════════════════════════ */
+
+/* ── 공통 패널 ── */
+.mk-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg, 20px); padding: 20px 22px; }
+.mk-panel-t { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.mk-panel-d { font-size: 13.5px; color: var(--text3); line-height: 1.55; margin-bottom: 16px; }
+.mk-grid-2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 18px; }
+
+/* ── ⑤ NOW 바 (시간대 모드) ── */
+.now-bar {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  background: linear-gradient(135deg, var(--bg3) 0%, var(--bg2) 62%);
+  border: 1px solid var(--border-strong); border-radius: var(--r-lg, 20px);
+  padding: 17px 22px; position: relative; overflow: hidden;
+}
+.now-bar::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background: var(--nb-accent, var(--blue)); }
+.now-pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--nb-accent, var(--blue)); flex-shrink: 0; box-shadow: 0 0 0 0 var(--nb-accent, var(--blue)); animation: nbPulse 2.4s infinite; }
+@keyframes nbPulse { 0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--nb-accent,var(--blue)) 55%, transparent)} 70%{box-shadow:0 0 0 11px transparent} 100%{box-shadow:0 0 0 0 transparent} }
+.now-state { font-size: 17.5px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }
+.now-guide { font-size: 14.5px; color: var(--text2); line-height: 1.55; flex: 1; min-width: 220px; }
+.now-count { font-family: var(--font-mono); font-size: 14.5px; font-weight: 700; color: var(--nb-accent, var(--blue)); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ── ① 밤사이 브리지 ── */
+.br-idx { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+.br-idx-c { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r-md, 14px); padding: 13px 15px; min-width: 0; }
+.br-idx-n { font-size: 13.5px; color: var(--text3); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.br-idx-v { font-size: 21px; font-weight: 800; font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; margin-top: 5px; }
+.br-idx-c.hot { border-color: color-mix(in srgb, var(--red) 45%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--red) 11%, var(--bg3)), var(--bg3)); }
+.br-idx-c.cold { border-color: color-mix(in srgb, var(--blue) 45%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--blue) 11%, var(--bg3)), var(--bg3)); }
+
+.br-row { display: grid; grid-template-columns: minmax(0,1fr) 46px minmax(0,1fr); gap: 10px; align-items: stretch; padding: 13px 0; border-top: 1px solid var(--border-soft); }
+.br-row:first-of-type { border-top: none; }
+.br-side { min-width: 0; }
+.br-side-h { font-size: 12.8px; color: var(--text3); font-weight: 700; letter-spacing: 0.04em; margin-bottom: 7px; text-transform: uppercase; }
+.br-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg3); border: 1px solid var(--border); border-radius: 9px; padding: 6px 10px; margin: 0 5px 5px 0; font-size: 13.5px; max-width: 100%; }
+.br-chip b { font-weight: 600; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.br-chip i { font-style: normal; font-family: var(--font-mono); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.br-arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--text3); }
+.br-arrow span { font-size: 19px; line-height: 1; }
+.br-gap { font-size: 12.8px; font-weight: 800; font-family: var(--font-mono); padding: 3px 7px; border-radius: 7px; white-space: nowrap; }
+.br-theme { font-size: 15px; font-weight: 750; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+
+/* ── ② 시장 온도계 ── */
+.tm-wrap { display: grid; grid-template-columns: 218px minmax(0,1fr); gap: 24px; align-items: center; }
+.tm-gauge { position: relative; text-align: center; }
+.tm-score { font-size: 42px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.04em; line-height: 1; margin-top: -14px; }
+.tm-label { font-size: 15.5px; font-weight: 750; margin-top: 5px; }
+.tm-comp { display: flex; flex-direction: column; gap: 11px; }
+.tm-row { display: grid; grid-template-columns: 86px minmax(0,1fr) 62px; gap: 11px; align-items: center; }
+.tm-row-n { font-size: 13.8px; color: var(--text2); font-weight: 600; white-space: nowrap; }
+.tm-track { height: 9px; border-radius: 5px; background: var(--bg4); overflow: hidden; position: relative; }
+.tm-fill { height: 100%; border-radius: 5px; transition: width .6s cubic-bezier(.4,0,.2,1); }
+.tm-row-v { font-size: 13.5px; font-weight: 700; font-family: var(--font-mono); text-align: right; color: var(--text2); font-variant-numeric: tabular-nums; }
+
+/* ── ③ 수급 차트 ── */
+.fl-legend { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 10px; }
+.fl-lg { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--text2); font-weight: 600; }
+.fl-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+.fl-chart { width: 100%; overflow-x: auto; }
+.fl-chart svg { display: block; min-width: 520px; }
+.fl-tip { position: fixed; z-index: 999; background: var(--bg4); border: 1px solid var(--border-strong); border-radius: 10px; padding: 9px 12px; font-size: 13px; pointer-events: none; box-shadow: var(--shadow-card); display: none; line-height: 1.6; }
+
+/* ── ④ 뉴스 vs 주가 ── */
+.nv-row { display: grid; grid-template-columns: 96px minmax(0,1fr) 74px 96px; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+.nv-name { font-size: 14.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nv-bar { height: 14px; border-radius: 5px; background: var(--bg4); display: flex; overflow: hidden; }
+.nv-px { font-size: 14px; font-weight: 700; font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.nv-badge { font-size: 12.5px; font-weight: 700; padding: 4px 8px; border-radius: 7px; text-align: center; white-space: nowrap; }
+.nv-head { display: grid; grid-template-columns: 96px minmax(0,1fr) 74px 96px; gap: 12px; font-size: 12.8px; color: var(--text3); font-weight: 700; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
+
+@media (max-width: 900px) {
+  .tm-wrap { grid-template-columns: minmax(0,1fr); gap: 18px; }
+  .mk-grid-2 { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 620px) {
+  .mk-panel { padding: 17px 15px; }
+  .br-row { grid-template-columns: minmax(0,1fr); gap: 4px; }
+  .br-arrow { flex-direction: row; padding: 2px 0; }
+  .br-arrow span { transform: rotate(90deg); }
+  .nv-row, .nv-head { grid-template-columns: 74px minmax(0,1fr) 60px; }
+  .nv-row .nv-badge, .nv-head span:last-child { display: none; }
+  .now-state { font-size: 16px; }
+}
 </style>
 </head>
 <body>
@@ -1120,7 +1195,7 @@ button { font-family: inherit; }
 
 <div class="hero" id="heroSection">
   <h1 class="hero-title" id="marketHeroTitle"><span>국장·미장 현황</span></h1>
-  <p class="hero-sub" id="marketHeroSub">코스피·코스닥 거래량 TOP · 상한가 · 하한가 · 수급 TOP · 거래량 급증 랭킹</p>
+  <p class="hero-sub" id="marketHeroSub">밤사이 미국 흐름이 오늘 국장에 남긴 것 · 시장 온도계 · 투자자별 수급 · 뉴스 대비 주가</p>
 </div>
 
 
@@ -1133,6 +1208,110 @@ button { font-family: inherit; }
     </div>
 
     <div id="krMarketWrap" style="display:flex;flex-direction:column;gap:24px">
+
+      <!-- ⑤ NOW 바 — 지금 시각에 따라 문구/강조가 바뀐다 -->
+      <div class="now-bar" id="nowBar">
+        <span class="now-pulse"></span>
+        <span class="now-state" id="nowState">시장 상태 확인 중…</span>
+        <span class="now-guide" id="nowGuide">—</span>
+        <span class="now-count" id="nowCount"></span>
+      </div>
+
+      <!-- ① 밤사이 브리지 -->
+      <div class="section-block">
+        <div class="section-head">
+          <div class="section-head-l">
+            <span class="sh-mark" style="background:var(--purple)"></span>
+            <span class="sh-title">🌉 밤사이 브리지</span>
+            <span class="sh-desc" id="brDesc">미국 시장이 오늘 국장에 남긴 것</span>
+          </div>
+          <div class="section-head-r">
+            <button onclick="loadBridge()" title="새로고침" class="icon-btn">🔄</button>
+          </div>
+        </div>
+        <div class="mk-panel">
+          <div class="br-idx" id="brIdx">
+            <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:14.5px;padding:14px">불러오는 중…</div>
+          </div>
+          <div id="brRows"></div>
+          <div style="margin-top:12px;font-size:13px;color:var(--text3);line-height:1.55">
+            📡 미국 지표·종목은 실시간, 한국 종목은 장 마감 중이면 직전 종가입니다. ‘갭’은 두 시장의 등락률 차이로, 다음 개장의 방향을 보장하지 않습니다.
+          </div>
+        </div>
+      </div>
+
+      <!-- ② 시장 온도계 + ③ 수급 -->
+      <div class="mk-grid-2">
+        <div class="section-block" style="margin-bottom:0">
+          <div class="section-head">
+            <div class="section-head-l">
+              <span class="sh-mark" style="background:var(--yellow)"></span>
+              <span class="sh-title">🌡️ 시장 온도계</span>
+            </div>
+          </div>
+          <div class="mk-panel">
+            <div class="mk-panel-d">변동성·수급·환율·지수 위치를 하나의 점수로 합친 심리 지표입니다.</div>
+            <div class="tm-wrap">
+              <div class="tm-gauge" id="tmGauge"></div>
+              <div class="tm-comp" id="tmComp">
+                <div style="color:var(--text3);font-size:14.5px">불러오는 중…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-block" style="margin-bottom:0">
+          <div class="section-head">
+            <div class="section-head-l">
+              <span class="sh-mark" style="background:var(--green)"></span>
+              <span class="sh-title">💰 투자자별 수급</span>
+            </div>
+            <div class="section-head-r">
+              <div class="seg">
+                <button class="hm-tab fl-mk active" data-flmk="KOSPI"  onclick="switchFlow('KOSPI')">코스피</button>
+                <button class="hm-tab fl-mk"        data-flmk="KOSDAQ" onclick="switchFlow('KOSDAQ')">코스닥</button>
+              </div>
+              <div class="seg">
+                <button class="hm-tab fl-md active" data-flmd="daily" onclick="switchFlowMode('daily')">일별</button>
+                <button class="hm-tab fl-md"        data-flmd="cum"   onclick="switchFlowMode('cum')">누적</button>
+              </div>
+            </div>
+          </div>
+          <div class="mk-panel">
+            <div class="fl-legend">
+              <span class="fl-lg"><span class="fl-dot" style="background:var(--text3)"></span>개인</span>
+              <span class="fl-lg"><span class="fl-dot" style="background:var(--blue)"></span>외국인</span>
+              <span class="fl-lg"><span class="fl-dot" style="background:var(--yellow)"></span>기관</span>
+            </div>
+            <div class="fl-chart" id="flChart">
+              <div style="color:var(--text3);font-size:14.5px;padding:20px;text-align:center">불러오는 중…</div>
+            </div>
+            <div style="margin-top:8px;font-size:13px;color:var(--text3)">📡 토스증권 공식 API · 매수대금 − 매도대금 (최근 20거래일)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ 뉴스 온도 vs 실제 주가 -->
+      <div class="section-block">
+        <div class="section-head">
+          <div class="section-head-l">
+            <span class="sh-mark" style="background:var(--red)"></span>
+            <span class="sh-title">🔀 뉴스 온도 vs 실제 주가</span>
+            <span class="sh-desc">뉴스는 좋은데 주가는 빠진 곳을 찾습니다</span>
+          </div>
+        </div>
+        <div class="mk-panel">
+          <div class="nv-head">
+            <span>산업</span><span>뉴스 톤</span><span style="text-align:right">주가</span><span style="text-align:center">해석</span>
+          </div>
+          <div id="nvRows"><div style="color:var(--text3);font-size:14.5px;padding:18px;text-align:center">불러오는 중…</div></div>
+          <div style="margin-top:12px;font-size:13px;color:var(--text3);line-height:1.55">
+            📡 뉴스 톤은 최근 기사 120건의 산업 영향 방향을 집계한 편집성 분류이며, 주가는 각 산업 대표 종목의 평균 등락률입니다. 특정 종목의 매수·매도 의견이 아닙니다.
+          </div>
+        </div>
+      </div>
+
+      <!-- 지수 카드 + 인기 검색 -->
       <div id="krSummarySection" class="section-block">
         <div class="section-head">
           <div class="section-head-l">
@@ -1149,23 +1328,9 @@ button { font-family: inherit; }
           <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div>
         </div>
 
-        <div id="krSummaryGrid" style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px">
-          <div>
-            <div class="seg" id="krFlowChartTabs" style="margin-bottom:8px;display:inline-flex">
-              <button class="hm-tab kf-tab active" data-kf="KOSPI"  onclick="switchKrFlowChart('KOSPI')">코스피</button>
-              <button class="hm-tab kf-tab"        data-kf="KOSDAQ" onclick="switchKrFlowChart('KOSDAQ')">코스닥</button>
-              <button class="hm-tab kf-tab"        data-kf="KPI200" onclick="switchKrFlowChart('KPI200')">코스피200</button>
-            </div>
-            <div class="flow-chart-wrap" id="krFlowChartWrap">
-              <img id="krFlowChartImg" alt="투자자별 순매수 추이" style="width:100%;border-radius:8px;display:block">
-              <div id="krFlowDataWrap" style="display:none"></div>
-            </div>
-            <div style="margin-top:6px;font-size:13px;color:var(--text3)" id="krFlowSrcNote">📡 데이터: 네이버 증권 · 개인·외국인·기관 누적 순매수 + 지수 추이(당일)</div>
-          </div>
-          <div style="min-width:0">
-            <div class="sh-title" style="font-size:15.5px;margin-bottom:8px">🔍 인기 검색 종목</div>
-            <div id="krPopularSearch"><div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div></div>
-          </div>
+        <div style="min-width:0">
+          <div class="sh-title" style="font-size:15.5px;margin-bottom:8px">🔍 인기 검색 종목</div>
+          <div id="krPopularSearch"><div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div></div>
         </div>
       </div>
 
@@ -1358,6 +1523,395 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && document.getElementById('indexChartModal').style.display === 'flex')
     closeIndexChart();
 });
+</script>
+
+<!-- ═══ 시장현황 v2 엔진 (2026-07-31) ═══════════════════════════════
+     ① 밤사이 브리지 ② 시장 온도계 ③ 수급 차트 ④ 뉴스vs주가 ⑤ 시간대 모드
+     app.js(defer)보다 늦게 도는 DOMContentLoaded 안에서만 시작한다. -->
+<script>
+(function () {
+  'use strict';
+
+  /* ── 공통 유틸 (app.js에 의존하지 않도록 자체 정의) ── */
+  const UP = 'var(--red)', DOWN = 'var(--blue)', FLAT = 'var(--text3)';
+  const sgnCol = v => v > 0 ? UP : v < 0 ? DOWN : FLAT;
+  const pct = v => (v == null || !isFinite(v)) ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const num = v => (typeof v === 'number' && isFinite(v)) ? v : null;
+  function eok(v) {
+    if (v == null || !isFinite(v)) return '—';
+    const a = Math.abs(v), s = v < 0 ? '-' : '';
+    if (a >= 1e12) return s + (a / 1e12).toFixed(1) + '조';
+    if (a >= 1e8) return s + Math.round(a / 1e8).toLocaleString() + '억';
+    return s + Math.round(a / 1e4).toLocaleString() + '만';
+  }
+  const jget = u => fetch(u).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
+  // 현재 KST 시각 — 이 환경의 로컬 시계가 어긋난 전례가 있어 UTC에서 직접 환산한다.
+  function kstNow() { return new Date(Date.now() + 9 * 3600000); }
+
+  /* ══ ⑤ NOW 바 — 시간대 모드 ═══════════════════════════════════ */
+  const MODES = {
+    preopen:  { s: '🌅 국장 개장 준비', c: 'var(--yellow)', g: '밤사이 미국 시장이 남긴 흐름부터 확인하세요. 아래 브리지가 오늘 어떤 업종이 먼저 반응할지 보여줍니다.' },
+    krOpen:   { s: '🇰🇷 국장 장중',     c: 'var(--red)',    g: '지금 코스피·코스닥이 열려 있습니다. 수급과 거래량 상위 종목이 실시간으로 바뀝니다.' },
+    krClose:  { s: '🌆 국장 마감',      c: 'var(--blue)',   g: '오늘 장을 정리할 시간입니다. 투자자별 수급으로 누가 사고 팔았는지 확인해 보세요.' },
+    usWait:   { s: '🌙 미장 대기',      c: 'var(--purple)', g: '미국 시장 개장 전입니다. 오늘 밤 지켜볼 지표와 뉴스 온도를 미리 훑어두세요.' },
+    usOpen:   { s: '🇺🇸 미장 장중',     c: 'var(--green)',  g: '지금 미국 시장이 열려 있습니다. 여기서 나온 결과가 내일 아침 국장의 출발점이 됩니다.' },
+    dawn:     { s: '🌄 미장 마감',      c: 'var(--blue)',   g: '밤사이 미국 시장이 끝났습니다. 오늘 국장 개장 전 브리지를 확인하세요.' },
+    weekend:  { s: '💤 휴장',           c: 'var(--text3)',  g: '주말입니다. 지난주 수급 흐름과 산업별 뉴스 온도를 돌아보기 좋은 때입니다.' },
+  };
+  function currentMode() {
+    const k = kstNow(), dow = k.getUTCDay(), h = k.getUTCHours(), m = k.getUTCMinutes(), t = h * 60 + m;
+    if (dow === 6 || dow === 0) return { key: 'weekend' };            // 토·일
+    if (t >= 480 && t < 540)  return { key: 'preopen', until: 540 };  // 08:00~09:00
+    if (t >= 540 && t < 930)  return { key: 'krOpen',  until: 930 };  // 09:00~15:30
+    if (t >= 930 && t < 1080) return { key: 'krClose', until: 1350 }; // 15:30~18:00
+    if (t >= 1080 && t < 1350) return { key: 'usWait', until: 1350 }; // 18:00~22:30
+    if (t >= 1350)             return { key: 'usOpen', until: 1440 + 300 }; // 22:30~24:00
+    if (t < 300)               return { key: 'usOpen', until: 300 };  // ~05:00
+    return { key: 'dawn', until: 480 };                               // 05:00~08:00
+  }
+  function paintNow() {
+    const bar = document.getElementById('nowBar'); if (!bar) return;
+    const cur = currentMode(), mode = MODES[cur.key] || MODES.weekend;
+    bar.style.setProperty('--nb-accent', mode.c);
+    document.getElementById('nowState').textContent = mode.s;
+    document.getElementById('nowGuide').textContent = mode.g;
+    const cEl = document.getElementById('nowCount');
+    if (cur.until != null) {
+      const k = kstNow(), t = k.getUTCHours() * 60 + k.getUTCMinutes();
+      let left = cur.until - t; if (left < 0) left += 1440;
+      const lbl = cur.key === 'preopen' ? '개장까지' : cur.key === 'krOpen' ? '마감까지'
+        : cur.key === 'usWait' ? '미장 개장까지' : cur.key === 'usOpen' ? '미장 마감까지' : '국장 개장까지';
+      cEl.textContent = `${lbl} ${Math.floor(left / 60)}시간 ${left % 60}분`;
+    } else cEl.textContent = '';
+    // 브리지 설명도 시간대에 맞춰 바꾼다
+    const bd = document.getElementById('brDesc');
+    if (bd) bd.textContent = (cur.key === 'usOpen') ? '지금 미국 시장이 국장에 만들고 있는 격차'
+      : (cur.key === 'krOpen') ? '밤사이 미국 흐름에 국장이 지금 어떻게 반응 중인지'
+      : '미국 시장이 오늘 국장에 남긴 것';
+  }
+
+  /* ══ ① 밤사이 브리지 ══════════════════════════════════════════ */
+  const BRIDGE = [
+    { theme: '🔌 AI 반도체·메모리', why: '미국 AI칩 수요가 곧 한국 HBM·D램 주문으로 이어집니다',
+      us: [['NVDA', '엔비디아'], ['AMD', 'AMD'], ['AVGO', '브로드컴']],
+      kr: [['005930.KS', '삼성전자'], ['000660.KS', 'SK하이닉스'], ['042700.KS', '한미반도체']] },
+    { theme: '🔋 전기차·2차전지', why: '테슬라 판매·투자 흐름이 한국 배터리 3사 가동률에 직결됩니다',
+      us: [['TSLA', '테슬라']],
+      kr: [['373220.KS', 'LG에너지솔루션'], ['006400.KS', '삼성SDI'], ['003670.KS', '포스코퓨처엠']] },
+    { theme: '📱 스마트폰·부품', why: '애플 물량이 한국 카메라모듈·기판 업체 실적을 좌우합니다',
+      us: [['AAPL', '애플']],
+      kr: [['011070.KS', 'LG이노텍'], ['009150.KS', '삼성전기']] },
+    { theme: '☁️ 빅테크·플랫폼', why: '미국 플랫폼 투자심리가 국내 인터넷주 밸류에이션에 반영됩니다',
+      us: [['MSFT', '마이크로소프트'], ['GOOGL', '알파벳'], ['META', '메타']],
+      kr: [['035420.KS', 'NAVER'], ['035720.KS', '카카오']] },
+  ];
+  const BR_IDX = [['nasdaq', '나스닥'], ['sox', '필라델피아 반도체'], ['sp500', 'S&P 500'], ['nq', '나스닥 선물']];
+
+  window.loadBridge = async function () {
+    const idxEl = document.getElementById('brIdx'), rowEl = document.getElementById('brRows');
+    if (!idxEl) return;
+    try {
+      const tickers = [...new Set(BRIDGE.flatMap(b => [...b.us.map(x => x[0]), ...b.kr.map(x => x[0])]))];
+      const [ind, qr] = await Promise.all([
+        jget('/api/indices'),
+        jget('/api/quotes?tickers=' + tickers.map(encodeURIComponent).join(',')),
+      ]);
+      const I = ind.data || {}, Q = qr.data || {};
+
+      idxEl.innerHTML = BR_IDX.map(([id, label]) => {
+        const d = I[id]; if (!d) return '';
+        const c = num(d.changePercent);
+        const cls = c > 1.5 ? ' hot' : c < -1.5 ? ' cold' : '';
+        return `<div class="br-idx-c${cls}">
+          <div class="br-idx-n">${esc(label)}</div>
+          <div class="br-idx-v" style="color:${sgnCol(c)}">${pct(c)}</div>
+          <div style="font-size:13px;color:var(--text3);font-family:var(--font-mono);margin-top:2px">${d.price != null ? Number(d.price).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}</div>
+        </div>`;
+      }).join('') || '<div style="color:var(--text3);font-size:14.5px">지수 데이터를 불러오지 못했습니다.</div>';
+
+      const avg = list => {
+        const vs = list.map(([t]) => num(Q[t]?.changePercent)).filter(v => v != null);
+        return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
+      };
+      const chips = list => list.map(([t, n]) => {
+        const c = num(Q[t]?.changePercent);
+        return `<span class="br-chip"><b>${esc(n)}</b><i style="color:${sgnCol(c)}">${pct(c)}</i></span>`;
+      }).join('');
+
+      rowEl.innerHTML = BRIDGE.map(b => {
+        const u = avg(b.us), k = avg(b.kr);
+        const gap = (u != null && k != null) ? u - k : null;
+        let badge = '';
+        if (gap != null) {
+          const strong = Math.abs(gap) >= 3;
+          const col = gap > 0 ? UP : gap < 0 ? DOWN : FLAT;
+          const txt = gap > 0 ? `국장 미반영 +${gap.toFixed(1)}%p` : gap < 0 ? `국장 선반영 ${gap.toFixed(1)}%p` : '격차 없음';
+          badge = `<span class="br-gap" style="color:${col};background:color-mix(in srgb, ${col} 15%, transparent)">${strong ? '⚡ ' : ''}${txt}</span>`;
+        }
+        return `<div style="padding-top:6px">
+          <div class="br-theme">${esc(b.theme)} ${badge}</div>
+          <div style="font-size:13.2px;color:var(--text3);margin-bottom:9px;line-height:1.5">${esc(b.why)}</div>
+          <div class="br-row">
+            <div class="br-side"><div class="br-side-h">🇺🇸 미국</div>${chips(b.us)}</div>
+            <div class="br-arrow"><span>➜</span><div style="font-size:12.5px;font-weight:700;color:${sgnCol(gap)}">${gap != null ? (gap > 0 ? '+' : '') + gap.toFixed(1) : ''}</div></div>
+            <div class="br-side"><div class="br-side-h">🇰🇷 한국</div>${chips(b.kr)}</div>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      idxEl.innerHTML = `<div style="grid-column:1/-1;color:var(--text3);font-size:14.5px;padding:14px;text-align:center">브리지를 불러오지 못했습니다 — ${esc(e.message)}</div>`;
+    }
+  };
+
+  /* ══ ② 시장 온도계 ════════════════════════════════════════════ */
+  const TM_BANDS = [
+    { max: 20, label: '극단적 공포', col: 'var(--blue)' },
+    { max: 40, label: '공포', col: '#5b8def' },
+    { max: 60, label: '중립', col: 'var(--text2)' },
+    { max: 80, label: '낙관', col: '#e8965a' },
+    { max: 101, label: '과열', col: 'var(--red)' },
+  ];
+  function gaugeSvg(score, col) {
+    const R = 78, CX = 96, CY = 96, W = 14;
+    const a = Math.PI * (1 - clamp(score, 0, 100) / 100);
+    const x = CX + R * Math.cos(a), y = CY - R * Math.sin(a);
+    const arc = (from, to, stroke, op) => {
+      const a1 = Math.PI * (1 - from / 100), a2 = Math.PI * (1 - to / 100);
+      const x1 = CX + R * Math.cos(a1), y1 = CY - R * Math.sin(a1);
+      const x2 = CX + R * Math.cos(a2), y2 = CY - R * Math.sin(a2);
+      return `<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${R} ${R} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${stroke}" stroke-width="${W}" stroke-linecap="round" opacity="${op}"/>`;
+    };
+    return `<svg viewBox="0 0 192 116" style="width:100%;max-width:192px;height:auto" role="img" aria-label="시장 온도 ${Math.round(score)}점">
+      ${arc(0, 100, 'var(--bg4)', 1)}
+      ${arc(0, clamp(score, 0.5, 100), col, 1)}
+      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8" fill="var(--bg2)" stroke="${col}" stroke-width="3.5"/>
+    </svg>`;
+  }
+  window.loadTemp = async function () {
+    const gEl = document.getElementById('tmGauge'), cEl = document.getElementById('tmComp');
+    if (!gEl) return;
+    try {
+      const [ind, flow] = await Promise.all([
+        jget('/api/indices'),
+        jget('/api/toss?action=investor-trading&symbol=KOSPI&count=5').catch(() => null),
+      ]);
+      const I = ind.data || {};
+      const comps = [];
+
+      const vix = num(I.vix?.price);
+      if (vix != null) comps.push({ n: '변동성 (VIX)', s: clamp((40 - vix) / 28 * 100, 0, 100), v: vix.toFixed(1), w: 1.1 });
+
+      const fsum = (flow?.records || []).reduce((a, r) => a + (num(r.foreigner) || 0), 0);
+      if (flow?.records?.length) comps.push({ n: '외국인 수급', s: clamp(50 + fsum / 5e12 * 50, 0, 100), v: eok(fsum), w: 1.1 });
+
+      const fx = num(I.usdkrw?.changePercent);
+      if (fx != null) comps.push({ n: '원화 (환율)', s: clamp(50 - fx * 25, 0, 100), v: pct(fx), w: 0.9 });
+
+      const kp = I.kospi;
+      if (kp && num(kp.fiftyTwoWeekHigh) && num(kp.fiftyTwoWeekLow)) {
+        const rng = kp.fiftyTwoWeekHigh - kp.fiftyTwoWeekLow;
+        if (rng > 0) comps.push({ n: '코스피 위치', s: clamp((kp.price - kp.fiftyTwoWeekLow) / rng * 100, 0, 100), v: '52주 중 ' + Math.round((kp.price - kp.fiftyTwoWeekLow) / rng * 100) + '%', w: 0.9 });
+      }
+
+      if (!comps.length) { cEl.innerHTML = '<div style="color:var(--text3);font-size:14.5px">데이터를 불러오지 못했습니다.</div>'; return; }
+      const tw = comps.reduce((a, c) => a + c.w, 0);
+      const score = comps.reduce((a, c) => a + c.s * c.w, 0) / tw;
+      const band = TM_BANDS.find(b => score < b.max) || TM_BANDS[2];
+
+      gEl.innerHTML = gaugeSvg(score, band.col)
+        + `<div class="tm-score" style="color:${band.col}">${Math.round(score)}</div>`
+        + `<div class="tm-label" style="color:${band.col}">${band.label}</div>`
+        + `<div style="font-size:12.8px;color:var(--text3);margin-top:3px">0 공포 · 100 과열</div>`;
+
+      cEl.innerHTML = comps.map(c => {
+        const bc = TM_BANDS.find(b => c.s < b.max)?.col || 'var(--text2)';
+        return `<div class="tm-row">
+          <div class="tm-row-n">${esc(c.n)}</div>
+          <div class="tm-track"><div class="tm-fill" style="width:${c.s.toFixed(0)}%;background:${bc}"></div></div>
+          <div class="tm-row-v">${esc(c.v)}</div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      cEl.innerHTML = `<div style="color:var(--text3);font-size:14.5px">온도계를 불러오지 못했습니다 — ${esc(e.message)}</div>`;
+    }
+  }
+
+  /* ══ ③ 투자자별 수급 차트 ═════════════════════════════════════ */
+  let flMkt = 'KOSPI', flMode = 'daily', flCache = {};
+  const FL_SERIES = [
+    { k: 'individual', n: '개인', c: 'var(--text3)' },
+    { k: 'foreigner', n: '외국인', c: 'var(--blue)' },
+    { k: 'institution', n: '기관', c: 'var(--yellow)' },
+  ];
+  window.switchFlow = m => {
+    flMkt = m;
+    document.querySelectorAll('.fl-mk').forEach(b => b.classList.toggle('active', b.dataset.flmk === m));
+    drawFlow();
+  };
+  window.switchFlowMode = m => {
+    flMode = m;
+    document.querySelectorAll('.fl-md').forEach(b => b.classList.toggle('active', b.dataset.flmd === m));
+    drawFlow();
+  };
+  window.drawFlow = async function () {
+    const el = document.getElementById('flChart'); if (!el) return;
+    let recs = flCache[flMkt];
+    if (!recs) {
+      el.innerHTML = '<div style="color:var(--text3);font-size:14.5px;padding:20px;text-align:center">불러오는 중…</div>';
+      try {
+        const j = await jget(`/api/toss?action=investor-trading&symbol=${flMkt}&count=20`);
+        recs = flCache[flMkt] = (j.records || []).slice().reverse(); // 과거→최근
+      } catch (e) {
+        el.innerHTML = `<div style="color:var(--text3);font-size:14.5px;padding:20px;text-align:center">수급 데이터를 불러오지 못했습니다.</div>`; return;
+      }
+    }
+    if (!recs.length) { el.innerHTML = '<div style="color:var(--text3);font-size:14.5px;padding:20px;text-align:center">데이터 없음</div>'; return; }
+
+    const data = FL_SERIES.map(s => {
+      let run = 0;
+      return recs.map(r => { const v = num(r[s.k]) || 0; run += v; return flMode === 'cum' ? run : v; });
+    });
+    const flat = data.flat(), hi = Math.max(0, ...flat), lo = Math.min(0, ...flat);
+    const span = (hi - lo) || 1;
+    const W = 560, H = 210, PL = 52, PR = 8, PT = 12, PB = 26;
+    const iw = W - PL - PR, ih = H - PT - PB;
+    const y = v => PT + (hi - v) / span * ih;
+    const gw = iw / recs.length, bw = Math.max(2, gw / 3 * 0.72);
+
+    const gridVals = [hi, hi - span / 2, lo].filter((v, i, a) => a.indexOf(v) === i);
+    const grid = gridVals.map(v => `<line x1="${PL}" y1="${y(v).toFixed(1)}" x2="${W - PR}" y2="${y(v).toFixed(1)}" stroke="var(--border-soft)" stroke-width="1"/>
+      <text x="${PL - 7}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="11.5" fill="var(--text3)" font-family="var(--font-mono)">${eok(v)}</text>`).join('');
+    const zero = `<line x1="${PL}" y1="${y(0).toFixed(1)}" x2="${W - PR}" y2="${y(0).toFixed(1)}" stroke="var(--border-strong)" stroke-width="1.5"/>`;
+
+    let bars = '';
+    recs.forEach((r, i) => {
+      FL_SERIES.forEach((s, si) => {
+        const v = data[si][i], x = PL + i * gw + si * (gw / 3) + (gw / 3 - bw) / 2;
+        const yt = Math.min(y(v), y(0)), h = Math.max(1, Math.abs(y(v) - y(0)));
+        bars += `<rect x="${x.toFixed(1)}" y="${yt.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${s.c}" rx="1.5" opacity="0.92"
+          data-d="${esc(r.date)}" data-n="${esc(s.n)}" data-v="${eok(v)}" class="flb" style="cursor:crosshair"/>`;
+      });
+    });
+    const labStep = Math.ceil(recs.length / 6);
+    const labels = recs.map((r, i) => (i % labStep === 0 || i === recs.length - 1)
+      ? `<text x="${(PL + i * gw + gw / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="11.5" fill="var(--text3)" font-family="var(--font-mono)">${esc(r.date.slice(5).replace('-', '/'))}</text>` : '').join('');
+
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="투자자별 순매수 ${flMode === 'cum' ? '누적' : '일별'}">${grid}${zero}${bars}${labels}</svg>`;
+
+    // 툴팁
+    let tip = document.getElementById('flTip');
+    if (!tip) { tip = document.createElement('div'); tip.id = 'flTip'; tip.className = 'fl-tip'; document.body.appendChild(tip); }
+    el.querySelectorAll('.flb').forEach(b => {
+      b.addEventListener('mouseenter', ev => {
+        tip.innerHTML = `<b style="font-size:13.5px">${b.dataset.d}</b><br>${b.dataset.n} <b style="font-family:var(--font-mono)">${b.dataset.v}</b>`;
+        tip.style.display = 'block';
+      });
+      b.addEventListener('mousemove', ev => { tip.style.left = (ev.clientX + 14) + 'px'; tip.style.top = (ev.clientY - 12) + 'px'; });
+      b.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+    });
+  }
+
+  /* ══ ④ 뉴스 온도 vs 실제 주가 ═════════════════════════════════ */
+  const SEC_MAP = [
+    [['반도체', 'ai 인프라', 'ai반도체'], ['005930.KS', '000660.KS', '042700.KS']],
+    [['2차전지', '배터리'], ['373220.KS', '006400.KS', '003670.KS']],
+    [['바이오', '제약', '헬스케어', '의료'], ['207940.KS', '068270.KS', '128940.KS']],
+    [['자동차'], ['005380.KS', '000270.KS']],
+    [['인터넷', '플랫폼', 'it', '소프트웨어'], ['035420.KS', '035720.KS']],
+    [['방산', '항공우주'], ['012450.KS', '047810.KS']],
+    [['조선'], ['009540.KS', '010140.KS']],
+    [['금융', '은행', '증권'], ['105560.KS', '055550.KS']],
+    [['에너지', '정유', '원자재'], ['010950.KS', '096770.KS']],
+    [['통신'], ['017670.KS', '030200.KS']],
+    [['화장품', '생활용품', 'k뷰티'], ['051900.KS', '090430.KS']],
+    [['유통', '소비재', '식품'], ['282330.KS', '004170.KS']],
+    [['건설', '부동산'], ['000720.KS', '028260.KS']],
+    [['게임', '엔터'], ['036570.KS', '352820.KS']],
+    [['철강'], ['005490.KS']],
+    [['전력', '원전', '발전'], ['015760.KS', '034020.KS']],
+  ];
+  const secTickers = name => {
+    const n = String(name).toLowerCase();
+    for (const [keys, ts] of SEC_MAP) if (keys.some(k => n.includes(k))) return ts;
+    return null;
+  };
+
+  window.loadNewsVsPrice = async function () {
+    const el = document.getElementById('nvRows'); if (!el) return;
+    if (typeof sb === 'undefined') { el.innerHTML = '<div style="color:var(--text3);font-size:14.5px;padding:18px;text-align:center">뉴스 데이터에 연결할 수 없습니다.</div>'; return; }
+    try {
+      const { data } = await sb.from('issues').select('news_analysis, published_at')
+        .neq('ai_digest', '').order('published_at', { ascending: false }).limit(120);
+      const agg = {};
+      for (const r of (data || [])) {
+        const secs = r.news_analysis && r.news_analysis.sectors;
+        if (!Array.isArray(secs)) continue;
+        for (const s of secs) {
+          if (!s || !s.name) continue;
+          const a = (agg[s.name] ||= { pos: 0, neg: 0, neu: 0 });
+          if (s.tone === 'pos') a.pos++; else if (s.tone === 'neg') a.neg++; else a.neu++;
+        }
+      }
+      let list = Object.entries(agg).map(([name, a]) => {
+        const total = a.pos + a.neg + a.neu;
+        return { name, ...a, total, net: a.pos - a.neg, tickers: secTickers(name) };
+      }).filter(x => x.tickers && x.total >= 2);
+
+      // 같은 대표 종목군으로 매핑된 산업은 뉴스 건수가 가장 많은 하나만 남긴다
+      const seen = new Set();
+      list = list.sort((a, b) => b.total - a.total).filter(x => { const k = x.tickers.join(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
+      if (!list.length) { el.innerHTML = '<div style="color:var(--text3);font-size:14.5px;padding:18px;text-align:center">아직 집계할 뉴스가 충분하지 않습니다.</div>'; return; }
+
+      const all = [...new Set(list.flatMap(x => x.tickers))];
+      const qr = await jget('/api/quotes?tickers=' + all.map(encodeURIComponent).join(','));
+      const Q = qr.data || {};
+      list.forEach(x => {
+        const vs = x.tickers.map(t => num(Q[t]?.changePercent)).filter(v => v != null);
+        x.px = vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
+        x.toneScore = x.total ? x.net / x.total : 0;   // -1 ~ +1
+      });
+
+      list.sort((a, b) => Math.abs((b.toneScore * 3) - (b.px ?? 0)) - Math.abs((a.toneScore * 3) - (a.px ?? 0)));
+
+      el.innerHTML = list.map(x => {
+        const t = x.total || 1;
+        const pw = x.pos / t * 100, nw = x.neu / t * 100, gw = x.neg / t * 100;
+        const toneUp = x.net > 0, pxUp = (x.px ?? 0) > 0;
+        let badge = '<span class="nv-badge" style="color:var(--text3);background:var(--bg3)">보합</span>';
+        if (x.px != null && Math.abs(x.net) >= 1) {
+          if (toneUp && !pxUp) badge = `<span class="nv-badge" style="color:var(--red);background:color-mix(in srgb,var(--red) 15%,transparent)">뉴스↑ 주가↓</span>`;
+          else if (!toneUp && pxUp) badge = `<span class="nv-badge" style="color:var(--blue);background:color-mix(in srgb,var(--blue) 15%,transparent)">뉴스↓ 주가↑</span>`;
+          else badge = `<span class="nv-badge" style="color:var(--text2);background:var(--bg3)">방향 일치</span>`;
+        }
+        return `<div class="nv-row">
+          <div class="nv-name" title="${esc(x.name)}">${esc(x.name)}</div>
+          <div class="nv-bar" title="우호적 ${x.pos} · 중립 ${x.neu} · 비우호적 ${x.neg}">
+            <div style="width:${pw}%;background:var(--red)"></div><div style="width:${nw}%;background:var(--bg4)"></div><div style="width:${gw}%;background:var(--blue)"></div>
+          </div>
+          <div class="nv-px" style="color:${sgnCol(x.px)}">${pct(x.px)}</div>
+          ${badge}
+        </div>`;
+      }).join('');
+    } catch (e) {
+      el.innerHTML = `<div style="color:var(--text3);font-size:14.5px;padding:18px;text-align:center">불러오지 못했습니다 — ${esc(e.message)}</div>`;
+    }
+  }
+
+  /* ══ 부팅 ═════════════════════════════════════════════════════ */
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!document.getElementById('nowBar')) return;   // 이 페이지가 아니면 아무것도 안 함
+    paintNow();
+    setInterval(paintNow, 60000);
+    loadBridge();
+    loadTemp();
+    drawFlow();
+    loadNewsVsPrice();
+    // 국장 장중에는 브리지·온도계를 3분마다 갱신
+    setInterval(() => { const m = currentMode().key; if (m === 'krOpen' || m === 'usOpen') { loadBridge(); loadTemp(); } }, 180000);
+  });
+})();
 </script>
 </body>
 </html>
