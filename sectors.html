@@ -56,8 +56,10 @@
 body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
 a { color: inherit; text-decoration: none; }
 .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px 80px; }
-h1 { font-size: 20px; font-weight: 800; }
-.sub { font-size: 15px; color: var(--text3); margin: 2px 0 16px; line-height: 1.6; }
+.hero-title { font-size: 22px; font-weight: 800; letter-spacing: -0.025em; margin-bottom: 4px; display: flex; align-items: center; gap: 9px; }
+.hero-title span { color: var(--blue); }
+.hero-sub { font-size: 15.5px; color: var(--text3); margin: 2px 0 16px; line-height: 1.6; }
+@media (max-width:560px){ .hero-title{font-size:21px} }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; overflow: hidden; }
 .card-title { font-size: 16.5px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .meta { font-size: 13.5px; color: var(--text3); font-weight: 400; }
@@ -416,10 +418,8 @@ h1 { font-size: 20px; font-weight: 800; }
 </div>
 
 <div class="wrap">
-  <div style="display:flex;align-items:center;gap:12px;padding:14px 0">
-    <h1>🧭 섹터 파급 지도</h1>
-  </div>
-  <p class="sub"><b>산업/섹터 → 파급 흐름 → 종목</b> 순으로 좁혀가며 살펴보세요. 최근 30일 뉴스 분석에서 집계한 섹터별 파급 강도와, 섹터가 뜰 때 다음으로 움직이는 섹터·종목입니다.</p>
+  <h1 class="hero-title">🧭 <span>섹터 파급 지도</span></h1>
+  <p class="hero-sub"><b>산업/섹터 → 파급 흐름 → 종목</b> 순으로 좁혀가며 살펴보세요. 최근 30일 뉴스 분석에서 집계한 섹터별 파급 강도와, 섹터가 뜰 때 다음으로 움직이는 섹터·종목입니다.</p>
 
   <div class="card">
     <div class="card-title">산업/섹터 사분면 <span class="meta" id="mapMeta"></span></div>

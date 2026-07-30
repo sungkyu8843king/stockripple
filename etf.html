@@ -67,9 +67,11 @@ a{color:inherit}
 .back:hover{border-color:var(--border-strong);color:var(--text)}
 
 /* 페이지 인트로 */
-.page-title{font-size:24px;font-weight:800;letter-spacing:-0.02em;display:flex;align-items:center;gap:9px}
-.page-sub{font-size:15.5px;color:var(--text2);margin-top:5px;line-height:1.55}
-.page-sub b{color:var(--blue);font-weight:700}
+.hero-title{font-size:22px;font-weight:800;letter-spacing:-0.025em;margin-bottom:4px;display:flex;align-items:center;gap:9px}
+.hero-title span{color:var(--blue)}
+.hero-sub{font-size:15.5px;color:var(--text3);line-height:1.6}
+.hero-sub b{color:var(--blue);font-weight:700}
+@media (max-width:560px){ .hero-title{font-size:21px} }
 
 /* 오늘의 ETF 랭킹 */
 .rank-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0}
@@ -397,8 +399,8 @@ function renderList(){
   const sorts = SORTS.map(s => `<button class="sort-btn ${_sort===s.key?'active':''}" onclick="setSort('${s.key}')">${s.label}</button>`).join('');
 
   document.getElementById('content').innerHTML = `
-    <div class="page-title">🧺 ETF 탐색</div>
-    <p class="page-sub">국내 상장 ETF <b>${_all.length.toLocaleString()}종</b>을 카테고리·수익률로 살펴보세요. ETF를 누르면 <b>구성종목·보수·추적오차·기간수익률</b>이 보이고, 아래에선 <b>내 종목이 담긴 ETF</b>를 역으로 찾을 수 있어요.</p>
+    <h1 class="hero-title">🧺 <span>ETF 탐색</span></h1>
+    <p class="hero-sub">국내 상장 ETF <b>${_all.length.toLocaleString()}종</b>을 카테고리·수익률로 살펴보세요. ETF를 누르면 <b>구성종목·보수·추적오차·기간수익률</b>이 보이고, 아래에선 <b>내 종목이 담긴 ETF</b>를 역으로 찾을 수 있어요.</p>
     ${renderRankingsSection()}
     ${stockFinderHtml()}
     <div class="cat-tabs">${tabs}</div>

@@ -58,8 +58,9 @@ a{color:inherit}
 .wrap{max-width:920px;margin:0 auto;padding:18px 20px 70px}
 .back{display:inline-flex;align-items:center;gap:6px;font-size:15.5px;color:var(--text2);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);margin-bottom:18px}
 .back:hover{border-color:var(--border-strong);color:var(--text)}
-.page-title{font-size:25px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:9px}
-.page-sub{font-size:15.5px;color:var(--text3);margin:5px 0 20px}
+.hero-title{font-size:22px;font-weight:800;letter-spacing:-0.025em;margin-bottom:4px;display:flex;align-items:center;gap:9px}
+.hero-title span{color:var(--blue)}
+.hero-sub{font-size:15.5px;color:var(--text3);line-height:1.6;margin:5px 0 20px}
 .topic-tabs{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
 .topic-tab{border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:16px;font-weight:700;padding:11px 18px;border-radius:12px;cursor:pointer;white-space:nowrap}
 .topic-tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
@@ -86,7 +87,7 @@ a{color:inherit}
 .tl-item:hover .tl-title{color:var(--blue)}
 .tl-sum{font-size:15px;color:var(--text2);line-height:1.65;margin-top:5px;overflow-wrap:anywhere;word-break:break-word}
 .loading,.empty{padding:34px;text-align:center;color:var(--text3);font-size:15.5px}
-@media (max-width:560px){ .page-title{font-size:21px} .rel-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:560px){ .hero-title{font-size:21px} .rel-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
 </style>
 </head>
 <body>
@@ -96,8 +97,8 @@ a{color:inherit}
 <script>renderSiteHeader('/talks.html');</script>
 <div class="wrap">
   <a class="back" href="/index.html">← 홈</a>
-  <div class="page-title">💬 말말말</div>
-  <div class="page-sub">지금 시장을 흔드는 주제를 타임라인으로. 헤드라인·출처·한줄 상황과 연관 지수·종목의 움직임까지.</div>
+  <h1 class="hero-title">💬 <span>말말말</span></h1>
+  <p class="hero-sub">지금 시장을 흔드는 주제를 타임라인으로. 헤드라인·출처·한줄 상황과 연관 지수·종목의 움직임까지.</p>
   <div class="topic-tabs" id="topicTabs"></div>
   <div id="topicBody"><div class="loading">불러오는 중...</div></div>
 </div>

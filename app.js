@@ -4041,7 +4041,7 @@ function switchMarketSection(sec) {
   if (meta) {
     const titleEl = document.getElementById('marketHeroTitle');
     const subEl = document.getElementById('marketHeroSub');
-    if (titleEl) titleEl.textContent = meta.title;
+    if (titleEl) titleEl.innerHTML = '<span>' + meta.title + '</span>';
     if (subEl) subEl.textContent = meta.sub;
     document.title = `${meta.title} — StockRipple`;
   }
