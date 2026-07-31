@@ -89,7 +89,7 @@ const SITE_NAV_ITEMS = [
   { href: '/etf.html', label: '🧺 ETF', flag: 'nav-new' },
   { href: '/earnings.html', label: '📊 실적발표', flag: 'nav-new' },
   { href: '/talks.html', label: '💬 말말말', flag: 'nav-new' },
-  { href: '/portfolio.html', label: '📝 페이퍼 트레이딩' },
+  { href: '/portfolio.html', label: '📝 모의투자' },
 ];
 
 function _siteChromeInjectStyle() {

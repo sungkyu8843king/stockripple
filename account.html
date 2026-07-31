@@ -650,7 +650,7 @@ async function doSignOut() {
 
 /* ── Delete account ── */
 async function doDeleteAccount() {
-  const ok = confirm('정말 회원 탈퇴하시겠습니까?\n관심종목·북마크·알림 설정·페이퍼 트레이딩 데이터가 모두 삭제되며 복구할 수 없습니다.');
+  const ok = confirm('정말 회원 탈퇴하시겠습니까?\n관심종목·북마크·알림 설정·모의투자 데이터가 모두 삭제되며 복구할 수 없습니다.');
   if (!ok) return;
 
   const { data: { session } } = await sb.auth.getSession();
