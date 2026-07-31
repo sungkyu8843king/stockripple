@@ -146,3 +146,13 @@ jobs:
           curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=rank-reason-backfill" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
             | jq -c '{ok,scanned,submitted,disabled}' 2>/dev/null || echo "  (non-JSON)"
+
+      # 해외 추정가 모델의 실측 정확도 기록 — 개장 전(KST 07~09시)엔 그날 추정치를
+      # 스냅샷하고, 개장 후엔 실제 시가로 정산한다. 매시간 불러도 멱등이라 안전하며
+      # 창 밖이면 서버가 스스로 스킵한다(어느 시간대 run이 살아남든 하루 한 번은 잡힘).
+      - name: 추정가 정확도 기록/정산
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -s --max-time 60 "${{ secrets.VERCEL_URL }}/api/market-data?source=kr-estimate&action=record" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            | jq -c '{ok,date,hour,snapshot,settled,skipped}' 2>/dev/null || echo "  (non-JSON)"

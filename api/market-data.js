@@ -27,6 +27,7 @@ export default async function handler(req, res) {
   switch (source) {
     case 'quotes':       return handleQuotes(req, res);
     case 'kr-proxy':     return handleKrProxy(req, res);
+    case 'kr-estimate':  return handleKrEstimate(req, res);
     case 'technicals':   return handleTechnicals(req, res);
     case 'earnings':     return (req.query.type === 'analyst') ? handleAnalyst(res) : handleEarnings(res);
     case 'earnings-calendar': return handleEarningsCalendar(req, res);
@@ -724,6 +725,286 @@ async function fetchBinancePerps() {
     out.reason = e.name === 'TimeoutError' ? 'timeout (지역 차단 가능)' : (e.message || 'unreachable').slice(0, 80);
     return out;
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// kr-estimate — 해외 신호로 국장 재개장가를 역산하는 모델 + 실측 정확도 기록
+//
+//   추정등락% = Σ(소스등락% × beta × w) / Σ(w)        ← 사용 가능한 소스만
+//   추정가    = 직전 종가 × (1 + 추정등락%/100)
+//
+// ⚠️ 모델을 여기(서버)에 둔 이유: 개장 전 스냅샷을 크론이 기록해야 정확도를
+// 누적 측정할 수 있는데, 클라이언트에만 있으면 서버가 같은 값을 재현할 수 없다.
+// 튜닝은 아래 EST_MODEL 하나만 고치면 되고 클라이언트는 렌더링만 한다.
+//
+//   GET ?source=kr-estimate                  → 추정치(또는 장중이면 mode:'live')
+//   GET ?source=kr-estimate&action=accuracy  → 누적 오차 통계 (공개)
+//   GET ?source=kr-estimate&action=record    → 스냅샷+정산 (ADMIN/CRON 인증)
+// ════════════════════════════════════════════════════════════════════════
+const EST_MODEL = {
+  version: '2026-07-31.1',
+  targets: [
+    { t: '005930.KS', name: '삼성전자', c: '#1428A0', ini: '삼성',
+      sources: [{ id: 'binance', w: 1.7 }, { id: 'ewy', w: 1.0, beta: 1.0 }, { id: 'sox', w: 0.9, beta: 0.85 }] },
+    { t: '000660.KS', name: 'SK하이닉스', c: '#E8380D', ini: 'SK',
+      sources: [{ id: 'binance', w: 1.7 }, { id: 'ewy', w: 1.0, beta: 1.1 }, { id: 'sox', w: 1.0, beta: 1.3 }] },
+    { t: '005490.KS', name: '포스코홀딩스', c: '#00A0E9', ini: 'PO',
+      sources: [{ id: 'adr:PKX', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+    { t: '055550.KS', name: '신한지주', c: '#0046FF', ini: '신한',
+      sources: [{ id: 'adr:SHG', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+    { t: '105560.KS', name: 'KB금융', c: '#FFB700', ini: 'KB',
+      sources: [{ id: 'adr:KB', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+    { t: '015760.KS', name: '한국전력', c: '#0B5EA8', ini: '한전',
+      sources: [{ id: 'adr:KEP', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+    { t: '034220.KS', name: 'LG디스플레이', c: '#A50034', ini: 'LG',
+      sources: [{ id: 'adr:LPL', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+    { t: '017670.KS', name: 'SK텔레콤', c: '#E8380D', ini: 'SKT',
+      sources: [{ id: 'adr:SKM', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+  ],
+};
+
+function estResolveSignal(id, P, ticker) {
+  const n = v => (typeof v === 'number' && isFinite(v)) ? v : null;
+  if (id.startsWith('adr:')) {
+    const sym = id.slice(4), o = P.overseas?.[sym];
+    return { v: n(o?.changePercent), label: sym, tip: (o?.label || sym) + ' ADR (1:1 대응)' };
+  }
+  if (id === 'ewy') return { v: n(P.overseas?.EWY?.changePercent), label: 'EWY', tip: 'MSCI 한국 ETF' };
+  if (id === 'sox') return { v: n(P.overseas?.['^SOX']?.changePercent), label: 'SOX', tip: '필라델피아 반도체 지수' };
+  if (id === 'binance') return { v: n(P.binance?.items?.[ticker]?.changePercent), label: '바이낸스', tip: '주식 perp (24시간)' };
+  return { v: null, label: id, tip: id };
+}
+
+// P = kr-proxy 결과, Q = { '005930.KS': {price,...} }
+function computeEstimates(P, Q) {
+  return EST_MODEL.targets.map(tg => {
+    const q = Q[tg.t] || {};
+    const base = (typeof q.price === 'number' && isFinite(q.price)) ? q.price : null;
+    const used = [], missing = [];
+    for (const s of tg.sources) {
+      const r = estResolveSignal(s.id, P, tg.t);
+      if (r.v == null) { missing.push(r.label); continue; }
+      used.push({ id: s.id, label: r.label, tip: r.tip, w: s.w, beta: s.beta ?? 1, value: r.v, adj: r.v * (s.beta ?? 1) });
+    }
+    const out = { ...tg, base, used, missing, estChangePct: null, estPrice: null, confidence: 0 };
+    if (!used.length || base == null) return out;
+
+    const tw = used.reduce((a, s) => a + s.w, 0);
+    const est = used.reduce((a, s) => a + s.adj * s.w, 0) / tw;
+    const mean = used.reduce((a, s) => a + s.adj, 0) / used.length;
+    const sd = Math.sqrt(used.reduce((a, s) => a + (s.adj - mean) ** 2, 0) / used.length);
+    let conf = 1;
+    if (used.length >= 2) conf++;
+    if (used.length >= 3) conf++;
+    if (sd < 2.5) conf++;
+
+    out.estChangePct = est;
+    out.estPrice = base * (1 + est / 100);
+    out.confidence = Math.max(1, Math.min(4, conf));
+    out.dispersion = sd;
+    return out;
+  });
+}
+
+// KST 기준 날짜/시각
+function kstParts(ms = Date.now()) {
+  const k = new Date(ms + 9 * 3600000);
+  return { date: k.toISOString().slice(0, 10), hour: k.getUTCHours(), min: k.getUTCMinutes(), dow: k.getUTCDay() };
+}
+
+async function estFetchQuotes(tickers) {
+  const pairs = await mapWithConcurrency(tickers, 6, async (t) => {
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?interval=1d&range=1d`,
+        { headers: SHARED_HEADERS, signal: AbortSignal.timeout(5000) });
+      if (!r.ok) return [t, null];
+      const m = (await r.json())?.chart?.result?.[0]?.meta;
+      if (!m) return [t, null];
+      return [t, { price: m.regularMarketPrice ?? null, prevClose: m.chartPreviousClose ?? m.previousClose ?? null, marketState: m.marketState ?? null }];
+    } catch { return [t, null]; }
+  });
+  return Object.fromEntries(pairs.filter(([, v]) => v));
+}
+
+// 특정 개장일의 실제 시가 — 정산용. Yahoo 일봉의 timestamp는 KRX 세션 시작(00:00 UTC)이라
+// UTC 날짜 문자열이 그대로 KST 개장일과 일치한다.
+async function estFetchOpen(ticker, sessionDate) {
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=10d`,
+      { headers: SHARED_HEADERS, signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null;
+    const j = await r.json(), res = j?.chart?.result?.[0];
+    const ts = res?.timestamp || [], op = res?.indicators?.quote?.[0]?.open || [];
+    for (let i = 0; i < ts.length; i++) {
+      if (new Date(ts[i] * 1000).toISOString().slice(0, 10) === sessionDate) {
+        const v = op[i];
+        return (typeof v === 'number' && isFinite(v)) ? v : null;
+      }
+    }
+    return null;
+  } catch { return null; }
+}
+
+// 스냅샷(개장 전) + 정산(개장 후). 크론이 매시간 불러도 안전하도록 전부 멱등.
+async function estRecordAndSettle() {
+  const { date, hour, dow } = kstParts();
+  const log = { date, hour, snapshot: null, settled: 0, skipped: null };
+
+  // ── 1) 스냅샷: 평일 07~08시대(개장 직전)에 오늘자 추정치를 남긴다
+  if (dow >= 1 && dow <= 5 && hour >= 7 && hour < 9) {
+    const { data: exist } = await supabase.from('est_accuracy')
+      .select('id').eq('session_date', date).limit(1);
+    if (exist?.length) log.snapshot = 'already recorded';
+    else {
+      const tickers = EST_MODEL.targets.map(t => t.t);
+      const [P, Q] = await Promise.all([fetchKrProxyPayload(), estFetchQuotes(tickers)]);
+      const rows = computeEstimates(P, Q)
+        .filter(e => e.estChangePct != null)
+        .map(e => ({
+          ticker: e.t, session_date: date, model_version: EST_MODEL.version,
+          base_close: e.base, est_change_pct: e.estChangePct, est_price: e.estPrice,
+          sources: e.used.map(u => ({ id: u.id, label: u.label, w: u.w, beta: u.beta, value: u.value, adj: u.adj })),
+        }));
+      if (rows.length) {
+        const { error } = await supabase.from('est_accuracy').upsert(rows, { onConflict: 'ticker,session_date' });
+        log.snapshot = error ? `error: ${error.message}` : `recorded ${rows.length}`;
+      } else log.snapshot = 'no estimate available';
+    }
+  } else log.skipped = 'not pre-open window (KST 평일 07~09시에만 스냅샷)';
+
+  // ── 2) 정산: 아직 시가가 안 채워진 행을 실제 시가로 마감. 개장 후(09:10~)에만.
+  const { data: pending } = await supabase.from('est_accuracy')
+    .select('id, ticker, session_date, base_close, est_change_pct')
+    .is('settled_at', null).lte('session_date', date)
+    .order('session_date', { ascending: true }).limit(40);
+  for (const row of (pending || [])) {
+    // 오늘 것은 개장 직후엔 시가가 아직 안 잡힐 수 있으니 09:10 이후에만 시도
+    if (row.session_date === date && (hour < 9 || (hour === 9 && kstParts().min < 10))) continue;
+    const open = await estFetchOpen(row.ticker, row.session_date);
+    if (open == null || !row.base_close) continue;
+    const actualPct = ((open - row.base_close) / row.base_close) * 100;
+    const { error } = await supabase.from('est_accuracy').update({
+      actual_open: open, actual_change_pct: actualPct,
+      error_pct: actualPct - (row.est_change_pct ?? 0), settled_at: new Date().toISOString(),
+    }).eq('id', row.id);
+    if (!error) log.settled++;
+  }
+  return log;
+}
+
+// handleKrProxy 본문을 재사용하기 위한 순수 함수 버전
+async function fetchKrProxyPayload() {
+  const syms = Object.keys(KR_PROXY_SYMBOLS);
+  const [quoteList, binance] = await Promise.all([
+    mapWithConcurrency(syms, 6, async (s) => [s, await fetchYahooChange(s)]),
+    fetchBinancePerps(),
+  ]);
+  const overseas = {};
+  for (const [sym, q] of quoteList) if (q) overseas[sym] = { ...KR_PROXY_SYMBOLS[sym], ...q };
+  return { overseas, binance };
+}
+
+async function handleKrEstimate(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const action = (req.query.action || '').toString();
+
+  // ── 누적 정확도 (공개) ──
+  if (action === 'accuracy') {
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+    const { data, error } = await supabase.from('est_accuracy')
+      .select('ticker, session_date, est_change_pct, actual_change_pct, error_pct')
+      .not('settled_at', 'is', null).order('session_date', { ascending: false }).limit(400);
+    if (error) return res.status(200).json({ ok: true, available: false, reason: error.message, byTicker: {}, overall: null });
+    const byTicker = {};
+    for (const r of (data || [])) {
+      const e = Math.abs(Number(r.error_pct));
+      if (!isFinite(e)) continue;
+      (byTicker[r.ticker] ||= { n: 0, sumAbs: 0, sumSigned: 0, last: null });
+      const b = byTicker[r.ticker];
+      b.n++; b.sumAbs += e; b.sumSigned += Number(r.error_pct);
+      if (!b.last) b.last = { date: r.session_date, est: r.est_change_pct, actual: r.actual_change_pct, err: r.error_pct };
+    }
+    let n = 0, sumAbs = 0;
+    for (const k of Object.keys(byTicker)) {
+      const b = byTicker[k];
+      b.mae = b.sumAbs / b.n; b.bias = b.sumSigned / b.n;
+      n += b.n; sumAbs += b.sumAbs;
+      delete b.sumAbs; delete b.sumSigned;
+    }
+    return res.status(200).json({ ok: true, available: n > 0, samples: n, overall: n ? { mae: sumAbs / n } : null, byTicker });
+  }
+
+  // ── 스냅샷/정산 (인증) ──
+  if (action === 'record') {
+    const a = await verifyAdmin(req.headers.authorization);
+    if (!a.ok) return res.status(401).json({ ok: false, error: a.error || 'unauthorized' });
+    res.setHeader('Cache-Control', 'no-store');
+    try { return res.status(200).json({ ok: true, ...(await estRecordAndSettle()) }); }
+    catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+  }
+
+  // ── 기본: 지금 무엇을 보여줄지(국장 시세 vs 해외 추정) 결정 후 데이터 반환 ──
+  //
+  // ⚠️ 22:30(미국 개장) 전에는 EWY/ADR이 "전날 미국 세션" 값이라 17시간쯤 묵은 신호다.
+  // 그걸로 추정하면 오히려 해로우므로, 국장 시세를 22:30까지 그대로 올려둔다.
+  //   09:00~15:30  regular  정규장 실시간
+  //   15:30~20:00  nxt      넥스트장(대체거래소) — 토스 통합가가 시간외를 반영
+  //   20:00~22:30  closed   거래 없음, 마지막 시세 유지
+  //   22:30~09:00  (추정)   미국장이 열려 해외 신호가 살아있는 구간
+  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=90');
+  const kp = kstParts();
+  const tmin = kp.hour * 60 + kp.min;
+  const weekday = kp.dow >= 1 && kp.dow <= 5;
+  const live = weekday && tmin >= 540 && tmin < 1350;      // 09:00~22:30
+  const session = !live ? null : tmin < 930 ? 'regular' : tmin < 1200 ? 'nxt' : 'closed';
+  const tickers = EST_MODEL.targets.map(t => t.t);
+
+  if (live) {
+    // 국장 시세: 토스 통합가(넥스트장 포함) 우선, 기준 종가는 야후에서.
+    const codes = tickers.map(t => t.replace(/\.(KS|KQ)$/i, ''));
+    const [toss, Q] = await Promise.all([
+      tossProxyConfigured()
+        ? callTossProxy(`/prices?symbols=${encodeURIComponent(codes.join(','))}`).catch(() => null)
+        : Promise.resolve(null),
+      estFetchQuotes(tickers),
+    ]);
+    const tossBy = {};
+    for (const r of (toss?.result || [])) {
+      if (r?.symbol != null && r.lastPrice != null) tossBy[String(r.symbol)] = Number(r.lastPrice);
+    }
+    const items = EST_MODEL.targets.map(tg => {
+      const code = tg.t.replace(/\.(KS|KQ)$/i, '');
+      const y = Q[tg.t] || {};
+      const price = tossBy[code] ?? (typeof y.price === 'number' ? y.price : null);
+      const prev = (typeof y.prevClose === 'number') ? y.prevClose : null;
+      const chg = (price != null && prev) ? ((price - prev) / prev) * 100 : null;
+      return { ...tg, price, prevClose: prev, changePct: chg, priceFrom: tossBy[code] != null ? 'toss' : 'yahoo' };
+    });
+    return res.status(200).json({ ok: true, ts: Date.now(), modelVersion: EST_MODEL.version, live: true, session, items });
+  }
+
+  const [P, Q] = await Promise.all([fetchKrProxyPayload(), estFetchQuotes(tickers)]);
+
+  // 바이낸스는 Vercel에서 HTTP 451(지역 차단)이라 서버가 못 읽는다. 브라우저에서는
+  // 되는 경우가 있어, 클라이언트가 읽은 값을 ?bn=티커:등락%,… 로 넘겨주면 모델에 합류시킨다.
+  // (표시용 계산에만 쓰이고 DB에 남는 정확도 스냅샷은 서버 단독 계산이라 오염되지 않는다)
+  const bnParam = (req.query.bn || '').toString().slice(0, 200);
+  if (bnParam && !P.binance?.available) {
+    const items = {};
+    for (const pair of bnParam.split(',')) {
+      const [tk, v] = pair.split(':');
+      const n = Number(v);
+      if (tk && isFinite(n) && Math.abs(n) < 100) items[tk.trim()] = { symbol: 'client', changePercent: n };
+    }
+    if (Object.keys(items).length) P.binance = { available: true, items, via: 'client' };
+  }
+
+  const items = computeEstimates(P, Q);
+  return res.status(200).json({
+    ok: true, ts: Date.now(), modelVersion: EST_MODEL.version, live: false, session: null,
+    krwUsd: P.overseas?.['KRW=X']?.price ?? null,
+    items, sources: { overseas: P.overseas, binance: P.binance },
+  });
 }
 
 async function handleKrProxy(req, res) {

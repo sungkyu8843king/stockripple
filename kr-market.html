@@ -1679,10 +1679,10 @@ document.addEventListener('keydown', e => {
   function paintNow() {
     const bar = document.getElementById('nowBar'); if (!bar) return;
     const cur = currentMode(), mode = MODES[cur.key] || MODES.weekend;
-    // 09:00 개장·15:30 마감을 넘어가면 추정가↔현재가 모드를 새로고침 없이 전환한다
-    if (_lastModeKey !== null && _lastModeKey !== cur.key) {
-      const wasLive = _lastModeKey === 'krOpen', isLive = cur.key === 'krOpen';
-      if (wasLive !== isLive && typeof window.loadEstimate === 'function') window.loadEstimate();
+    // 시간대가 바뀌면(09:00 개장, 15:30 넥스트장, 22:30 미국 개장 등) 표시 모드도
+    // 달라질 수 있으니 새로고침 없이 다시 그린다. 판정은 서버가 하므로 여기선 재요청만.
+    if (_lastModeKey !== null && _lastModeKey !== cur.key && typeof window.loadEstimate === 'function') {
+      window.loadEstimate();
     }
     _lastModeKey = cur.key;
     bar.style.setProperty('--nb-accent', mode.c);
@@ -1703,65 +1703,30 @@ document.addEventListener('keydown', e => {
       : '미국 시장이 오늘 국장에 남긴 것';
   }
 
-  /* ══ ⓪ 해외 실시간 추정가 (모듈형 — 여기만 고치면 모델이 바뀐다) ══
+  /* ══ ⓪ 국장 시세 / 해외 추정가 (서버 모델 렌더러) ══════════════
    *
-   * 설계 의도: 정확도가 낮을 수밖에 없는 추정이라, "무엇을 얼마나 반영했는지"를
-   * 항상 화면에 드러내고 파라미터를 한 곳에 모아 점진적으로 고도화한다.
+   * 모델(가중치·beta)은 서버 api/market-data.js의 EST_MODEL에 있다 —
+   * 개장 전 스냅샷을 크론이 기록해 정확도를 누적 측정해야 하는데, 모델이
+   * 클라이언트에만 있으면 서버가 같은 값을 재현할 수 없기 때문이다.
+   * 여기는 렌더링만 담당한다.
    *
-   *   추정등락% = Σ(소스등락% × beta × w) / Σ(w)          ← 사용 가능한 소스만
-   *   추정가    = 직전 종가 × (1 + 추정등락%/100)
-   *
-   * beta = 그 종목이 해당 소스에 얼마나 민감한가(1.0 = 그대로 따라감)
-   * w    = 신뢰 가중치. 1:1 대응(ADR·바이낸스 perp)일수록 크게.
-   *
-   * 새 소스를 붙이려면: SIGNALS에 해석기 하나 추가 → 각 target.sources에 id 추가.
-   * 소스가 죽으면 자동으로 빠지고 남은 소스로 가중치가 재정규화된다.
+   * 표시 모드(서버가 KST로 판정해 live/session으로 내려줌):
+   *   09:00~15:30 regular  정규장 실시간
+   *   15:30~20:00 nxt      넥스트장(대체거래소) 통합가
+   *   20:00~22:30 closed   거래 없음, 마지막 시세 유지
+   *   22:30~09:00 (추정)   미국장이 열려 해외 신호가 살아있는 구간
    * ══════════════════════════════════════════════════════════════ */
-  const EST_MODEL = {
-    version: '2026-07-31.1',
-    // 소스 해석기 — raw 응답에서 "등락%"를 뽑아낸다. null이면 그 소스는 이번 라운드 제외.
-    SIGNALS: {
-      ewy: { label: 'EWY', tip: 'MSCI 한국 ETF (미국 상장)', get: (P) => P.overseas?.EWY?.changePercent ?? null },
-      sox: { label: 'SOX', tip: '필라델피아 반도체 지수', get: (P) => P.overseas?.['^SOX']?.changePercent ?? null },
-      binance: { label: '바이낸스', tip: '주식 perp (24시간)', get: (P, t) => P.binance?.items?.[t]?.changePercent ?? null },
-      // adr:XXX 는 동적으로 처리된다(아래 resolve 참고)
-    },
-    targets: [
-      { t: '005930.KS', name: '삼성전자', c: '#1428A0', ini: '삼성',
-        sources: [{ id: 'binance', w: 1.7 }, { id: 'ewy', w: 1.0, beta: 1.0 }, { id: 'sox', w: 0.9, beta: 0.85 }] },
-      { t: '000660.KS', name: 'SK하이닉스', c: '#E8380D', ini: 'SK',
-        sources: [{ id: 'binance', w: 1.7 }, { id: 'ewy', w: 1.0, beta: 1.1 }, { id: 'sox', w: 1.0, beta: 1.3 }] },
-      { t: '005490.KS', name: '포스코홀딩스', c: '#00A0E9', ini: 'PO',
-        sources: [{ id: 'adr:PKX', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
-      { t: '055550.KS', name: '신한지주', c: '#0046FF', ini: '신한',
-        sources: [{ id: 'adr:SHG', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
-      { t: '105560.KS', name: 'KB금융', c: '#FFB700', ini: 'KB',
-        sources: [{ id: 'adr:KB', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
-      { t: '015760.KS', name: '한국전력', c: '#0B5EA8', ini: '한전',
-        sources: [{ id: 'adr:KEP', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
-      { t: '034220.KS', name: 'LG디스플레이', c: '#A50034', ini: 'LG',
-        sources: [{ id: 'adr:LPL', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
-      { t: '017670.KS', name: 'SK텔레콤', c: '#E8380D', ini: 'SKT',
-        sources: [{ id: 'adr:SKM', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
-    ],
+  const SESS = {
+    regular: { badge: '실시간 현재가', title: '📈 주요 종목 현재가', desc: '정규장 실시간 체결가' },
+    nxt: { badge: '넥스트장 시세', title: '🌆 주요 종목 · 넥스트장', desc: '대체거래소(NXT) 통합가 · 15:30~20:00' },
+    closed: { badge: '장 마감 · 종가', title: '🌃 주요 종목 · 장 마감', desc: '거래 없음 · 22:30 미국장 개장 후 추정가로 전환' },
   };
 
-  function resolveSignal(id, P, ticker) {
-    if (id.startsWith('adr:')) {
-      const sym = id.slice(4);
-      const o = P.overseas?.[sym];
-      return { v: o?.changePercent ?? null, label: sym, tip: (o?.label || sym) + ' ADR (1:1 대응)' };
-    }
-    const s = EST_MODEL.SIGNALS[id];
-    if (!s) return { v: null, label: id, tip: id };
-    return { v: s.get(P, ticker), label: s.label, tip: s.tip };
-  }
-
-  // 바이낸스는 Vercel 서버에서 HTTP 451(지역 차단)이라 브라우저에서 직접 시도한다.
-  // 사용자 네트워크에서도 막히면 그냥 소스 하나가 빠질 뿐 전체는 정상 동작한다.
+  // 바이낸스는 Vercel에서 HTTP 451(지역 차단)이라 서버가 못 읽는다. 브라우저에서는
+  // 되는 경우가 있어 여기서 시도한 뒤 서버에 넘겨 모델에 합류시킨다.
   const BN_PERP = { '005930.KS': ['SAMSUNGUSDT', 'SAMSUNGELECUSDT'], '000660.KS': ['SKHYNIXUSDT', 'HYNIXUSDT'] };
   async function tryBinanceClient() {
-    const out = { available: false, reason: null, items: {}, via: 'client' };
+    const out = { available: false, reason: null, items: {} };
     try {
       const ctl = new AbortController();
       const to = setTimeout(() => ctl.abort(), 3500);
@@ -1775,7 +1740,7 @@ document.addEventListener('keydown', e => {
         const hit = cands.map(s => m.get(s)).find(Boolean);
         if (!hit) continue;
         const c = Number(hit.priceChangePercent);
-        if (isFinite(c)) out.items[kt] = { symbol: hit.symbol, changePercent: c, price: Number(hit.lastPrice) || null };
+        if (isFinite(c)) out.items[kt] = { symbol: hit.symbol, changePercent: c };
       }
       out.available = Object.keys(out.items).length > 0;
       if (!out.available) out.reason = '해당 종목 perp 없음';
@@ -1783,154 +1748,118 @@ document.addEventListener('keydown', e => {
     return out;
   }
 
-  // 장중에는 실제 현재가가 있는데 추정가를 같이 띄우면 혼란스럽고 신뢰도만 깎인다.
-  // 같은 카드를 모드만 바꿔 재사용한다 — 장중=실시간 현재가, 마감 중=해외 역산 추정가.
-  function applyEstMode(live) {
-    const secTitle = document.getElementById('estSecTitle');
-    const warn = document.querySelector('.est-warn');
-    if (secTitle) secTitle.textContent = live ? '📈 주요 종목 현재가' : '🛰️ 해외 실시간 추정가';
-    if (warn) warn.style.display = live ? 'none' : '';
+  function estHead(it) {
+    return `<div class="est-top">
+        <div class="est-logo" style="background:${it.c}">${esc(it.ini)}</div>
+        <div style="min-width:0">
+          <div class="est-nm">${esc(it.name)}</div>
+          <div class="est-tk">${esc(String(it.t).replace('.KS', ''))}</div>
+        </div>
+      </div>`;
   }
 
-  function renderLiveCards(grid, bar, Q) {
-    grid.innerHTML = EST_MODEL.targets.map(tg => {
-      const q = Q[tg.t];
-      const px = num(q?.price), chg = num(q?.changePercent), diff = num(q?.change);
-      const head = `<div class="est-top">
-          <div class="est-logo" style="background:${tg.c}">${esc(tg.ini)}</div>
-          <div style="min-width:0">
-            <div class="est-nm">${esc(tg.name)}</div>
-            <div class="est-tk">${esc(tg.t.replace('.KS', ''))}</div>
-          </div>
-        </div>`;
-      if (px == null) {
-        return `<div class="est-card">${head}<div class="est-badge stale">시세 없음</div>
+  function renderLive(grid, bar, d) {
+    const s = SESS[d.session] || SESS.regular;
+    grid.innerHTML = d.items.map(it => {
+      if (it.price == null) {
+        return `<div class="est-card">${estHead(it)}<div class="est-badge stale">시세 없음</div>
           <div class="est-none">지금은 시세를 불러올 수 없습니다.</div></div>`;
       }
-      const hi = num(q?.dayHigh), lo = num(q?.dayLow), vol = num(q?.volume);
-      return `<div class="est-card live">${head}
-        <div class="est-badge">실시간 현재가</div>
-        <div class="est-px" style="color:${sgnCol(chg)}">₩${Math.round(px).toLocaleString()}<small>원</small></div>
+      const chg = num(it.changePct), diff = (it.prevClose != null) ? it.price - it.prevClose : null;
+      return `<div class="est-card live">${estHead(it)}
+        <div class="est-badge${d.session === 'closed' ? ' stale' : ''}">${esc(s.badge)}</div>
+        <div class="est-px" style="color:${sgnCol(chg)}">₩${Math.round(it.price).toLocaleString()}<small>원</small></div>
         <div class="est-chg" style="color:${sgnCol(chg)}">
           <span>전일 종가 대비</span>${chg > 0 ? '▲' : chg < 0 ? '▼' : '—'} ${diff != null ? Math.abs(Math.round(diff)).toLocaleString() : '—'}원 · ${pct(chg)}
         </div>
         <div class="est-meta">
-          ${(hi != null && lo != null) ? `<div class="est-mrow"><span>당일 고 / 저</span><span style="font-family:var(--font-mono);color:var(--text2)">₩${Math.round(hi).toLocaleString()} / ₩${Math.round(lo).toLocaleString()}</span></div>` : ''}
-          ${vol != null ? `<div class="est-mrow"><span>거래량</span><span style="font-family:var(--font-mono);color:var(--text2)">${Math.round(vol).toLocaleString()}주</span></div>` : ''}
+          <div class="est-mrow"><span>전일 종가</span><span style="font-family:var(--font-mono);color:var(--text2)">${it.prevClose != null ? '₩' + Math.round(it.prevClose).toLocaleString() : '—'}</span></div>
+          <div class="est-mrow"><span>시세 출처</span><span style="color:var(--text2)">${it.priceFrom === 'toss' ? '토스증권 통합가' : 'Yahoo Finance'}</span></div>
         </div>
       </div>`;
     }).join('');
-    bar.innerHTML = `<b>실시간</b><span class="est-pill">국장 장중 <em style="color:var(--red)">거래 중</em></span>
-      <span style="color:var(--text3);margin-left:auto">장 마감 후에는 해외 신호 기반 추정가로 자동 전환됩니다</span>`;
+    const nextNote = d.session === 'regular' ? '15:30 이후 넥스트장 시세로 이어집니다'
+      : d.session === 'nxt' ? '20:00에 거래가 끝나고, 22:30 미국장 개장 후 추정가로 전환됩니다'
+        : '22:30 미국장이 열리면 해외 신호 기반 추정가로 전환됩니다';
+    bar.innerHTML = `<b>${esc(s.badge)}</b><span class="est-pill">${esc(s.desc)}</span>
+      <span style="color:var(--text3);margin-left:auto">${esc(nextNote)}</span>`;
+  }
+
+  function renderEstimate(grid, bar, d, acc) {
+    const krwUsd = num(d.krwUsd);
+    grid.innerHTML = d.items.map(it => {
+      const head = estHead(it);
+      if (it.estChangePct == null || it.base == null) {
+        return `<div class="est-card">${head}
+          <div class="est-badge stale">추정 불가</div>
+          <div class="est-none">참고할 해외 신호가 지금은 없습니다${it.missing?.length ? ` (${esc(it.missing.join(', '))} 미제공)` : ''}.</div>
+        </div>`;
+      }
+      const est = it.estChangePct, px = it.estPrice, diff = px - it.base;
+      const conf = clamp(it.confidence || 1, 1, 4);
+      const direct = (it.used || []).some(u => String(u.id).startsWith('adr:') || u.id === 'binance');
+      const a = acc?.byTicker?.[it.t];
+      return `<div class="est-card${direct ? ' live' : ''}">${head}
+        <div class="est-badge">해외 실시간 추정가</div>
+        <div class="est-px" style="color:${sgnCol(est)}">₩${Math.round(px).toLocaleString()}<small>원</small></div>
+        ${krwUsd ? `<div class="est-usd">≈ $${(px / krwUsd).toFixed(2)} USD</div>` : ''}
+        <div class="est-chg" style="color:${sgnCol(est)}">
+          <span>직전 종가 대비</span>${est > 0 ? '▲' : est < 0 ? '▼' : '—'} ${Math.abs(Math.round(diff)).toLocaleString()}원 · ${pct(est)}
+        </div>
+        <div class="est-meta">
+          <div class="est-mrow"><span>반영 소스</span>
+            <span class="est-src">${(it.used || []).map(u => `<i title="${esc(u.tip || u.label)} · 가중치 ${u.w}${u.beta && u.beta !== 1 ? ` · 민감도 ${u.beta}` : ''} · ${pct(u.value)}">${esc(u.label)}</i>`).join('')}</span></div>
+          <div class="est-mrow"><span>신뢰도</span>
+            <span class="est-conf">${[1, 2, 3, 4].map(i => `<span class="est-dot${i <= conf ? ' on' : ''}"></span>`).join('')}
+            <span style="margin-left:5px;color:var(--text2);font-weight:600">${['', '낮음', '보통', '높음', '매우 높음'][conf]}</span></span></div>
+          <div class="est-mrow"><span>직전 종가</span><span style="font-family:var(--font-mono);color:var(--text2)">₩${Math.round(it.base).toLocaleString()}</span></div>
+          ${a ? `<div class="est-mrow"><span>실측 평균오차</span><span style="font-family:var(--font-mono);color:var(--text2)" title="최근 ${a.n}회 |추정−실제| 평균${a.bias != null ? ` · 편향 ${a.bias > 0 ? '과소' : '과대'} ${Math.abs(a.bias).toFixed(1)}%p` : ''}">±${a.mae.toFixed(1)}%p <span style="color:var(--text3)">(${a.n}회)</span></span></div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    const O = d.sources?.overseas || {}, B = d.sources?.binance || {};
+    const pills = [];
+    const add = (name, val, on, note) => pills.push(
+      `<span class="est-pill${on ? '' : ' off'}" title="${esc(note || '')}">${esc(name)} ${on ? `<em style="color:${sgnCol(val)}">${pct(val)}</em>` : `<em style="color:var(--text3)">미연결</em>`}</span>`);
+    add('EWY', num(O.EWY?.changePercent), O.EWY != null, 'MSCI 한국 ETF');
+    add('SOX', num(O['^SOX']?.changePercent), O['^SOX'] != null, '필라델피아 반도체 지수');
+    const adrN = Object.values(O).filter(o => o.kind === 'adr').length;
+    pills.push(`<span class="est-pill${adrN ? '' : ' off'}" title="미국 상장 한국 기업 주식예탁증서">ADR <em>${adrN}종</em></span>`);
+    pills.push(`<span class="est-pill${B.available ? '' : ' off'}" title="${esc(B.available ? (B.via === 'client' ? '브라우저에서 직접 조회' : '서버 조회') : '차단됨: ' + (B.reason || '알 수 없음'))}">바이낸스 perp <em>${B.available ? Object.keys(B.items || {}).length + '종' : '미연결'}</em></span>`);
+    const accTxt = acc?.available ? ` · 실측 평균오차 ±${acc.overall.mae.toFixed(1)}%p (${acc.samples}건)` : ' · 정확도 집계 대기 중';
+    bar.innerHTML = `<b>신호 소스</b>${pills.join('')}<span style="color:var(--text3);margin-left:auto">모델 v${esc(d.modelVersion || '')}${esc(accTxt)}</span>`;
   }
 
   window.loadEstimate = async function () {
     const grid = document.getElementById('estGrid'), bar = document.getElementById('estSrcBar');
     if (!grid) return;
-    const live = currentMode().key === 'krOpen';   // 국장 장중이면 추정하지 않는다
-    applyEstMode(live);
-    const krT = EST_MODEL.targets.map(x => x.t);
-
-    // 장중: 실제 시세만 있으면 되므로 해외 신호·바이낸스는 아예 호출하지 않는다
-    if (live) {
-      try {
-        const qr = await jget('/api/quotes?tickers=' + krT.map(encodeURIComponent).join(','));
-        renderLiveCards(grid, bar, qr.data || {});
-        const dsc = document.getElementById('estDesc');
-        if (dsc) dsc.textContent = `${EST_MODEL.targets.length}종목 · 실시간 체결가`;
-      } catch (e) {
-        grid.innerHTML = `<div style="grid-column:1/-1;color:var(--text3);font-size:14.5px;padding:14px;text-align:center">시세를 불러오지 못했습니다 — ${esc(e.message)}</div>`;
-      }
-      return;
-    }
-
     try {
-      const [P, qr, bnClient] = await Promise.all([
-        jget('/api/market-data?source=kr-proxy'),
-        jget('/api/quotes?tickers=' + krT.map(encodeURIComponent).join(',')),
-        tryBinanceClient(),
+      // 바이낸스를 브라우저에서 먼저 읽어 서버 모델에 넘긴다(서버는 451로 막힘)
+      const bn = await tryBinanceClient();
+      const bnQ = bn.available
+        ? '&bn=' + encodeURIComponent(Object.entries(bn.items).map(([k, v]) => `${k}:${v.changePercent}`).join(','))
+        : '';
+      const [d, acc] = await Promise.all([
+        jget('/api/market-data?source=kr-estimate' + bnQ),
+        jget('/api/market-data?source=kr-estimate&action=accuracy').catch(() => null),
       ]);
-      // 서버가 못 가져온 바이낸스를 클라이언트가 가져왔으면 그걸 쓴다
-      if (!P.binance?.available && bnClient.available) P.binance = bnClient;
-      else if (!P.binance?.available) P.binance = { ...(P.binance || {}), reason: bnClient.reason || P.binance?.reason };
 
-      const Q = qr.data || {};
-      const krwUsd = num(P.overseas?.['KRW=X']?.price);
-
-      grid.innerHTML = EST_MODEL.targets.map(tg => {
-        const q = Q[tg.t];
-        const last = num(q?.price);
-        const used = [], missing = [];
-        for (const s of tg.sources) {
-          const r = resolveSignal(s.id, P, tg.t);
-          if (r.v == null) { missing.push(r.label); continue; }
-          used.push({ ...s, ...r, adj: r.v * (s.beta ?? 1) });
-        }
-        const head = `<div class="est-top">
-            <div class="est-logo" style="background:${tg.c}">${esc(tg.ini)}</div>
-            <div style="min-width:0">
-              <div class="est-nm">${esc(tg.name)}</div>
-              <div class="est-tk">${esc(tg.t.replace('.KS', ''))}</div>
-            </div>
-          </div>`;
-
-        if (!used.length || last == null) {
-          return `<div class="est-card">${head}
-            <div class="est-badge stale">추정 불가</div>
-            <div class="est-none">참고할 해외 신호가 지금은 없습니다${missing.length ? ` (${esc(missing.join(', '))} 미제공)` : ''}.</div>
-          </div>`;
-        }
-
-        const tw = used.reduce((a, s) => a + s.w, 0);
-        const estChg = used.reduce((a, s) => a + s.adj * s.w, 0) / tw;
-        const estPx = last * (1 + estChg / 100);
-        const diff = estPx - last;
-
-        // 신뢰도: 소스 수 + 소스 간 편차(작을수록 신뢰) → 0~4단계
-        const mean = used.reduce((a, s) => a + s.adj, 0) / used.length;
-        const sd = Math.sqrt(used.reduce((a, s) => a + (s.adj - mean) ** 2, 0) / used.length);
-        let conf = 1;
-        if (used.length >= 2) conf++;
-        if (used.length >= 3) conf++;
-        if (sd < 2.5) conf++;
-        conf = clamp(conf, 1, 4);
-        const direct = used.some(s => s.id.startsWith('adr:') || s.id === 'binance');
-
-        return `<div class="est-card${direct ? ' live' : ''}">${head}
-          <div class="est-badge">해외 실시간 추정가</div>
-          <div class="est-px" style="color:${sgnCol(estChg)}">₩${Math.round(estPx).toLocaleString()}<small>원</small></div>
-          ${krwUsd ? `<div class="est-usd">≈ $${(estPx / krwUsd).toFixed(2)} USD</div>` : ''}
-          <div class="est-chg" style="color:${sgnCol(estChg)}">
-            <span>직전 종가 대비</span>${estChg > 0 ? '▲' : estChg < 0 ? '▼' : '—'} ${Math.abs(Math.round(diff)).toLocaleString()}원 · ${pct(estChg)}
-          </div>
-          <div class="est-meta">
-            <div class="est-mrow"><span>반영 소스</span>
-              <span class="est-src">${used.map(s => `<i title="${esc(s.tip)} · 가중치 ${s.w}${s.beta && s.beta !== 1 ? ` · 민감도 ${s.beta}` : ''} · ${pct(s.v)}">${esc(s.label)}</i>`).join('')}</span></div>
-            <div class="est-mrow"><span>신뢰도</span>
-              <span class="est-conf">${[1, 2, 3, 4].map(i => `<span class="est-dot${i <= conf ? ' on' : ''}"></span>`).join('')}
-              <span style="margin-left:5px;color:var(--text2);font-weight:600">${['', '낮음', '보통', '높음', '매우 높음'][conf]}</span></span></div>
-            <div class="est-mrow"><span>직전 종가</span><span style="font-family:var(--font-mono);color:var(--text2)">₩${Math.round(last).toLocaleString()}</span></div>
-          </div>
-        </div>`;
-      }).join('');
-
-      // 소스 상태 바 — 어떤 신호가 살아있고 죽었는지 항상 드러낸다
-      const pills = [];
-      const add = (name, val, on, note) => pills.push(
-        `<span class="est-pill${on ? '' : ' off'}" title="${esc(note || '')}">${esc(name)} ${on ? `<em style="color:${sgnCol(val)}">${pct(val)}</em>` : `<em style="color:var(--text3)">미연결</em>`}</span>`);
-      add('EWY', num(P.overseas?.EWY?.changePercent), P.overseas?.EWY != null, 'MSCI 한국 ETF');
-      add('SOX', num(P.overseas?.['^SOX']?.changePercent), P.overseas?.['^SOX'] != null, '필라델피아 반도체 지수');
-      const adrN = Object.values(P.overseas || {}).filter(o => o.kind === 'adr').length;
-      pills.push(`<span class="est-pill${adrN ? '' : ' off'}" title="미국 상장 한국 기업 주식예탁증서">ADR <em>${adrN}종</em></span>`);
-      pills.push(`<span class="est-pill${P.binance?.available ? '' : ' off'}" title="${esc(P.binance?.available ? '브라우저에서 직접 조회' : '차단됨: ' + (P.binance?.reason || '알 수 없음'))}">바이낸스 perp <em>${P.binance?.available ? Object.keys(P.binance.items).length + '종' : '미연결'}</em></span>`);
-      bar.innerHTML = `<b>신호 소스</b>${pills.join('')}<span style="color:var(--text3);margin-left:auto">모델 v${esc(EST_MODEL.version)} · 소스가 빠지면 남은 것으로 자동 재계산</span>`;
-
+      const sess = d.live ? (SESS[d.session] || SESS.regular) : null;
+      const titleEl = document.getElementById('estSecTitle');
+      const warn = document.querySelector('.est-warn');
       const dsc = document.getElementById('estDesc');
-      if (dsc) dsc.textContent = `${EST_MODEL.targets.length}종목 · 해외 신호 ${Object.keys(P.overseas || {}).length}개 반영`;
+      if (titleEl) titleEl.textContent = sess ? sess.title : '🛰️ 해외 실시간 추정가';
+      if (warn) warn.style.display = d.live ? 'none' : '';
+      if (dsc) dsc.textContent = sess ? sess.desc : `${(d.items || []).length}종목 · 해외 신호로 역산`;
+
+      if (d.live) renderLive(grid, bar, d);
+      else renderEstimate(grid, bar, d, acc);
     } catch (e) {
-      grid.innerHTML = `<div style="grid-column:1/-1;color:var(--text3);font-size:14.5px;padding:14px;text-align:center">추정가를 불러오지 못했습니다 — ${esc(e.message)}</div>`;
+      grid.innerHTML = `<div style="grid-column:1/-1;color:var(--text3);font-size:14.5px;padding:14px;text-align:center">불러오지 못했습니다 — ${esc(e.message)}</div>`;
     }
   };
+
 
   /* ══ ① 밤사이 브리지 ══════════════════════════════════════════ */
   const BRIDGE = [
@@ -2299,7 +2228,9 @@ document.addEventListener('keydown', e => {
     drawFlow();
     loadNewsVsPrice();
     // 국장 장중에는 브리지·온도계를 3분마다 갱신
-    setInterval(() => { const m = currentMode().key; if (m === 'krOpen' || m === 'usOpen') { loadBridge(); loadTemp(); loadEstimate(); } }, 180000);
+    // 시세·추정가는 항상 3분마다 갱신(장중이면 체결가, 마감 중이면 해외 신호가 계속 바뀐다)
+    setInterval(() => { loadEstimate(); }, 180000);
+    setInterval(() => { const m = currentMode().key; if (m === 'krOpen' || m === 'usOpen') { loadBridge(); loadTemp(); } }, 180000);
   });
 })();
 </script>
