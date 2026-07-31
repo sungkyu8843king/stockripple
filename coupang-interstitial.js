@@ -50,7 +50,7 @@
 
     var disclosure = document.createElement('div');
     disclosure.textContent = CONFIG.disclosure;
-    disclosure.style.cssText = 'font-size:10.5px;color:rgba(255,255,255,.55);text-align:center;padding:8px 12px;line-height:1.5';
+    disclosure.style.cssText = 'font-size:12px;color:rgba(255,255,255,.55);text-align:center;padding:8px 12px;line-height:1.5';
     card.appendChild(disclosure);
 
     // 의도적으로 작은 X — 배너 클릭을 유도하되, 실제로 눌리는 닫기 버튼(가짜 아님).
