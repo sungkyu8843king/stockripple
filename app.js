@@ -3838,10 +3838,13 @@ function renderSectorBoxes(grid, items, structureKey) {
 // 수급 차트는 직접 계산하지 않고 네이버 증권이 서버에서 미리 렌더링해 제공하는
 // PNG를 그대로 embed(핫링크)한다 — sid= 캐시버스터로 매 새로고침마다 최신 이미지를 받음.
 // 해외지수는 국장현황이 아니라 미장현황 쪽에 배치(아래 US 섹션 참고).
+// 2026-07-31 재설계: /api/quotes(등락률만) → /api/indices(스파크라인 포함)로 전환하고
+// 홈 대시보드의 .mkt-card 컴포넌트를 그대로 재사용한다(mktSummaryCard 참고) — 기존의
+// 원형 화살표 배지 카드(krIndexCard)는 사용자 피드백으로 폐기.
 const KR_INDEX_DEFS = [
-  { t: '^KS11',  label: '코스피' },
-  { t: '^KQ11',  label: '코스닥' },
-  { t: '^KS200', label: '코스피200' },
+  { id: 'kospi',    label: '코스피', mk: 'kr' },
+  { id: 'kosdaq',   label: '코스닥', mk: 'kr' },
+  { id: 'kospi200', label: '코스피200', mk: 'kr' },
 ];
 
 // 억원 단위 축약 포맷 (+/- 부호 포함)
@@ -3859,16 +3862,17 @@ async function loadKrSummary() {
   const cardsEl = document.getElementById('krIndexCards');
   if (!cardsEl) return;
   try {
-    const tickers = KR_INDEX_DEFS.map(x => x.t);
-    const [quoteRes, searchRes] = await Promise.all([
-      fetch(`/api/quotes?tickers=${tickers.map(encodeURIComponent).join(',')}`).then(r => r.json()),
+    // /api/indices는 필터링 파라미터를 받지 않고 항상 전체 지표를 반환한다 —
+    // 필요한 id만 골라 쓴다(홈 대시보드와 같은 엔드포인트를 공유해 엣지 캐시 히트율도 좋다).
+    const [idxRes, searchRes] = await Promise.all([
+      fetch('/api/indices').then(r => r.json()),
       fetch('/api/kr-market?type=popular-search').then(r => r.json()),
     ]);
-    const q = quoteRes?.data || {};
+    const q = idxRes?.data || {};
 
     cardsEl.innerHTML = KR_INDEX_DEFS.map(def => {
-      const d = q[def.t];
-      return d ? krIndexCard(def.label, d) : '';
+      const d = q[def.id];
+      return d ? mktSummaryCard(def, d) : '';
     }).join('');
 
     renderKrPopularSearch(searchRes?.items || []);
@@ -3882,42 +3886,36 @@ async function loadKrSummary() {
 
 // ─── 🇺🇸 미장 요약 (지수 카드 + 비美 해외지수) ──────────────────────────
 const US_INDEX_DEFS = [
-  { t: '^GSPC', label: 'S&P 500' },
-  { t: '^IXIC', label: '나스닥' },
-  { t: '^DJI',  label: '다우' },
+  { id: 'sp500',  label: 'S&P 500', mk: 'us' },
+  { id: 'nasdaq', label: '나스닥', mk: 'us' },
+  { id: 'dow',    label: '다우', mk: 'us' },
 ];
 const GLOBAL_INDEX_DEFS = [
-  { t: '^KS11',     label: '코스피' },
-  { t: '^KQ11',     label: '코스닥' },
-  { t: '^N225',     label: '니케이225' },
-  { t: '^HSI',      label: '홍콩 항셍' },
-  { t: '000001.SS', label: '상해종합' },
+  { id: 'kospi',  label: '코스피', mk: 'kr' },
+  { id: 'kosdaq', label: '코스닥', mk: 'kr' },
+  { id: 'nikkei', label: '니케이225', mk: 'us' },  // 국내 지정 카테고리 없음 — 장시간 유사한 'us' 휴리스틱으로 점만 표시
+  { id: 'hsi',    label: '홍콩 항셍', mk: 'us' },
+  { id: 'sse',    label: '상해종합', mk: 'us' },
 ];
 
 async function loadUsSummary() {
   const cardsEl = document.getElementById('usIndexCards');
   if (!cardsEl) return;
   try {
-    const tickers = [...US_INDEX_DEFS, ...GLOBAL_INDEX_DEFS].map(x => x.t);
-    const r = await fetch(`/api/quotes?tickers=${tickers.map(encodeURIComponent).join(',')}`);
+    const r = await fetch('/api/indices');
     const j = await r.json();
     const q = j?.data || {};
 
     cardsEl.innerHTML = US_INDEX_DEFS.map(def => {
-      const d = q[def.t];
-      return d ? krIndexCard(def.label, d) : '';
+      const d = q[def.id];
+      return d ? mktSummaryCard(def, d) : '';
     }).join('');
 
     const glEl = document.getElementById('usGlobalIndices');
     if (glEl) {
       glEl.innerHTML = GLOBAL_INDEX_DEFS.map(def => {
-        const d = q[def.t];
-        if (!d) return '';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:7px 4px">
-          <span style="flex:1;min-width:0;font-size:15px;font-weight:600">${def.label}</span>
-          <span class="t-num" style="font-size:14.5px;font-weight:600;text-align:right;white-space:nowrap">${krFmtNum(d.price)}</span>
-          ${krChgChip(d.changePercent)}
-        </div>`;
+        const d = q[def.id];
+        return d ? mktSummaryCard(def, d) : '';
       }).join('');
     }
 
@@ -4091,20 +4089,34 @@ function krChgChip(pct) {
 // 지수 카드(코스피/코스닥/코스피200, S&P500/나스닥/다우 공용) — dim 배경만으로는
 // 카드 전체 면적에서 너무 흐릿해서(8% 알파) 경계가 안 보였음(직접 스크린샷으로 확인).
 // 톤 배경 + 진한 색 좌측 보더 + 원형 화살표 배지로 카드 윤곽과 방향성을 동시에 확보.
-function krIndexCard(label, d) {
+// 홈 대시보드(.mkt-card, MKT_DASH_ITEMS)와 동일한 스파크라인 카드 컴포넌트를
+// 국장/미장 요약에서도 재사용한다(2026-07-31, 기존 원형 화살표 배지 카드는 폐기 —
+// 사용자 피드백: "안 이쁘다"). CSS는 kr-market.html에 .mkt-card 블록으로 복사해뒀다.
+// def={id,label,mk}, d=/api/indices의 해당 id 응답(price,changePercent,spark,sparkT,
+// prevClose,sessionStart,sessionEnd,sessionLive).
+function mktSummaryCard(def, d) {
+  if (!d || d.price == null) {
+    return `<div class="mkt-card"><div class="mkt-card-main">
+      <div class="mkt-card-name">${escHtml(def.label)}</div>
+      <div class="mkt-card-val" style="color:var(--text3)">—</div>
+    </div></div>`;
+  }
   const up = d.changePercent > 0, dn = d.changePercent < 0;
-  const bg = up ? 'var(--red-dim)' : dn ? 'var(--blue-dim)' : 'var(--bg3)';
-  const fg = up ? 'var(--red)' : dn ? 'var(--blue)' : 'var(--text2)';
-  const arrow = up ? '▲' : dn ? '▼' : '·';
-  const sign = d.change >= 0 ? '+' : '';
-  return `<div style="background:${bg};border-left:4px solid ${fg};border-radius:10px;padding:16px 18px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span style="font-size:14.5px;color:var(--text2);font-weight:700">${label}</span>
-      <span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${fg};color:#fff;font-size:13.5px">${arrow}</span>
+  const color = up ? '#ff6b6b' : '#4d8dff';   // 상승=빨강/하락=파랑 (한국 관례)
+  const chgCls = up ? 'pos' : dn ? 'neg' : '';
+  const sign = d.changePercent > 0 ? '+' : '';
+  const session = mktSessionOf(d);
+  const spark = Array.isArray(d.spark) && d.spark.length > 1
+    ? areaSparkSvg(d.spark, 46, 28, color, d.prevClose, d.sessionLive ?? mktIsOpen(def.mk), d.sparkT, session)
+    : '';
+  return `<a class="mkt-card mkt-card-link" href="/market-detail.html?sym=${encodeURIComponent(def.id)}">
+    <div class="mkt-card-main">
+      <div class="mkt-card-name"><span class="mkt-live-dot${mktIsOpen(def.mk) ? ' on' : ''}"></span>${escHtml(def.label)}</div>
+      <div class="mkt-card-val">${fmtIdx(d.price)}</div>
+      <div class="mkt-card-chg ${chgCls}">${sign}${d.changePercent.toFixed(2)}%</div>
     </div>
-    <div class="t-num" style="font-size:24px;font-weight:800;color:var(--text)">${krFmtNum(d.price)}</div>
-    <div class="t-num" style="font-size:15px;font-weight:800;color:${fg};margin-top:4px">${sign}${d.change.toFixed(2)} (${krFmtPct(d.changePercent)})</div>
-  </div>`;
+    ${spark ? `<div class="mkt-card-spark">${spark}</div>` : ''}
+  </a>`;
 }
 
 function renderKrMarket(tab, d) {

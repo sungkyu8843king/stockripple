@@ -1095,6 +1095,44 @@ button { font-family: inherit; }
 .now-guide { font-size: 14.5px; color: var(--text2); line-height: 1.55; flex: 1; min-width: 220px; }
 .now-count { font-family: var(--font-mono); font-size: 14.5px; font-weight: 700; color: var(--nb-accent, var(--blue)); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
+/* ── 홈 대시보드 스파크라인 카드 (index.html과 동일 컴포넌트, 2026-07-31 도입) ──
+   국장/미장 요약의 원형 화살표 배지 카드를 대체 — mktSummaryCard()(app.js)가 그린다. */
+.mkt-dash-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); grid-auto-flow: dense; gap: 10px; }
+@media (max-width: 900px) { .mkt-dash-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+@media (max-width: 520px) { .mkt-dash-grid { grid-template-columns: minmax(0,1fr); } }
+.mkt-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md, 14px);
+  padding: 11px 13px; display: flex; align-items: center; gap: 10px; min-width: 0;
+}
+.mkt-card-main { flex: 1; min-width: 0; }
+.mkt-card-name { font-size: 13.5px; color: var(--text2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mkt-card-val { font-size: 16px; font-weight: 700; font-family: var(--font-mono); margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mkt-card-chg { font-size: 13px; font-weight: 700; font-family: var(--font-mono); margin-top: 1px; color: var(--text3); }
+.mkt-card-chg.pos { color: var(--red); }
+.mkt-card-chg.neg { color: var(--blue); }
+.mkt-card-spark { width: 46px; height: 28px; flex-shrink: 0; }
+.mkt-card-spark svg { width: 100%; height: 100%; display: block; }
+.mkt-card-link { text-decoration: none; color: inherit; cursor: pointer; transition: border-color .15s, transform .15s; }
+.mkt-card-link:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.mkt-live-dot { display: none; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); margin-right: 5px; vertical-align: middle; }
+.mkt-live-dot.on { display: inline-block; animation: mktDotPulse 1.5s infinite; }
+@keyframes mktDotPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes mktSparkPing { 0% { transform: scale(1); opacity: .65; } 75%, 100% { transform: scale(2.4); opacity: 0; } }
+.mkt-spark-ping { transform-box: fill-box; transform-origin: center; animation: mktSparkPing 1.8s cubic-bezier(.0,.0,.2,1) infinite; }
+
+/* ── 새로고침 버튼 (2026-07-31 재설계 — 기존 🔄 이모지 아이콘 버튼은 "구려"라는
+   피드백으로 폐기, SVG 회전 아이콘 + 클릭 시 회전 애니메이션으로 교체) ── */
+.icon-btn {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+  width: 30px; height: 30px; border-radius: 999px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.icon-btn:hover { background: var(--bg4); border-color: var(--border-strong); color: var(--text); }
+.icon-btn svg { width: 15px; height: 15px; }
+.icon-btn:active svg { animation: iconBtnSpin .5s ease; }
+@keyframes iconBtnSpin { to { transform: rotate(180deg); } }
+
 /* ── ⓪ 해외 실시간 추정가 (모듈형) ── */
 .est-warn {
   display: flex; align-items: flex-start; gap: 10px;
@@ -1159,17 +1197,33 @@ button { font-family: inherit; }
 .br-idx-c.hot { border-color: color-mix(in srgb, var(--red) 45%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--red) 11%, var(--bg3)), var(--bg3)); }
 .br-idx-c.cold { border-color: color-mix(in srgb, var(--blue) 45%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--blue) 11%, var(--bg3)), var(--bg3)); }
 
-.br-row { display: grid; grid-template-columns: minmax(0,1fr) 46px minmax(0,1fr); gap: 10px; align-items: stretch; padding: 13px 0; border-top: 1px solid var(--border-soft); }
-.br-row:first-of-type { border-top: none; }
-.br-side { min-width: 0; }
-.br-side-h { font-size: 12.8px; color: var(--text3); font-weight: 700; letter-spacing: 0.04em; margin-bottom: 7px; text-transform: uppercase; }
-.br-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg3); border: 1px solid var(--border); border-radius: 9px; padding: 6px 10px; margin: 0 5px 5px 0; font-size: 13.5px; max-width: 100%; }
+/* ── 밤사이 브리지 카드 (2026-07-31 재설계 — "직관적으로 보기 어렵다" 피드백)
+   설계: 평균값(미국→한국)과 갭을 큰 숫자로 먼저 보여주고, 개별 종목은
+   <details>로 접어둔다 — 첫눈에 "무슨 일이 있었는지"만 보이게. ── */
+.br-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r-md, 14px); padding: 16px 18px; margin-bottom: 10px; }
+.br-card:last-child { margin-bottom: 0; }
+.br-card.hot { border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+.br-theme { font-size: 15.5px; font-weight: 750; margin-bottom: 3px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.br-why { font-size: 13.2px; color: var(--text3); margin-bottom: 14px; line-height: 1.5; }
+/* flex로 짜서 좁은 화면에서 특별한 미디어쿼리 없이 자연스럽게 줄바꿈되게 한다 */
+.br-stats { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; }
+.br-stat { flex: 1 1 84px; min-width: 76px; }
+.br-stat-lbl { font-size: 12.2px; color: var(--text3); font-weight: 600; margin-bottom: 3px; white-space: nowrap; }
+.br-stat-val { font-size: 21px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.br-stat-arrow { flex: 0 0 auto; color: var(--text3); font-size: 15px; align-self: center; }
+.br-gap-box { flex: 1 1 118px; min-width: 108px; padding-left: 15px; border-left: 1px solid var(--border); margin-left: auto; }
+.br-gap-lbl { font-size: 12.2px; color: var(--text3); font-weight: 600; margin-bottom: 3px; white-space: nowrap; }
+.br-gap-val { font-size: 19px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.03em; white-space: nowrap; }
+.br-detail { margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--border-soft); }
+.br-detail summary { font-size: 12.8px; color: var(--text3); font-weight: 600; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 4px; user-select: none; }
+.br-detail summary::-webkit-details-marker { display: none; }
+.br-detail summary::after { content: '펼치기 ▾'; }
+.br-detail[open] summary::after { content: '접기 ▴'; }
+.br-detail-body { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.br-side-h { font-size: 11.8px; color: var(--text3); font-weight: 700; letter-spacing: 0.04em; margin-bottom: 6px; text-transform: uppercase; }
+.br-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg2); border: 1px solid var(--border); border-radius: 9px; padding: 5px 9px; margin: 0 5px 5px 0; font-size: 13px; max-width: 100%; }
 .br-chip b { font-weight: 600; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .br-chip i { font-style: normal; font-family: var(--font-mono); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.br-arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--text3); }
-.br-arrow span { font-size: 19px; line-height: 1; }
-.br-gap { font-size: 12.8px; font-weight: 800; font-family: var(--font-mono); padding: 3px 7px; border-radius: 7px; white-space: nowrap; }
-.br-theme { font-size: 15px; font-weight: 750; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 
 /* ── ② 시장 온도계 ── */
 .tm-wrap { display: grid; grid-template-columns: 218px minmax(0,1fr); gap: 24px; align-items: center; }
@@ -1188,7 +1242,7 @@ button { font-family: inherit; }
 .fl-lg { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--text2); font-weight: 600; }
 .fl-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
 .fl-chart { width: 100%; overflow-x: auto; }
-.fl-chart svg { display: block; min-width: 520px; }
+.fl-chart svg { display: block; width: 560px; height: auto; }
 .fl-tip { position: fixed; z-index: 999; background: var(--bg4); border: 1px solid var(--border-strong); border-radius: 10px; padding: 9px 12px; font-size: 13px; pointer-events: none; box-shadow: var(--shadow-card); display: none; line-height: 1.6; }
 
 /* ── ④ 뉴스 vs 주가 ── */
@@ -1205,12 +1259,22 @@ button { font-family: inherit; }
 }
 @media (max-width: 620px) {
   .mk-panel { padding: 17px 15px; }
-  .br-row { grid-template-columns: minmax(0,1fr); gap: 4px; }
-  .br-arrow { flex-direction: row; padding: 2px 0; }
-  .br-arrow span { transform: rotate(90deg); }
+  .br-gap-box { flex-basis: 100%; border-left: none; padding-left: 0; margin-left: 0; margin-top: 4px; padding-top: 8px; border-top: 1px dashed var(--border); display: flex; justify-content: space-between; align-items: baseline; }
+  .br-gap-box .br-gap-lbl { margin-bottom: 0; }
   .nv-row, .nv-head { grid-template-columns: 74px minmax(0,1fr) 60px; }
   .nv-row .nv-badge, .nv-head span:last-child { display: none; }
   .now-state { font-size: 16px; }
+
+  /* 랭킹 테이블 · 수급 차트는 패널 좌우 패딩만큼 가로 스크롤 가능 영역이 줄어들어
+     한 화면에 보이는 열이 너무 적었다("모바일에서 다 깨져보여" 피드백) — 패널
+     테두리 안쪽으로 꽉 차게 bleed시키고, 표 셀 자체 padding으로 여백을 되살린다. */
+  .mk-panel-scroll { padding-left: 0; padding-right: 0; }
+  .mk-panel-scroll table th:first-child, .mk-panel-scroll table td:first-child { padding-left: 15px; }
+  .mk-panel-scroll table th:last-child, .mk-panel-scroll table td:last-child { padding-right: 15px; }
+  .mk-panel-scroll::before {
+    content: '↔ 좌우로 밀어보세요'; display: block; font-size: 12px; color: var(--text3);
+    padding: 0 15px 8px;
+  }
 }
 </style>
 </head>
@@ -1282,7 +1346,7 @@ button { font-family: inherit; }
             <span class="sh-desc" id="estDesc">국장 마감 중, 해외에서 거래되는 한국물로 역산</span>
           </div>
           <div class="section-head-r">
-            <button onclick="loadEstimate()" title="새로고침" class="icon-btn">🔄</button>
+            <button onclick="loadEstimate()" title="새로고침" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
           </div>
         </div>
 
@@ -1307,7 +1371,7 @@ button { font-family: inherit; }
             <span class="sh-desc" id="brDesc">미국 시장이 오늘 국장에 남긴 것</span>
           </div>
           <div class="section-head-r">
-            <button onclick="loadBridge()" title="새로고침" class="icon-btn">🔄</button>
+            <button onclick="loadBridge()" title="새로고침" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
           </div>
         </div>
         <div class="mk-panel">
@@ -1401,12 +1465,12 @@ button { font-family: inherit; }
             <span id="krSummaryUpdatedAt" class="sh-desc">—</span>
           </div>
           <div class="section-head-r">
-            <button onclick="loadKrSummary()" title="수동 새로고침" class="icon-btn">🔄</button>
+            <button onclick="loadKrSummary()" title="수동 새로고침" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
           </div>
         </div>
 
         <div class="mk-panel">
-          <div id="krIndexCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:10px;margin-bottom:18px">
+          <div id="krIndexCards" class="mkt-dash-grid" style="margin-bottom:18px">
             <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div>
           </div>
 
@@ -1425,7 +1489,7 @@ button { font-family: inherit; }
             <span id="krMarketUpdatedAt" class="sh-desc">—</span>
           </div>
           <div class="section-head-r">
-            <button onclick="loadKrMarket()" title="수동 새로고침" class="icon-btn">🔄</button>
+            <button onclick="loadKrMarket()" title="수동 새로고침" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
             <div class="seg">
               <button class="hm-tab km-tab active" data-km="volume" onclick="switchKrMarket('volume')">📊 거래량 TOP</button>
               <button class="hm-tab km-tab"        data-km="up"     onclick="switchKrMarket('up')">🔴 상한가</button>
@@ -1435,7 +1499,7 @@ button { font-family: inherit; }
             </div>
           </div>
         </div>
-        <div class="mk-panel" style="padding:14px 16px">
+        <div class="mk-panel mk-panel-scroll" style="padding:14px 16px">
           <div id="krMarketPanel" style="min-height:80px">
             <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>
           </div>
@@ -1455,17 +1519,17 @@ button { font-family: inherit; }
             <span id="usSummaryUpdatedAt" class="sh-desc">—</span>
           </div>
           <div class="section-head-r">
-            <button onclick="loadUsSummary()" title="수동 새로고침" class="icon-btn">🔄</button>
+            <button onclick="loadUsSummary()" title="수동 새로고침" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
           </div>
         </div>
 
-        <div id="usIndexCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,260px));gap:10px;margin-bottom:16px;justify-content:start">
+        <div id="usIndexCards" class="mkt-dash-grid" style="margin-bottom:16px">
           <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div>
         </div>
 
         <div style="min-width:0">
           <div class="sh-title" style="font-size:15.5px;margin-bottom:8px">🌍 주요 해외지수 (비美 시장)</div>
-          <div id="usGlobalIndices" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px 16px">
+          <div id="usGlobalIndices" class="mkt-dash-grid">
             <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div>
           </div>
         </div>
@@ -1496,7 +1560,7 @@ button { font-family: inherit; }
             <span id="usMarketUpdatedAt" class="sh-desc">—</span>
           </div>
           <div class="section-head-r">
-            <button onclick="loadUsMarket()" title="수동 새로고침" class="icon-btn">🔄</button>
+            <button onclick="loadUsMarket()" title="수동 새로고침" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
             <div class="seg">
               <button class="hm-tab usm-tab active" data-usm="actives" onclick="switchUsMarket('actives')">📊 거래량</button>
               <button class="hm-tab usm-tab"        data-usm="gainers" onclick="switchUsMarket('gainers')">🔴 상승률</button>
@@ -1504,7 +1568,7 @@ button { font-family: inherit; }
             </div>
           </div>
         </div>
-        <div class="mk-panel" style="padding:14px 16px">
+        <div class="mk-panel mk-panel-scroll" style="padding:14px 16px">
           <div id="usMarketPanel" style="min-height:80px">
             <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>
           </div>
@@ -1909,24 +1973,34 @@ document.addEventListener('keydown', e => {
         return `<span class="br-chip"><b>${esc(n)}</b><i style="color:${sgnCol(c)}">${pct(c)}</i></span>`;
       }).join('');
 
-      rowEl.innerHTML = BRIDGE.map(b => {
+      // 격차가 큰(=지금 봐야 할) 테마가 먼저 오도록 정렬 — "직관적으로 보기 어렵다"는
+      // 피드백 대응: 스크롤 없이 첫 카드만 봐도 오늘의 핵심 신호가 잡히게 한다.
+      const withGap = BRIDGE.map(b => {
         const u = avg(b.us), k = avg(b.kr);
-        const gap = (u != null && k != null) ? u - k : null;
-        let badge = '';
-        if (gap != null) {
-          const strong = Math.abs(gap) >= 3;
-          const col = gap > 0 ? UP : gap < 0 ? DOWN : FLAT;
-          const txt = gap > 0 ? `국장 미반영 +${gap.toFixed(1)}%p` : gap < 0 ? `국장 선반영 ${gap.toFixed(1)}%p` : '격차 없음';
-          badge = `<span class="br-gap" style="color:${col};background:color-mix(in srgb, ${col} 15%, transparent)">${strong ? '⚡ ' : ''}${txt}</span>`;
-        }
-        return `<div style="padding-top:6px">
-          <div class="br-theme">${esc(b.theme)} ${badge}</div>
-          <div style="font-size:13.2px;color:var(--text3);margin-bottom:9px;line-height:1.5">${esc(b.why)}</div>
-          <div class="br-row">
-            <div class="br-side"><div class="br-side-h">🇺🇸 미국</div>${chips(b.us)}</div>
-            <div class="br-arrow"><span>➜</span><div style="font-size:12.5px;font-weight:700;color:${sgnCol(gap)}">${gap != null ? (gap > 0 ? '+' : '') + gap.toFixed(1) : ''}</div></div>
-            <div class="br-side"><div class="br-side-h">🇰🇷 한국</div>${chips(b.kr)}</div>
+        return { b, u, k, gap: (u != null && k != null) ? u - k : null };
+      }).sort((a, c) => Math.abs(c.gap ?? 0) - Math.abs(a.gap ?? 0));
+
+      rowEl.innerHTML = withGap.map(({ b, u, k, gap }) => {
+        const strong = gap != null && Math.abs(gap) >= 3;
+        const gapCol = gap == null ? FLAT : gap > 0 ? UP : gap < 0 ? DOWN : FLAT;
+        const gapTxt = gap == null ? '—' : gap > 0 ? `+${gap.toFixed(1)}%p` : gap < 0 ? `${gap.toFixed(1)}%p` : '0.0%p';
+        const gapLbl = gap == null ? '데이터 부족' : gap > 0 ? '국장 미반영' : gap < 0 ? '국장 선반영' : '격차 없음';
+        return `<div class="br-card${strong ? ' hot' : ''}">
+          <div class="br-theme">${strong ? '⚡ ' : ''}${esc(b.theme)}</div>
+          <div class="br-why">${esc(b.why)}</div>
+          <div class="br-stats">
+            <div class="br-stat"><div class="br-stat-lbl">🇺🇸 미국 평균</div><div class="br-stat-val" style="color:${sgnCol(u)}">${pct(u)}</div></div>
+            <div class="br-stat-arrow">→</div>
+            <div class="br-stat"><div class="br-stat-lbl">🇰🇷 한국 평균</div><div class="br-stat-val" style="color:${sgnCol(k)}">${pct(k)}</div></div>
+            <div class="br-gap-box"><div class="br-gap-lbl">${esc(gapLbl)}</div><div class="br-gap-val" style="color:${gapCol}">${esc(gapTxt)}</div></div>
           </div>
+          <details class="br-detail">
+            <summary>종목별로</summary>
+            <div class="br-detail-body">
+              <div><div class="br-side-h">🇺🇸 미국</div>${chips(b.us)}</div>
+              <div><div class="br-side-h">🇰🇷 한국</div>${chips(b.kr)}</div>
+            </div>
+          </details>
         </div>`;
       }).join('');
     } catch (e) {

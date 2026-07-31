@@ -6,6 +6,8 @@ const SYMBOL_MAP = {
   btc: 'BTC-USD', gold: 'GC=F', oil: 'CL=F', usdkrw: 'KRW=X', vix: '^VIX',
   us10y: '^TNX', dxy: 'DX-Y.NYB', eth: 'ETH-USD', nikkei: '^N225', hsi: '^HSI',
   sox: '^SOX', nq: 'NQ=F',
+  // 2026-07-31 kr-market.html "국장/미장 요약" 카드 재설계에 필요해 추가
+  sse: '000001.SS', kospi200: '^KS200',
 };
 
 // 세션 앵커 차트(2026-07-28) — 홈 대시보드 차트가 "최근 24시간 창을 24포인트로 다운샘플해
@@ -18,7 +20,7 @@ const SYMBOL_MAP = {
 // "최근 24시간 롤링 윈도우" 방식을 그대로 쓴다(세션 개념이 뚜렷하지 않거나 대시보드에
 // 안 쓰여서 정밀한 세션 계산의 이득이 적음).
 const SESSION_MARKET = {
-  kospi: 'kr', kosdaq: 'kr',
+  kospi: 'kr', kosdaq: 'kr', kospi200: 'kr',
   nasdaq: 'us', dow: 'us', sp500: 'us', vix: 'us', sox: 'us', nq: 'us',
 };
 
@@ -125,6 +127,8 @@ export default async function handler(req, res) {
     { id: 'hsi',    symbol: '^HSI'   },
     { id: 'sox',    symbol: '^SOX'   },  // 필라델피아 반도체 지수
     { id: 'nq',     symbol: 'NQ=F'   },  // 나스닥100 선물
+    { id: 'sse',      symbol: '000001.SS' }, // 상해종합 — kr-market.html 미장현황 "비美 시장"
+    { id: 'kospi200', symbol: '^KS200' },    // 코스피200 — kr-market.html 국장 요약
   ];
 
   const headers = {
