@@ -1259,6 +1259,10 @@ button { font-family: inherit; }
 }
 @media (max-width: 620px) {
   .mk-panel { padding: 17px 15px; }
+  /* 4개짜리 밤사이 지수 카드가 한 줄에 다 들어가면 값이 카드 밖으로 삐져나갔다
+     ("다 깨져보여" 피드백) — 2열로 줄여 값 글자 크기도 함께 줄인다. */
+  .br-idx { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .br-idx-v { font-size: 18px; }
   .br-gap-box { flex-basis: 100%; border-left: none; padding-left: 0; margin-left: 0; margin-top: 4px; padding-top: 8px; border-top: 1px dashed var(--border); display: flex; justify-content: space-between; align-items: baseline; }
   .br-gap-box .br-gap-lbl { margin-bottom: 0; }
   .nv-row, .nv-head { grid-template-columns: 74px minmax(0,1fr) 60px; }

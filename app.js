@@ -3645,8 +3645,10 @@ function _tmTileHtml(node, isKr) {
   const pctTxt = `${sign}${it.pct.toFixed(2)}%`;
   const showPct = w > 5.5 && h > 7;
   const showName = w > 7 && h > 11;
-  const nameSize = w > 16 ? 15 : w > 11 ? 13 : 11;
-  const pctSize = w > 16 ? 13 : w > 11 ? 11.5 : 10;
+  // 본문 12px 미만 금지(접근성 기준) — 박스가 작아 다 안 들어가면 글자를 줄이는
+  // 대신 말줄임표(ellipsis)로 잘라낸다(showName/showPct 자체가 아주 작은 박스는 숨김).
+  const nameSize = w > 16 ? 15 : w > 11 ? 13 : 12;
+  const pctSize = w > 16 ? 13 : w > 11 ? 12.5 : 12;
   const label = showName
     ? `<div style="font-weight:800;font-size:${nameSize}px;line-height:1.15;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escAttr(it.name)}</div>` : '';
   const pctHtml = showPct
@@ -3665,7 +3667,7 @@ function renderHeatmapTreemap(grid, items) {
   if (!items.length) { grid.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">데이터가 없어요.</div>'; return; }
   const isKr = _hmMkt === 'kr';
   const isNarrow = window.innerWidth <= 700;
-  const limit = isNarrow ? 60 : TM_MAX_TILES;
+  const limit = isNarrow ? 42 : TM_MAX_TILES;   // 모바일은 타일 수를 더 줄여 12px 폰트가 들어갈 여유를 준다
   const totalCount = items.length;
   // 시총 상위만 — 전 종목(500+)을 한 화면에 넣으면 타일이 6px까지 작아져 못 읽는다.
   const so = _sharesOutstanding || {};
@@ -3688,14 +3690,14 @@ function renderHeatmapTreemap(grid, items) {
   })).sort((a, b) => b._v - a._v);
 
   const secNodes = _tmLayout(sectorList, 0, 0, 100, 100);
-  const HEAD = 15; // 섹터 라벨 띠 높이(px)
+  const HEAD = 18; // 섹터 라벨 띠 높이(px) — 12px 폰트가 들어갈 수 있게 15→18
   const html = secNodes.map(sn => {
     const g = sn.it;
     const label = SECTOR_META[g.key]?.label || g.key;
     const inner = _tmLayout(g.arr, 0, 0, 100, 100).map(n => _tmTileHtml(n, isKr)).join('');
     return `<div style="position:absolute;left:${sn.x}%;top:${sn.y}%;width:${sn.w}%;height:${sn.h}%;padding:1px;box-sizing:border-box">
       <div style="position:relative;width:100%;height:100%;border:1px solid rgba(255,255,255,.18);box-sizing:border-box;overflow:hidden">
-        <div style="position:absolute;inset:0 0 auto 0;height:${HEAD}px;background:rgba(0,0,0,.55);color:#c9d1d9;font-size:9.5px;font-weight:800;letter-spacing:.04em;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;text-transform:uppercase">${escAttr(label)}</div>
+        <div style="position:absolute;inset:0 0 auto 0;height:${HEAD}px;background:rgba(0,0,0,.55);color:#c9d1d9;font-size:12px;font-weight:800;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px;box-sizing:border-box">${escAttr(label)}</div>
         <div style="position:absolute;left:0;right:0;top:${HEAD}px;bottom:0">${inner}</div>
       </div>
     </div>`;
@@ -4101,10 +4103,12 @@ function mktSummaryCard(def, d) {
       <div class="mkt-card-val" style="color:var(--text3)">—</div>
     </div></div>`;
   }
-  const up = d.changePercent > 0, dn = d.changePercent < 0;
-  const color = up ? '#ff6b6b' : '#4d8dff';   // 상승=빨강/하락=파랑 (한국 관례)
+  const cp = d.changePercent;
+  const hasChg = cp != null && !Number.isNaN(cp);
+  const up = hasChg && cp > 0, dn = hasChg && cp < 0;
+  const color = up ? '#ff6b6b' : dn ? '#4d8dff' : '#9aa3b2';   // 상승=빨강/하락=파랑 (한국 관례)
   const chgCls = up ? 'pos' : dn ? 'neg' : '';
-  const sign = d.changePercent > 0 ? '+' : '';
+  const sign = hasChg && cp > 0 ? '+' : '';
   const session = mktSessionOf(d);
   const spark = Array.isArray(d.spark) && d.spark.length > 1
     ? areaSparkSvg(d.spark, 46, 28, color, d.prevClose, d.sessionLive ?? mktIsOpen(def.mk), d.sparkT, session)
@@ -4113,7 +4117,7 @@ function mktSummaryCard(def, d) {
     <div class="mkt-card-main">
       <div class="mkt-card-name"><span class="mkt-live-dot${mktIsOpen(def.mk) ? ' on' : ''}"></span>${escHtml(def.label)}</div>
       <div class="mkt-card-val">${fmtIdx(d.price)}</div>
-      <div class="mkt-card-chg ${chgCls}">${sign}${d.changePercent.toFixed(2)}%</div>
+      <div class="mkt-card-chg ${chgCls}">${hasChg ? sign + cp.toFixed(2) + '%' : '—'}</div>
     </div>
     ${spark ? `<div class="mkt-card-spark">${spark}</div>` : ''}
   </a>`;
