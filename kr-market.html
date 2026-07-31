@@ -2260,7 +2260,7 @@ document.addEventListener('keydown', e => {
           <span style="font-size:13px;color:var(--text3)">국장 재개장 시 참고 방향 · 예상치가 아닌 실제 거래값</span>
         </div>` : '';
 
-      el.innerHTML = head + `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(0,1fr));gap:0">
+      el.innerHTML = head + `<div style="display:grid;grid-template-columns:1fr;gap:0">
         ${rows.map(([sym, o]) => `
           <div style="display:grid;grid-template-columns:minmax(0,1fr) 88px 92px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-soft)">
             <div style="min-width:0">

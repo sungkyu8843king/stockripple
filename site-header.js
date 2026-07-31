@@ -107,7 +107,11 @@ function _siteChromeInjectStyle() {
 .header-search svg{color:var(--text3);flex-shrink:0}
 .header-search input{flex:1;min-width:0;border:none;outline:none;background:none;font-size:15.5px;color:var(--text);font-family:inherit}
 .header-search input::placeholder{color:var(--text3)}
+/* 태블릿(761~900px)에서는 숨긴다 — nav-btn 7개가 아직 줄바꿈 안 되는 폭이라 검색창을
+   넣으면 겹친다. 760px 이하(모바일, header-nav도 줄바꿈되는 지점)에서는 아래
+   미디어쿼리가 다시 보이게 하면서 로고 옆 자체 줄로 재배치한다. */
 @media (max-width:900px){ .header-search{display:none} }
+.login-icon{display:none}
 .header-nav{display:flex;gap:2px;margin-left:auto;align-items:center}
 .nav-btn{padding:7px 13px;border-radius:16px;font-size:15.5px;font-weight:500;background:none;border:none;color:var(--text2);cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px;transition:all .12s;white-space:nowrap}
 .nav-btn:hover{background:var(--bg3);color:var(--text)}
@@ -124,9 +128,20 @@ function _siteChromeInjectStyle() {
 .dropdown-item{display:block;width:100%;padding:10px 14px;font-size:15.5px;color:var(--text2);background:none;border:none;text-align:left;cursor:pointer;text-decoration:none;transition:all .12s}
 .dropdown-item:hover{background:var(--bg3);color:var(--text)}
 @media (max-width:760px){
-  .header-inner{flex-wrap:wrap;height:auto;padding:8px 0;row-gap:6px;position:relative}
-  .header-nav{flex-wrap:wrap;row-gap:4px}
-  #loginBtn,.user-menu{position:absolute;top:8px;right:0;margin-left:0}
+  /* 로고 옆 검색창 + 로그인을 동그라미 아이콘으로(피드백: "모바일에서 종목 검색 기능이
+     사라졌다", "로그인 기능을 동그라미 안으로"). 테마토글·로그인·아바타를 header-nav
+     흐름에서 빼내 로고와 같은 첫 줄 오른쪽에 절대배치하고, 그만큼 header-inner
+     오른쪽에 여백을 둬서 검색창 입력칸이 그 밑으로 깔리지 않게 한다. nav 링크(7개)는
+     그 아래 둘째 줄에서 자체적으로 줄바꿈된다. */
+  .header-inner{flex-wrap:wrap;height:auto;padding:8px 92px 8px 0;row-gap:6px;position:relative}
+  .header-search{display:flex;max-width:none;flex:1 1 0;min-width:0;order:1}
+  .logo{flex-shrink:0}
+  .header-nav{flex-wrap:wrap;row-gap:4px;flex-basis:100%;order:2;margin-left:0;margin-top:2px}
+  #themeToggleBtn,#loginBtn,.user-menu{position:absolute;top:8px;right:0;margin-left:0}
+  #themeToggleBtn{right:40px}
+  .nav-btn-primary{width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .login-icon{display:block}
+  .login-text{display:none}
 }
 @media (max-width:600px){
   .logo-sub{display:none}
@@ -216,7 +231,10 @@ function _siteHeaderHtml(activePath) {
         <nav class="header-nav" id="headerNav">
           ${navHtml}
           <button class="theme-toggle" id="themeToggleBtn" onclick="srToggleTheme()" aria-label="다크/라이트 모드 전환" title="다크/라이트 모드 전환">🌙</button>
-          <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
+          <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">
+            <svg class="login-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span class="login-text">로그인</span>
+          </button>
           <div class="user-menu" id="userMenu" style="display:none">
             <button class="user-avatar-btn" id="userAvatar" onclick="toggleUserDropdown()"></button>
             <div class="user-dropdown" id="userDropdown" style="display:none">
