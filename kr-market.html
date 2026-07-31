@@ -1278,7 +1278,7 @@ button { font-family: inherit; }
         <div class="section-head">
           <div class="section-head-l">
             <span class="sh-mark" style="background:var(--green)"></span>
-            <span class="sh-title">🛰️ 해외 실시간 추정가</span>
+            <span class="sh-title" id="estSecTitle">🛰️ 해외 실시간 추정가</span>
             <span class="sh-desc" id="estDesc">국장 마감 중, 해외에서 거래되는 한국물로 역산</span>
           </div>
           <div class="section-head-r">
@@ -1675,9 +1675,16 @@ document.addEventListener('keydown', e => {
     if (t < 300)               return { key: 'usOpen', until: 300 };  // ~05:00
     return { key: 'dawn', until: 480 };                               // 05:00~08:00
   }
+  let _lastModeKey = null;
   function paintNow() {
     const bar = document.getElementById('nowBar'); if (!bar) return;
     const cur = currentMode(), mode = MODES[cur.key] || MODES.weekend;
+    // 09:00 개장·15:30 마감을 넘어가면 추정가↔현재가 모드를 새로고침 없이 전환한다
+    if (_lastModeKey !== null && _lastModeKey !== cur.key) {
+      const wasLive = _lastModeKey === 'krOpen', isLive = cur.key === 'krOpen';
+      if (wasLive !== isLive && typeof window.loadEstimate === 'function') window.loadEstimate();
+    }
+    _lastModeKey = cur.key;
     bar.style.setProperty('--nb-accent', mode.c);
     document.getElementById('nowState').textContent = mode.s;
     document.getElementById('nowGuide').textContent = mode.g;
@@ -1776,11 +1783,68 @@ document.addEventListener('keydown', e => {
     return out;
   }
 
+  // 장중에는 실제 현재가가 있는데 추정가를 같이 띄우면 혼란스럽고 신뢰도만 깎인다.
+  // 같은 카드를 모드만 바꿔 재사용한다 — 장중=실시간 현재가, 마감 중=해외 역산 추정가.
+  function applyEstMode(live) {
+    const secTitle = document.getElementById('estSecTitle');
+    const warn = document.querySelector('.est-warn');
+    if (secTitle) secTitle.textContent = live ? '📈 주요 종목 현재가' : '🛰️ 해외 실시간 추정가';
+    if (warn) warn.style.display = live ? 'none' : '';
+  }
+
+  function renderLiveCards(grid, bar, Q) {
+    grid.innerHTML = EST_MODEL.targets.map(tg => {
+      const q = Q[tg.t];
+      const px = num(q?.price), chg = num(q?.changePercent), diff = num(q?.change);
+      const head = `<div class="est-top">
+          <div class="est-logo" style="background:${tg.c}">${esc(tg.ini)}</div>
+          <div style="min-width:0">
+            <div class="est-nm">${esc(tg.name)}</div>
+            <div class="est-tk">${esc(tg.t.replace('.KS', ''))}</div>
+          </div>
+        </div>`;
+      if (px == null) {
+        return `<div class="est-card">${head}<div class="est-badge stale">시세 없음</div>
+          <div class="est-none">지금은 시세를 불러올 수 없습니다.</div></div>`;
+      }
+      const hi = num(q?.dayHigh), lo = num(q?.dayLow), vol = num(q?.volume);
+      return `<div class="est-card live">${head}
+        <div class="est-badge">실시간 현재가</div>
+        <div class="est-px" style="color:${sgnCol(chg)}">₩${Math.round(px).toLocaleString()}<small>원</small></div>
+        <div class="est-chg" style="color:${sgnCol(chg)}">
+          <span>전일 종가 대비</span>${chg > 0 ? '▲' : chg < 0 ? '▼' : '—'} ${diff != null ? Math.abs(Math.round(diff)).toLocaleString() : '—'}원 · ${pct(chg)}
+        </div>
+        <div class="est-meta">
+          ${(hi != null && lo != null) ? `<div class="est-mrow"><span>당일 고 / 저</span><span style="font-family:var(--font-mono);color:var(--text2)">₩${Math.round(hi).toLocaleString()} / ₩${Math.round(lo).toLocaleString()}</span></div>` : ''}
+          ${vol != null ? `<div class="est-mrow"><span>거래량</span><span style="font-family:var(--font-mono);color:var(--text2)">${Math.round(vol).toLocaleString()}주</span></div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    bar.innerHTML = `<b>실시간</b><span class="est-pill">국장 장중 <em style="color:var(--red)">거래 중</em></span>
+      <span style="color:var(--text3);margin-left:auto">장 마감 후에는 해외 신호 기반 추정가로 자동 전환됩니다</span>`;
+  }
+
   window.loadEstimate = async function () {
     const grid = document.getElementById('estGrid'), bar = document.getElementById('estSrcBar');
     if (!grid) return;
+    const live = currentMode().key === 'krOpen';   // 국장 장중이면 추정하지 않는다
+    applyEstMode(live);
+    const krT = EST_MODEL.targets.map(x => x.t);
+
+    // 장중: 실제 시세만 있으면 되므로 해외 신호·바이낸스는 아예 호출하지 않는다
+    if (live) {
+      try {
+        const qr = await jget('/api/quotes?tickers=' + krT.map(encodeURIComponent).join(','));
+        renderLiveCards(grid, bar, qr.data || {});
+        const dsc = document.getElementById('estDesc');
+        if (dsc) dsc.textContent = `${EST_MODEL.targets.length}종목 · 실시간 체결가`;
+      } catch (e) {
+        grid.innerHTML = `<div style="grid-column:1/-1;color:var(--text3);font-size:14.5px;padding:14px;text-align:center">시세를 불러오지 못했습니다 — ${esc(e.message)}</div>`;
+      }
+      return;
+    }
+
     try {
-      const krT = EST_MODEL.targets.map(x => x.t);
       const [P, qr, bnClient] = await Promise.all([
         jget('/api/market-data?source=kr-proxy'),
         jget('/api/quotes?tickers=' + krT.map(encodeURIComponent).join(',')),
