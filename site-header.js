@@ -99,7 +99,7 @@ function _siteChromeInjectStyle() {
   style.textContent = `
 .header{position:sticky;top:0;z-index:100;background:rgba(var(--bg-rgb),0.80);backdrop-filter:blur(14px) saturate(150%);border-bottom:1px solid var(--border);padding:0 24px}
 .header-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;gap:16px;height:56px}
-.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
 .logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--blue) 0%,var(--purple) 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;box-shadow:0 3px 10px rgba(36,87,230,0.30)}
 .logo-text{font-size:19px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
 .logo-sub{font-size:13px;color:var(--text3);font-weight:500;margin-top:1px;letter-spacing:0}
@@ -107,10 +107,11 @@ function _siteChromeInjectStyle() {
 .header-search svg{color:var(--text3);flex-shrink:0}
 .header-search input{flex:1;min-width:0;border:none;outline:none;background:none;font-size:15.5px;color:var(--text);font-family:inherit}
 .header-search input::placeholder{color:var(--text3)}
-/* 태블릿(761~900px)에서는 숨긴다 — nav-btn 7개가 아직 줄바꿈 안 되는 폭이라 검색창을
-   넣으면 겹친다. 760px 이하(모바일, header-nav도 줄바꿈되는 지점)에서는 아래
-   미디어쿼리가 다시 보이게 하면서 로고 옆 자체 줄로 재배치한다. */
-@media (max-width:900px){ .header-search{display:none} }
+/* 태블릿(761~1300px)에서는 숨긴다 — nav-btn 7개 + 로그인 버튼이 이 폭에서 검색창까지
+   넣으면 겹친다(실측: 762px 이하 헤더 안에 nav만으로도 850px+ 필요). 760px 이하(모바일,
+   header-nav도 줄바꿈되는 지점)에서는 아래 미디어쿼리가 다시 보이게 하면서 로고 옆
+   자체 줄로 재배치한다. */
+@media (max-width:1300px){ .header-search{display:none} }
 .login-icon{display:none}
 .header-nav{display:flex;gap:2px;margin-left:auto;align-items:center}
 .nav-btn{padding:7px 13px;border-radius:16px;font-size:15.5px;font-weight:500;background:none;border:none;color:var(--text2);cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px;transition:all .12s;white-space:nowrap}
@@ -118,7 +119,7 @@ function _siteChromeInjectStyle() {
 .nav-btn.active{background:var(--blue);color:#fff;font-weight:600}
 .nav-new{position:relative}
 .nav-new::after{content:"";position:absolute;top:2px;right:1px;width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--bg),0 0 6px var(--red)}
-.nav-btn-primary{background:var(--blue);color:#fff;padding:7px 16px;margin-left:6px;border-radius:16px;font-size:15.5px;font-weight:600;text-decoration:none;cursor:pointer;border:none;transition:all .12s}
+.nav-btn-primary{background:var(--blue);color:#fff;padding:7px 16px;margin-left:6px;border-radius:16px;font-size:15.5px;font-weight:600;text-decoration:none;cursor:pointer;border:none;transition:all .12s;white-space:nowrap;flex-shrink:0}
 .nav-btn-primary:hover{background:#1e4ccc}
 .theme-toggle{width:30px;height:30px;flex-shrink:0;border-radius:50%;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;margin-left:6px;transition:all .12s}
 .theme-toggle:hover{background:var(--bg4);color:var(--text);border-color:var(--border-strong)}
@@ -128,25 +129,45 @@ function _siteChromeInjectStyle() {
 .dropdown-item{display:block;width:100%;padding:10px 14px;font-size:15.5px;color:var(--text2);background:none;border:none;text-align:left;cursor:pointer;text-decoration:none;transition:all .12s}
 .dropdown-item:hover{background:var(--bg3);color:var(--text)}
 @media (max-width:760px){
-  /* 로고 옆 검색창 + 로그인을 동그라미 아이콘으로(피드백: "모바일에서 종목 검색 기능이
-     사라졌다", "로그인 기능을 동그라미 안으로"). 테마토글·로그인·아바타를 header-nav
-     흐름에서 빼내 로고와 같은 첫 줄 오른쪽에 절대배치하고, 그만큼 header-inner
-     오른쪽에 여백을 둬서 검색창 입력칸이 그 밑으로 깔리지 않게 한다. nav 링크(7개)는
-     그 아래 둘째 줄에서 자체적으로 줄바꿈된다. */
-  .header-inner{flex-wrap:wrap;height:auto;padding:8px 92px 8px 0;row-gap:6px;position:relative}
+  /* 로고 옆 검색창이 남는 폭을 전부 쓰게 하고(피드백: "검색창 영역 좀 늘려"),
+     테마토글·로그인/계정은 헤더에서 빼 우측 하단 ⋯ 독으로 옮긴다(consolidateMobileFabs).
+     .header-nav 하위로 스코프를 걸어 숨기므로, 독으로 reparent되는 순간 이 규칙이
+     더 이상 안 걸려 자동으로 다시 보인다 — 페이지별 #loginBtn 규칙(8개 파일에 중복)
+     보다 특이도가 높아 그쪽도 같이 이긴다. nav 링크 7개는 둘째 줄부터 자체 줄바꿈. */
+  .header-inner{flex-wrap:wrap;height:auto;padding:8px 0;row-gap:6px;position:relative}
   .header-search{display:flex;max-width:none;flex:1 1 0;min-width:0;order:1}
   .logo{flex-shrink:0}
   .header-nav{flex-wrap:wrap;row-gap:4px;flex-basis:100%;order:2;margin-left:0;margin-top:2px}
-  #themeToggleBtn,#loginBtn,.user-menu{position:absolute;top:8px;right:0;margin-left:0}
-  #themeToggleBtn{right:40px}
-  .nav-btn-primary{width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center}
-  .login-icon{display:block}
-  .login-text{display:none}
+  .header-nav #themeToggleBtn,.header-nav #loginBtn,.header-nav #userMenu{display:none}
 }
+/* ⋯ 독으로 옮겨온 로그인/계정 버튼 — 독의 다른 원형 버튼과 같은 모양으로 맞추고,
+   계정 드롭다운은 화면 하단에 붙으므로 아래가 아니라 위로 펼친다. */
+#srFabDock .nav-btn-primary{width:48px;height:48px;padding:0;margin:0;border-radius:50%;display:flex;align-items:center;justify-content:center}
+#srFabDock .login-icon{display:block;width:20px;height:20px}
+#srFabDock .login-text{display:none}
+#srFabDock .theme-toggle{width:48px;height:48px;margin:0;font-size:19px}
+#srFabDock .user-avatar-btn{width:48px;height:48px;font-size:18px}
+#srFabDock .user-dropdown{top:auto;bottom:calc(100% + 8px)}
 @media (max-width:600px){
   .logo-sub{display:none}
   .nav-btn{padding:6px 9px;font-size:14.5px}
   .header{padding:0 16px}
+}
+/* 761~1300px 구간은 검색창을 숨겨도 nav-btn 7개 + 로그인 버튼이 꽉 차서, 이 폭에서만
+   패딩/폰트를 줄여 한 줄에 들어가게 한다(loginBtn이 white-space:normal이라 flex 압박을
+   혼자 뒤집어쓰고 텍스트가 2줄로 줄바꿈되며 46x80px처럼 찌그러지던 버그의 근본 수정 —
+   loginBtn 자체는 위 .nav-btn-primary에 추가한 white-space:nowrap+flex-shrink:0로 항상
+   원래 크기를 유지하게 하고, 남는 공간은 nav-btn 쪽 패딩/폰트를 줄여서 만든다. 다른 헤더
+   규칙보다 뒤에 둬서 동일 우선순위 캐스케이드에서 항상 이기고, min-width:761px로 범위를
+   묶어서 위 ≤760px 모바일 레이아웃(로그인 버튼이 동그라미 아이콘이 되는 구간)과 겹치지
+   않게 한다 — 안 그러면 이 블록의 padding이 그 동그라미 버튼의 padding:0을 덮어써버림). */
+@media (max-width:1300px) and (min-width:761px){
+  .header{padding:0 12px}
+  .header-inner{gap:8px}
+  .nav-btn{padding:7px 4px;font-size:11.5px;gap:2px}
+  .nav-btn-primary{padding:7px 10px;margin-left:2px}
+  .theme-toggle{margin-left:2px}
+  .header-nav{gap:0px}
 }
 .site-footer{border-top:1px solid var(--border);background:var(--bg2);margin-top:8px}
 .site-footer-inner{max-width:1400px;margin:0 auto;padding:20px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13.5px;color:var(--text3);line-height:1.6}
@@ -608,6 +629,39 @@ function consolidateMobileFabs() {
     { el: document.querySelector('#srChatBtn'), label: '실시간 채팅' },
     { el: document.querySelector('.fb-fab'), label: '의견 주기' },
   ].filter(c => c.el && getComputedStyle(c.el).display !== 'none');
+
+  // 헤더의 테마 토글·로그인/계정도 ≤760px에서 이 독으로 옮긴다(2026-07-31, 피드백:
+  // "검색창 영역 좀 늘려" + "로그인 버튼은 우측 하단 ...안으로") — 헤더 쪽 CSS
+  // (.header-nav #themeToggleBtn 등)가 이 폭에서 이미 그 세 요소를 숨겨뒀으므로,
+  // 위 3개 후보와 달리 "지금 보이는지"로 거르지 않는다(로그인 전엔 loginBtn이, 로그인
+  // 후엔 userMenu가 display:none이라 그 필터를 쓰면 둘 다 걸러져 로그인 진입점이
+  // 통째로 사라진다). 존재 여부만 확인하고 항상 넣는다 — 실제 표시는 옮겨진 뒤
+  // #srFabDock 스코프 CSS와 두 요소 자체의 display 토글(initAuth)이 계속 처리한다.
+  if (window.innerWidth <= 760) {
+    const themeBtn = document.getElementById('themeToggleBtn');
+    if (themeBtn) candidates.push({ el: themeBtn, label: '테마', keepSize: true });
+    // loginBtn/userMenu는 로그인 상태에 따라 정확히 하나만 보이도록 다른 코드가
+    // 서로의 display를 토글한다(initAuth) — 각자 따로 한 줄씩 만들면, 안 보이는
+    // 쪽의 라벨 칩만 버튼 없이 둥둥 떠 보인다. 하나의 래퍼에 같이 넣어 한 줄로
+    // 묶으면 어느 쪽이 보이든 그 줄 안에서 자연히 처리된다.
+    const loginBtn = document.getElementById('loginBtn');
+    const userMenu = document.getElementById('userMenu');
+    if (loginBtn || userMenu) {
+      const acctWrap = document.createElement('div');
+      acctWrap.style.cssText = 'display:flex;align-items:center';
+      // 여러 페이지에 중복된 구버전 규칙(`#loginBtn, .user-menu { position:absolute;
+      // top:8px; right:0 }`, id/class 셀렉터라 이 요소들을 독으로 옮긴 뒤에도 계속
+      // 걸린다)을 인라인 스타일로 덮어써야 한다 — 래퍼(acctWrap)가 아니라 이 두 요소
+      // 자신에게 직접 걸리는 규칙이라, 래퍼만 정리해선 안 지워진다.
+      [loginBtn, userMenu].forEach(el => {
+        if (!el) return;
+        el.style.position = 'static'; el.style.top = ''; el.style.right = ''; el.style.marginLeft = '0';
+      });
+      if (loginBtn) acctWrap.appendChild(loginBtn);
+      if (userMenu) acctWrap.appendChild(userMenu);
+      candidates.push({ el: acctWrap, label: '계정', keepSize: true, isWrap: true });
+    }
+  }
   // 원래는 "1개뿐이면 묶을 이유 없음"이었으나, fb-fab가 없는 페이지(earnings.html 등)에서
   // 채팅 버튼 혼자 구버전 원형 스타일(💬, 위치도 다름)로 남아 있어 페이지마다 우측 하단
   // 아이콘이 서로 달라 보인다는 피드백(2026-07-28) — 1개여도 항상 동일한 "⋯" 독 스타일로
@@ -630,10 +684,13 @@ function consolidateMobileFabs() {
   // 아이콘만으로는 뭘 하는 버튼인지 구분이 안 됐다(실시간채팅/의견주기 둘 다 💬라 동일하게
   // 보임 — 스크린샷으로 확인, 2026-07-28) — 아이콘 왼쪽에 항상 보이는 텍스트 라벨 칩을
   // 붙인다. 크기도 버튼마다 제각각(54/56/48px)이라 스택이 삐뚤빼뚤해 보였던 것도 통일.
-  candidates.forEach(({ el, label }) => {
+  candidates.forEach(({ el, label, keepSize }) => {
     el.style.position = 'static';
-    el.style.bottom = ''; el.style.right = ''; el.style.left = '';
-    el.style.width = '48px'; el.style.height = '48px'; el.style.fontSize = '19px';
+    el.style.bottom = ''; el.style.right = ''; el.style.left = ''; el.style.marginLeft = '0';
+    // keepSize: 테마/로그인/계정은 #srFabDock 스코프 CSS(위 _siteChromeInjectStyle)가
+    // 이미 알맞은 크기를 지정해뒀다 — 특히 .user-menu는 아바타+드롭다운을 감싸는
+    // 래퍼라 여기서 48px로 강제하면 내용이 잘린다.
+    if (!keepSize) { el.style.width = '48px'; el.style.height = '48px'; el.style.fontSize = '19px'; }
     el.title = label;
 
     const row = document.createElement('div');
