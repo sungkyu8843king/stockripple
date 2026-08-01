@@ -135,6 +135,9 @@ function _siteChromeInjectStyle() {
 .nav-btn-primary:hover{background:#1e4ccc}
 .theme-toggle{width:30px;height:30px;flex-shrink:0;border-radius:50%;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;margin-left:6px;transition:all .12s}
 .theme-toggle:hover{background:var(--bg4);color:var(--text);border-color:var(--border-strong)}
+/* 2026-08: ≥1200px는 chat.js의 우측 아이콘 레일(#srRail) 하단에 테마 토글을 옮겼으므로
+   헤더 쪽은 숨김 — <1200px(태블릿/모바일)는 레일이 없어 헤더에 그대로 유지 */
+@media (min-width:1200px){ #headerNav #themeToggleBtn{display:none} }
 .user-menu{position:relative;flex-shrink:0}
 .user-avatar-btn{width:32px;height:32px;border-radius:50%;background:var(--blue-dim);color:var(--blue);border:1.5px solid var(--blue);font-size:15.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .user-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:var(--bg2);border:1px solid var(--border);border-radius:16px;min-width:140px;overflow:hidden;z-index:500;box-shadow:0 20px 50px rgba(0,0,0,.6)}

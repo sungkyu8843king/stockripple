@@ -180,8 +180,20 @@
     ${chatEnabled ? `<button class="srr-item" data-tab="chat"><span>💬</span><span class="srr-label">채팅</span><span class="badge" id="srRailChatBadge"></span></button>` : ''}
     <button class="srr-item" data-tab="rank"><span>📊</span><span class="srr-label">실시간</span></button>
     <button class="srr-item" data-tab="wl"><span>⭐</span><span class="srr-label">관심</span></button>
-    <button class="srr-item" data-tab="recent"><span>🕐</span><span class="srr-label">최근 본</span></button>`;
+    <button class="srr-item" data-tab="recent"><span>🕐</span><span class="srr-label">최근 본</span></button>
+    <button class="srr-item" id="srRailTheme" onclick="srToggleTheme()" title="다크/라이트 모드 전환" style="margin-top:auto">
+      <span id="srRailThemeIcon">🌙</span><span class="srr-label">테마</span>
+    </button>`;
   document.body.appendChild(rail);
+
+  // 다크/라이트 토글 — 헤더에 있던 걸 여기로 옮김(2026-08, ≥1200px에서 헤더 쪽은 CSS로
+  // 숨김). srToggleTheme/srGetTheme는 site-header.js 전역 함수를 그대로 재사용.
+  const railThemeIcon = rail.querySelector('#srRailThemeIcon');
+  function _syncRailThemeIcon() {
+    if (railThemeIcon && typeof srGetTheme === 'function') railThemeIcon.textContent = srGetTheme() === 'light' ? '☀️' : '🌙';
+  }
+  _syncRailThemeIcon();
+  window.addEventListener('sr-theme-change', _syncRailThemeIcon);
 
   const list = panel.querySelector('#srChatList');
   const input = panel.querySelector('#srChatText');
@@ -559,7 +571,7 @@
   railCollapseBtn?.addEventListener('click', () => {
     if (panel.classList.contains('open')) { closePanel(); } else { openPanel(); }
   });
-  rail.querySelectorAll('.srr-item').forEach(b => {
+  rail.querySelectorAll('.srr-item[data-tab]').forEach(b => {
     b.addEventListener('click', () => {
       const tab = b.dataset.tab;
       if (panel.classList.contains('open') && _activeTab === tab) {
