@@ -1212,6 +1212,14 @@ button { font-family: inherit; }
   #newsMoreBtn { display: inline-block !important; }
 }
 
+/* PC 홈 미리보기는 최대 6개까지만 노출(사용자 요청, 2026-08-01) — 넓은 데스크톱 화면에서는
+   .issues-grid가 auto-fill로 3열까지 늘어나는데, PAGE_SIZE(8)를 그대로 다 보여주면
+   마지막 줄이 2개만 남아 3열 그리드가 어긋나 보인다. 6은 2열(3줄)·3열(2줄) 어느 쪽이든
+   나머지 없이 꽉 찬다. news.html 등 다른 페이지는 자체 <style> 블록이 따로 있어 영향 없음. */
+@media (min-width: 601px) {
+  #issuesContainer .issues-grid > .issue-card:nth-child(n+7) { display: none; }
+}
+
 /* ═══ 📊 실시간 랭킹 (토스) ═══ */
 .rk-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; scrollbar-width: none; }
 .rk-controls::-webkit-scrollbar { display: none; }
