@@ -810,6 +810,17 @@ export async function fetchKisNightFuture(raw = false, diag = {}) {
     const price = Number(o.futs_prpr);
     const chg = Number(o.futs_prdy_ctrt);
     if (!isFinite(price)) return null;
+    // 실측(2026-08) 결과 이 값이 몇 시간째 그대로 고정돼 있으면서 실제 시세와 크게
+    // 어긋나는 사례를 확인했다(우리 값 +18.79% vs 실제 네이버 증권 -4.78% — 사용자
+    // 리포트로 발견). 지수선물 단일 세션 등락률로 ±10%p는 비현실적으로 큰 값이라, 원인은
+    // 불명이지만(모의투자 키 오설정 등 KIS 계정 쪽 문제로 추정) 최소한 명백히 틀린 값이
+    // 아래 소비처(kr-market.html 배너·추정모델 가중치, 홈 대시보드 카드)로 흘러가 실시간인
+    // 것처럼 보이지 않도록 이 소스에서부터 무효 처리한다 — 둘 다 null을 "신호 없음"으로
+    // fail-open 처리하고 있어 여기서 막으면 두 곳 다 자동으로 안전해진다.
+    if (isFinite(chg) && Math.abs(chg) > 10) {
+      console.error(`[kis] night future changePercent implausible (${chg}%) — treating as unavailable`);
+      return null;
+    }
     return { code, price, changePercent: isFinite(chg) ? chg : null };
   } catch (e) {
     diag.stage = 'error:' + diag.stage;
