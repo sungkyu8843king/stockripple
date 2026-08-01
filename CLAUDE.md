@@ -114,7 +114,7 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 
 - **모델은 서버 `api/market-data.js`의 `EST_MODEL`에 있다.** 개장 전 스냅샷을 크론이 기록해야 정확도를 누적 측정할 수 있는데, 모델이 클라이언트에만 있으면 서버가 같은 값을 재현할 수 없어서다. 튜닝은 이 객체 하나(`targets[].sources[]`의 `w`=신뢰 가중치, `beta`=소스 민감도)만 고치면 되고 **클라이언트는 렌더링만 한다** — `kr-market.html`에 모델을 다시 넣지 말 것.
 - 소스가 죽으면 자동 제외되고 **남은 소스로 가중치가 재정규화**된다. 카드에 반영 소스·신뢰도(소스 수 + 표준편차 기반 4단계)·직전 종가·실측 평균오차를 노출해 근거를 검증할 수 있다.
-- 원재료: `?source=kr-proxy` — EWY(MSCI 한국 ETF)·`^SOX`·`KRW=X`·ADR 7종(SKM/KB/PKX/LPL/WF/SHG/KEP). ADR을 늘리려면 `KR_PROXY_SYMBOLS`에 추가.
+- 원재료: `?source=kr-proxy` — EWY(MSCI 한국 ETF)·`^SOX`·`KRW=X`·ADR/직상장 8종(SKM/KB/PKX/LPL/WF/SHG/KEP/**SKHY**). ADR을 늘리려면 `KR_PROXY_SYMBOLS`에 추가. **SKHY(SK하이닉스, 2026-07-31 NASDAQ 직상장)** 발견 후 EST_MODEL도 같이 갱신 — 그 전엔 미국 상장 자체가 없어 삼성전자처럼 binance perp+EWY+SOX로 추정했지만, 이제 다른 6개 ADR 종목과 같은 패턴(adr:SKHY w2.2 + ewy w0.5)으로 훨씬 직접적인 신호를 쓴다. 삼성전자는 여전히 미국 상장이 없어(런던/슈투트가르트 등 유럽 예탁만 있음, 실측 확인) 기존 방식 유지 — 새 한국 종목의 미국 상장 여부는 감으로 판단하지 말고 Yahoo `v1/finance/search`로 실측 확인할 것(거래량까지 확인, OTC 휴지 종목이 섞여 나올 수 있음).
 - **⚠️ 바이낸스 주식 perp는 Vercel에서 HTTP 451(지역 차단)** (2026-07-31 실측). 브라우저는 뚫릴 수 있어 클라이언트가 읽어 `?bn=티커:등락%,…`로 서버에 넘기면 모델에 합류한다. **DB에 남는 정확도 스냅샷은 서버 단독 계산이라 이 값에 오염되지 않는다.** 서버에서 직접 재시도하게 바꾸지 말 것.
 - **KOSPI 선물은 Yahoo에 없다** — `KSU=F` 404, `^KS200`은 현물이라 장중에만 갱신.
 

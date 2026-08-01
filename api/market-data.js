@@ -664,6 +664,9 @@ const KR_PROXY_SYMBOLS = {
   WF:  { kind: 'adr', label: '우리금융',  kr: '316140.KS' },
   SHG: { kind: 'adr', label: '신한지주',  kr: '055550.KS' },
   KEP: { kind: 'adr', label: '한국전력',  kr: '015760.KS' },
+  // 2026-07-31 NASDAQ 상장(신규, 이전엔 미국 상장 자체가 없어서 리스트에 없었다) — 실측
+  // 결과 하루 거래량 4천만~6천만주로 유동성도 충분해 다른 ADR과 동급으로 취급한다.
+  SKHY: { kind: 'adr', label: 'SK하이닉스', kr: '000660.KS' },
 };
 
 // 바이낸스에 상장된 주식 perp(토큰화 주식 선물). 심볼 표기는 거래소마다 다르고
@@ -742,12 +745,15 @@ async function fetchBinancePerps() {
 //   GET ?source=kr-estimate&action=record    → 스냅샷+정산 (ADMIN/CRON 인증)
 // ════════════════════════════════════════════════════════════════════════
 const EST_MODEL = {
-  version: '2026-07-31.1',
+  version: '2026-08-01.1',
   targets: [
     { t: '005930.KS', name: '삼성전자', c: '#1428A0', ini: '삼성',
       sources: [{ id: 'binance', w: 1.7 }, { id: 'ewy', w: 1.0, beta: 1.0 }, { id: 'sox', w: 0.9, beta: 0.85 }] },
+    // 2026-07-31 SK하이닉스 NASDAQ 직상장(SKHY, KR_PROXY_SYMBOLS 참고)으로 binance
+    // perp/SOX 대신 실제 1:1 상장 종목을 쓸 수 있게 됐다 — 다른 6개 ADR 종목과
+    // 동일 패턴(adr: w2.2 + ewy w0.5)으로 맞춘다. 삼성전자는 미국 상장이 없어 그대로 유지.
     { t: '000660.KS', name: 'SK하이닉스', c: '#E8380D', ini: 'SK',
-      sources: [{ id: 'binance', w: 1.7 }, { id: 'ewy', w: 1.0, beta: 1.1 }, { id: 'sox', w: 1.0, beta: 1.3 }] },
+      sources: [{ id: 'adr:SKHY', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
     { t: '005490.KS', name: '포스코홀딩스', c: '#00A0E9', ini: 'PO',
       sources: [{ id: 'adr:PKX', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
     { t: '055550.KS', name: '신한지주', c: '#0046FF', ini: '신한',
