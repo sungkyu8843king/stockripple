@@ -700,16 +700,21 @@ function _checkAuthConsent() {
 // redirectTo를 location.origin(항상 홈)이 아니라 location.href(현재 페이지)로 줘야
 // OAuth 로그인 후 원래 보던 페이지로 돌아온다 — 이전엔 어디서 로그인해도 홈으로
 // 튕겨 "리다이렉트가 이상하다"는 피드백을 받았다(2026-08).
+//
+// queryParams의 prompt는 브라우저에 이미 로그인된 세션이 있어도 구글/카카오 쪽
+// 계정 선택·로그인 화면을 무조건 보여주게 강제한다 — 이게 없으면 여러 계정을 쓰는
+// 기기에서 "지금 어떤 계정으로 가입하는지" 확인할 화면 없이 그냥 조용히 넘어가버려서
+// 사용자가 혼란스러워한다는 피드백(2026-08).
 async function signInWithGoogle() {
   if (!_checkAuthConsent()) return;
-  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } });
+  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href, queryParams: { prompt: 'select_account' } } });
 }
 // 카카오 로그인 — Supabase 대시보드(Authentication → Providers → Kakao)에 카카오
 // 디벨로퍼스에서 발급받은 REST API 키(Client ID)·Client Secret이 등록돼 있어야 동작한다.
 // 등록 전엔 이 버튼을 눌러도 Supabase가 "Unsupported provider" 에러를 반환한다.
 async function signInWithKakao() {
   if (!_checkAuthConsent()) return;
-  await sb.auth.signInWithOAuth({ provider: 'kakao', options: { redirectTo: location.href } });
+  await sb.auth.signInWithOAuth({ provider: 'kakao', options: { redirectTo: location.href, queryParams: { prompt: 'login' } } });
 }
 
 /* ══════════════════ 상단 종목 검색 ══════════════════ */
