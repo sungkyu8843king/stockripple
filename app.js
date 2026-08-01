@@ -1399,19 +1399,21 @@ function renderMarketDash(data) {
 
   // 코스피200 야간선물(KIS) — kr-market.html의 추정 배너와 같은 소스. 스냅샷(현재가·등락률)만
   // 있고 인트라데이 히스토리가 없어 스파크라인은 없음(다른 카드와 다른 점).
-  // 2026-08 수정: 처음엔 "22:30~09:00 KST에만 표시"로 클라이언트에서 시간대를 직접
-  // 가드했는데, 이게 kr-market.html의 "추정 모드→실시세 전환 시점" 기준을 그대로 갖다 쓴
-  // 것이었고 실제 야간선물 거래 가능 시간과는 무관했다 — 그 결과 실측(토요일 17:30 KST)
-  // 확인해보니 서버(/api/indices)는 정상적으로 값을 주는데 이 가드 때문에 "—"만 뜨는
-  // 버그가 있었다. 시간대를 추측하지 않고 서버가 값을 주면 그대로 보여준다(서버 쪽
-  // fetchKisNightFuture가 이미 실패 시 null을 반환하는 fail-open이라 클라이언트가 별도로
-  // "지금 거래 시간이 맞는지" 재판단할 필요가 없음).
+  // 2026-08 수정: "22:30~09:00 KST에만 표시" 시간 가드는 제거(실제 거래 가능 시간과
+  // 무관한 잘못된 기준이었음 — 이전 커밋 참고).
+  // ⚠️ 2026-08 추가: 실측 결과 이 값이 2시간 반 넘게 완전히 동일(1,030.65 / +18.79%)했고,
+  // +18.79%는 지수 선물 단일 세션 등락률로는 비현실적으로 큰 값이라(사용자 지적: "장
+  // 마지막 날 야간선물은 많이 떨어진 걸로 아는데") KIS API가 살아있는 실시간 값이 아니라
+  // 고정/모의투자 데이터를 주고 있을 가능성이 있다 — 근본 원인(KIS_APP_KEY가 실전투자가
+  // 아닌 모의투자 키인지 등)은 서버 쪽 확인이 필요해 여기서 못 고친다. 대신 등락률이
+  // 비현실적으로 크면(±10%p 초과) 화면에 잘못된 실시간 인상을 주지 않도록 표시를 억제한다.
   const knf = data.kospiFut;
+  const knfPlausible = knf?.price != null && Math.abs(knf.changePercent ?? 0) <= 10;
   const knfValEl = document.getElementById('mktCardVal-kospiFut');
   const knfChgEl = document.getElementById('mktCardChg-kospiFut');
   const knfDot = document.getElementById('mktDot-kospiFut');
-  if (knfDot) knfDot.classList.toggle('on', knf?.price != null);
-  if (knf?.price != null) {
+  if (knfDot) knfDot.classList.toggle('on', knfPlausible);
+  if (knfPlausible) {
     const chgClass = knf.changePercent > 0 ? 'pos' : knf.changePercent < 0 ? 'neg' : '';
     const chgSign = knf.changePercent > 0 ? '+' : '';
     if (knfValEl) animateNumberText(knfValEl, knf.price, v => fmtIdx(v, 'n'), ['flash-up', 'flash-down']);
