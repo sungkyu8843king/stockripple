@@ -406,16 +406,8 @@ button { font-family: inherit; }
   .intro-strip { flex-direction: column; gap: 12px; padding: 16px; }
   .intro-strip-close { align-self: stretch; }
 }
-/* 홈 미리보기: 히트맵/국장현황은 일부만 보여주고 전체는 /heatmap.html, /kr-market.html로 유도
-   (정보 밀도 완화 — 전체 랭킹/탭은 전용 페이지에서) */
-/* 히트맵은 섹터 뷰(박스 11개, 작음)일 땐 크롭 없이 전부 보여주고, 전체보기/드릴다운
-   (종목 타일이 수십~수백개)일 때만 크롭 — loadHeatmap()이 hm-cropped 클래스를 토글 */
-#heatmapSection #heatmapGrid.hm-cropped { max-height: 260px; overflow: hidden; position: relative; }
-#krMarketSection #krMarketPanel { max-height: 280px; overflow: hidden; position: relative; }
 /* max-height는 loadInsights()가 실제 카드 높이를 측정해 인라인으로 덮어씀 (아래는 JS 실행 전 폴백) */
 #insightsCropWrap { max-height: 640px; overflow: hidden; position: relative; }
-#heatmapSection #heatmapGrid.hm-cropped::after,
-#krMarketSection #krMarketPanel::after,
 #insightsCropWrap::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 100px;
   background: linear-gradient(to bottom, transparent, var(--bg) 80%);
@@ -1488,44 +1480,6 @@ button { font-family: inherit; }
       <div class="mkt-dash-grid collapsed" id="mktDashGrid">
         <!-- 나머지 카드 + 코스피200 야간선물 링크는 JS(renderMarketDash)가 채움 -->
       </div>
-    </div>
-
-    <!-- 🔥 마켓 히트맵 -->
-    <div id="heatmapSection" class="section-block">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--red)"></span>
-          <span class="sh-title">마켓 히트맵</span>
-          <span class="sh-desc">빨간색은 오른 종목, 파란색은 내린 종목 — 칸이 클수록 큰 회사</span>
-          <span id="heatmapUpdatedAt" class="sh-desc">—</span>
-          <span id="heatmapMarketStatus" style="font-size:13px;font-weight:600;padding:2px 8px;border-radius:999px"></span>
-        </div>
-        <div class="section-head-r">
-          <button onclick="loadHeatmap()" title="수동 새로고침" class="icon-btn">🔄</button>
-          <div class="seg">
-            <button class="hm-tab hm-mkt active" data-mkt="us" onclick="switchHeatmap('us', null)">🇺🇸 미장</button>
-            <button class="hm-tab hm-mkt"        data-mkt="kr" onclick="switchHeatmap('kr', null)">🇰🇷 국장</button>
-          </div>
-        </div>
-      </div>
-      <div id="heatmapGrid" style="min-height:80px">
-        <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>
-      </div>
-      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--text3)">
-        <span>📡 데이터: Yahoo Finance (실시간 ~15분 지연 가능)</span>
-        <span id="heatmapItemCount"></span>
-      </div>
-    </div>
-
-    <div style="text-align:center;margin:-8px 0 24px">
-      <a href="/heatmap.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">🔥 히트맵 전체보기 →</a>
-    </div>
-
-    <!-- 🧺 ETF (2026-08 신규: 새 위젯 없이 기존 "전체보기" 링크 카드 패턴만 재사용) -->
-    <div class="section-block" style="text-align:center;padding:24px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg)">
-      <div style="font-size:17px;font-weight:700;margin-bottom:6px">🧺 ETF로 산업 전체 흐름 살펴보기</div>
-      <div style="font-size:14px;color:var(--text3);margin-bottom:16px">테마별 ETF 랭킹과 보유 종목을 확인할 수 있어요</div>
-      <a href="/etf.html" style="display:inline-block;padding:10px 22px;border-radius:10px;background:var(--blue);color:#fff;font-weight:700;font-size:15.5px;text-decoration:none">ETF 살펴보기 →</a>
     </div>
 
     <!-- 📢 피드 광고 -->
