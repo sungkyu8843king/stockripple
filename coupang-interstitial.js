@@ -34,9 +34,11 @@
     var card = document.createElement('div');
     card.style.cssText = 'position:relative;max-width:360px;width:100%;background:#0d0f14;border-radius:16px;overflow:hidden;box-shadow:0 24px 60px -12px rgba(0,0,0,.7)';
 
+    // target="_blank"(새 탭)로 열면 iOS Safari가 "다른 앱을 열려고 합니다" 확인창을
+    // 띄운다(유니버설 링크를 새 탭에서 열 때만 발생). 현재 탭에서 바로 이동시키면
+    // 확인창 없이 쿠팡 앱으로 바로 넘어가므로 target을 제거한다.
     var link = document.createElement('a');
     link.href = CONFIG.link;
-    link.target = '_blank';
     link.rel = 'noopener noreferrer sponsored';
     link.style.cssText = 'display:block;cursor:pointer';
     link.addEventListener('click', close);
