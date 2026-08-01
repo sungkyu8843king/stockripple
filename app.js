@@ -16,10 +16,11 @@
 })();
 
 // 2026-08-01: 9 → 8로 되돌림. 9였던 이유(3열 그리드 3x3 꽉 채우기)가 이후 레이아웃
-// 개편으로 깨졌다 — 지금 index.html 미리보기는 1열(사이드바 옆 좁은 칼럼), news.html은
-// 보통 2열이라 9는 2열에서 마지막 줄에 카드 1개만 덩그러니 남았다("중간이 어설프게
-// 잘려 보인다" 피드백). 8은 2열(4줄)·4열(2줄) 둘 다 나머지 없이 꽉 찬다.
-const PAGE_SIZE = 8;
+// 개편으로 깨졌다 — news.html은 보통 2열이라 9는 마지막 줄에 카드 1개만 덩그러니
+// 남았다("중간이 어설프게 잘려 보인다" 피드백). 8은 2열(4줄)·4열(2줄) 둘 다 나머지
+// 없이 꽉 찬다. 단, index.html 미리보기는 1열(사이드바 옆 좁은 칼럼)이라 이 나머지
+// 문제 자체가 없어서, "메인은 9개로" 요청(2026-08-01)에 맞춰 index.html만 9로 예외.
+const PAGE_SIZE = document.getElementById('searchHeroSection') ? 9 : 8;
 let currentPage = 1;
 let currentSector = 'all';
 let searchQuery = '';
@@ -1183,16 +1184,6 @@ function subMarketMeta(){
     : { key: 'dow',    name: '다우존스', tag: 'Dow Jones Industrial Average', mk: 'us', sym: 'dow' };
 }
 
-// "더 많은 지표 보기" 토글 — 모바일 전용(데스크톱은 CSS가 버튼을 숨기고 항상 펼침 상태로 강제)
-function toggleMktMore(){
-  const grid = document.getElementById('mktDashGrid');
-  if (!grid) return;
-  const collapsed = grid.classList.toggle('collapsed');
-  const label = document.getElementById('mktMoreToggleLabel');
-  const icon = document.getElementById('mktMoreToggleIcon');
-  if (label) label.textContent = collapsed ? '더 많은 지표 보기' : '접기';
-  if (icon) icon.textContent = collapsed ? '▾' : '▲';
-}
 
 function renderMktStatus() {
   const el = document.getElementById('mktStatus');
