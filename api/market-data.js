@@ -30,11 +30,20 @@ export default async function handler(req, res) {
     case 'kr-estimate':  return handleKrEstimate(req, res);
     case 'kis-test': {
       // 디버그 전용 — KIS 실전 API 원본 응답을 그대로 확인(필드명을 감으로 짜지 않기 위함).
-      // 어드민 인증 필요(발급 제한 있는 실전 API라 공개하면 남용될 수 있음).
-      const _a = await verifyAdmin(req.headers.authorization);
+      // 어드민 인증 필요(발급 제한 있는 실전 API라 공개하면 남용될 수 있음). 브라우저 주소창에
+      // 바로 붙여넣어 테스트할 수 있게 헤더 대신 ?secret= 쿼리도 허용(임시 디버그 라우트라서
+      // 로그/히스토리에 새는 것보다 당장 원인 파악이 급함 — 원인 찾으면 이 라우트 자체를 뗄 것).
+      const authHeader = req.headers.authorization || (req.query.secret ? `Bearer ${req.query.secret}` : '');
+      const _a = await verifyAdmin(authHeader);
       if (!_a.ok) return res.status(401).json({ error: _a.error });
       res.setHeader('Cache-Control', 'no-store');
-      const result = await fetchKisNightFuture(true);
+      // 어디서 멈추는지 보려고 25초 하드 타임아웃을 건다 — 응답이 "영영 안 옴" 상태가 되면
+      // 안에서 뭘 기다리는지 알 도리가 없으니, 반드시 뭐라도(에러든 결과든) 돌려주게 만든다.
+      const _diag = {};
+      const result = await Promise.race([
+        fetchKisNightFuture(true, _diag),
+        new Promise(resolve => setTimeout(() => resolve({ error: '25초 워치독 — 어딘가 응답 없이 멈춤', diag: _diag }), 25000)),
+      ]);
       return res.status(200).json({ ok: true, result });
     }
     case 'technicals':   return handleTechnicals(req, res);
@@ -761,10 +770,19 @@ async function getKisNightFutureCode() {
 
 // raw:true면 파싱 없이 KIS 원본 응답을 그대로 반환(?source=kis-test 디버그용) —
 // 실전 거래 API라 필드명을 감으로 짜지 않고 실제 응답을 먼저 눈으로 확인하기 위함.
-async function fetchKisNightFuture(raw = false) {
-  if (!kisConfigured()) return raw ? { error: 'KIS_APP_KEY/KIS_APP_SECRET not set' } : null;
+// diag: 어느 단계까지 갔는지 밖(워치독)에서도 볼 수 있게 공유 객체에 계속 적어둔다
+// — 이 함수가 25초 안에 안 끝나서 워치독이 대신 응답할 때도 diag.stage로 어디서
+// 멈췄는지 알 수 있다.
+async function fetchKisNightFuture(raw = false, diag = {}) {
+  diag.stage = 'start';
+  if (!kisConfigured()) { diag.stage = 'not_configured'; return raw ? { error: 'KIS_APP_KEY/KIS_APP_SECRET not set', diag } : null; }
   try {
-    const [token, code] = await Promise.all([getKisToken(), getKisNightFutureCode()]);
+    diag.stage = 'token+code_fetch';
+    const [token, code] = await Promise.all([
+      getKisToken().then(t => { diag.tokenOk = true; return t; }),
+      getKisNightFutureCode().then(c => { diag.codeOk = true; diag.code = c; return c; }),
+    ]);
+    diag.stage = 'quote_fetch';
     const r = await fetch(
       `https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-price?FID_COND_MRKT_DIV_CODE=F&FID_INPUT_ISCD=${encodeURIComponent(code)}`,
       {
@@ -778,10 +796,12 @@ async function fetchKisNightFuture(raw = false) {
         signal: AbortSignal.timeout(8000),
       }
     );
+    diag.stage = 'quote_response_received';
     const bodyText = await r.text();
+    diag.stage = 'done';
     if (raw) {
       let parsed; try { parsed = JSON.parse(bodyText); } catch { parsed = null; }
-      return { httpStatus: r.status, code, body: parsed || bodyText.slice(0, 1000) };
+      return { httpStatus: r.status, code, body: parsed || bodyText.slice(0, 1000), diag };
     }
     if (!r.ok) return null;
     const j = JSON.parse(bodyText);
@@ -792,7 +812,10 @@ async function fetchKisNightFuture(raw = false) {
     if (!isFinite(price)) return null;
     return { code, price, changePercent: isFinite(chg) ? chg : null };
   } catch (e) {
-    if (raw) return { error: e.message };
+    diag.stage = 'error:' + diag.stage;
+    diag.errorMessage = e.message;
+    diag.errorName = e.name;
+    if (raw) return { error: e.message, errorName: e.name, diag };
     console.error('[kis] night future fetch failed:', e.message);
     return null;
   }
