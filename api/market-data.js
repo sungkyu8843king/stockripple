@@ -28,6 +28,15 @@ export default async function handler(req, res) {
     case 'quotes':       return handleQuotes(req, res);
     case 'kr-proxy':     return handleKrProxy(req, res);
     case 'kr-estimate':  return handleKrEstimate(req, res);
+    case 'kis-test': {
+      // 디버그 전용 — KIS 실전 API 원본 응답을 그대로 확인(필드명을 감으로 짜지 않기 위함).
+      // 어드민 인증 필요(발급 제한 있는 실전 API라 공개하면 남용될 수 있음).
+      const _a = await verifyAdmin(req.headers.authorization);
+      if (!_a.ok) return res.status(401).json({ error: _a.error });
+      res.setHeader('Cache-Control', 'no-store');
+      const result = await fetchKisNightFuture(true);
+      return res.status(200).json({ ok: true, result });
+    }
     case 'technicals':   return handleTechnicals(req, res);
     case 'earnings':     return (req.query.type === 'analyst') ? handleAnalyst(res) : handleEarnings(res);
     case 'earnings-calendar': return handleEarningsCalendar(req, res);
@@ -668,6 +677,126 @@ const KR_PROXY_SYMBOLS = {
   // 결과 하루 거래량 4천만~6천만주로 유동성도 충분해 다른 ADR과 동급으로 취급한다.
   SKHY: { kind: 'adr', label: 'SK하이닉스', kr: '000660.KS' },
 };
+
+// ════════════════════════════════════════════════════════════════════════
+// 코스피200 야간선물(KIS Open API) — 2026-08-01 추가. 사용자가 직접 한국투자증권
+// 계좌를 만들고 API키를 발급받아 Vercel 환경변수(KIS_APP_KEY/KIS_APP_SECRET)에
+// 저장했다. 다른 소스(binance 등)와 동일하게 실패해도 전체를 깨뜨리지 않고
+// fetchKisNightFuture()가 null을 반환하는 fail-open 패턴.
+//
+// ⚠️ access_token 발급은 KIS 쪽에서 하루 단위로 제한된다 — 요청마다 새 프로세스가
+// 뜨는 서버리스 환경이라 인메모리로 캐싱할 수 없어 kis_token_cache 테이블(단일 행)에
+// 저장하고 만료 전까지 재사용한다(db/kis-token-cache.sql). 절대 이 캐시를 건너뛰고
+// 매 요청 재발급하는 코드로 바꾸지 말 것 — 발급 제한에 걸리면 하루 종일 이 소스가
+// 죽는다.
+//
+// 종목코드(FID_INPUT_ISCD)도 분기 만기 롤오버가 있어 매번 새로 계산하지 않고
+// 같은 테이블에 하루 단위로 캐싱한다 — KIS가 공개 배포하는 마스터파일
+// (CME연계 야간선물 종목코드, 인증 불필요)에서 KOSPI200 근월물(가장 빠른 만기)을
+// 골라낸다. 필드 레이아웃은 KIS 공식 예제(github.com/koreainvestment/open-trading-api
+// stocks_info/domestic_cme_future_code.py)의 고정폭 슬라이스를 그대로 이식했다.
+// ════════════════════════════════════════════════════════════════════════
+function kisConfigured() {
+  return !!(process.env.KIS_APP_KEY && process.env.KIS_APP_SECRET);
+}
+
+async function getKisToken() {
+  const { data: cached } = await supabase.from('kis_token_cache').select('access_token, expires_at').eq('id', 1).maybeSingle();
+  if (cached?.access_token && cached.expires_at && new Date(cached.expires_at) > new Date()) {
+    return cached.access_token;
+  }
+  const r = await fetch('https://openapi.koreainvestment.com:9443/oauth2/tokenP', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ grant_type: 'client_credentials', appkey: process.env.KIS_APP_KEY, appsecret: process.env.KIS_APP_SECRET }),
+    signal: AbortSignal.timeout(10000),
+  });
+  const bodyText = await r.text();
+  if (!r.ok) throw new Error(`KIS token HTTP ${r.status}: ${bodyText.slice(0, 300)}`);
+  let j; try { j = JSON.parse(bodyText); } catch { throw new Error('KIS token response not JSON: ' + bodyText.slice(0, 200)); }
+  if (!j.access_token) throw new Error('KIS token response missing access_token: ' + bodyText.slice(0, 300));
+  // expires_in(초, 보통 86400=24시간) 경계에서 만료된 토큰을 쓰는 사고를 막기 위해 1시간 여유.
+  const expiresAt = new Date(Date.now() + (Number(j.expires_in || 86400) - 3600) * 1000);
+  await supabase.from('kis_token_cache').upsert({
+    id: 1, access_token: j.access_token, expires_at: expiresAt.toISOString(), updated_at: new Date().toISOString(),
+  });
+  return j.access_token;
+}
+
+async function getKisNightFutureCode() {
+  const { data: cached } = await supabase.from('kis_token_cache')
+    .select('night_future_code, night_future_code_updated_at').eq('id', 1).maybeSingle();
+  if (cached?.night_future_code && cached.night_future_code_updated_at &&
+      Date.now() - new Date(cached.night_future_code_updated_at).getTime() < 20 * 3600 * 1000) {
+    return cached.night_future_code;
+  }
+  const AdmZip = (await import('adm-zip')).default;
+  const r = await fetch('https://new.real.download.dws.co.kr/common/master/fo_cme_code.mst.zip', { signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error(`KIS master file HTTP ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  const zip = new AdmZip(buf);
+  const entry = zip.getEntries().find(e => e.entryName.toLowerCase().endsWith('.mst'));
+  if (!entry) throw new Error('No .mst in KIS master zip');
+  const text = new TextDecoder('euc-kr').decode(entry.getData());
+
+  let best = null; // { code, expiry(YYYYMM) }
+  for (const row of text.split(/\r?\n/)) {
+    if (row[0] !== '1') continue;                    // 1=선물(outright), 2=캘린더 스프레드 제외
+    const code = row.slice(1, 10).trim();
+    const dCol = row.slice(22, 63).trim();            // 예: "F 202609"
+    const underlying = row.slice(81).trim();          // 예: "KOSPI200"
+    if (underlying !== 'KOSPI200') continue;
+    const m = dCol.match(/(\d{6})/);
+    if (!code || !m) continue;
+    const expiry = m[1];
+    if (!best || expiry < best.expiry) best = { code, expiry };  // 가장 빠른 만기 = 근월물(거래 가장 활발)
+  }
+  if (!best) throw new Error('KOSPI200 야간선물 근월물 코드를 찾지 못함(마스터파일 형식이 바뀌었을 수 있음)');
+
+  await supabase.from('kis_token_cache').upsert({
+    id: 1, night_future_code: best.code, night_future_code_updated_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  });
+  return best.code;
+}
+
+// raw:true면 파싱 없이 KIS 원본 응답을 그대로 반환(?source=kis-test 디버그용) —
+// 실전 거래 API라 필드명을 감으로 짜지 않고 실제 응답을 먼저 눈으로 확인하기 위함.
+async function fetchKisNightFuture(raw = false) {
+  if (!kisConfigured()) return raw ? { error: 'KIS_APP_KEY/KIS_APP_SECRET not set' } : null;
+  try {
+    const [token, code] = await Promise.all([getKisToken(), getKisNightFutureCode()]);
+    const r = await fetch(
+      `https://openapi.koreainvestment.com:9443/uapi/domestic-futureoption/v1/quotations/inquire-price?FID_COND_MRKT_DIV_CODE=F&FID_INPUT_ISCD=${encodeURIComponent(code)}`,
+      {
+        headers: {
+          authorization: `Bearer ${token}`,
+          appkey: process.env.KIS_APP_KEY,
+          appsecret: process.env.KIS_APP_SECRET,
+          tr_id: 'FHMIF10000000',
+          custtype: 'P',
+        },
+        signal: AbortSignal.timeout(8000),
+      }
+    );
+    const bodyText = await r.text();
+    if (raw) {
+      let parsed; try { parsed = JSON.parse(bodyText); } catch { parsed = null; }
+      return { httpStatus: r.status, code, body: parsed || bodyText.slice(0, 1000) };
+    }
+    if (!r.ok) return null;
+    const j = JSON.parse(bodyText);
+    const o = j?.output1 || j?.output;
+    if (!o) return null;
+    const price = Number(o.futs_prpr);
+    const chg = Number(o.futs_prdy_ctrt);
+    if (!isFinite(price)) return null;
+    return { code, price, changePercent: isFinite(chg) ? chg : null };
+  } catch (e) {
+    if (raw) return { error: e.message };
+    console.error('[kis] night future fetch failed:', e.message);
+    return null;
+  }
+}
 
 // 바이낸스에 상장된 주식 perp(토큰화 주식 선물). 심볼 표기는 거래소마다 다르고
 // 상장/폐지가 잦아 후보를 여러 개 두고 먼저 잡히는 것을 쓴다.
