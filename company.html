@@ -1291,8 +1291,20 @@ function buildPriceBlock(priceData) {
     }
 
     _currentLivePrice = priceData.price;
+    // 탭 제목 = 현재가·등락률을 먼저, 종목명은 뒤로(요청, 2026-08) — 여러 종목 탭을
+    // 띄워놓고 봐도 가격이 먼저 눈에 들어오게. buildPriceBlock이 초기 렌더/15초 폴링/
+    // 10초 토스 고속 동기화 세 경로 전부의 유일한 공통 지점이라 여기 한 곳만 갱신하면 됨.
+    updatePageTitle(tq ? tq.lastPrice : priceData.price, tq ? tq.regularChangePercent : priceData.changePercent, priceData.currency);
   }
   return priceHtml;
+}
+
+function updatePageTitle(price, changePercent, currency) {
+  if (price == null) return;
+  const isKrw = (currency || 'USD') === 'KRW';
+  const priceStr = isKrw ? `${Math.round(price).toLocaleString('ko-KR')}원` : `$${Number(price).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  const chgStr = changePercent != null ? `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%` : '';
+  document.title = `${priceStr}${chgStr ? ' ' + chgStr : ''} | ${_coName || ''} — StockRipple`;
 }
 
 // 종목 실시간가 고속 동기화(토스증권 공식 API, 10초 간격) — 기존 15초 Yahoo 폴링과 별개로
