@@ -437,7 +437,7 @@ function renderSiteFooter() {
         <span>데이터: Yahoo Finance · 네이버증권 · DART · NewsAPI · Claude AI</span>
       </div>
       <div class="site-footer-inner site-footer-legal">
-        <span><a href="/privacy.html">개인정보처리방침</a> · <a href="/terms.html">이용약관</a></span>
+        <span><a href="/privacy.html">개인정보처리방침</a> · <a href="/terms.html">이용약관</a> · <a href="mailto:stockrippleinfo@gmail.com">stockrippleinfo@gmail.com</a></span>
         <span>© ${new Date().getFullYear()} StockRipple</span>
       </div>
     </footer>
