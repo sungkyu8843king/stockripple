@@ -1163,6 +1163,12 @@ button { font-family: inherit; }
 .est-card {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg, 20px);
   padding: 16px 18px; min-width: 0; position: relative;
+  /* 그리드가 한 줄의 카드 높이를 가장 큰 카드에 맞춰 늘리는데(기본 align-items:stretch),
+     반영 소스 칩 개수가 카드마다 달라 줄바꿈 수가 제각각이면 .est-meta가 카드마다 다른
+     높이에서 시작해 "정렬이 제각각"으로 보였다(피드백, 2026-08) — 세로 flex로 바꾸고
+     .est-meta를 margin-top:auto로 바닥에 붙여, 위 내용이 짧은 카드도 메타 블록이 항상
+     카드 맨 아래에 정렬되게 한다. */
+  display: flex; flex-direction: column;
 }
 .est-card.live { border-color: color-mix(in srgb, var(--green) 40%, transparent); }
 .est-top { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
@@ -1185,7 +1191,7 @@ button { font-family: inherit; }
 .est-usd { font-size: 13px; color: var(--text3); font-family: var(--font-mono); margin-top: 2px; }
 .est-chg { font-size: 14px; font-weight: 700; font-family: var(--font-mono); margin-top: 8px; font-variant-numeric: tabular-nums; }
 .est-chg span { color: var(--text3); font-weight: 500; margin-right: 6px; font-family: var(--font-sans, inherit); }
-.est-meta { border-top: 1px solid var(--border-soft); margin-top: 12px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.est-meta { border-top: 1px solid var(--border-soft); margin-top: auto; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .est-mrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.8px; }
 .est-mrow > span:first-child { color: var(--text3); flex-shrink: 0; }
 .est-src { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
@@ -1915,7 +1921,12 @@ document.addEventListener('keydown', e => {
         </div>
         <div class="est-meta">
           <div class="est-mrow"><span>반영 소스</span>
-            <span class="est-src">${(it.used || []).map(u => `<i title="${esc(u.tip || u.label)} · 가중치 ${u.w}${u.beta && u.beta !== 1 ? ` · 민감도 ${u.beta}` : ''} · ${pct(u.value)}">${esc(u.label)}</i>`).join('')}</span></div>
+            <span class="est-src">${(it.used || [])
+              // 코스피200 야간선물은 이제 8종목 전체에 공통으로 반영되는 시장 전체 신호라
+              // 카드마다 반복 표시하면 "제각각 정렬" 인상만 더한다(피드백, 2026-08) —
+              // 이미 위 배너에서 한 번 크게 보여주므로 카드별 소스 목록에서는 뺀다.
+              .filter(u => u.id !== 'kis_night_future')
+              .map(u => `<i title="${esc(u.tip || u.label)} · 가중치 ${u.w}${u.beta && u.beta !== 1 ? ` · 민감도 ${u.beta}` : ''} · ${pct(u.value)}">${esc(u.label)}</i>`).join('')}</span></div>
           <div class="est-mrow"><span>신뢰도</span>
             <span class="est-conf">${[1, 2, 3, 4].map(i => `<span class="est-dot${i <= conf ? ' on' : ''}"></span>`).join('')}
             <span style="margin-left:5px;color:var(--text2);font-weight:600">${['', '낮음', '보통', '높음', '매우 높음'][conf]}</span></span></div>
