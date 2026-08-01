@@ -149,7 +149,7 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 
 **역조회(`etf_holdings` 테이블)**: "이 종목을 담은 ETF"는 각 ETF의 상위10 구성종목을 미리 크롤해 적재해둔 인덱스에서 조회(라이브 역조회는 불가능 — 종목→ETF API가 없음). `db/etf-holdings.sql`로 테이블 생성 후 `POST /api/admin?action=crawl-etf-holdings`(멱등 upsert, concurrency 12) — 어드민 패널 "전략투자 관리" 탭의 "🧺 ETF 보유종목 크롤" 버튼이 done:true 될 때까지 자동으로 이어서 호출한다(resumable, start/nextStart). 매일 cron-daily가 fire-and-forget로도 갱신. **상위10만 담으므로 "주요 보유" 신호**(소수 비중은 미포함) — KRX PDF(전체 구성내역)는 스크래핑 차단이라 안 씀.
 
-**스냅샷(`etf_snapshot` 테이블)**: 목록 API엔 없는 총보수·추적오차·순자산·1일/1주 누적순유입을 저장 — crawl-etf-holdings가 종목당 이미 부르는 etfAnalysis 응답에서 추가 필드만 더 뽑아 같이 upsert(별도 API 호출 없음). 랭킹(`action=rankings`: 자금유입 상위/최저보수/순자산최대)에 사용. `marketValue`/`netInflow` 파싱은 `krwToNumber()`("11조 5,043억" → 숫자, admin.js)로 처리.
+**스냅샷(`etf_snapshot` 테이블)**: 목록 API엔 없는 총보수·추적오차·순자산·1일/1주 누적순유입을 저장 — crawl-etf-holdings가 종목당 이미 부르는 etfAnalysis 응답에서 추가 필드만 더 뽑아 같이 upsert(별도 API 호출 없음). 랭킹(`action=rankings`: 자금유입 상위/최저보수/순자산최대)에 사용. `marketValue`/`netInflow` 파싱은 `krwToNumber()`("11조 5,043억" → 숫자, admin.js)로 처리. **`issuer_name`(운용사, 2026-08-01 추가)**: `db/etf-snapshot-issuer.sql` 마이그레이션 필요 — 실행 전엔 목록 API(`handleEtfList`)가 그 컬럼 없이 자동 폴백하고, 실행 후에도 다음 `crawl-etf-holdings` 크론(매일)이 한 바퀴 돌아야 실제 값이 채워진다(즉시 수동 반영하려면 어드민 패널 "🧺 ETF 보유종목 크롤" 버튼). etf.html 목록에 운용사 배지 + "순자산" 정렬 옵션으로 노출.
 
 **etf.html 랭킹 섹션**: 오늘 급등/급락·3개월수익률·거래대금 4종은 이미 로드된 목록 데이터에서 **클라이언트가 즉시 계산**(추가 호출 없음), 자금유입·최저보수 2종만 `action=rankings`로 서버 조회(스냅샷 없으면 "아직 데이터가 없어요"로 우아하게 표시).
 

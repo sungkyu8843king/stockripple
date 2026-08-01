@@ -2841,6 +2841,7 @@ async function handleCrawlEtfHoldings(req, res) {
           code: e.itemcode, name: j.itemName || e.itemname, tab_code: e.etfTabCode,
           total_fee: num(j.totalFee), tracking_error: num(j.chaseErrorRate), deviation_rate: num(j.deviationRate),
           market_value_won: krwToNumber(j.marketValue),
+          issuer_name: j.issuerName || null,
           net_inflow_1d_won: krwToNumber(inflow.cumulativeNetInflow1d),
           net_inflow_1w_won: krwToNumber(inflow.cumulativeNetInflow1w),
           updated_at: new Date().toISOString(),

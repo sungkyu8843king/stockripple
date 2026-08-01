@@ -1356,7 +1356,8 @@ button { font-family: inherit; }
 
         <div class="est-warn">
           <span style="font-size:17px;line-height:1.2">⚠️</span>
-          <div><b>이건 예상 수치입니다.</b> 해외 상장 한국물(ETF·ADR)과 반도체 지수의 실시간 움직임으로 역산한 <b>추정가</b>일 뿐, 실제 다음 개장가와 다를 수 있습니다. 매매 판단의 근거로 삼지 마세요.</div>
+          <div><b>이건 예상 수치입니다.</b> 해외 상장 한국물(ETF·ADR)과 반도체 지수의 실시간 움직임으로 역산한 <b>추정가</b>일 뿐, 실제 다음 개장가와 다를 수 있습니다. 매매 판단의 근거로 삼지 마세요.
+          <br><span style="opacity:.85">삼성전자·SK하이닉스는 바이낸스 시세도 함께 반영하는데, 이건 브라우저(기기)가 직접 접속을 시도해서 <b>기기·네트워크에 따라 접속 성공 여부가 갈립니다</b> — 그래서 같은 시각에도 PC마다 추정가가 다르게 보일 수 있어요. 카드 아래 <b>반영 소스</b>에 "바이낸스"가 있는지로 확인 가능합니다.</span></div>
         </div>
 
         <div class="est-grid" id="estGrid">
@@ -1384,7 +1385,7 @@ button { font-family: inherit; }
           </div>
           <div id="brRows"></div>
           <div style="margin-top:12px;font-size:13px;color:var(--text3);line-height:1.55">
-            📡 미국 지표·종목은 실시간, 한국 종목은 장 마감 중이면 직전 종가입니다. ‘갭’은 두 시장의 등락률 차이로, 다음 개장의 방향을 보장하지 않습니다.
+            📡 미국 지표·종목은 실시간, 한국 종목은 장 마감 중이면 직전 종가입니다. <b style="color:var(--text2)">국장 미반영</b>은 미국 평균만큼 한국이 아직 못 따라갔다는 뜻(다음 개장 때 더 움직일 여지), <b style="color:var(--text2)">국장 선반영</b>은 한국이 미국 평균보다 이미 더 크게 움직였다는 뜻(추가 상승 여력이 그만큼 줄었을 수 있음)입니다. %p는 두 시장 평균 등락률의 차이일 뿐, 다음 개장의 방향을 보장하지 않습니다.
           </div>
         </div>
       </div>
@@ -1989,6 +1990,11 @@ document.addEventListener('keydown', e => {
         const gapCol = gap == null ? FLAT : gap > 0 ? UP : gap < 0 ? DOWN : FLAT;
         const gapTxt = gap == null ? '—' : gap > 0 ? `+${gap.toFixed(1)}%p` : gap < 0 ? `${gap.toFixed(1)}%p` : '0.0%p';
         const gapLbl = gap == null ? '데이터 부족' : gap > 0 ? '국장 미반영' : gap < 0 ? '국장 선반영' : '격차 없음';
+        const gapHelp = gap == null ? '' : gap > 0
+          ? `한국이 미국 평균(${pct(u)})만큼 아직 못 올랐다는 뜻 — 다음 개장 때 따라갈 여지가 있어요.`
+          : gap < 0
+          ? `한국이 미국 평균(${pct(u)})보다 이미 ${Math.abs(gap).toFixed(1)}%p 더 크게 움직였다는 뜻 — 추가 상승 여력이 그만큼 줄었을 수 있어요.`
+          : '';
         return `<div class="br-card${strong ? ' hot' : ''}">
           <div class="br-theme">${strong ? '⚡ ' : ''}${esc(b.theme)}</div>
           <div class="br-why">${esc(b.why)}</div>
@@ -1996,7 +2002,7 @@ document.addEventListener('keydown', e => {
             <div class="br-stat"><div class="br-stat-lbl">🇺🇸 미국 평균</div><div class="br-stat-val" style="color:${sgnCol(u)}">${pct(u)}</div></div>
             <div class="br-stat-arrow">→</div>
             <div class="br-stat"><div class="br-stat-lbl">🇰🇷 한국 평균</div><div class="br-stat-val" style="color:${sgnCol(k)}">${pct(k)}</div></div>
-            <div class="br-gap-box"><div class="br-gap-lbl">${esc(gapLbl)}</div><div class="br-gap-val" style="color:${gapCol}">${esc(gapTxt)}</div></div>
+            <div class="br-gap-box" ${gapHelp ? `title="${esc(gapHelp)}"` : ''}><div class="br-gap-lbl">${esc(gapLbl)} ${gapHelp ? '<span style="opacity:.55">ⓘ</span>' : ''}</div><div class="br-gap-val" style="color:${gapCol}">${esc(gapTxt)}</div></div>
           </div>
           <details class="br-detail">
             <summary>종목별로</summary>

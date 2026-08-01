@@ -2265,18 +2265,36 @@ async function handleEtfList(req, res) {
   res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
   try {
     const list = await fetchNaverEtfList();
-    const items = list.map(e => ({
-      code: e.itemcode,
-      name: e.itemname,
-      tabCode: e.etfTabCode,
-      category: ETF_CATEGORIES[e.etfTabCode] || '기타',
-      price: e.nowVal ?? null,
-      changeRate: e.changeRate ?? null,
-      nav: e.nav ?? null,
-      ret3m: e.threeMonthEarnRate ?? null,   // 최근 3개월 수익률(%)
-      volume: e.quant ?? null,               // 거래량(주)
-      amount: e.amonut != null ? e.amonut * 1e6 : null,  // 거래대금(원) — 원본은 백만원 단위(실측)
-    }));
+    // 운용사(issuer_name)·순자산총액(market_value_won)은 목록 API엔 없다 — crawl-etf-holdings가
+    // 종목별 etfAnalysis 호출 김에 이미 채워둔 etf_snapshot에서 가져와 합친다(추가 호출 없음).
+    // 아직 마이그레이션 전(db/etf-snapshot-issuer.sql 미실행)이면 issuer_name 컬럼이 없어
+    // select 자체가 에러 나므로, 그 경우 그 컬럼만 빼고 재시도(이 레포의 표준 폴백 패턴).
+    let snapMap = {};
+    try {
+      let { data, error } = await supabase.from('etf_snapshot').select('code, issuer_name, market_value_won');
+      if (error && /issuer_name/i.test(error.message || '')) {
+        ({ data } = await supabase.from('etf_snapshot').select('code, market_value_won'));
+      }
+      for (const s of data || []) snapMap[s.code] = s;
+    } catch { /* 스냅샷 없어도 목록 자체는 항상 뜨게 */ }
+
+    const items = list.map(e => {
+      const snap = snapMap[e.itemcode];
+      return {
+        code: e.itemcode,
+        name: e.itemname,
+        tabCode: e.etfTabCode,
+        category: ETF_CATEGORIES[e.etfTabCode] || '기타',
+        price: e.nowVal ?? null,
+        changeRate: e.changeRate ?? null,
+        nav: e.nav ?? null,
+        ret3m: e.threeMonthEarnRate ?? null,   // 최근 3개월 수익률(%)
+        volume: e.quant ?? null,               // 거래량(주)
+        amount: e.amonut != null ? e.amonut * 1e6 : null,  // 거래대금(원) — 원본은 백만원 단위(실측)
+        issuer: snap?.issuer_name || null,          // 운용사, 예: "삼성자산운용(ETF)"
+        aum: snap?.market_value_won ?? null,        // 순자산총액(원)
+      };
+    });
     return res.status(200).json({ ok: true, count: items.length, items, ts: Date.now() });
   } catch (err) {
     return res.status(502).json({ ok: false, error: err.message });

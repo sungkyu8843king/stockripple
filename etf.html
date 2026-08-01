@@ -145,6 +145,7 @@ a{color:inherit}
 .etf-name .nm{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .etf-name .meta{font-size:13px;color:var(--text3);margin-top:2px;display:flex;gap:6px;align-items:center}
 .cat-badge{font-size:12.5px;font-weight:700;padding:1.5px 6px;border-radius:5px;background:var(--bg4);color:var(--text2);white-space:nowrap}
+.issuer-badge{font-size:12.5px;color:var(--text3);white-space:nowrap}
 .col-r{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
 .col-r .v{font-size:15.5px;font-weight:700}
 .col-r .s{font-size:13px;color:var(--text3);margin-top:1px}
@@ -230,8 +231,11 @@ const SORTS = [
   { key:'ret3m',      label:'3개월 수익률' },
   { key:'changeRate', label:'등락률' },
   { key:'amount',     label:'거래대금' },
+  { key:'aum',        label:'순자산' },
   { key:'name',       label:'이름순' },
 ];
+// 운용사 이름 뒤의 "(ETF)" 표기는 이 화면에서 이미 자명해 중복이라 뗀다(예: "삼성자산운용(ETF)" → "삼성자산운용")
+function fmtIssuer(s){ return s ? s.replace(/\(ETF\)\s*$/i,'').trim() : null; }
 
 let _all = [];            // 전체 ETF 목록
 let _cat = 0, _sort = 'ret3m', _q = '';
@@ -435,15 +439,16 @@ function renderRows(){
   const el = document.getElementById('etfList');
   if(!rows.length){ el.innerHTML = `<div class="empty">조건에 맞는 ETF가 없어요.</div>`; return; }
 
-  const sortLabel = { ret3m:'3개월', changeRate:'등락률', amount:'거래대금', name:'이름' }[_sort];
+  const sortLabel = { ret3m:'3개월', changeRate:'등락률', amount:'거래대금', aum:'순자산', name:'이름' }[_sort];
   const body = shown.map(e => {
-    const thirdVal = _sort==='amount'
-      ? `<div class="v">${fmtAmount(e.amount)}</div><div class="s">거래대금</div>`
+    const thirdVal = _sort==='amount' ? `<div class="v">${fmtAmount(e.amount)}</div><div class="s">거래대금</div>`
+      : _sort==='aum' ? `<div class="v">${e.aum!=null?fmtAmount(e.aum):'—'}</div><div class="s">순자산</div>`
       : `<div class="v ${cls(e.ret3m)}">${fmtPct(e.ret3m)}</div><div class="s">3개월</div>`;
+    const issuer = fmtIssuer(e.issuer);
     return `<a class="etf-row" href="/etf.html?code=${e.code}">
       <div class="etf-name">
         <div class="nm">${esc(e.name)}</div>
-        <div class="meta"><span class="cat-badge">${esc(e.category)}</span><span>${e.code}</span></div>
+        <div class="meta"><span class="cat-badge">${esc(e.category)}</span>${issuer ? `<span class="issuer-badge">${esc(issuer)}</span>` : ''}<span>${e.code}</span></div>
       </div>
       <div class="col-r"><div class="v">${fmtPrice(e.price)}</div><div class="s">원</div></div>
       <div class="col-r"><div class="v ${cls(e.changeRate)}">${fmtPct(e.changeRate)}</div><div class="s">등락</div></div>

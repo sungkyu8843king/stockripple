@@ -103,10 +103,22 @@ function _siteChromeInjectStyle() {
 .logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--blue) 0%,var(--purple) 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;box-shadow:0 3px 10px rgba(36,87,230,0.30)}
 .logo-text{font-size:19px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
 .logo-sub{font-size:13px;color:var(--text3);font-weight:500;margin-top:1px;letter-spacing:0}
-.header-search{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:7px 10px;flex:1 1 auto;max-width:260px;min-width:0}
+.header-search{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:7px 10px;flex:1 1 auto;max-width:260px;min-width:0;position:relative}
 .header-search svg{color:var(--text3);flex-shrink:0}
 .header-search input{flex:1;min-width:0;border:none;outline:none;background:none;font-size:15.5px;color:var(--text);font-family:inherit}
 .header-search input::placeholder{color:var(--text3)}
+/* 상단 검색 — 모의투자 주문창의 실시간 자동완성과 같은 방식으로 통일(2026-08-01) */
+#hSugBox:empty{display:none}
+.hsug{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--bg2);border:1px solid var(--border-strong);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.42);z-index:300;max-height:340px;overflow-y:auto}
+.hsug-item{display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;border-bottom:1px solid var(--border-soft);text-decoration:none;color:var(--text)}
+.hsug-item:last-child{border-bottom:none}
+.hsug-item:hover,.hsug-item.on{background:var(--bg3)}
+.hsug-nm{display:block;flex:1;min-width:0;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hsug-mkt{font-size:12px;color:var(--text3);flex-shrink:0}
+.hsug-empty,.hsug-loading{padding:14px;text-align:center;color:var(--text3);font-size:13.5px}
+.hsug-tk{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-size:12.5px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0}
+.hsug-tk.kr{background:var(--blue-dim);color:var(--blue)}
+.hsug-tk.us{background:var(--purple-dim);color:var(--purple)}
 /* 태블릿(761~1300px)에서는 숨긴다 — nav-btn 7개 + 로그인 버튼이 이 폭에서 검색창까지
    넣으면 겹친다(실측: 762px 이하 헤더 안에 nav만으로도 850px+ 필요). 760px 이하(모바일,
    header-nav도 줄바꿈되는 지점)에서는 아래 미디어쿼리가 다시 보이게 하면서 로고 옆
@@ -246,8 +258,10 @@ function _siteHeaderHtml(activePath) {
         </a>
         <div class="header-search" id="headerSearch">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)"
-                 onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
+          <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)" autocomplete="off"
+                 oninput="onHeaderSearchInput(this.value)" onfocus="onHeaderSearchInput(this.value)"
+                 onkeydown="if(event.key==='Enter') hSearchEnter(this.value); if(event.key==='Escape') this.blur()">
+          <div id="hSugBox"></div>
         </div>
         <nav class="header-nav" id="headerNav">
           ${navHtml}
@@ -581,6 +595,109 @@ async function tryDirectLookup(input) {
     showToast('검색 실패: ' + e.message);
   }
 }
+
+/* 2026-08-01 — 상단 검색을 모의투자 주문창처럼 "타이핑하는 대로 바로 아래 목록이
+   뜨는" 방식으로 바꿨다(피드백: 예전엔 Enter를 눌러야만 검색됐다). tryDirectLookup은
+   기존 Enter 단축 이동 로직을 그대로 두고, 아래 함수들이 실시간 드롭다운만 새로 맡는다
+   — 매칭 알고리즘(정확일치→접두사→부분, KR 상장 우선)은 tryDirectLookup과 동일하게
+   맞춰 검색 결과가 Enter로 바로 이동했을 때와 어긋나지 않게 한다. */
+let _hSugTimer = null;
+function onHeaderSearchInput(v) {
+  clearTimeout(_hSugTimer);
+  const q = (v || '').trim();
+  const box = document.getElementById('hSugBox');
+  if (!box) return;
+  if (q.length < 1) { box.innerHTML = ''; return; }
+  _hSugTimer = setTimeout(() => runHeaderSearch(q), 220);
+}
+
+async function hFindMatches(raw) {
+  const upper = raw.toUpperCase();
+  if (/^\d{6}\.K[SQ]$/i.test(upper)) return [{ ticker: upper, name_ko: raw, market: 'KR' }];
+  if (/^\d{6}$/.test(upper)) return [{ ticker: upper + '.KS', name_ko: raw, market: 'KR' }];
+
+  const safe = raw.replace(/[%_'"\\]/g, '');
+  let items = [];
+  try {
+    const { data } = await sb.from('companies')
+      .select('ticker, name_ko, name_en, market')
+      .or(`name_ko.ilike.%${safe}%,name_en.ilike.%${safe}%,ticker.ilike.${upper}%`)
+      .limit(20);
+    items = data || [];
+  } catch {}
+
+  const rawLower = raw.toLowerCase(), safeLower = safe.toLowerCase();
+  const rankOf = (m) => {
+    const ko = (m.name_ko || '').toLowerCase(), en = (m.name_en || '').toLowerCase();
+    if (ko === rawLower || en === rawLower) return 0;
+    if (ko.startsWith(safeLower) || en.startsWith(safeLower)) return 1;
+    return 2;
+  };
+  items.sort((a, b) => {
+    const ra = rankOf(a), rb = rankOf(b);
+    if (ra !== rb) return ra - rb;
+    const ka = /\.K[SQ]$/i.test(a.ticker || '') ? 0 : 1;
+    const kb = /\.K[SQ]$/i.test(b.ticker || '') ? 0 : 1;
+    if (ka !== kb) return ka - kb;
+    return (a.name_ko || a.name_en || '').localeCompare(b.name_ko || b.name_en || '');
+  });
+
+  if (items.length < 8) {
+    // companies는 방문/분석으로 자동 등록된 종목만 있는 부분집합이라, 아직 한 번도
+    // 등록 안 된 한국 종목(예: SK네트웍스)은 네이버 자동완성으로 한 번 더 보완한다.
+    try {
+      const r = await fetch(`/api/stock?type=search-kr&q=${encodeURIComponent(raw)}`);
+      const j = await r.json();
+      for (const it of j.items || []) {
+        if (items.some(m => m.ticker === it.ticker)) continue;
+        items.push({ ticker: it.ticker, name_ko: it.name, market: 'KR' });
+      }
+    } catch {}
+  }
+
+  const isUsTickerPattern = /^[A-Z][A-Z0-9.\-]{0,9}$/.test(upper) && !/^\d/.test(upper);
+  if (!items.length && isUsTickerPattern) items.push({ ticker: upper, name_ko: raw, market: 'US' });
+  return items.slice(0, 12);
+}
+
+async function runHeaderSearch(q) {
+  const box = document.getElementById('hSugBox');
+  if (!box) return;
+  box.innerHTML = `<div class="hsug"><div class="hsug-loading">검색 중…</div></div>`;
+  const items = await hFindMatches(q);
+  // 입력값이 그 사이 바뀌었으면(빠르게 이어 타이핑) 이 결과는 버린다
+  const cur = (document.getElementById('searchInput')?.value || '').trim();
+  if (cur !== q) return;
+  box.innerHTML = items.length
+    ? `<div class="hsug">${items.map(m => {
+        const isKr = m.market === 'KR' || /\.K[SQ]$/i.test(m.ticker);
+        return `<a class="hsug-item" href="/company.html?ticker=${encodeURIComponent(m.ticker)}">
+          <span class="hsug-tk ${isKr ? 'kr' : 'us'}">${escHtml(m.ticker.replace(/\.(KS|KQ)$/i, ''))}</span>
+          <span class="hsug-nm">${escHtml(m.name_ko || m.name_en || m.ticker)}</span>
+          <span class="hsug-mkt">${isKr ? '국내' : '미국'}</span>
+        </a>`;
+      }).join('')}</div>`
+    : `<div class="hsug"><div class="hsug-empty">"${escHtml(q)}" 검색 결과가 없습니다</div></div>`;
+}
+
+async function hSearchEnter(v) {
+  const raw = (v || '').trim();
+  if (!raw) return;
+  const box = document.getElementById('hSugBox');
+  const first = box?.querySelector('.hsug-item');
+  if (first) { location.href = first.getAttribute('href'); return; }
+  // 아직 드롭다운이 안 뜬 상태에서 바로 Enter를 친 경우(디바운스 대기 중 등) — 즉시 조회.
+  const items = await hFindMatches(raw);
+  if (items.length) { location.href = `/company.html?ticker=${encodeURIComponent(items[0].ticker)}`; return; }
+  showToast(`"${raw}" 종목을 찾을 수 없습니다`);
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#headerSearch')) {
+    const box = document.getElementById('hSugBox');
+    if (box) box.innerHTML = '';
+  }
+});
 
 function openSearchPicker(query, matches) {
   const modal = document.getElementById('searchPickerModal');

@@ -472,8 +472,13 @@ button { font-family: inherit; }
 .issue-card {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
   overflow: hidden; transition: all var(--t-med) var(--ease); cursor: pointer;
-  text-decoration: none; display: block; color: var(--text);
+  text-decoration: none; color: var(--text);
   box-shadow: var(--shadow-sm);
+  /* 카드마다 본문 길이가 달라 grid 행 높이에 맞춰 늘어나도(align-items:stretch),
+     display:block이면 분석 보기 줄이 늘어난 높이만큼 위쪽에 붕 뜬 채로 남는다
+     ("분석보기 영역이 고정되어 있지 않다" 피드백) — flex 세로열 + margin-top:auto로
+     항상 카드 맨 아래에 붙게 한다. */
+  display: flex; flex-direction: column;
 }
 .issue-card:hover {
   border-color: var(--border-strong); transform: translateY(-2px);
@@ -500,7 +505,7 @@ button { font-family: inherit; }
 .tag-robot  { background: var(--purple-dim); color: var(--purple); }
 .tag-energy { background: var(--green-dim);  color: var(--green); }
 .tag-default{ background: var(--bg3); color: var(--text2); }
-.card-footer { padding: 11px 16px; border-top: 1px solid var(--border-soft); display: flex; align-items: center; gap: 12px; background: var(--bg3); }
+.card-footer { margin-top: auto; padding: 11px 16px; border-top: 1px solid var(--border-soft); display: flex; align-items: center; gap: 12px; background: var(--bg3); }
 .footer-stat { display: flex; align-items: center; gap: 5px; font-size: 14.5px; color: var(--text2); }
 .footer-stat .val { font-weight: 700; font-variant-numeric: tabular-nums; }
 .footer-stat .val.green { color: var(--green); }

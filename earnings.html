@@ -92,7 +92,7 @@ a{color:inherit}
 .eh-modal{width:min(560px,100%);max-height:88vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:18px;box-shadow:0 30px 70px rgba(0,0,0,.5)}
 .eh-modal-head{display:flex;align-items:center;gap:12px;padding:20px 22px 14px;border-bottom:1px solid var(--border)}
 .eh-modal-head-info{flex:1;min-width:0}
-.eh-modal-sym{font-family:var(--mono);font-weight:800;font-size:20px;color:var(--blue)}
+.eh-modal-sym{font-family:var(--mono);font-weight:800;font-size:18px;color:var(--blue)}
 .eh-modal-name{font-size:14.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .eh-modal-price-wrap{display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0}
 .eh-modal-price{font-family:var(--mono);font-weight:700;font-size:15.5px}
@@ -100,12 +100,12 @@ a{color:inherit}
 .eh-modal-close{background:var(--bg3);border:none;color:var(--text2);width:32px;height:32px;border-radius:9px;font-size:16px;cursor:pointer;flex-shrink:0}
 .eh-modal-body{padding:20px 22px 26px}
 
-.eh-hero-surprise{text-align:center;padding:18px 0 22px}
-.eh-hero-badge{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:800;padding:6px 16px;border-radius:999px;margin-bottom:10px}
+.eh-hero-surprise{text-align:center;padding:16px 0 20px}
+.eh-hero-badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:800;padding:5px 13px;border-radius:999px;margin-bottom:9px}
 .eh-hero-badge.beat{background:rgba(255,107,107,.14);color:var(--red)}
 .eh-hero-badge.miss{background:rgba(77,141,255,.14);color:var(--blue)}
 .eh-hero-badge.meet{background:var(--bg4);color:var(--text2)}
-.eh-hero-pct{font-size:40px;font-weight:800;font-family:var(--mono);letter-spacing:-0.02em}
+.eh-hero-pct{font-size:32px;font-weight:800;font-family:var(--mono);letter-spacing:-0.02em}
 .eh-hero-pct.beat{color:var(--red)} .eh-hero-pct.miss{color:var(--blue)} .eh-hero-pct.meet{color:var(--text)}
 .eh-hero-cap{font-size:13px;color:var(--text3);margin-top:4px}
 
@@ -135,6 +135,21 @@ a{color:inherit}
 
 .eh-modal-empty{text-align:center;color:var(--text3);padding:20px;font-size:13.5px}
 @media (max-width:640px){ .eh-grid{grid-template-columns:1fr} .eh-quarters{flex-wrap:wrap} .eh-q{min-width:60px} }
+/* 상세 모달 — 폰트가 전반적으로 커서 모바일에서 한눈에 안 들어온다는 피드백(2026-08-01).
+   내용량 자체는 그대로 두고(스크롤은 당연히 필요) 글자 크기만 한 단계씩 더 줄인다. */
+@media (max-width:480px){
+  .eh-modal-head{padding:16px 16px 12px;gap:9px}
+  .eh-modal-sym{font-size:16px}
+  .eh-modal-name{font-size:13px}
+  .eh-modal-price{font-size:14px}
+  .eh-modal-body{padding:16px 16px 20px}
+  .eh-hero-badge{font-size:12px;padding:4px 11px}
+  .eh-hero-pct{font-size:26px}
+  .eh-hero-cap{font-size:12px}
+  .eh-cmp-label{width:54px;font-size:12.5px}
+  .eh-cmp-val{min-width:64px;font-size:13px}
+  .eh-section-title{font-size:12.5px;margin:18px 0 8px}
+}
 </style>
 </head>
 <body>
