@@ -22,6 +22,10 @@
   const myReports = new Set(lsGet('sr_chat_reported', []));
   const myKey = () => (typeof currentUser !== 'undefined' && currentUser) ? 'u:' + currentUser.id : 'g:' + guestKey;
 
+  // 2026-08: 이 패널은 이제 채팅 플래그와 무관하게 항상 뜬다(실시간 랭킹 탭은 항상 필요)
+  // — site-header.js가 /api/feedback?action=chat-config 결과를 여기 담아둔다.
+  const chatEnabled = window.__srChatEnabled === true;
+
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmtTime = iso => { const d = new Date(iso); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 
@@ -76,20 +80,73 @@
   /* transition:padding-right 없음 — 실측 결과 이 속성에 transition을 걸면(어느 값으로도)
      html 루트에서 padding-right 자체가 아예 반영되지 않는 현상이 재현됐다(프로덕션에서
      직접 확인 — transition 제거 시 즉시 정상화). 애니메이션은 포기하고 즉시 전환만. */
-  @media (min-width:1200px){ html.sr-chat-pinned-open{ padding-right:340px; } }`;
+  @media (min-width:1200px){ html.sr-chat-pinned-open{ padding-right:340px; } }
+  /* ── 탭(채팅/랭킹, 2026-08) ── 이 패널은 이제 항상 주입되고(채팅이 꺼져 있어도),
+     그 안에서 채팅 탭만 admin 플래그로 노출 여부가 갈린다. 탭이 1개뿐이면(채팅 꺼짐)
+     탭바 자체를 숨기고 랭킹만 바로 보여준다. */
+  .src-tabs{display:flex;flex-shrink:0;border-bottom:1px solid var(--border)}
+  .src-tab{flex:1;padding:10px 0;text-align:center;background:none;border:none;font-size:14.5px;font-weight:700;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent}
+  .src-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+  #srChatTabBody{flex:1;min-height:0;display:flex;flex-direction:column}
+  #srRankTabBody{flex:1;min-height:0;overflow-y:auto;padding:12px 14px 14px}
+  .srk-search{position:relative;margin-bottom:10px}
+  .srk-search input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-size:14.5px;outline:none;font-family:inherit}
+  .srk-search input:focus{border-color:var(--blue)}
+  .srk-search input::placeholder{color:var(--text3)}
+  .srk-mkts{display:flex;gap:4px;background:var(--bg3);border-radius:10px;padding:3px;margin-bottom:8px}
+  .srk-mkt{flex:1;border:none;background:transparent;color:var(--text2);font-size:13.5px;font-weight:700;padding:6px 0;border-radius:8px;cursor:pointer}
+  .srk-mkt.active{background:var(--blue);color:#fff}
+  .srk-cats{display:flex;gap:5px;overflow-x:auto;margin-bottom:10px;scrollbar-width:none}
+  .srk-cats::-webkit-scrollbar{display:none}
+  .srk-cat{flex-shrink:0;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:13px;font-weight:600;padding:5px 10px;border-radius:999px;cursor:pointer;white-space:nowrap}
+  .srk-cat.active{border-color:var(--blue);color:var(--blue);background:var(--blue-dim)}
+  .srk-sub-head{font-size:12.5px;font-weight:700;color:var(--text3);margin:10px 0 6px;letter-spacing:.02em}
+  .srk-sub-head:first-child{margin-top:0}
+  .srk-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-soft);cursor:pointer;text-decoration:none;color:var(--text)}
+  .srk-row:hover{background:var(--bg3)}
+  .srk-rank{width:16px;font-size:13px;font-weight:700;color:var(--text3);flex-shrink:0}
+  .srk-name{flex:1;min-width:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .srk-price{text-align:right;flex-shrink:0}
+  .srk-price .v{font-size:13.5px;font-weight:700;font-family:'SF Mono',monospace}
+  .srk-price .c{font-size:12px;font-weight:700}
+  .srk-price .c.up{color:var(--red)}
+  .srk-price .c.dn{color:var(--blue)}
+  .srk-loading,.srk-empty{text-align:center;color:var(--text3);font-size:14px;padding:24px 10px}`;
   document.head.appendChild(css);
 
   const btn = document.createElement('button');
-  btn.id = 'srChatBtn'; btn.title = '실시간 채팅';
+  btn.id = 'srChatBtn'; btn.title = chatEnabled ? '채팅 · 실시간 랭킹' : '실시간 랭킹';
   btn.innerHTML = '💬<span class="badge" id="srChatBadge"></span>';
   const panel = document.createElement('div');
   panel.id = 'srChatPanel';
   panel.innerHTML = `
-    <div class="src-head"><span class="live"></span><b>실시간 채팅</b><span class="me" id="srChatMe"></span>
+    <div class="src-head"><span class="live" id="srHeadLive"></span><b id="srHeadTitle">실시간 채팅</b><span class="me" id="srChatMe"></span>
       <button class="src-close" id="srChatClose" title="숨기기">✕</button></div>
-    <div id="srChatList"></div>
-    <div id="srChatInput"><input id="srChatText" maxlength="300" placeholder="메시지 입력 (최대 300자)"><button id="srChatSend">전송</button></div>
-    <div class="src-note">신고 3회 누적 시 임시 숨김 · 매매 권유/비방은 제재될 수 있어요</div>`;
+    <div class="src-tabs" id="srTabs" style="display:${chatEnabled ? 'flex' : 'none'}">
+      <button class="src-tab" data-tab="chat">💬 채팅</button>
+      <button class="src-tab" data-tab="rank">📊 랭킹</button>
+    </div>
+    <div id="srChatTabBody">
+      <div id="srChatList"></div>
+      <div id="srChatInput"><input id="srChatText" maxlength="300" placeholder="메시지 입력 (최대 300자)"><button id="srChatSend">전송</button></div>
+      <div class="src-note">신고 3회 누적 시 임시 숨김 · 매매 권유/비방은 제재될 수 있어요</div>
+    </div>
+    <div id="srRankTabBody" style="display:none">
+      <div class="srk-search"><input id="srkSearchInput" placeholder="종목명, 티커 검색" autocomplete="off"><div id="srkSugBox"></div></div>
+      <div class="srk-mkts" id="srkMkts">
+        <button class="srk-mkt active" data-mkt="all">전체</button>
+        <button class="srk-mkt" data-mkt="kr">국장</button>
+        <button class="srk-mkt" data-mkt="us">해외</button>
+      </div>
+      <div class="srk-cats" id="srkCats">
+        <button class="srk-cat active" data-cat="popular">🔥 인기</button>
+        <button class="srk-cat" data-cat="amount">💰 거래대금</button>
+        <button class="srk-cat" data-cat="volume">📊 거래량</button>
+        <button class="srk-cat" data-cat="gainers">🚀 급상승</button>
+        <button class="srk-cat" data-cat="losers">📉 급하락</button>
+      </div>
+      <div id="srkList"><div class="srk-loading">불러오는 중...</div></div>
+    </div>`;
   document.body.appendChild(btn); document.body.appendChild(panel);
 
   const list = panel.querySelector('#srChatList');
@@ -215,6 +272,142 @@
       .subscribe();
   }
 
+  // ── 📊 실시간 랭킹 탭 (2026-08: 메인 페이지 전용 위젯이던 걸 이 패널로 이동해
+  // 전 페이지에서 접근 가능하게 함) — 데이터 소스는 메인 페이지가 쓰던 것과 동일한
+  // 공개 API(/api/toss?action=rankings-all)를 그대로 재사용, fetch/재시도 패턴도 동일.
+  let _srkMkt = 'all', _srkCat = 'popular', _srkLoaded = false, _srkTimer = null;
+  const _srkCache = { kr: null, us: null };
+
+  function _srkFmtPrice(v, cur) {
+    if (v == null) return '—';
+    return cur === 'KRW' ? '₩' + Math.round(v).toLocaleString('ko-KR') : '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  }
+  async function _srkFetch(market) {
+    const delays = [600, 1200, 2400];
+    for (let i = 0; i <= delays.length; i++) {
+      try {
+        const r = await fetch(`/api/toss?action=rankings-all&market=${market}&count=10`);
+        if (r.ok) { const j = await r.json(); if (j.ok) return j; }
+      } catch {}
+      if (i < delays.length) await new Promise(res => setTimeout(res, delays[i]));
+    }
+    return null;
+  }
+  async function _srkEnsure(force) {
+    const need = _srkMkt === 'all' ? ['kr', 'us'] : [_srkMkt];
+    for (const m of need) {
+      if (!force && _srkCache[m]) continue;
+      const d = await _srkFetch(m === 'kr' ? 'KR' : 'US');
+      if (d) _srkCache[m] = d;
+    }
+  }
+  function _srkListHtml(items) {
+    if (!items || !items.length) return `<div class="srk-empty">데이터 없음</div>`;
+    return items.slice(0, 10).map((it, i) => {
+      const chg = it.changePercent;
+      const cls = chg > 0 ? 'up' : chg < 0 ? 'dn' : '';
+      const sign = chg > 0 ? '+' : '';
+      return `<a class="srk-row" href="/company.html?ticker=${encodeURIComponent(it.linkTicker || it.symbol)}">
+        <span class="srk-rank">${i + 1}</span>
+        <span class="srk-name">${esc(it.name || it.symbol)}</span>
+        <span class="srk-price"><div class="v">${_srkFmtPrice(it.price, it.currency)}</div>${chg != null ? `<div class="c ${cls}">${sign}${chg.toFixed(2)}%</div>` : ''}</span>
+      </a>`;
+    }).join('');
+  }
+  function _srkRender() {
+    const el = panel.querySelector('#srkList');
+    if (!el) return;
+    const cat = d => (d?.categories?.[_srkCat]) || [];
+    if (_srkMkt === 'all') {
+      el.innerHTML = `
+        <div class="srk-sub-head">🇰🇷 국장</div>
+        ${_srkCache.kr ? _srkListHtml(cat(_srkCache.kr)) : `<div class="srk-loading">불러오는 중...</div>`}
+        <div class="srk-sub-head">🇺🇸 해외</div>
+        ${_srkCache.us ? _srkListHtml(cat(_srkCache.us)) : `<div class="srk-loading">불러오는 중...</div>`}`;
+    } else {
+      const d = _srkMkt === 'kr' ? _srkCache.kr : _srkCache.us;
+      el.innerHTML = d ? _srkListHtml(cat(d)) : `<div class="srk-loading">불러오는 중...</div>`;
+    }
+  }
+  async function initRankTab() {
+    await _srkEnsure();
+    _srkRender();
+    // 콜드 스타트 시 첫 응답 일부가 빌 수 있어 3초 뒤 한 번 더 강제 갱신(메인 페이지 위젯과 동일 패턴).
+    setTimeout(async () => { await _srkEnsure(true); _srkRender(); }, 3000);
+    if (_srkTimer) clearInterval(_srkTimer);
+    _srkTimer = setInterval(async () => { if (document.hidden || !panel.classList.contains('open') || _activeTab !== 'rank') return; await _srkEnsure(true); _srkRender(); }, 10000);
+  }
+  panel.querySelector('#srkMkts').addEventListener('click', e => {
+    const b = e.target.closest('.srk-mkt'); if (!b) return;
+    _srkMkt = b.dataset.mkt;
+    panel.querySelectorAll('.srk-mkt').forEach(x => x.classList.toggle('active', x === b));
+    _srkEnsure().then(_srkRender);
+  });
+  panel.querySelector('#srkCats').addEventListener('click', e => {
+    const b = e.target.closest('.srk-cat'); if (!b) return;
+    _srkCat = b.dataset.cat;
+    panel.querySelectorAll('.srk-cat').forEach(x => x.classList.toggle('active', x === b));
+    _srkRender();
+  });
+
+  // 랭킹 탭 검색 — 새 매칭 로직을 만들지 않고 site-header.js의 hFindMatches를 재사용,
+  // 결과 마크업도 전역 .hsug/.hsug-item 클래스(_siteChromeInjectStyle이 이미 주입)를 그대로 씀.
+  let _srkSugTimer = null;
+  const srkSearchInput = panel.querySelector('#srkSearchInput');
+  const srkSugBox = panel.querySelector('#srkSugBox');
+  srkSearchInput.addEventListener('input', () => {
+    clearTimeout(_srkSugTimer);
+    const q = srkSearchInput.value.trim();
+    if (!q) { srkSugBox.innerHTML = ''; return; }
+    _srkSugTimer = setTimeout(async () => {
+      if (typeof hFindMatches !== 'function') return;
+      srkSugBox.innerHTML = `<div class="hsug"><div class="hsug-loading">검색 중…</div></div>`;
+      const items = await hFindMatches(q);
+      if (srkSearchInput.value.trim() !== q) return;
+      srkSugBox.innerHTML = items.length
+        ? `<div class="hsug">${items.map(m => {
+            const isKr = m.market === 'KR' || /\.K[SQ]$/i.test(m.ticker);
+            return `<a class="hsug-item" href="/company.html?ticker=${encodeURIComponent(m.ticker)}">
+              <span class="hsug-tk ${isKr ? 'kr' : 'us'}">${esc(m.ticker.replace(/\.(KS|KQ)$/i, ''))}</span>
+              <span class="hsug-nm">${esc(m.name_ko || m.name_en || m.ticker)}</span>
+              <span class="hsug-mkt">${isKr ? '국내' : '미국'}</span>
+            </a>`;
+          }).join('')}</div>`
+        : `<div class="hsug"><div class="hsug-empty">"${esc(q)}" 검색 결과가 없습니다</div></div>`;
+    }, 220);
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.srk-search')) srkSugBox.innerHTML = '';
+  });
+
+  // ── 탭 전환 ────────────────────────────────────────────────
+  let _activeTab = chatEnabled ? 'chat' : 'rank';
+  const chatTabBody = panel.querySelector('#srChatTabBody');
+  const rankTabBody = panel.querySelector('#srRankTabBody');
+  const headTitle = panel.querySelector('#srHeadTitle');
+  const headLive = panel.querySelector('#srHeadLive');
+  const chatMeEl = panel.querySelector('#srChatMe');
+  function srSwitchTab(tab) {
+    if (tab === 'chat' && !chatEnabled) tab = 'rank';
+    _activeTab = tab;
+    panel.querySelectorAll('.src-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    chatTabBody.style.display = tab === 'chat' ? 'flex' : 'none';
+    rankTabBody.style.display = tab === 'rank' ? 'block' : 'none';
+    headTitle.textContent = tab === 'chat' ? '실시간 채팅' : '실시간 랭킹';
+    headLive.style.display = tab === 'chat' ? '' : 'none';
+    chatMeEl.style.display = tab === 'chat' ? '' : 'none';
+    if (tab === 'chat') {
+      renderMe();
+      if (!seen.size) loadInitial();
+      subscribe();
+      list.scrollTop = list.scrollHeight;
+    } else if (!_srkLoaded) {
+      _srkLoaded = true;
+      initRankTab();
+    }
+  }
+  panel.querySelectorAll('.src-tab').forEach(b => b.addEventListener('click', () => srSwitchTab(b.dataset.tab)));
+
   // ── PC 고정 패널(2026-07-28) ────────────────────────────────
   // 넓은 화면(≥1200px)에서는 기본으로 열어두고, 본문이 패널에 가리지 않게 body에
   // 여백 클래스를 같이 토글한다. "숨기기"를 누르면 접히고, 그 선택은 localStorage에
@@ -228,10 +421,7 @@
     panel.classList.add('open');
     document.documentElement.classList.toggle('sr-chat-pinned-open', isDesktopWide());
     unread = 0; badge.style.display = 'none';
-    renderMe();
-    if (!seen.size) loadInitial();
-    subscribe();
-    list.scrollTop = list.scrollHeight;
+    srSwitchTab(_activeTab);
   }
   function closePanel() {
     panel.classList.remove('open');
@@ -245,7 +435,7 @@
     } else {
       if (isDesktopWide()) lsSet(HIDDEN_KEY, false);
       openPanel();
-      setTimeout(() => input.focus(), 250);
+      if (_activeTab === 'chat') setTimeout(() => input.focus(), 250);
     }
   });
   panel.querySelector('#srChatClose').addEventListener('click', closePanel);

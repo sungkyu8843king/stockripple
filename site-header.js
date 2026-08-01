@@ -743,7 +743,7 @@ function consolidateMobileFabs() {
 
   const candidates = [
     { el: document.querySelector('.dr-fab'), label: '데일리 리포트' },
-    { el: document.querySelector('#srChatBtn'), label: '실시간 채팅' },
+    { el: document.querySelector('#srChatBtn'), label: window.__srChatEnabled ? '채팅·랭킹' : '실시간 랭킹' },
     { el: document.querySelector('.fb-fab'), label: '의견 주기' },
   ].filter(c => c.el && getComputedStyle(c.el).display !== 'none');
 
@@ -845,22 +845,24 @@ function consolidateMobileFabs() {
   });
 }
 
-// ── 실시간 채팅 위젯 로더 — 어드민 플래그(chat)가 켜져 있을 때만 /chat.js를 동적 주입.
-// 꺼져 있으면 아무것도 안 만듦(요구사항: '사용할 때만 나오도록'). fail-closed.
-// consolidateMobileFabs는 이 fetch 체인의 모든 분기(채팅 켜짐/꺼짐/로드실패) 끝에서
-// 정확히 한 번씩 호출 — #srChatBtn이 생기는 시점(비동기)까지 기다렸다가 통합해야
-// 하기 때문에 DOMContentLoaded 시점에 바로 부르면 채팅 버튼을 놓친다.
+// ── 우측 슬라이드 패널 로더(채팅 + 실시간 랭킹, 2026-08) ── /chat.js는 항상 주입한다 —
+// 실시간 랭킹 탭은 어드민 플래그와 무관하게 항상 접근 가능해야 하기 때문(플래그를 끄면
+// 랭킹까지 같이 사라지는 게 부적절). 어드민 플래그(chat)는 이제 "패널을 띄울지"가 아니라
+// "그 안의 채팅 탭을 보여줄지"만 결정한다 — window.__srChatEnabled에 담아 chat.js가 읽는다.
+// consolidateMobileFabs는 이 체인의 모든 분기 끝에서 정확히 한 번씩 호출 — #srChatBtn이
+// 생기는 시점(비동기)까지 기다렸다가 통합해야 하기 때문에 DOMContentLoaded 시점에 바로
+// 부르면 버튼을 놓친다.
 document.addEventListener('DOMContentLoaded', () => {
   if (location.pathname.startsWith('/admin')) return;
   fetch('/api/feedback?action=chat-config')
     .then(r => r.json())
-    .then(j => {
-      if (!j?.enabled) { consolidateMobileFabs(); return; }
+    .then(j => { window.__srChatEnabled = !!j?.enabled; })
+    .catch(() => { window.__srChatEnabled = false; })
+    .finally(() => {
       const sc = document.createElement('script');
       sc.src = '/chat.js';
       sc.onload = () => consolidateMobileFabs();
       sc.onerror = () => consolidateMobileFabs();
       document.body.appendChild(sc);
-    })
-    .catch(() => consolidateMobileFabs());
+    });
 });
