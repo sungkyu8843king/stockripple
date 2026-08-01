@@ -145,7 +145,8 @@ function _siteChromeInjectStyle() {
 @media (min-width:1200px){ #headerNav #themeToggleBtn{display:none} }
 .user-menu{position:relative;flex-shrink:0}
 .user-avatar-btn{width:32px;height:32px;border-radius:50%;background:var(--blue-dim);color:var(--blue);border:1.5px solid var(--blue);font-size:15.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.user-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:var(--bg2);border:1px solid var(--border);border-radius:16px;min-width:140px;overflow:hidden;z-index:500;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.user-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:var(--bg2);border:1px solid var(--border);border-radius:16px;min-width:150px;overflow:hidden;z-index:500;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.dropdown-nick{padding:11px 14px 9px;font-size:14.5px;font-weight:700;color:var(--text);border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dropdown-item{display:block;width:100%;padding:10px 14px;font-size:15.5px;color:var(--text2);background:none;border:none;text-align:left;cursor:pointer;text-decoration:none;transition:all .12s}
 .dropdown-item:hover{background:var(--bg3);color:var(--text)}
 @media (max-width:760px){
@@ -216,6 +217,10 @@ function _siteChromeInjectStyle() {
 .auth-btn-google{width:100%;padding:12px 16px;border-radius:16px;font-size:16px;font-weight:500;background:#fff;border:1px solid #dadce0;color:#3c4043;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .12s;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 .auth-btn-google:hover{background:#f8f9fa;box-shadow:0 2px 6px rgba(0,0,0,0.12)}
 .auth-btn-google:active{background:#f1f3f4}
+/* 카카오 로그인 — 카카오 공식 브랜드 가이드 색상(#FEE500 배경, #191919 텍스트) */
+.auth-btn-kakao{width:100%;padding:12px 16px;border-radius:16px;font-size:16px;font-weight:600;background:#FEE500;border:none;color:#191919;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .12s;margin-bottom:20px}
+.auth-btn-kakao:hover{filter:brightness(0.97)}
+.auth-btn-kakao:active{filter:brightness(0.94)}
 .auth-divider{display:flex;align-items:center;gap:12px;margin-bottom:18px;color:var(--text3);font-size:14.5px}
 .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
 .auth-field{position:relative;margin-bottom:12px}
@@ -281,6 +286,7 @@ function _siteHeaderHtml(activePath) {
           <div class="user-menu" id="userMenu" style="display:none">
             <button class="user-avatar-btn" id="userAvatar" onclick="toggleUserDropdown()"></button>
             <div class="user-dropdown" id="userDropdown" style="display:none">
+              <div class="dropdown-nick" id="userDropdownNick"></div>
               <a href="/account.html" class="dropdown-item">계정 설정</a>
               <button class="dropdown-item" onclick="doSignOut()">로그아웃</button>
             </div>
@@ -295,6 +301,10 @@ function _siteHeaderHtml(activePath) {
         <button class="auth-close" onclick="closeAuthModal()" aria-label="닫기">✕</button>
         <div class="auth-logo">Stock<span>Ripple</span></div>
         <h2 class="auth-title" id="authTitle">로그인</h2>
+        <button class="auth-btn-kakao" onclick="signInWithKakao()">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#191919" d="M12 3C6.48 3 2 6.58 2 11c0 2.85 1.87 5.36 4.69 6.78-.15.55-.98 3.55-.99 3.79 0 0-.02.16.09.22.11.06.24.01.24.01.32-.04 3.68-2.41 4.25-2.81.55.08 1.12.12 1.72.12 5.52 0 10-3.58 10-8 0-4.42-4.48-9-10-9z"/></svg>
+          카카오로 계속하기
+        </button>
         <button class="auth-btn-google" onclick="signInWithGoogle()">
           <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
           Google로 계속하기
@@ -305,7 +315,7 @@ function _siteHeaderHtml(activePath) {
             <span>이메일 주소 수집·이용에 동의합니다. <button type="button" class="auth-link-inline" onclick="togglePrivacyText(event)">약관 보기</button></span>
           </label>
           <div id="authPrivacyText" class="auth-privacy-text" style="display:none">
-            · 수집 항목: 이메일 주소 (Google 로그인 시 Google 계정의 이메일)<br>
+            · 수집 항목: 이메일 주소 (카카오·Google 로그인 시 해당 계정의 이메일)<br>
             · 수집 목적: 회원 식별, 로그인, 관심종목·북마크 등 계정 기반 기능 제공<br>
             · 보유 기간: 회원 탈퇴 시까지 — 탈퇴 즉시 파기<br>
             · 제3자 제공: 없음<br>
@@ -400,6 +410,49 @@ function renderSiteFooter() {
    initAuth/renderUserMenu를 자신의 버전으로 재정의해서 덮어쓴다 — 여기 손대지 말 것. */
 let currentUser = null;
 
+/* ── 계정 공통 닉네임(2026-08) ──────────────────────────────
+   initAuth/renderUserMenu는 페이지마다 재정의되지만(위 주석), 이 블록은 그 오버라이드와
+   무관하게 항상 한 번만 등록되는 별도의 onAuthStateChange 리스너다 — 어느 페이지에서
+   로그인하든, 어떤 페이지의 커스텀 initAuth를 타든 닉네임 보장 로직이 빠지지 않는다.
+   Supabase JS v2는 구독 시 현재 세션으로 'INITIAL_SESSION' 이벤트를 한 번 먼저 쏴주므로
+   새로고침 시에도 currentNickname이 채워진다. */
+let currentNickname = null;
+function randomNickname() {
+  const adjs = ['용감한', '냉철한', '불꽃', '조용한', '전설의', '프로', '초보', '행운의', '신중한', '과감한'];
+  const nouns = ['개미', '황소', '부엉이', '매수왕', '존버러', '투자자', '불곰', '여우', '거북이', '토끼'];
+  const a = adjs[Math.floor(Math.random() * adjs.length)];
+  const n = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `${a}${n}${num}`;
+}
+async function ensureNickname(user) {
+  if (!user) { currentNickname = null; return; }
+  try {
+    const { data } = await sb.from('user_profiles').select('nickname').eq('user_id', user.id).maybeSingle();
+    if (data?.nickname) {
+      currentNickname = data.nickname;
+    } else {
+      // 프로필 행이 없는 경우 — 신규 가입 직후든, 이 기능 도입 전 기존 회원이든 경로는 같다.
+      const nick = randomNickname();
+      const { error } = await sb.from('user_profiles').insert({ user_id: user.id, nickname: nick });
+      if (!error) {
+        currentNickname = nick;
+      } else {
+        // 다른 탭/기기가 동시에 먼저 만들었을 수 있음(user_id가 PK라 INSERT 충돌) — 재조회.
+        const { data: retry } = await sb.from('user_profiles').select('nickname').eq('user_id', user.id).maybeSingle();
+        currentNickname = retry?.nickname || null;
+      }
+    }
+  } catch { currentNickname = null; }
+  window.dispatchEvent(new CustomEvent('sr-nickname-change', { detail: { nickname: currentNickname } }));
+}
+sb.auth.onAuthStateChange((_event, session) => { ensureNickname(session?.user ?? null); });
+function _syncDropdownNick() {
+  const el = document.getElementById('userDropdownNick');
+  if (el) el.textContent = currentNickname || '닉네임 불러오는 중…';
+}
+window.addEventListener('sr-nickname-change', _syncDropdownNick);
+
 async function initAuth() {
   const { data: { session } } = await sb.auth.getSession();
   currentUser = session?.user ?? null;
@@ -429,6 +482,7 @@ function renderUserMenu(user) {
 function toggleUserDropdown() {
   const dd = document.getElementById('userDropdown');
   if (dd) dd.style.display = dd.style.display === 'none' ? '' : 'none';
+  _syncDropdownNick();
 }
 document.addEventListener('click', e => {
   if (!e.target.closest('#userMenu')) {
@@ -526,15 +580,29 @@ async function submitAuth(e) {
     btn.textContent = document.getElementById('authForm').dataset.mode === 'signin' ? '로그인' : '가입하기';
   }
 }
-async function signInWithGoogle() {
+function _checkAuthConsent() {
   const mode = document.getElementById('authForm').dataset.mode;
   if (mode === 'signup' && !document.getElementById('authConsent').checked) {
     const errEl = document.getElementById('authError');
     errEl.className = 'auth-error';
     errEl.textContent = '개인정보 수집·이용에 동의해주세요.';
-    return;
+    return false;
   }
-  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } });
+  return true;
+}
+// redirectTo를 location.origin(항상 홈)이 아니라 location.href(현재 페이지)로 줘야
+// OAuth 로그인 후 원래 보던 페이지로 돌아온다 — 이전엔 어디서 로그인해도 홈으로
+// 튕겨 "리다이렉트가 이상하다"는 피드백을 받았다(2026-08).
+async function signInWithGoogle() {
+  if (!_checkAuthConsent()) return;
+  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } });
+}
+// 카카오 로그인 — Supabase 대시보드(Authentication → Providers → Kakao)에 카카오
+// 디벨로퍼스에서 발급받은 REST API 키(Client ID)·Client Secret이 등록돼 있어야 동작한다.
+// 등록 전엔 이 버튼을 눌러도 Supabase가 "Unsupported provider" 에러를 반환한다.
+async function signInWithKakao() {
+  if (!_checkAuthConsent()) return;
+  await sb.auth.signInWithOAuth({ provider: 'kakao', options: { redirectTo: location.href } });
 }
 
 /* ══════════════════ 상단 종목 검색 ══════════════════ */

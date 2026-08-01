@@ -83,7 +83,8 @@ async function handleChatSend(req, res) {
   if (!message) return res.status(400).json({ ok: false, error: 'message required' });
   if (message.length > 300) return res.status(400).json({ ok: false, error: 'too long (max 300)' });
 
-  // 회원이면 토큰 검증해서 신원 확정(닉네임=이메일 앞부분), 아니면 게스트 키 사용
+  // 회원이면 토큰 검증해서 신원 확정 — 닉네임은 user_profiles(계정 공통 닉네임, 2026-08
+  // 도입)을 우선 쓰고, 아직 없으면(과거 계정 등) 이메일 앞부분으로 폴백. 아니면 게스트 키 사용.
   let senderKey = null, nickname = null, isMember = false;
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
@@ -91,8 +92,9 @@ async function handleChatSend(req, res) {
       const { data } = await supabase.auth.getUser(authHeader.slice(7).trim());
       if (data?.user) {
         senderKey = 'u:' + data.user.id;
-        nickname = (data.user.email || '회원').split('@')[0].slice(0, 20);
         isMember = true;
+        const { data: profile } = await supabase.from('user_profiles').select('nickname').eq('user_id', data.user.id).maybeSingle();
+        nickname = (profile?.nickname || (data.user.email || '회원').split('@')[0]).slice(0, 20);
       }
     } catch {}
   }

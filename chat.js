@@ -222,8 +222,10 @@
   function renderMe() {
     const el = panel.querySelector('#srChatMe');
     el.textContent = (typeof currentUser !== 'undefined' && currentUser)
-      ? (currentUser.email || '').split('@')[0] : '게스트' + guestKey.slice(-4);
+      ? ((typeof currentNickname !== 'undefined' && currentNickname) || (currentUser.email || '').split('@')[0])
+      : '게스트' + guestKey.slice(-4);
   }
+  window.addEventListener('sr-nickname-change', renderMe);
 
   // ── 메시지 렌더 ────────────────────────────────────────────
   const seen = new Set(); // 중복 방지(초기 로드 + realtime 겹침)
