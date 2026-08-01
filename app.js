@@ -23,6 +23,18 @@ try {
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// 쿠팡 파트너스 광고(iframe이 우리 도메인이라 same-origin이라 window.top 접근 가능)가
+// 소재에 따라 window.open(새 탭)으로 이동을 시도하면 iOS Safari에서 "다른 앱을 열려고
+// 합니다" 확인창이 뜬다. 같은 창에서 바로 이동하면 확인창 없이 넘어가므로, 쿠팡 링크에
+// 한해 새 탭 시도를 가로채 현재 창 이동으로 강제 전환한다.
+(function(){
+  const _open = window.open;
+  window.open = function(url, ...rest) {
+    if (url && /coupang/i.test(url)) { location.href = url; return null; }
+    return _open.call(window, url, ...rest);
+  };
+})();
+
 // 실시간 접속자 표시용 (관리자 대시보드) — 페이지뷰 집계가 아니라 현재 열려있는 탭 수 근사치
 (function trackPresence() {
   try {
@@ -33,7 +45,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } catch {}
 })();
 
-const PAGE_SIZE = 8;   // 홈 미리보기 노출량 축소 (기존 20 → 8, 페이지네이션으로 더 보기)
+const PAGE_SIZE = 6;   // 홈 미리보기 노출량 (3열 그리드 기준 2행으로 꽉 채워지도록 6으로 축소 — 8이면 마지막 행이 2개만 남아 칸이 안 맞음)
 let currentPage = 1;
 let currentSector = 'all';
 let searchQuery = '';

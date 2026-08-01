@@ -5,6 +5,18 @@
 <title>ad</title>
 </head>
 <body style="margin:0;overflow:hidden">
+<script>
+// 광고가 window.open(새 탭)으로 이동을 시도하면 iOS Safari에서 "다른 앱을 열려고
+// 합니다" 확인창이 뜬다. 같은 창에서 바로 이동(top.location.href)시키면 확인창 없이
+// 넘어가므로, 새 탭 시도를 가로채 강제로 같은 창 이동으로 바꾼다.
+(function(){
+	var _open = window.open;
+	window.open = function(url){
+		if (url) { top.location.href = url; return null; }
+		return _open.apply(window, arguments);
+	};
+})();
+</script>
 <script src="https://ads-partners.coupang.com/g.js"></script>
 <script>
 	new PartnersCoupang.G({"id":1005657,"template":"banner","trackingCode":"AF2174378","width":"320","height":"100"});
