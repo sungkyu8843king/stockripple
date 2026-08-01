@@ -476,9 +476,6 @@ function _needsOnboarding(user) {
 }
 async function ensureNickname(user) {
   if (!user) { currentNickname = null; return; }
-  // 팝업으로 로그인 중이면 팝업 쪽이 온보딩(필요하면)까지 전담 — 오프너는 팝업이
-  // 닫힌 뒤 새로고침에서 한 번만 처리한다(_openOAuthPopup 주석 참고).
-  if (typeof _oauthPopupActive !== 'undefined' && _oauthPopupActive) return;
   try {
     const { data } = await sb.from('user_profiles').select('nickname').eq('user_id', user.id).maybeSingle();
     if (data?.nickname) {
@@ -547,7 +544,6 @@ async function submitOnboarding() {
   currentNickname = nick;
   window.dispatchEvent(new CustomEvent('sr-nickname-change', { detail: { nickname: nick } }));
   overlay.style.display = 'none';
-  if (window.name === 'sr_oauth_popup') window.close(); // 팝업 안 온보딩이면 여기서 닫음 — 오프너가 닫힘 감지 후 새로고침
 }
 // 동의하지 않고 나가기 — 프로필(닉네임/약관동의) 행 없이는 우리 서비스 이용 자체가
 // 안 되므로, 방금 만들어진 세션을 로그아웃시켜 로그인 전 상태로 되돌린다. 카카오/구글
@@ -557,7 +553,6 @@ async function cancelOnboarding() {
   if (overlay) overlay.style.display = 'none';
   await sb.auth.signOut();
   if (typeof showToast === 'function') showToast('동의하지 않아 가입을 취소했습니다.', 'info');
-  if (window.name === 'sr_oauth_popup') window.close();
 }
 function _syncDropdownNick() {
   const el = document.getElementById('userDropdownNick');
@@ -706,82 +701,19 @@ function _checkAuthConsent() {
 // OAuth 로그인 후 원래 보던 페이지로 돌아온다 — 이전엔 어디서 로그인해도 홈으로
 // 튕겨 "리다이렉트가 이상하다"는 피드백을 받았다(2026-08).
 //
-// 전체 탭이 구글/카카오 로그인 화면으로 이동했다가 돌아오는 방식이 불편하다는
-// 피드백(2026-08) — 작은 팝업 창에서 로그인을 끝내고, 다 되면 팝업이 스스로 닫히면서
-// 원래 페이지가 로그인 상태로 갱신되는 방식으로 변경. skipBrowserRedirect로 URL만
-// 받아온 뒤 직접 window.open으로 띄운다(팝업 차단 방지를 위해 window.open 자체는
-// 클릭 핸들러 안에서 동기적으로 먼저 열고, URL은 나중에 채워 넣는다 — about:blank로
-// 먼저 열지 않고 await 이후에 열면 대부분 브라우저가 팝업으로 인식하지 않고 막는다).
-// 팝업이 열려 있는 동안, 오프너(원래 창) 쪽에서도 세션 변경을 감지해 각자 따로
-// ensureNickname()을 돌리면 — 팝업이 아직 프로필을 안 만든 시점에 오프너가 먼저
-// "프로필 없음"을 보고 자기만의 온보딩 모달을 띄워버려, 팝업/오프너 양쪽에 서로 다른
-// 임의 닉네임으로 온보딩 창이 두 개 뜨는 사고가 났다(2026-08 실측). 팝업이 열려 있는
-// 동안은 오프너의 ensureNickname을 통째로 건너뛰고, 팝업이 닫힌 뒤 새로고침에서
-// 한 번만(이미 완료된 프로필 기준으로) 처리하게 한다.
-let _oauthPopupActive = false;
-function _openOAuthPopup(startAuth) {
-  const popup = window.open('about:blank', 'sr_oauth_popup', 'width=480,height=680,menubar=no,toolbar=no,location=no,status=no');
-  startAuth().then(url => {
-    if (!url) { _oauthPopupActive = false; if (popup && !popup.closed) popup.close(); return; }
-    if (popup && !popup.closed) popup.location.href = url;
-    else { _oauthPopupActive = false; location.href = url; } // 팝업이 차단된 경우의 폴백 — 기존처럼 현재 탭에서 이동
-  });
-  if (!popup) return;
-  _oauthPopupActive = true;
-  const timer = setInterval(() => {
-    if (popup.closed) { clearInterval(timer); _oauthPopupActive = false; location.reload(); }
-  }, 500);
-}
-// queryParams의 prompt=select_account는 브라우저에 이미 로그인된 구글 세션이 있어도
-// 계정 선택 화면을 무조건 보여주게 강제한다 — 이게 없으면 여러 계정을 쓰는 기기에서
-// "지금 어떤 계정으로 가입하는지" 확인할 화면 없이 그냥 조용히 넘어가버려서 사용자가
-// 혼란스러워한다는 피드백(2026-08). 가벼운 "목록에서 고르기"라 비밀번호 재입력은 없다.
+// 팝업 창 방식을 시도했었으나(2026-08) 팝업/오프너가 세션 변경을 각자 감지해 온보딩
+// 모달이 중복으로 뜨는 등 문제가 반복돼 다시 전체 탭 이동 방식으로 되돌림 — 팝업은
+// 쓰지 않는다.
 async function signInWithGoogle() {
   if (!_checkAuthConsent()) return;
-  _openOAuthPopup(async () => {
-    const { data, error } = await sb.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: location.href, skipBrowserRedirect: true, queryParams: { prompt: 'select_account' } },
-    });
-    if (error) { if (typeof showToast === 'function') showToast('로그인을 시작하지 못했습니다.', 'error'); return null; }
-    return data?.url || null;
-  });
+  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } });
 }
 // 카카오 로그인 — Supabase 대시보드(Authentication → Providers → Kakao)에 카카오
 // 디벨로퍼스에서 발급받은 REST API 키(Client ID)·Client Secret이 등록돼 있어야 동작한다.
 // 등록 전엔 이 버튼을 눌러도 Supabase가 "Unsupported provider" 에러를 반환한다.
-//
-// 구글의 select_account와 달리 카카오는 "계정만 고르기"에 해당하는 prompt 값이 없다
-// (prompt=login을 쓰면 매번 아이디/비밀번호를 처음부터 다시 입력해야 해서 훨씬 무거운
-// UX가 됨 — 2026-08 실측 후 되돌림). 그래서 카카오는 기본 동작(세션 있으면 바로 통과) 유지.
 async function signInWithKakao() {
   if (!_checkAuthConsent()) return;
-  _openOAuthPopup(async () => {
-    const { data, error } = await sb.auth.signInWithOAuth({
-      provider: 'kakao',
-      options: { redirectTo: location.href, skipBrowserRedirect: true },
-    });
-    if (error) { if (typeof showToast === 'function') showToast('로그인을 시작하지 못했습니다.', 'error'); return null; }
-    return data?.url || null;
-  });
-}
-// 팝업 안에서 로그인이 끝나(세션 생김) 온보딩(닉네임+약관 동의)이 필요 없는 경우엔
-// 팝업을 스스로 닫는다 — 온보딩이 필요한 경우(showOnboarding, ensureNickname 참고)는
-// 그 안에서 사용자가 다 채울 때까지 열어둬야 하므로, 약간 기다렸다가(ensureNickname의
-// 조회가 끝날 시간) 온보딩 모달이 실제로 떠 있는지 확인하고서 닫는다. 온보딩을
-// 마치거나("시작하기"/"동의하지 않고 나가기") 취소하면 그 시점에 별도로 닫는다
-// (submitOnboarding/cancelOnboarding 참고). 오프너는 팝업이 닫히는 걸 감지해 새로고침한다.
-if (window.name === 'sr_oauth_popup') {
-  let _oauthPopupClosing = false;
-  sb.auth.onAuthStateChange((_event, session) => {
-    if (!session || _oauthPopupClosing) return;
-    _oauthPopupClosing = true;
-    setTimeout(() => {
-      const overlay = document.getElementById('onboardOverlay');
-      if (overlay && overlay.style.display === 'flex') { _oauthPopupClosing = false; return; }
-      window.close();
-    }, 800);
-  });
+  await sb.auth.signInWithOAuth({ provider: 'kakao', options: { redirectTo: location.href } });
 }
 
 /* ══════════════════ 상단 종목 검색 ══════════════════ */
