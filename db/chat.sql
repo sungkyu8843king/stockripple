@@ -24,8 +24,12 @@ CREATE TABLE IF NOT EXISTS chat_reports (
 );
 
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+-- 2026-08-02 보안 점검: hidden=true(신고 누적으로 숨김) 행은 anon에게 아예 안 보이게
+-- 좁혔다 — USING (true)였을 땐 원문이 REST 직접조회/Realtime 브로드캐스트로 그대로
+-- 샜다(서버/클라이언트는 화면에 그릴 때만 가렸을 뿐, DB 정책 자체는 안 막고 있었음).
+-- db/chat-hidden-rls-fix.sql 참고.
 DROP POLICY IF EXISTS "Anyone can read chat_messages" ON chat_messages;
-CREATE POLICY "Anyone can read chat_messages" ON chat_messages FOR SELECT USING (true);
+CREATE POLICY "Anyone can read chat_messages" ON chat_messages FOR SELECT USING (NOT hidden);
 DROP POLICY IF EXISTS "Service role manages chat_messages" ON chat_messages;
 CREATE POLICY "Service role manages chat_messages" ON chat_messages FOR ALL
   USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
