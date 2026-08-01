@@ -896,28 +896,34 @@ async function fetchBinancePerps() {
 //   GET ?source=kr-estimate&action=accuracy  → 누적 오차 통계 (공개)
 //   GET ?source=kr-estimate&action=record    → 스냅샷+정산 (ADMIN/CRON 인증)
 // ════════════════════════════════════════════════════════════════════════
+// 2026-08-01: 전 종목에 kis_night_future(코스피200 야간선물, KIS) 추가 — 사용자 요청
+// ("가장 많이 고려하는 게 코스피 야간선물일 것 같은데"). 개별 ADR과 달리 시장 전체
+// 방향을 직접 반영하는 신호라 모든 종목에 공통으로 넣었다. 가중치는 "종목 고유 신호
+// (ADR/binance) > 야간선물(시장 전체, 그래도 EWY보다 직접적) > EWY/SOX(간접 프록시)"
+// 순서를 유지하도록 잡았다 — 오늘(2026-08-01) 붙인 첫날이라 감으로 정한 시작값이고,
+// est_accuracy가 며칠 쌓이면 bias 보고 조정할 것(감으로 재조정 금지, CLAUDE.md 참고).
 const EST_MODEL = {
-  version: '2026-08-01.1',
+  version: '2026-08-01.2',
   targets: [
     { t: '005930.KS', name: '삼성전자', c: '#1428A0', ini: '삼성',
-      sources: [{ id: 'binance', w: 1.7 }, { id: 'ewy', w: 1.0, beta: 1.0 }, { id: 'sox', w: 0.9, beta: 0.85 }] },
+      sources: [{ id: 'binance', w: 1.7 }, { id: 'kis_night_future', w: 1.3 }, { id: 'ewy', w: 1.0, beta: 1.0 }, { id: 'sox', w: 0.9, beta: 0.85 }] },
     // 2026-07-31 SK하이닉스 NASDAQ 직상장(SKHY, KR_PROXY_SYMBOLS 참고)으로 binance
     // perp/SOX 대신 실제 1:1 상장 종목을 쓸 수 있게 됐다 — 다른 6개 ADR 종목과
     // 동일 패턴(adr: w2.2 + ewy w0.5)으로 맞춘다. 삼성전자는 미국 상장이 없어 그대로 유지.
     { t: '000660.KS', name: 'SK하이닉스', c: '#E8380D', ini: 'SK',
-      sources: [{ id: 'adr:SKHY', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+      sources: [{ id: 'adr:SKHY', w: 2.2 }, { id: 'kis_night_future', w: 1.0 }, { id: 'ewy', w: 0.5 }] },
     { t: '005490.KS', name: '포스코홀딩스', c: '#00A0E9', ini: 'PO',
-      sources: [{ id: 'adr:PKX', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+      sources: [{ id: 'adr:PKX', w: 2.2 }, { id: 'kis_night_future', w: 1.0 }, { id: 'ewy', w: 0.5 }] },
     { t: '055550.KS', name: '신한지주', c: '#0046FF', ini: '신한',
-      sources: [{ id: 'adr:SHG', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+      sources: [{ id: 'adr:SHG', w: 2.2 }, { id: 'kis_night_future', w: 1.0 }, { id: 'ewy', w: 0.5 }] },
     { t: '105560.KS', name: 'KB금융', c: '#FFB700', ini: 'KB',
-      sources: [{ id: 'adr:KB', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+      sources: [{ id: 'adr:KB', w: 2.2 }, { id: 'kis_night_future', w: 1.0 }, { id: 'ewy', w: 0.5 }] },
     { t: '015760.KS', name: '한국전력', c: '#0B5EA8', ini: '한전',
-      sources: [{ id: 'adr:KEP', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+      sources: [{ id: 'adr:KEP', w: 2.2 }, { id: 'kis_night_future', w: 1.0 }, { id: 'ewy', w: 0.5 }] },
     { t: '034220.KS', name: 'LG디스플레이', c: '#A50034', ini: 'LG',
-      sources: [{ id: 'adr:LPL', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+      sources: [{ id: 'adr:LPL', w: 2.2 }, { id: 'kis_night_future', w: 1.0 }, { id: 'ewy', w: 0.5 }] },
     { t: '017670.KS', name: 'SK텔레콤', c: '#E8380D', ini: 'SKT',
-      sources: [{ id: 'adr:SKM', w: 2.2 }, { id: 'ewy', w: 0.5 }] },
+      sources: [{ id: 'adr:SKM', w: 2.2 }, { id: 'kis_night_future', w: 1.0 }, { id: 'ewy', w: 0.5 }] },
   ],
 };
 
@@ -930,6 +936,9 @@ function estResolveSignal(id, P, ticker) {
   if (id === 'ewy') return { v: n(P.overseas?.EWY?.changePercent), label: 'EWY', tip: 'MSCI 한국 ETF' };
   if (id === 'sox') return { v: n(P.overseas?.['^SOX']?.changePercent), label: 'SOX', tip: '필라델피아 반도체 지수' };
   if (id === 'binance') return { v: n(P.binance?.items?.[ticker]?.changePercent), label: '바이낸스', tip: '주식 perp (24시간)' };
+  // 코스피200 야간선물(KIS) — 개별 종목 ADR과 달리 시장 전체 방향을 직접 반영하는 신호라
+  // 모든 종목에 공통으로 쓰인다(2026-08-01 추가). EWY보다 더 직접적인 신호로 취급.
+  if (id === 'kis_night_future') return { v: n(P.kisNightFuture?.changePercent), label: '코스피200 야간선물', tip: 'KIS 코스피200 야간선물(CME 연계) 근월물' };
   return { v: null, label: id, tip: id };
 }
 
@@ -1053,13 +1062,14 @@ async function estRecordAndSettle() {
 // handleKrProxy 본문을 재사용하기 위한 순수 함수 버전
 async function fetchKrProxyPayload() {
   const syms = Object.keys(KR_PROXY_SYMBOLS);
-  const [quoteList, binance] = await Promise.all([
+  const [quoteList, binance, kisNightFuture] = await Promise.all([
     mapWithConcurrency(syms, 6, async (s) => [s, await fetchYahooChange(s)]),
     fetchBinancePerps(),
+    fetchKisNightFuture(),   // 실패해도 null만 오고 나머지는 그대로 진행(fail-open)
   ]);
   const overseas = {};
   for (const [sym, q] of quoteList) if (q) overseas[sym] = { ...KR_PROXY_SYMBOLS[sym], ...q };
-  return { overseas, binance };
+  return { overseas, binance, kisNightFuture };
 }
 
 async function handleKrEstimate(req, res) {
@@ -1161,7 +1171,7 @@ async function handleKrEstimate(req, res) {
   return res.status(200).json({
     ok: true, ts: Date.now(), modelVersion: EST_MODEL.version, live: false, session: null,
     krwUsd: P.overseas?.['KRW=X']?.price ?? null,
-    items, sources: { overseas: P.overseas, binance: P.binance },
+    items, kisNightFuture: P.kisNightFuture, sources: { overseas: P.overseas, binance: P.binance },
   });
 }
 
