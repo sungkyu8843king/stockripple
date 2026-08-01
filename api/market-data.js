@@ -773,7 +773,7 @@ async function getKisNightFutureCode() {
 // diag: 어느 단계까지 갔는지 밖(워치독)에서도 볼 수 있게 공유 객체에 계속 적어둔다
 // — 이 함수가 25초 안에 안 끝나서 워치독이 대신 응답할 때도 diag.stage로 어디서
 // 멈췄는지 알 수 있다.
-async function fetchKisNightFuture(raw = false, diag = {}) {
+export async function fetchKisNightFuture(raw = false, diag = {}) {
   diag.stage = 'start';
   if (!kisConfigured()) { diag.stage = 'not_configured'; return raw ? { error: 'KIS_APP_KEY/KIS_APP_SECRET not set', diag } : null; }
   try {

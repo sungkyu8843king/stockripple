@@ -607,7 +607,10 @@ button { font-family: inherit; }
 .mkt-card-name { font-size: 13.5px; color: var(--text2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mkt-card-val { font-size: 16px; font-weight: 700; font-family: var(--font-mono); margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mkt-card-chg { font-size: 13px; font-weight: 700; font-family: var(--font-mono); margin-top: 1px; }
-.mkt-card-spark { width: 46px; height: 28px; flex-shrink: 0; }
+/* 그래프가 카드 중간부터 시작해 우측 절반을 채우도록 .mkt-card-main과 폭을 50/50으로
+   나눔(요청 — 예전엔 46px 고정폭이라 카드 가운데가 휑하게 비어 보였음). SVG는 이미
+   preserveAspectRatio="none"이라 컨테이너 크기에 맞춰 늘어나므로 CSS만 바꾸면 됨. */
+.mkt-card-spark { flex: 1 1 0; min-width: 0; height: 40px; }
 .mkt-card-spark svg { width: 100%; height: 100%; display: block; }
 .mkt-card.mkt-link { color: var(--text2); text-decoration: none; cursor: pointer; justify-content: space-between; }
 .mkt-card.mkt-link:hover { border-color: var(--border-strong); }

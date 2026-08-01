@@ -1157,7 +1157,18 @@ function updateMktDots(){
 // (평일 저녁·밤·주말)는 미국 장(나스닥/다우)을 보여준다. 2026-07-28까지는 서브 히어로가
 // "히어로의 반대 시장"(코스피↔나스닥)이었는데, 사용자 요청으로 "같은 장의 두 지수"로
 // 바꿨다 — 국내 장중엔 코스피+코스닥, 미국 장중엔 나스닥+다우가 1·2번에 나란히 뜬다.
+// 2026-08: 단, 토요일 10:00~월요일 08:00 KST(국내·미국 둘 다 완전히 쉬는 주말 구간)는
+// 예외로 나스닥+코스피를 1·2번에 보여달라는 요청 — 위 두 함수 다 앞단에서 먼저 체크한다.
+function _isWeekendCrossWindow(){
+  const kst = new Date(Date.now() + 9*3600000);
+  const day = kst.getUTCDay(), mins = kst.getUTCHours()*60 + kst.getUTCMinutes();
+  if (day === 6 && mins >= 600) return true; // 토요일 10:00 이후
+  if (day === 0) return true;                 // 일요일 종일
+  if (day === 1 && mins < 480) return true;    // 월요일 08:00 이전
+  return false;
+}
 function heroMarketMeta(){
+  if (_isWeekendCrossWindow()) return { key: 'nasdaq', name: '나스닥', tag: 'NASDAQ Composite', mk: 'us', sym: 'nasdaq' };
   const kst = new Date(Date.now() + 9*3600000);
   const day = kst.getUTCDay(), mins = kst.getUTCHours()*60 + kst.getUTCMinutes();
   const isKrWindow = day>=1 && day<=5 && mins>=530 && mins<1080; // 08:50~18:00
@@ -1166,6 +1177,7 @@ function heroMarketMeta(){
     : { key: 'nasdaq', name: '나스닥',  tag: 'NASDAQ Composite', mk: 'us', sym: 'nasdaq' };
 }
 function subMarketMeta(){
+  if (_isWeekendCrossWindow()) return { key: 'kospi', name: '코스피', tag: 'KOSPI Composite', mk: 'kr', sym: 'kospi' };
   return heroMarketMeta().key === 'kospi'
     ? { key: 'kosdaq', name: '코스닥',   tag: 'KOSDAQ Composite', mk: 'kr', sym: 'kosdaq' }
     : { key: 'dow',    name: '다우존스', tag: 'Dow Jones Industrial Average', mk: 'us', sym: 'dow' };
@@ -1343,9 +1355,13 @@ function renderMarketDash(data) {
         </div>
         <div class="mkt-card-spark" id="mktCardSpark-${it.id}"></div>
       </a>`).join('') + `
-      <a class="mkt-card mkt-link" href="https://finance.naver.com/sise/sise_index.naver?code=FUT" target="_blank" rel="noopener">
-        <div class="mkt-card-main"><div class="mkt-card-name">코스피200 야간선물</div></div>
-        <span class="mkt-link-cta">실시간 시세 보기 →</span>
+      <a class="mkt-card mkt-link" data-mkt-id="kospiFut" href="https://finance.naver.com/sise/sise_index.naver?code=FUT" target="_blank" rel="noopener">
+        <div class="mkt-card-main">
+          <div class="mkt-card-name"><span class="mkt-live-dot" id="mktDot-kospiFut"></span>코스피200 야간선물</div>
+          <div class="mkt-card-val" id="mktCardVal-kospiFut">—</div>
+          <div class="mkt-card-chg" id="mktCardChg-kospiFut">—</div>
+        </div>
+        <span class="mkt-link-cta">실시간 시세<br>보기 →</span>
       </a>`;
     grid.insertAdjacentHTML('beforeend', cardsHtml);
   }
@@ -1380,6 +1396,32 @@ function renderMarketDash(data) {
       sparkEl.innerHTML = areaSparkSvg(d.spark, 46, 28, color, d.prevClose, d.sessionLive ?? mktIsOpen(it.mk), d.sparkT, mktSessionOf(d));
     }
   });
+
+  // 코스피200 야간선물(KIS) — kr-market.html의 추정 배너와 같은 소스. 스냅샷(현재가·등락률)만
+  // 있고 인트라데이 히스토리가 없어 스파크라인은 없음(다른 카드와 다른 점). kr-market.html과
+  // 동일하게 22:30~09:00 KST(국내 정규장이 쉬는 야간선물 실거래 구간)에만 값을 보여주고,
+  // 그 밖엔 카드는 남기되 숫자는 비워서(원래의 "실시간 시세 보기" 링크만 있던 느낌으로) 국내
+  // 정규장 시세가 아닌 값을 낮 시간에 잘못 들고 있는 걸 막는다.
+  const knf = data.kospiFut;
+  const knfValEl = document.getElementById('mktCardVal-kospiFut');
+  const knfChgEl = document.getElementById('mktCardChg-kospiFut');
+  const knfDot = document.getElementById('mktDot-kospiFut');
+  const kst = new Date(Date.now() + 9 * 3600000);
+  const kstMins = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+  const inKnfWindow = kstMins >= 1350 || kstMins < 540; // 22:30~09:00
+  if (knfDot) knfDot.classList.toggle('on', inKnfWindow);
+  if (inKnfWindow && knf?.price != null) {
+    const chgClass = knf.changePercent > 0 ? 'pos' : knf.changePercent < 0 ? 'neg' : '';
+    const chgSign = knf.changePercent > 0 ? '+' : '';
+    if (knfValEl) animateNumberText(knfValEl, knf.price, v => fmtIdx(v, 'n'), ['flash-up', 'flash-down']);
+    if (knfChgEl && knf.changePercent != null) {
+      knfChgEl.textContent = `${chgSign}${knf.changePercent.toFixed(2)}%`;
+      knfChgEl.className = `mkt-card-chg ${chgClass}`;
+    }
+  } else {
+    if (knfValEl) knfValEl.textContent = '—';
+    if (knfChgEl) { knfChgEl.textContent = ''; knfChgEl.className = 'mkt-card-chg'; }
+  }
 }
 
 // 🇰🇷 국고채 금리 스트립 + 장운영 상태 — 홈 전용(관련 엘리먼트 없는 페이지는 no-op).

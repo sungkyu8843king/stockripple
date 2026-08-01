@@ -1,4 +1,5 @@
 import { tossProxyConfigured, callTossProxy } from '../lib/toss-proxy.js';
+import { fetchKisNightFuture } from './market-data.js';
 
 // id → Yahoo 심볼 매핑 (핸들러 본문의 SYMBOLS와 동일한 값 — 차트 히스토리 브랜치가 별도로 참조)
 const SYMBOL_MAP = {
@@ -227,7 +228,14 @@ export default async function handler(req, res) {
     }
   };
 
-  const results = await Promise.allSettled(SYMBOLS.map(fetchOne));
+  // 코스피200 야간선물(KIS 실계좌 연동) — kr-market.html의 추정 배너와 같은 소스를
+  // 재사용(market-data.js에서 export). KIS는 스냅샷(현재가·등락률)만 주고 인트라데이
+  // 히스토리가 없어 다른 지표처럼 스파크라인은 못 그린다 — 홈 대시보드 카드는 숫자만
+  // 표시(2026-08). fetchKisNightFuture는 자체적으로 실패 시 null을 반환(fail-open).
+  const [results, knf] = await Promise.all([
+    Promise.allSettled(SYMBOLS.map(fetchOne)),
+    fetchKisNightFuture().catch(() => null),
+  ]);
   const data = {};
   results.forEach(r => {
     if (r.status === 'fulfilled' && r.value) {
@@ -235,6 +243,9 @@ export default async function handler(req, res) {
       data[id] = rest;
     }
   });
+  if (knf && knf.price != null) {
+    data.kospiFut = { price: knf.price, changePercent: knf.changePercent, code: knf.code, currency: 'KRW' };
+  }
 
   await patchKrIndicesFromToss(data);
 
