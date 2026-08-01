@@ -273,6 +273,9 @@ body {
 .price-block { text-align: right; flex-shrink: 0; }
 .share-icon-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .share-icon-btn:hover { background: var(--bg3); color: var(--text); }
+.watch-icon-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.watch-icon-btn:hover { background: var(--bg3); color: var(--text); transform: scale(1.08); }
+.watch-icon-btn.active { color: #f0b45e; border-color: #f0b45e; }
 .current-price { font-size: 28px; font-weight: 700; }
 .current-price.flash-up { animation: priceFlashUp .9s ease-out; }
 .current-price.flash-down { animation: priceFlashDown .9s ease-out; }
@@ -1374,7 +1377,10 @@ function renderPage(company, records, priceData) {
       <div class="cmp-hero-top">
         <div class="cmp-hero-row1">
           <span class="ticker-badge ${isKr ? 'kr' : 'us'}">${escHtml(ticker)}</span>
-          <button class="share-icon-btn" data-share-title="${escHtml(`${name} (${ticker}) — StockRipple`)}" data-share-url="${escHtml(location.href)}" onclick="shareContent(event, this)" title="공유하기">🔗</button>
+          <div style="display:flex;gap:8px">
+            <button class="watch-icon-btn${isCoWatched(ticker) ? ' active' : ''}" data-wl-ticker="${escHtml(ticker)}" data-wl-name="${escHtml(name)}" data-wl-market="${isKr ? 'KR' : 'US'}" onclick="toggleCoWatch(event,this)" title="관심종목 ${isCoWatched(ticker) ? '제거' : '추가'}">${isCoWatched(ticker) ? '★' : '☆'}</button>
+            <button class="share-icon-btn" data-share-title="${escHtml(`${name} (${ticker}) — StockRipple`)}" data-share-url="${escHtml(location.href)}" onclick="shareContent(event, this)" title="공유하기">🔗</button>
+          </div>
         </div>
         <div class="cmp-hero-main">
           <div class="company-name-wrap">
@@ -2379,6 +2385,62 @@ async function init() {
 
 init();
 initAuth();
+
+// ⭐ 관심종목 — 이 페이지는 app.js를 안 쓰므로(analysis.html과 동일 사정) 워치리스트
+// 로직을 로컬로 따로 둔다. currentUser/renderUserMenu/기본 initAuth는 site-header.js
+// 전역을 그대로 쓰되, 여기서 같은 이름으로 재정의해 관심종목 캐시 로딩만 얹는다
+// (function 선언은 재선언이 허용돼 마지막에 정의된 쪽이 이긴다 — app.js와 동일 패턴).
+let _wlCache = new Set();
+function _syncWatchBtns() {
+  document.querySelectorAll('[data-wl-ticker]').forEach(btn => {
+    const w = _wlCache.has(btn.dataset.wlTicker);
+    btn.classList.toggle('active', w);
+    btn.textContent = w ? '★' : '☆';
+    btn.title = `관심종목 ${w ? '제거' : '추가'}`;
+  });
+}
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  currentUser = session?.user ?? null;
+  renderUserMenu(currentUser);
+  if (currentUser) {
+    const { data } = await sb.from('user_watchlist').select('ticker');
+    _wlCache = new Set((data || []).map(r => r.ticker));
+    _syncWatchBtns();
+  }
+  sb.auth.onAuthStateChange(async (event, session) => {
+    currentUser = session?.user ?? null;
+    renderUserMenu(currentUser);
+    if (currentUser) {
+      const { data } = await sb.from('user_watchlist').select('ticker');
+      _wlCache = new Set((data || []).map(r => r.ticker));
+    } else {
+      _wlCache.clear();
+    }
+    _syncWatchBtns();
+    if (event === 'SIGNED_IN') closeAuthModal();
+  });
+}
+// (initAuth() 호출은 위 init() 옆에 이미 있음 — function 선언 호이스팅으로 이 재정의가
+// 그 호출 시점에도 이미 적용돼 있어 별도로 다시 부를 필요 없음)
+
+function isCoWatched(ticker) { return _wlCache.has(ticker); }
+async function toggleCoWatch(e, btn) {
+  e.stopPropagation();
+  if (!currentUser) { openAuthModal(); return; }
+  const { wlTicker: ticker, wlName: name, wlMarket: market } = btn.dataset;
+  if (_wlCache.has(ticker)) {
+    await sb.from('user_watchlist').delete().eq('ticker', ticker);
+    _wlCache.delete(ticker);
+  } else {
+    await sb.from('user_watchlist').insert({ user_id: currentUser.id, ticker, name, market });
+    _wlCache.add(ticker);
+  }
+  const w = _wlCache.has(ticker);
+  btn.classList.toggle('active', w);
+  btn.textContent = w ? '★' : '☆';
+  btn.title = `관심종목 ${w ? '제거' : '추가'}`;
+}
 
 // ─── 📜 SEC 공시 (US 종목) ─────────────────────────────────
 async function loadSecFilings(ticker) {
