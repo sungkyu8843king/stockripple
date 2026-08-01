@@ -87,7 +87,9 @@
     html.sr-chat-pinned-open{ padding-right:404px; } /* 340(패널) + 64(레일) */
   }
   #srRail{display:none;position:fixed;right:0;top:0;bottom:0;width:64px;z-index:9001;background:var(--bg2);border-left:1px solid var(--border);flex-direction:column;align-items:center;padding:14px 0;gap:4px}
-  @media (min-width:1200px){ #srRail{display:flex} }
+  /* 레일이 뜨는 폭에서는 의견주기 아이콘이 레일 안(테마 아래)으로 옮겨가므로,
+     페이지마다 따로 떠 있던 독립 .fb-fab(좌하단 보라색 원)은 숨겨 중복을 없앤다. */
+  @media (min-width:1200px){ #srRail{display:flex} .fb-fab{display:none} }
   .srr-collapse{width:36px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;margin-bottom:4px;flex-shrink:0}
   .srr-collapse:hover{background:var(--bg4);color:var(--text)}
   .srr-key-hint{font-size:10px;font-family:'SF Mono',Menlo,monospace;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 6px;margin-bottom:12px;cursor:default;flex-shrink:0}
@@ -189,8 +191,18 @@
     <button class="srr-item" data-tab="recent"><span>🕐</span><span class="srr-label">최근 본</span></button>
     <button class="srr-item" id="srRailTheme" onclick="srToggleTheme()" title="다크/라이트 모드 전환" style="margin-top:auto">
       <span id="srRailThemeIcon">🌙</span><span class="srr-label">테마</span>
-    </button>`;
+    </button>
+    ${document.querySelector('.fb-fab') ? `<button class="srr-item" id="srRailFeedback" title="의견 보내기">
+      <span>💬</span><span class="srr-label">의견</span>
+    </button>` : ''}`;
   document.body.appendChild(rail);
+
+  // 의견주기는 페이지마다 이미 있는 .fb-fab(app.js의 openFeedbackChat 연결)를 그대로
+  // 재사용한다 — 로직을 여기로 옮기면 페이지마다 중복 구현해야 해서, 숨겨둔 원래
+  // 버튼을 대신 클릭시키는 방식을 쓴다. .fb-fab가 없는 페이지(company.html 등)에서는
+  // 위에서 이 버튼 자체를 안 만든다.
+  const railFeedbackBtn = rail.querySelector('#srRailFeedback');
+  if (railFeedbackBtn) railFeedbackBtn.addEventListener('click', () => document.querySelector('.fb-fab')?.click());
 
   // 다크/라이트 토글 — 헤더에 있던 걸 여기로 옮김(2026-08, ≥1200px에서 헤더 쪽은 CSS로
   // 숨김). srToggleTheme/srGetTheme는 site-header.js 전역 함수를 그대로 재사용.
