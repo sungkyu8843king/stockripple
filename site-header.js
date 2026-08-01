@@ -103,7 +103,7 @@ function _siteChromeInjectStyle() {
 .logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--blue) 0%,var(--purple) 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;box-shadow:0 3px 10px rgba(36,87,230,0.30)}
 .logo-text{font-size:19px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
 .logo-sub{font-size:13px;color:var(--text3);font-weight:500;margin-top:1px;letter-spacing:0}
-.header-search{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:7px 10px;flex:1 1 auto;max-width:260px;min-width:0;position:relative}
+.header-search{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:7px 10px;flex:1 1 auto;max-width:420px;min-width:0;position:relative}
 .header-search svg{color:var(--text3);flex-shrink:0}
 .header-search input{flex:1;min-width:0;border:none;outline:none;background:none;font-size:15.5px;color:var(--text);font-family:inherit}
 .header-search input::placeholder{color:var(--text3)}
