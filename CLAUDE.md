@@ -224,6 +224,16 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 
 RLS 패턴: 전부 `anon`은 SELECT만 허용하는 공개 정책 + `service_role`(어드민 API)만 쓰기 가능. 새 테이블도 이 패턴 따를 것.
 
+### ⚠️ RLS "무조건 허용" 정책의 함정 — `chat_messages` hidden 유출 (2026-08-02 보안 점검, 수정 완료)
+
+`chat_messages`의 SELECT 정책이 과거 `USING (true)`였음 — 서버 API/클라이언트는 `hidden=true`(신고 3회 누적) 메시지 본문을 화면에서만 가렸을 뿐, RLS 정책 자체는 모든 행을 허용해서:
+1. anon key로 테이블 직접 조회하면 숨김 처리된 메시지 원문이 그대로 보임.
+2. 메시지가 숨겨지는 순간(`hidden: false→true`) Realtime UPDATE 이벤트가 anon 구독자 전원에게 원문이 든 전체 행을 브로드캐스트 — `chat.js`의 `replaceMsg()`는 그리는 시점에만 지울 뿐, 이미 네트워크로 나간 뒤였음.
+
+`db/chat-hidden-rls-fix.sql`로 `USING (NOT hidden)`으로 좁힘(`db/chat.sql`도 동일하게 갱신). **일반적 교훈**: "서버/클라이언트가 화면에서 가린다"는 DB 정책이 허용된 것과 별개 — RLS `SELECT` 정책은 REST 직접조회와 Realtime 브로드캐스트 양쪽 다 통과시키는 게이트이므로, 민감 컬럼/행이 있는 테이블은 애플리케이션 레벨 필터링에 의존하지 말고 정책 자체에 조건을 넣을 것. 같은 이유로 다른 테이블에 "관리자만 봐야 하는 상태"를 담은 boolean(예: 차단/블라인드 플래그)이 생기면 이 패턴을 먼저 의심할 것.
+
+이 점검에서 함께 발견했으나 사용자가 아직 수정 지시하지 않은 낮은 우선순위 항목(미조치, 필요시 참고): PostgREST `.or(ilike...)` 필터 조립 시 사용자 입력 미검증(4곳 어드민 게이트+3곳 클라이언트), 응답 헤더에 CSP/X-Frame-Options 없음, `chat.js`의 `esc()`가 홑따옴표(`'`) 미이스케이프, `lib/auth.js`의 `ADMIN_SECRET` 비교가 timing-safe 아님(`===`).
+
 ---
 
 ## 어드민 패널 (`/admin/`)
