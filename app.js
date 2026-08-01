@@ -4876,68 +4876,6 @@ function renderArchDetail(idx) {
   renderArchDetail(0); // 최신순 정렬이라 0번 = 알림이 온 바로 그 리포트
 })();
 
-// ─── 🔥 오늘의 트렌드(키워드/테마) — index.html #trendPanel에서만 동작 ─────────────
-// 새 AI 호출/DB 컬럼 없이 최근 24h 이슈(issues.title/sectors)만 집계 — 체류시간
-// 늘리는 용도의 "가벼운 발견" 위젯(2026-08 요청). 조사(은/는/이/가 등)가 안 떨어져
-// 나가는 나이브 토큰화라 완벽한 키워드 추출은 아니지만, 같은 표현이 반복되는 제목이
-// 많으면 자연스럽게 상위로 올라온다.
-const TREND_STOPWORDS = new Set([
-  '오늘','이번','대한','통해','위해','있다','한다','것으로','밝혔다','전했다','따르면','기자',
-  '뉴스','종목','시장','업계','국내','발표','관련','최근','계획','예정','전망','상승','하락',
-  '기업','산업','내년','올해','우리','기록','달성','진행','예상','때문','이후','현재','지난',
-]);
-function _stripKoreanParticle(t) {
-  return t.replace(/(으로부터|에서의|이라는|이라고|에게서|이라면|이지만|하지만|까지도|으로써|에서는|에게는|에서도|와의|과의|이며|이고|이나|까지|부터|에게|에는|에도|와도|과도|이라|의|을|를|이|가|은|는|에|와|과|도|만|로|라)$/, '');
-}
-async function loadTrendPanel() {
-  const panel = document.getElementById('trendPanel');
-  if (!panel) return;
-  try {
-    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const { data } = await sb.from('issues').select('title, sectors')
-      .gte('published_at', since).order('published_at', { ascending: false }).limit(150);
-    if (!data || !data.length) return;
-
-    const sectorCount = {};
-    data.forEach(i => (i.sectors || []).forEach(s => { if (s) sectorCount[s] = (sectorCount[s] || 0) + 1; }));
-    const topSectors = Object.entries(sectorCount).sort((a, b) => b[1] - a[1]).slice(0, 6);
-
-    const wordCount = {};
-    data.forEach(i => {
-      (i.title || '').replace(/[^가-힣a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(Boolean).forEach(raw => {
-        const t = _stripKoreanParticle(raw);
-        if (t.length < 2 || TREND_STOPWORDS.has(t) || /^\d+$/.test(t)) return;
-        wordCount[t] = (wordCount[t] || 0) + 1;
-      });
-    });
-    const topWords = Object.entries(wordCount).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, 10);
-
-    if (!topSectors.length && !topWords.length) return;
-
-    const kwEl = document.getElementById('trendKeywords');
-    if (kwEl) {
-      // w는 토큰화 정규식(가-힣/영문/숫자만 통과)이 이미 걸러서 따옴표·백슬래시가 절대
-      // 나올 수 없으므로 onclick 안 작은따옴표 문자열로 바로 넣어도 안전하다.
-      // heroChipClick이 아니라 heroSearchEnter를 쓴다 — 이 단어들은 큐레이션된 섹터
-      // 키워드가 아니라 제목에서 뽑은 임의 단어라, 검색창에 쳐서 엔터 친 것과 같은
-      // 처리(섹터 매치→종목 매치→뉴스 텍스트 검색 순 폴백)가 필요하다.
-      kwEl.innerHTML = topWords.length
-        ? topWords.map(([w]) => `<button type="button" class="trend-chip" onclick="heroSearchEnter('${w}')">${escHtml(w)}</button>`).join('')
-        : `<div style="font-size:13.5px;color:var(--text3)">아직 데이터가 부족해요</div>`;
-    }
-    const thEl = document.getElementById('trendThemes');
-    if (thEl) {
-      thEl.innerHTML = topSectors.map(([s, c], i) => `
-        <a class="trend-theme-row" href="/news.html?sector=${encodeURIComponent(s)}">
-          <span class="trend-theme-rank">${i + 1}</span>
-          <span class="trend-theme-name">${escHtml(s)}</span>
-          <span class="trend-theme-count">${c}건</span>
-        </a>`).join('');
-    }
-    panel.style.display = '';
-  } catch (e) { console.error('loadTrendPanel', e); }
-}
-
 // ─── 📊 섹터 모멘텀 (1d) ─────────────────────────────────
 const SECTOR_ETFS = [
   { t:'XLK', n:'기술' }, { t:'XLF', n:'금융' }, { t:'XLV', n:'헬스케어' },
@@ -5324,7 +5262,6 @@ function computeMarketStatus(market) {
     try { loadCorrelation();      } catch (e) { console.error('corr', e); }
     try { loadKrMarket();         } catch (e) { console.error('krMarket', e); }
     try { loadKrSummary();        } catch (e) { console.error('krSummary', e); }
-    try { loadTrendPanel();       } catch (e) { console.error('trendPanel', e); }
     try { if (document.getElementById('marketSectionToggle')) switchMarketSection('kr'); } catch (e) { console.error('marketSection', e); }
   };
   if (document.readyState === 'loading') {
