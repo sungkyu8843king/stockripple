@@ -351,6 +351,26 @@ button { font-family: inherit; }
   .search-hero-brief-text { max-width: 72vw; }
 }
 
+/* 🔥 오늘의 트렌드 — 키워드/테마 발견 위젯(2026-08, 체류시간 목적) */
+.trend-panel {
+  max-width: var(--page-max); margin: 0 auto 22px; padding: 0 var(--page-pad);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+@media (max-width: 700px) { .trend-panel { grid-template-columns: 1fr; } }
+.trend-col { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px 18px; }
+.trend-col-title { font-size: 14.5px; font-weight: 700; margin-bottom: 12px; }
+.trend-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.trend-chip {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; padding: 6px 13px;
+  font-size: 13.5px; font-weight: 600; color: var(--text2); cursor: pointer; transition: all .13s;
+}
+.trend-chip:hover { border-color: var(--blue); color: var(--blue); }
+.trend-themes { display: flex; flex-direction: column; gap: 2px; }
+.trend-theme-row { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); padding: 6px 0; }
+.trend-theme-rank { width: 18px; font-size: 13px; font-weight: 800; color: var(--text3); flex-shrink: 0; }
+.trend-theme-name { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trend-theme-count { font-size: 12.5px; color: var(--text3); font-weight: 600; flex-shrink: 0; }
+
 /* ═══════════════════════════════════════════
  * Layout
  * ═══════════════════════════════════════════ */
@@ -1330,6 +1350,19 @@ button { font-family: inherit; }
   <div class="search-hero-brief" onclick="openHeroBriefDetail()" role="button" tabindex="0">
     <span class="search-hero-brief-badge">🤖 오늘의 AI 브리핑</span>
     <span class="search-hero-brief-text" id="heroHeadline">오늘의 시장 브리핑을 불러오는 중...</span>
+  </div>
+</div>
+
+<!-- 🔥 오늘의 트렌드 — 최근 24h 이슈 집계(새 AI 호출 없음). loadTrendPanel(app.js)이
+     데이터 있을 때만 display:'' 로 켠다. -->
+<div class="trend-panel" id="trendPanel" style="display:none">
+  <div class="trend-col">
+    <div class="trend-col-title">🔥 오늘의 키워드</div>
+    <div class="trend-chips" id="trendKeywords"></div>
+  </div>
+  <div class="trend-col">
+    <div class="trend-col-title">📊 지금 뜨거운 테마</div>
+    <div class="trend-themes" id="trendThemes"></div>
   </div>
 </div>
 
