@@ -3939,12 +3939,34 @@ async function checkFuturesSidecar() {
     // 30분 뒤 이 시각 그대로 자동 종료(handleGetAnnouncement의 lazy expire). 뉴스 키워드
     // 기반 배너(analyze.js)도 동일 규칙(같은 30분)을 쓴다.
     const SIDECAR_TTL_MS = 30 * 60 * 1000;
+
+    // 조건이 30분 넘게(TTL 만료) 계속 참인 채로 이어지면, 슬롯이 비었다가 바로 다음
+    // 90초 체크에서 재감지돼 "새 사건"처럼 또 로그가 쌓이는 문제가 있었다(2026-08 피드백:
+    // "유니크 데이터 기반이 아니라 계속 반복적으로 띄운다" — 실제로 같은 상황이 몇 시간
+    // 지속되는 동안 발동 이력에 거의 같은 값이 30분 간격으로 여러 줄 찍힘). 방금(예:
+    // 10분 이내) 끝난 사이드카 로그가 있으면 "새 사건"이 아니라 "같은 사건의 연장"으로
+    // 보고, 새 로그를 또 쌓지 않고 그 행을 재오픈(started_at 유지, ended_at만 다시 null)
+    // 해서 관리자 화면에 총 지속시간이 하나로 합쳐져 보이게 한다.
+    const RETRIGGER_COOLDOWN_MS = 10 * 60 * 1000;
+    const { data: lastLog } = await supabase.from('announcement_log')
+      .select('id, started_at, ended_at, message')
+      .eq('source', 'auto')
+      .like('message', '%사이드카 발동 조건%')
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const isContinuation = lastLog?.ended_at && (now - new Date(lastLog.ended_at).getTime()) < RETRIGGER_COOLDOWN_MS;
+
     await supabase.from('site_announcement').upsert({
       id: 1, active: true, message, source: 'auto', source_issue_id: null,
       auto_expires_at: new Date(now + SIDECAR_TTL_MS).toISOString(), updated_at: startedAt,
     });
-    await supabase.from('announcement_log').update({ ended_at: startedAt }).is('ended_at', null);
-    await supabase.from('announcement_log').insert({ source: 'auto', message, started_at: startedAt });
+    if (isContinuation) {
+      await supabase.from('announcement_log').update({ ended_at: null, message }).eq('id', lastLog.id);
+    } else {
+      await supabase.from('announcement_log').update({ ended_at: startedAt }).is('ended_at', null);
+      await supabase.from('announcement_log').insert({ source: 'auto', message, started_at: startedAt });
+    }
   } catch (e) {
     console.error('futures sidecar check failed:', e.message);
   }
