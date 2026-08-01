@@ -1398,19 +1398,20 @@ function renderMarketDash(data) {
   });
 
   // 코스피200 야간선물(KIS) — kr-market.html의 추정 배너와 같은 소스. 스냅샷(현재가·등락률)만
-  // 있고 인트라데이 히스토리가 없어 스파크라인은 없음(다른 카드와 다른 점). kr-market.html과
-  // 동일하게 22:30~09:00 KST(국내 정규장이 쉬는 야간선물 실거래 구간)에만 값을 보여주고,
-  // 그 밖엔 카드는 남기되 숫자는 비워서(원래의 "실시간 시세 보기" 링크만 있던 느낌으로) 국내
-  // 정규장 시세가 아닌 값을 낮 시간에 잘못 들고 있는 걸 막는다.
+  // 있고 인트라데이 히스토리가 없어 스파크라인은 없음(다른 카드와 다른 점).
+  // 2026-08 수정: 처음엔 "22:30~09:00 KST에만 표시"로 클라이언트에서 시간대를 직접
+  // 가드했는데, 이게 kr-market.html의 "추정 모드→실시세 전환 시점" 기준을 그대로 갖다 쓴
+  // 것이었고 실제 야간선물 거래 가능 시간과는 무관했다 — 그 결과 실측(토요일 17:30 KST)
+  // 확인해보니 서버(/api/indices)는 정상적으로 값을 주는데 이 가드 때문에 "—"만 뜨는
+  // 버그가 있었다. 시간대를 추측하지 않고 서버가 값을 주면 그대로 보여준다(서버 쪽
+  // fetchKisNightFuture가 이미 실패 시 null을 반환하는 fail-open이라 클라이언트가 별도로
+  // "지금 거래 시간이 맞는지" 재판단할 필요가 없음).
   const knf = data.kospiFut;
   const knfValEl = document.getElementById('mktCardVal-kospiFut');
   const knfChgEl = document.getElementById('mktCardChg-kospiFut');
   const knfDot = document.getElementById('mktDot-kospiFut');
-  const kst = new Date(Date.now() + 9 * 3600000);
-  const kstMins = kst.getUTCHours() * 60 + kst.getUTCMinutes();
-  const inKnfWindow = kstMins >= 1350 || kstMins < 540; // 22:30~09:00
-  if (knfDot) knfDot.classList.toggle('on', inKnfWindow);
-  if (inKnfWindow && knf?.price != null) {
+  if (knfDot) knfDot.classList.toggle('on', knf?.price != null);
+  if (knf?.price != null) {
     const chgClass = knf.changePercent > 0 ? 'pos' : knf.changePercent < 0 ? 'neg' : '';
     const chgSign = knf.changePercent > 0 ? '+' : '';
     if (knfValEl) animateNumberText(knfValEl, knf.price, v => fmtIdx(v, 'n'), ['flash-up', 'flash-down']);
