@@ -776,13 +776,13 @@ const SHELL_HTML = `
       </div>
       <div class="action-row">
         <button class="btn btn-ghost" onclick="loadUsers()">🔄 새로고침</button>
-        <input id="usersSearch" type="text" placeholder="이메일 검색" oninput="renderUsersFiltered()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;min-width:200px">
+        <input id="usersSearch" type="text" placeholder="이메일/닉네임 검색" oninput="renderUsersFiltered()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;min-width:200px">
         <span id="usersSummary" style="font-size:12px;color:var(--text3);align-self:center"></span>
       </div>
       <div class="card" style="margin-top:14px">
         <table>
-          <thead><tr><th>이메일</th><th>가입 방법</th><th>가입일</th><th>최근 로그인</th><th>상태</th><th style="text-align:right">관리</th></tr></thead>
-          <tbody id="usersTableBody"><tr><td colspan="6" style="text-align:center;color:var(--text3)">로딩 중...</td></tr></tbody>
+          <thead><tr><th>이메일</th><th>닉네임</th><th>가입 방법</th><th>가입일</th><th>최근 로그인</th><th>상태</th><th style="text-align:right">관리</th></tr></thead>
+          <tbody id="usersTableBody"><tr><td colspan="7" style="text-align:center;color:var(--text3)">로딩 중...</td></tr></tbody>
         </table>
       </div>
     </div>

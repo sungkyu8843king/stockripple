@@ -1506,11 +1506,11 @@ let _usersCache = [];
 async function loadUsers() {
   const tbody = document.getElementById('usersTableBody');
   const summary = document.getElementById('usersSummary');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">로딩 중...</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3)">로딩 중...</td></tr>';
 
   const data = await callApi('/api/admin?action=list-users', {}, null);
   if (!data?.ok) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red)">불러오기 실패</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--red)">불러오기 실패</td></tr>';
     return;
   }
 
@@ -1523,17 +1523,20 @@ function renderUsersFiltered() {
   const q = (document.getElementById('usersSearch')?.value || '').trim().toLowerCase();
   const tbody = document.getElementById('usersTableBody');
   if (!tbody) return;
-  const filtered = q ? _usersCache.filter(u => (u.email || '').toLowerCase().includes(q)) : _usersCache;
+  const filtered = q
+    ? _usersCache.filter(u => (u.email || '').toLowerCase().includes(q) || (u.nickname || '').toLowerCase().includes(q))
+    : _usersCache;
 
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3)">데이터 없음</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3)">데이터 없음</td></tr>';
     return;
   }
 
   tbody.innerHTML = filtered.map(u => `
     <tr>
       <td>${escHtml(u.email || '-')}</td>
-      <td>${u.provider === 'google' ? 'Google' : '이메일'}</td>
+      <td>${escHtml(u.nickname || '-')}</td>
+      <td>${u.provider === 'kakao' ? '카카오' : u.provider === 'google' ? 'Google' : '이메일'}</td>
       <td style="font-size:12px;color:var(--text3)">${u.created_at ? new Date(u.created_at).toLocaleDateString('ko-KR') : '-'}</td>
       <td style="font-size:12px;color:var(--text3)">${u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString('ko-KR') : '-'}</td>
       <td>${u.banned ? '<span class="badge badge-red">차단됨</span>' : '<span class="badge badge-green">정상</span>'}</td>

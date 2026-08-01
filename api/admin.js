@@ -481,11 +481,16 @@ async function handleListUsers(req, res) {
     page++;
   }
 
+  // user_profiles.sql(2026-08 도입) 기준 닉네임 — 있는 사람만 붙고, 없으면 '-' 처리
+  const { data: profiles } = await supabase.from('user_profiles').select('user_id, nickname');
+  const nicknameByUserId = new Map((profiles || []).map(p => [p.user_id, p.nickname]));
+
   const items = users
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .map(u => ({
       id: u.id,
       email: u.email,
+      nickname: nicknameByUserId.get(u.id) || null,
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at,
       provider: u.app_metadata?.provider || 'email',
