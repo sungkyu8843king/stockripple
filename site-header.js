@@ -357,6 +357,26 @@ function _siteHeaderHtml(activePath) {
       </div>
     </div>
 
+    <!-- 첫 가입 온보딩(닉네임 설정 + 약관 동의) — 배경/ESC로 안 닫힘(필수 단계) -->
+    <div id="onboardOverlay" class="auth-overlay" style="display:none">
+      <div class="auth-modal">
+        <div class="auth-logo">Stock<span>Ripple</span></div>
+        <h2 class="auth-title">가입을 완료해주세요</h2>
+        <div class="auth-field">
+          <label for="onboardNickname">닉네임</label>
+          <input type="text" id="onboardNickname" class="auth-input" maxlength="20" placeholder="닉네임" autocomplete="off">
+        </div>
+        <div class="auth-consent" style="margin-top:6px">
+          <label class="auth-consent-label">
+            <input type="checkbox" id="onboardConsent">
+            <span><a href="/privacy.html" target="_blank" rel="noopener" class="auth-link-inline">개인정보처리방침</a> 및 <a href="/terms.html" target="_blank" rel="noopener" class="auth-link-inline">이용약관</a>에 동의합니다.</span>
+          </label>
+        </div>
+        <div id="onboardError" class="auth-error"></div>
+        <button type="button" id="onboardSubmitBtn" class="auth-submit-btn" onclick="submitOnboarding()" disabled>시작하기</button>
+      </div>
+    </div>
+
     <!-- 종목 검색 결과 카드 모달 -->
     <div id="searchPickerModal" style="display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px" onclick="closeSearchPicker(event)">
       <div style="background:var(--bg);border-radius:18px;max-width:720px;width:100%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column">
@@ -441,28 +461,80 @@ function randomNickname() {
   const num = Math.floor(1000 + Math.random() * 9000);
   return `${a}${n}${num}`;
 }
+// created_at과 last_sign_in_at이 거의 같은 시각이면 "방금 처음 가입한" 세션이라고 본다
+// (Supabase가 최초 가입 시 이 두 값을 함께 찍음) — 이 기능 도입 전부터 있던 기존
+// 회원이 뒤늦게 프로필 행을 만드는 경우와 구분하기 위한 값. OAuth는 가입/로그인 버튼이
+// 하나뿐이라(동의 체크 없이도 바로 계정이 만들어짐) 이 값으로만 "진짜 신규 가입"을 구분할 수 있다.
+function _isFreshSignup(user) {
+  if (!user.created_at || !user.last_sign_in_at) return false;
+  return Math.abs(new Date(user.last_sign_in_at) - new Date(user.created_at)) < 120000; // 2분
+}
 async function ensureNickname(user) {
   if (!user) { currentNickname = null; return; }
   try {
     const { data } = await sb.from('user_profiles').select('nickname').eq('user_id', user.id).maybeSingle();
     if (data?.nickname) {
       currentNickname = data.nickname;
+      window.dispatchEvent(new CustomEvent('sr-nickname-change', { detail: { nickname: currentNickname } }));
+      return;
+    }
+    if (_isFreshSignup(user)) {
+      // 방금 가입한 계정 — 닉네임을 조용히 자동 생성하지 않고, 직접 정하게 하면서
+      // 약관 동의도 같이 받는다(구글/카카오는 시작하기 전 동의 화면이 따로 없어서).
+      showOnboarding(user);
+      return;
+    }
+    // 이 기능 도입 전부터 있던 기존 회원 — 원래 요청대로 조용히 임의 닉네임 생성.
+    const nick = randomNickname();
+    const { error } = await sb.from('user_profiles').insert({ user_id: user.id, nickname: nick });
+    if (!error) {
+      currentNickname = nick;
     } else {
-      // 프로필 행이 없는 경우 — 신규 가입 직후든, 이 기능 도입 전 기존 회원이든 경로는 같다.
-      const nick = randomNickname();
-      const { error } = await sb.from('user_profiles').insert({ user_id: user.id, nickname: nick });
-      if (!error) {
-        currentNickname = nick;
-      } else {
-        // 다른 탭/기기가 동시에 먼저 만들었을 수 있음(user_id가 PK라 INSERT 충돌) — 재조회.
-        const { data: retry } = await sb.from('user_profiles').select('nickname').eq('user_id', user.id).maybeSingle();
-        currentNickname = retry?.nickname || null;
-      }
+      // 다른 탭/기기가 동시에 먼저 만들었을 수 있음(user_id가 PK라 INSERT 충돌) — 재조회.
+      const { data: retry } = await sb.from('user_profiles').select('nickname').eq('user_id', user.id).maybeSingle();
+      currentNickname = retry?.nickname || null;
     }
   } catch { currentNickname = null; }
   window.dispatchEvent(new CustomEvent('sr-nickname-change', { detail: { nickname: currentNickname } }));
 }
 sb.auth.onAuthStateChange((_event, session) => { ensureNickname(session?.user ?? null); });
+
+function showOnboarding(user) {
+  const overlay = document.getElementById('onboardOverlay');
+  const nickInput = document.getElementById('onboardNickname');
+  const consent = document.getElementById('onboardConsent');
+  const btn = document.getElementById('onboardSubmitBtn');
+  const errEl = document.getElementById('onboardError');
+  if (!overlay || !nickInput) return;
+  nickInput.value = randomNickname();
+  consent.checked = false;
+  errEl.textContent = '';
+  btn.disabled = true;
+  overlay.dataset.userId = user.id;
+  const syncBtn = () => { btn.disabled = !consent.checked || !nickInput.value.trim(); };
+  nickInput.oninput = syncBtn;
+  consent.onchange = syncBtn;
+  overlay.style.display = 'flex';
+}
+async function submitOnboarding() {
+  const overlay = document.getElementById('onboardOverlay');
+  const userId = overlay?.dataset.userId;
+  const nick = document.getElementById('onboardNickname').value.trim();
+  const errEl = document.getElementById('onboardError');
+  const btn = document.getElementById('onboardSubmitBtn');
+  if (!userId) return;
+  if (!nick) { errEl.textContent = '닉네임을 입력해주세요.'; return; }
+  if (nick.length > 20) { errEl.textContent = '닉네임은 20자 이하로 입력해주세요.'; return; }
+  btn.disabled = true; btn.textContent = '처리 중...';
+  const { error } = await sb.from('user_profiles').insert({
+    user_id: userId, nickname: nick, terms_agreed_at: new Date().toISOString(),
+  });
+  btn.disabled = false; btn.textContent = '시작하기';
+  if (error) { errEl.textContent = '저장 중 오류가 발생했습니다: ' + error.message; return; }
+  currentNickname = nick;
+  window.dispatchEvent(new CustomEvent('sr-nickname-change', { detail: { nickname: nick } }));
+  overlay.style.display = 'none';
+}
 function _syncDropdownNick() {
   const el = document.getElementById('userDropdownNick');
   if (el) el.textContent = currentNickname || '닉네임 불러오는 중…';
