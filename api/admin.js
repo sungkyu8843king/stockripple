@@ -3082,6 +3082,25 @@ async function handleAiMarketSummaryPost(req, res) {
     return `[${(i.published_at || '').slice(0, 16)}] (${conf || '?'}점) ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.ai_digest || i.summary || ''}`.slice(0, 400);
   }).join('\n\n');
 
+  // 매번 동일하게 적용할 분석 원칙(2026-08 도입) — 단순히 "무슨 일이 있었다"를 나열하는 게
+  // 아니라, 신호의 강도/성격을 구분해서 해석하라는 지침. 운영자가 실전에서 확인한 패턴을
+  // 일반화해 반영 — 특정 날짜의 사례가 아니라 매번 재사용되는 해석 틀이므로 static에 둔다.
+  const analystPrinciples = `분석 시 아래 관점을 참고해 신호를 단순 나열이 아니라 "해석"해서 반영하세요:
+
+- 외국인 매수와 환헷지(FX 헤지) 청산이 동시에 나타나는지 주목하세요. 상승장에서 환헷지를
+  유지하면 오히려 손해이므로, 헤지를 풀면서 사는 것은 매수보다 훨씬 강한 신호(그 자산군을
+  "바닥"으로 인식했다는 뜻)입니다. 반대로 매수 없이 헤지만 늘어나는 건 약세 베팅에 가깝습니다.
+- 코스피200 야간선물 등 국내 파생 지표는 국내 종목 자체의 펀더멘털보다, 미국 반도체주
+  (마이크론·하이닉스 ADR 등)의 흐름과 달러 강약(미국채 금리, 지정학 리스크로 인한 안전자산
+  선호)에 더 크게 동기화되는 경향이 있습니다. 야간선물 변동을 곧바로 "국내 업황 악화"로
+  단정하지 마세요.
+- 미국채 금리 급등·전쟁 등 매크로 요인으로 인한 달러 강세(위험자산 전반의 동반 매도)와,
+  특정 종목·섹터의 펀더멘털 훼손은 서로 다른 원인입니다. 이 둘을 구분해서 서술하세요 —
+  전자는 코스피·원화·개별 위험자산 전체에 동시에 작용하고, 후자만 종목 고유의 신호입니다.
+- 강한 추세 구간에서도 저항선 근처의 단기 조정은 자연스러운 현상이며, 그 자체를 추세
+  전환 신호로 보지 마세요. 일회성 신호(환헷지 청산 1회 등)보다, 추세 전환과 함께 신호가
+  재확인되는 경우를 더 신뢰할 수 있는 근거로 취급하세요.`;
+
   const dynamic = `당신은 한국어 금융 시장 분석가입니다. 아래 지난 24시간 분석 이슈 ${issues.length}건을 종합해서 오늘의 시장 종합 보고서를 작성하세요.
 
 ${ctx.slice(0, 12000)}
@@ -3102,7 +3121,7 @@ ${ctx.slice(0, 12000)}
 
   const result = await submitAgentJob({
     pipeline: 'ai_market_summary',
-    items: [{ itemId: 'main', static: '', dynamic }],
+    items: [{ itemId: 'main', static: analystPrinciples, dynamic }],
     payload: { based_on_issues: issues.length },
   });
   return res.status(200).json({ ok: true, generated: false, queued: result.submitted, reason: result.reason });
