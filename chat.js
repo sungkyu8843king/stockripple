@@ -480,6 +480,14 @@
       data.forEach(w => _srPriceFill('srwl_' + w.ticker, w.ticker));
     } catch { el.innerHTML = `<div class="srk-empty">불러오기 실패</div>`; }
   }
+  // 로그인/로그아웃 시 관심 탭 갱신 — 이 패널을 연 채로 로그인하면(관심 탭의 "로그인"
+  // 버튼 등) 헤더는 바로 갱신되지만 이 탭은 lazy-load 캐시(_srWlLoaded)에 막혀 로그인
+  // 전 "로그인하세요" 화면 그대로 남아있던 버그 수정. 캐시를 무효화하고, 지금 관심
+  // 탭이 열려 있으면 바로 다시 불러온다.
+  sb.auth.onAuthStateChange(() => {
+    _srWlLoaded = false;
+    if (_activeTab === 'wl') loadWlTab();
+  });
 
   // ── 🕐 최근 본 탭 — 서버 테이블 없이 localStorage로 최근 조회 종목을 기록/표시.
   // 기록은 company.html의 init()에서 sr_recent_views 키에 직접 push(이 파일은 읽기만).
