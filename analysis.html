@@ -398,6 +398,14 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .upside-pos { background: var(--red-dim); color: var(--red); }
 .upside-neg { background: var(--blue-dim); color: var(--blue); }
 .company-rationale { font-size: 14.5px; color: var(--text2); line-height: 1.55; margin-bottom: 10px; }
+/* "왜?" 체크리스트 — 긴 rationale 문장을 읽어야만 근거를 알 수 있다는 피드백(2026-08).
+   클릭 없이 카드에서 바로 스캔되도록 짧은 명사구 2~3개를 체크마크로 먼저 보여준다.
+   rationale 본문은 그 아래 보조 설명으로 남겨둠(완전 대체 아님). */
+.company-reasons { margin-bottom: 10px; }
+.reasons-why { font-size: 11.5px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.reasons-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.reasons-list li { font-size: 14.5px; font-weight: 600; color: var(--text); line-height: 1.4; position: relative; padding-left: 21px; }
+.reasons-list li::before { content: '✔'; position: absolute; left: 0; top: 0; color: var(--green); font-weight: 800; font-size: 13px; }
 .company-ripple { font-size: 13.5px; color: var(--text3); }
 .company-ripple span { color: var(--blue); }
 .company-footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
@@ -593,27 +601,28 @@ function renderPage(issue, analysis, companies) {
       </div>`;
   }).join('');
 
-  // [TRADE] / [FUND] 마커 파싱
+  // [TRADE] / [FUND] / [REASONS] 마커 파싱 — 세 마커 모두 같은 방식(위치 정렬 후 다음
+  // 마커 시작 전까지를 그 마커의 JSON으로 간주)으로 처리해 순서에 상관없이 잘라낸다.
   const parseTradeMeta = (rationale) => {
-    if (!rationale) return { reason: '', trade: null, fund: null };
-    let reason = rationale, trade = null, fund = null;
-    const fundIdx = rationale.indexOf('[FUND]');
-    if (fundIdx >= 0) {
-      try { fund = JSON.parse(rationale.slice(fundIdx + 6).split(/\[(TRADE|FUND)\]/)[0].trim()); } catch {}
-    }
-    const tradeIdx = rationale.indexOf('[TRADE]');
-    if (tradeIdx >= 0) {
-      const after = rationale.slice(tradeIdx + 7);
-      const fundInAfter = after.indexOf('[FUND]');
-      const tradeJson = fundInAfter >= 0 ? after.slice(0, fundInAfter).trim() : after.trim();
-      try { trade = JSON.parse(tradeJson); } catch {}
-    }
-    const cutIdx = Math.min(
-      tradeIdx >= 0 ? tradeIdx : Infinity,
-      fundIdx  >= 0 ? fundIdx  : Infinity
-    );
-    if (cutIdx !== Infinity) reason = rationale.slice(0, cutIdx).trim();
-    return { reason, trade, fund };
+    if (!rationale) return { reason: '', trade: null, fund: null, reasons: null };
+    const markers = ['[TRADE]', '[FUND]', '[REASONS]'];
+    const positions = markers
+      .map(m => ({ m, idx: rationale.indexOf(m) }))
+      .filter(p => p.idx >= 0)
+      .sort((a, b) => a.idx - b.idx);
+    const reason = positions.length ? rationale.slice(0, positions[0].idx).trim() : rationale.trim();
+    let trade = null, fund = null, reasons = null;
+    positions.forEach((p, i) => {
+      const start = p.idx + p.m.length;
+      const end = i + 1 < positions.length ? positions[i + 1].idx : rationale.length;
+      const json = rationale.slice(start, end).trim();
+      try {
+        if (p.m === '[TRADE]') trade = JSON.parse(json);
+        else if (p.m === '[FUND]') fund = JSON.parse(json);
+        else if (p.m === '[REASONS]') reasons = JSON.parse(json);
+      } catch {}
+    });
+    return { reason, trade, fund, reasons };
   };
   const tfLabel = { '1w':'단기 1주', '1m':'중기 1개월', '3m':'중장기 3개월', '6m':'장기 6개월' };
 
@@ -687,6 +696,10 @@ function renderPage(issue, analysis, companies) {
             <div class="company-market">${isKr ? '한국 상장' : '미국 상장'} · ${escHtml(co.sector || c.ripple_sector || '')}</div>
           </div>
         </div>
+        ${parsed.reasons && parsed.reasons.length ? `<div class="company-reasons">
+          <div class="reasons-why">왜?</div>
+          <ul class="reasons-list">${parsed.reasons.slice(0, 3).map(r => `<li>${escHtml(r)}</li>`).join('')}</ul>
+        </div>` : ''}
         <div class="company-rationale">${escHtml(parsed.reason || '')}</div>
         ${techChips}
         ${tradeBox}
@@ -713,6 +726,10 @@ function renderPage(issue, analysis, companies) {
             <div class="company-market">${isKr ? '한국 상장' : '미국 상장'}${co._sector ? ' · ' + escHtml(co._sector) : ''}</div>
           </div>
         </div>
+        ${Array.isArray(co.reasons) && co.reasons.length ? `<div class="company-reasons">
+          <div class="reasons-why">왜?</div>
+          <ul class="reasons-list">${co.reasons.slice(0, 3).map(r => `<li>${escHtml(r)}</li>`).join('')}</ul>
+        </div>` : ''}
         ${co.rationale ? `<div class="company-rationale">${escHtml(co.rationale)}</div>` : ''}
         ${co._sector ? `<div class="company-ripple">파급 섹터: <span>${escHtml(co._sector)}</span></div>` : ''}
       </div>`;

@@ -405,6 +405,10 @@ async function finalizeIssueDecisions({ analysisId, candidates, decisions, regim
     let enrichedRationale = cand.co.rationale || d.key_thesis || '';
     if (Object.keys(cleanMeta).length) enrichedRationale += `\n\n[TRADE]${JSON.stringify(cleanMeta)}`;
     if (fundMeta) enrichedRationale += `\n\n[FUND]${JSON.stringify(fundMeta)}`;
+    // 카드에서 클릭 없이 바로 보여줄 짧은 체크리스트 이유 — 새 컬럼 없이 [TRADE]/[FUND]와
+    // 같은 방식으로 rationale 텍스트에 마커로 붙여 저장(analysis.html parseTradeMeta가 파싱).
+    const reasons = Array.isArray(cand.co.reasons) ? cand.co.reasons.filter(r => typeof r === 'string' && r.trim()).slice(0, 3) : [];
+    if (reasons.length) enrichedRationale += `\n\n[REASONS]${JSON.stringify(reasons)}`;
 
     await supabase.from('analysis_companies').insert({
       analysis_id: analysisId,
@@ -1314,7 +1318,8 @@ const ANALYZE_STATIC_PROMPT = `당신은 글로벌 주식시장 리서치 애널
           "name_ko": "기업명 한국어",
           "name_en": "Company Name English",
           "market": "US 또는 KR",
-          "rationale": "이 기업이 수혜를 받는 구체적 이유 — catalyst(뉴스)가 이 기업의 매출/이익에 닿는 경로(mechanism)를 명시"
+          "rationale": "이 기업이 수혜를 받는 구체적 이유 — catalyst(뉴스)가 이 기업의 매출/이익에 닿는 경로(mechanism)를 명시",
+          "reasons": ["짧은 이유 1 (명사구, 5~10자)", "짧은 이유 2", "짧은 이유 3(선택)"]
         }
       ]
     }
@@ -1337,12 +1342,16 @@ const ANALYZE_STATIC_PROMPT = `당신은 글로벌 주식시장 리서치 애널
 - 한국 기업(KR)과 미국 기업(US)을 균형있게 포함
 - impact:negative(피해 우려) 섹터에도 이 뉴스로 하락 압력을 받는 대표 기업 1-2개를 companies에 넣을 것. 단 이들은 "매수 후보"가 아니라 "피해 우려" 종목이므로, rationale에는 왜 손실/하락 압력을 받는지(mechanism)를 명시할 것. (impact:positive 섹터의 기업 = 수혜/매수 후보, impact:negative 섹터의 기업 = 피해 우려. 티커 규칙은 동일하게 적용)
 - rationale에 3차 이상 간접 연결(뉴스→A→B→이 기업)은 금지. 최대 2차 파급까지만. (이 제한은 rippleEffects에만 적용 — rippleChain은 아래 별도 규칙을 따름)
+- reasons: rationale(긴 문장)과 별개로, 카드에서 클릭 없이 바로 보여줄 짧은 체크리스트용 필드입니다.
+  완전한 문장이 아니라 명사구로(예: "원전 기자재 공급", "UAE 수주 이력", "정부 정책 수혜") 2~3개.
+  rationale의 핵심을 그대로 되풀이하지 말고, 서로 다른 근거(사업 연관성/실적·수주 이력/정책·수급 등)를
+  뽑아서 나열하세요. impact:negative 기업도 같은 방식으로(예: "관세 부담 증가", "수요 위축 우려") 채우세요.
 
 rippleChain(연쇄 파급 시나리오) 규칙 — 예: "원전 확대 발표" → 우라늄 → 원전 EPC → 변압기 → 전력기기 → 송전 → ESS → 관련 종목:
 - 이 뉴스가 산업 사이를 순차적으로 타고 넘어가는 명확한 인과 사슬을 가질 때만 채우세요. 억지로 만들지 말고, 그런 사슬이 없으면 빈 배열([])로 반환하세요.
 - 3~6단계. 각 단계는 뉴스 → 1차 산업 → 2차 산업 → ... 순서로, 바로 앞 단계에서 자연스럽게 이어지는 것만 (단계를 건너뛰지 말 것)
 - 뒤로 갈수록(3차, 4차, 5차...) 인과관계가 느슨해지고 근거가 약해지는 게 정상입니다 — confidence를 그에 맞게 high→medium→low로 솔직하게 낮추세요. 모든 단계를 high로 채우지 마세요.
-- companies는 마지막 1~2단계에만 채우세요(그 앞 단계는 "산업/테마"만, 아직 구체적 종목까지 좁히지 않음). 각 1-2개, 위 rippleEffects의 companies와 같은 형식(ticker/name_ko/name_en/market/rationale)이며 티커 규칙도 동일하게 적용
+- companies는 마지막 1~2단계에만 채우세요(그 앞 단계는 "산업/테마"만, 아직 구체적 종목까지 좁히지 않음). 각 1-2개, 위 rippleEffects의 companies와 같은 형식(ticker/name_ko/name_en/market/rationale/reasons)이며 티커 규칙도 동일하게 적용
 - 중간 단계 없이 뉴스에서 바로 종목으로 뛰지 말 것 — 산업 단계를 반드시 거칠 것
 
 티커 규칙:
