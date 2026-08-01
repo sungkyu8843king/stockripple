@@ -344,7 +344,7 @@ function renderIssueCard(issue) {
           ? `<div class="card-flow-label">📡 관련 산업 영향</div><div class="card-sectors">${toneChips}</div>`
           : (sectors.length ? `<div class="card-flow-label">📡 파급 섹터</div><div class="card-sectors">${sectorTags}</div>` : '')}
       </div>
-      ${companies.length ? `<div class="card-companies"><div class="card-flow-label">🎯 수혜 예상 종목</div>${companyRows}</div>` : ''}
+      ${companies.length ? `<div class="card-companies"><div class="card-flow-label">🎯 관련 기업</div>${companyRows}</div>` : ''}
       <div class="card-footer">
         ${avgUpside != null ? `<div class="footer-stat"><span class="val green">+${avgUpside}%</span> 평균 예상</div>` : ''}
         ${accBadge}
@@ -2735,6 +2735,24 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
       <p class="empty-sub">index.html의 SUPABASE_URL과 SUPABASE_ANON_KEY를 설정해주세요.</p>
     </div>`;
 } else {
+  // 홈 검색 히어로의 예시 칩("AI"/"반도체" → ?sector=, 자유 검색 폴백 → ?q=)이 딥링크로
+  // 넘어올 때 이슈 피드에 미리 적용 — #issuesContainer가 있는 페이지에서만 의미 있고,
+  // 없으면(다른 페이지) 아래는 그냥 no-op.
+  (function applyIssuesQueryParams() {
+    if (!document.getElementById('issuesContainer')) return;
+    const params = new URLSearchParams(location.search);
+    const qpSector = params.get('sector');
+    const qpQuery = params.get('q');
+    if (qpSector) {
+      currentSector = qpSector;
+      document.querySelectorAll('[data-sector]').forEach(b => b.classList.toggle('active', b.dataset.sector === qpSector));
+    }
+    if (qpQuery) {
+      searchQuery = qpQuery;
+      const si = document.getElementById('searchInput');
+      if (si) si.value = qpQuery;
+    }
+  })();
   initAuth();
   loadStats();
   loadIssues();
@@ -5291,3 +5309,130 @@ function closeSearchPicker(event) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeSearchPicker({ target: { id: 'searchPickerModal' } });
 });
+
+// ── 🔍 홈 검색 히어로 (index.html 전용, 2026-08 개편) ──────────────────
+// 자동완성 매칭 로직은 새로 안 짜고 site-header.js의 hFindMatches(엘리먼트 id에
+// 의존하지 않는 순수 함수)를 그대로 재사용, 대상 DOM(#heroSearchInput/#heroSugBox)만 다르다.
+// #heroSearchInput이 없는 페이지(홈 외 전부)에서는 아래 함수들이 전부 조용히 no-op.
+let _heroSugTimer = null;
+function onHeroSearchInput(v) {
+  clearTimeout(_heroSugTimer);
+  const q = (v || '').trim();
+  const box = document.getElementById('heroSugBox');
+  if (!box) return;
+  if (q.length < 1) { box.innerHTML = ''; return; }
+  _heroSugTimer = setTimeout(() => runHeroSearch(q), 220);
+}
+
+async function runHeroSearch(q) {
+  const box = document.getElementById('heroSugBox');
+  if (!box || typeof hFindMatches !== 'function') return;
+  box.innerHTML = `<div class="hsug"><div class="hsug-loading">검색 중…</div></div>`;
+  const items = await hFindMatches(q);
+  const cur = (document.getElementById('heroSearchInput')?.value || '').trim();
+  if (cur !== q) return;
+  box.innerHTML = items.length
+    ? `<div class="hsug">${items.map(m => {
+        const isKr = m.market === 'KR' || /\.K[SQ]$/i.test(m.ticker);
+        return `<a class="hsug-item" href="/company.html?ticker=${encodeURIComponent(m.ticker)}">
+          <span class="hsug-tk ${isKr ? 'kr' : 'us'}">${escHtml(m.ticker.replace(/\.(KS|KQ)$/i, ''))}</span>
+          <span class="hsug-nm">${escHtml(m.name_ko || m.name_en || m.ticker)}</span>
+          <span class="hsug-mkt">${isKr ? '국내' : '미국'}</span>
+        </a>`;
+      }).join('')}</div>`
+    : `<div class="hsug"><div class="hsug-empty">"${escHtml(q)}" 종목을 찾지 못했습니다. Enter를 누르면 뉴스에서 검색합니다 →</div></div>`;
+}
+
+// 종목으로 못 찾으면 뉴스 검색으로 폴백 — 이 사이트의 핵심은 종목 추천이 아니라
+// "뉴스가 어떤 산업·기업에 영향을 주는지" 탐색이라, 검색이 막다른 길이 되지 않게 한다.
+async function heroSearchEnter(v) {
+  const raw = (v || '').trim();
+  if (!raw) return;
+  const box = document.getElementById('heroSugBox');
+  const first = box?.querySelector('.hsug-item');
+  if (first) { location.href = first.getAttribute('href'); return; }
+  const items = await hFindMatches(raw);
+  if (items.length) { location.href = `/company.html?ticker=${encodeURIComponent(items[0].ticker)}`; return; }
+  location.href = `/news.html?q=${encodeURIComponent(raw)}`;
+}
+
+// 예시 칩 — 종목명 칩(삼성전자/테슬라)은 바로 종목 조회, 키워드 칩(AI/반도체)은
+// 애초에 종목명이 아니므로 종목 검색을 시도하지 않고 뉴스의 섹터 필터로 보낸다
+// (AI/반도체는 이슈 피드가 이미 쓰는 실제 sectors 태그 값이라 제목 텍스트 검색보다 정확).
+function heroChipClick(type, text) {
+  const input = document.getElementById('heroSearchInput');
+  if (input) input.value = text;
+  if (type === 'keyword') { location.href = `/news.html?sector=${encodeURIComponent(text)}`; return; }
+  heroSearchEnter(text);
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#heroSearchBox')) {
+    const box = document.getElementById('heroSugBox');
+    if (box) box.innerHTML = '';
+  }
+});
+
+// ── ⭐ 관심종목 뉴스 모아보기 (index.html 전용, 2026-08) ──────────────────
+// analysis_companies를 직접 조회하지 않는다 — expose_ripple_effects 플래그가 꺼져
+// 있으면(기본값, 유사투자자문업 대응) 그 조인 데이터는 공개 노출 금지 대상이라
+// 클라이언트에서 직접 조회하면 서버(api/admin.js handleIssuesFeed)의 게이트를
+// 우회하게 된다. 대신 워치리스트 티커의 회사명(공개 참고 데이터)만 조회해서,
+// 기존 공개 검색 엔드포인트(q=회사명, title.ilike 매칭)를 그대로 재사용한다.
+let _wlNewsActive = false;
+async function toggleWatchlistNews() {
+  const btn = document.getElementById('wlNewsToggle');
+  if (!btn) return;
+  if (!_wlNewsActive) {
+    if (!currentUser) { openAuthModal(); return; }
+    if (!watchlistCache.size) { showToast('관심종목이 없습니다. 종목 카드의 ☆를 눌러 추가해보세요'); return; }
+    _wlNewsActive = true;
+    btn.classList.add('active');
+    btn.textContent = '← 전체 뉴스로';
+    await loadWatchlistIssues();
+  } else {
+    _wlNewsActive = false;
+    btn.classList.remove('active');
+    btn.textContent = '⭐ 관심종목만';
+    currentPage = 1;
+    loadIssues();
+  }
+}
+
+async function loadWatchlistIssues() {
+  const container = document.getElementById('issuesContainer');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>관심종목 뉴스 불러오는 중...</p></div>';
+  const pg = document.getElementById('pagination');
+  if (pg) pg.innerHTML = '';
+
+  const tickers = [...watchlistCache];
+  let names = [];
+  try {
+    const { data } = await sb.from('companies').select('name_ko, name_en').in('ticker', tickers);
+    names = [...new Set((data || []).flatMap(c => [c.name_ko, c.name_en].filter(Boolean)))];
+  } catch {}
+  if (!names.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⭐</div><p class="empty-title">관심종목 정보를 찾을 수 없습니다</p></div>`;
+    return;
+  }
+
+  try {
+    const results = await Promise.all(names.slice(0, 10).map(name =>
+      fetch(`/api/admin?action=issues-feed&page=1&pageSize=10&q=${encodeURIComponent(name)}`).then(r => r.json()).catch(() => null)
+    ));
+    const byId = new Map();
+    for (const r of results) {
+      if (!r?.ok) continue;
+      for (const issue of (r.data || [])) byId.set(issue.id, issue);
+    }
+    const issues = [...byId.values()].sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+    if (!issues.length) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">⭐</div><p class="empty-title">관심종목 관련 뉴스가 아직 없습니다</p><p class="empty-sub">관심종목 이름이 제목에 포함된 새 이슈가 나오면 여기에 표시됩니다.</p></div>`;
+      return;
+    }
+    container.innerHTML = `<div class="issues-grid">${issues.map(renderIssueCard).join('')}</div>`;
+  } catch {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p class="empty-title">불러오기 실패</p><p class="empty-sub">잠시 후 다시 시도해주세요.</p></div>`;
+  }
+}

@@ -9,17 +9,17 @@
 <script src="/sr-pulse.js" defer></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
 <title>StockRipple — 파급효과 주식 전망</title>
-<meta name="description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta name="description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
 <!-- Open Graph / 링크 공유 미리보기 (정적 — 동적 티커 페이지는 일반 설명) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="StockRipple">
 <meta property="og:title" content="StockRipple — 파급효과 주식 전망">
-<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
 <meta property="og:url" content="https://stockripple.vercel.app/index.html">
 <meta property="og:locale" content="ko_KR">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="StockRipple — 파급효과 주식 전망">
-<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -306,25 +306,49 @@ button { font-family: inherit; }
 .ticker-chg.flat { color: var(--text3); }
 
 /* ═══════════════════════════════════════════
- * Hero strip — 1줄 AI 브리핑 + 매수후보 CTA (2026-07 개편: 예전엔 슬로건+통계 5개가
- * 첫 화면 대부분을 차지해서 방문자가 원하는 정보(오늘 시장이 어떤지)를 안 보여줬음.
- * 지수 자체는 이미 위 .indices-ticker가 보여주고 있어서, 여기선 AI 한줄 요약만.
+ * 검색 히어로 (2026-08 개편: 이 사이트의 핵심 기능은 "종목 추천"이 아니라 "뉴스 검색
+ * → 산업/기업 영향 탐색"이라 첫 화면에서 검색이 가장 먼저 눈에 띄어야 한다는 피드백—
+ * 예전 1줄 AI 브리핑 스트립을 검색 중심으로 재구성. AI 브리핑은 그 아래 작게 유지.
  * ═══════════════════════════════════════════ */
-.hero-strip {
-  max-width: var(--page-max); margin: 0 auto;
-  padding: 14px var(--page-pad);
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+.search-hero { max-width: var(--page-max); margin: 0 auto; padding: 40px var(--page-pad) 26px; text-align: center; }
+.search-hero-title { font-size: 23px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); margin: 0 0 18px; }
+.search-hero-box {
+  position: relative; max-width: 640px; margin: 0 auto;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg2); border: 1.5px solid var(--border); border-radius: 999px;
+  padding: 14px 22px; box-shadow: var(--shadow-card); transition: border-color .15s, box-shadow .15s;
 }
-.hero-strip-text { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 320px; }
-.hero-strip-badge {
-  flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--blue);
+.search-hero-box:focus-within { border-color: var(--blue); box-shadow: var(--shadow-focus); }
+.search-hero-box svg { color: var(--text3); flex-shrink: 0; }
+.search-hero-box input { flex: 1; min-width: 0; border: none; outline: none; background: none; font-size: 17px; color: var(--text); font-family: inherit; }
+.search-hero-box input::placeholder { color: var(--text3); font-size: 15px; }
+#heroSugBox:empty { display: none; }
+.search-hero-chips { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.search-hero-chip-label { font-size: 13px; color: var(--text3); margin-right: 2px; }
+.search-hero-chip {
+  font-size: 14px; font-weight: 600; color: var(--text2); background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; cursor: pointer; transition: all .12s;
+}
+.search-hero-chip:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
+.search-hero-brief {
+  margin-top: 20px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: opacity .3s ease;
+}
+.search-hero-brief:hover .search-hero-brief-text { color: var(--blue); }
+.search-hero-brief-badge {
+  flex-shrink: 0; font-size: 12.5px; font-weight: 700; color: var(--blue);
   background: var(--blue-dim, rgba(59,130,246,.1)); border-radius: 999px; padding: 3px 10px;
 }
-.hero-strip-headline {
-  font-size: 16px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis; min-width: 0; cursor: pointer; transition: opacity .3s ease;
+.search-hero-brief-text {
+  font-size: 15px; font-weight: 600; color: var(--text2); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; max-width: 60vw; transition: color .12s;
 }
-.hero-strip-headline:hover { color: var(--blue); }
+@media (max-width: 600px) {
+  .search-hero { padding: 24px 16px 20px; }
+  .search-hero-title { font-size: 18px; }
+  .search-hero-box { padding: 11px 16px; }
+  .search-hero-box input { font-size: 15.5px; }
+  .search-hero-brief-text { max-width: 72vw; }
+}
 
 /* ═══════════════════════════════════════════
  * Layout
@@ -517,7 +541,8 @@ button { font-family: inherit; }
 .mkt-hero-row .mkt-hero.mkt-hero-sub { flex: 1 1 0; }
 @media (max-width: 640px) { .mkt-hero-row { flex-direction: column; } }
 
-/* "더 많은 지표 보기" 토글 — 모바일에서만 기본 접힘, 데스크톱은 버튼을 숨기고 항상 펼침 */
+/* "더 많은 지표 보기" 토글 — 2026-08: 데스크톱에서도 기본 접힘으로 통일(첫 화면 밀도
+   피드백 — 예전엔 데스크톱만 토글을 숨기고 항상 펼쳐서 정보량이 많았다) */
 .mkt-more-toggle {
   display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md);
@@ -525,13 +550,7 @@ button { font-family: inherit; }
   margin-bottom: 10px; transition: background var(--t-fast);
 }
 .mkt-more-toggle:hover { background: var(--bg3); }
-@media (min-width: 641px) {
-  .mkt-more-toggle { display: none; }
-  .mkt-dash-grid.collapsed { display: grid; }
-}
-@media (max-width: 640px) {
-  .mkt-dash-grid.collapsed { display: none; }
-}
+.mkt-dash-grid.collapsed { display: none; }
 
 .mkt-hero {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
@@ -1299,10 +1318,25 @@ button { font-family: inherit; }
   </div>
 </div>
 
-<div class="hero-strip" id="heroSection">
-  <div class="hero-strip-text">
-    <span class="hero-strip-badge">🤖 오늘의 AI 브리핑</span>
-    <span class="hero-strip-headline" id="heroHeadline" onclick="openHeroBriefDetail()" role="button" tabindex="0">오늘의 시장 브리핑을 불러오는 중...</span>
+<div class="search-hero" id="searchHeroSection">
+  <h1 class="search-hero-title">뉴스가 어떤 산업·기업에 영향을 주는지 검색해보세요</h1>
+  <div class="search-hero-box" id="heroSearchBox">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="heroSearchInput" placeholder="종목명, 티커, 키워드로 검색 — 예: 삼성전자, AI, 반도체, 테슬라" autocomplete="off"
+           oninput="onHeroSearchInput(this.value)" onfocus="onHeroSearchInput(this.value)"
+           onkeydown="if(event.key==='Enter') heroSearchEnter(this.value); if(event.key==='Escape') this.blur()">
+    <div id="heroSugBox"></div>
+  </div>
+  <div class="search-hero-chips">
+    <span class="search-hero-chip-label">예시:</span>
+    <button type="button" class="search-hero-chip" onclick="heroChipClick('company','삼성전자')">삼성전자</button>
+    <button type="button" class="search-hero-chip" onclick="heroChipClick('company','테슬라')">테슬라</button>
+    <button type="button" class="search-hero-chip" onclick="heroChipClick('keyword','AI')">AI</button>
+    <button type="button" class="search-hero-chip" onclick="heroChipClick('keyword','반도체')">반도체</button>
+  </div>
+  <div class="search-hero-brief" onclick="openHeroBriefDetail()" role="button" tabindex="0">
+    <span class="search-hero-brief-badge">🤖 오늘의 AI 브리핑</span>
+    <span class="search-hero-brief-text" id="heroHeadline">오늘의 시장 브리핑을 불러오는 중...</span>
   </div>
 </div>
 
@@ -1316,25 +1350,99 @@ button { font-family: inherit; }
       <div class="intro-strip-body">
         <div class="intro-strip-title">👋 StockRipple은 이런 곳이에요</div>
         <p class="intro-strip-text">
-          뉴스 하나가 <b>어떤 회사 주가까지 흔드는지</b> 따라가 보여주는 곳입니다.
+          뉴스 하나가 <b>어떤 산업과 회사에 영향을 주는지</b> 따라가 보여주는 곳입니다.
           예를 들어 "반도체 수출이 늘었다"는 뉴스가 나오면, 그게 어떤 업종과 회사에
           영향을 주는지 AI가 연결해 정리해 줍니다.
         </p>
         <p class="intro-strip-text intro-strip-note">
-          아래로 내리면 <b>오늘의 시장 지표</b>, <b>사람들이 많이 보는 종목</b>,
-          <b>뉴스별 분석</b> 순서로 볼 수 있어요. 투자 권유가 아니라 정보 제공 서비스입니다.
+          아래로 내리면 <b>오늘의 산업 온도</b>, <b>시장 지표</b>,
+          <b>사람들이 많이 보는 종목</b> 순서로 볼 수 있어요. 투자 권유가 아니라 정보 제공 서비스입니다.
         </p>
       </div>
       <button type="button" class="intro-strip-close" onclick="dismissIntro()" aria-label="소개 닫기">알겠어요 ✕</button>
     </div>
 
+    <!-- 📰 오늘 핵심 뉴스 (2026-08 개편: 최상단으로 — 카드 하나하나가 이미 뉴스→파급 섹터
+         →관련 기업 흐름을 담고 있어서, 이 섹션 하나로 이 사이트가 뭘 하는 곳인지 바로 보여준다) -->
+    <div id="issuesSection" class="section-block">
+      <div class="section-head">
+        <div class="section-head-l">
+          <span class="sh-mark" style="background:var(--purple)"></span>
+          <span class="sh-title">오늘 핵심 뉴스</span>
+          <span class="sh-desc">뉴스 하나가 어떤 업종과 회사에 영향을 주는지 따라가 봅니다</span>
+          <span id="feedLiveTag" style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
+        </div>
+        <span style="font-size:13.5px;color:var(--text3)" id="issuesCount"></span>
+      </div>
 
-    <!-- 📊 시장 지표 대시보드 -->
+      <!-- 카테고리 + 섹터 필터 + 관심종목 토글 (이슈 피드 전용 툴바) -->
+      <div class="feed-toolbar">
+        <div class="category-tabs" id="categoryTabs">
+          <button class="cat-tab active" data-cat="all">🔥 전체</button>
+          <button class="cat-tab" data-cat="earnings">📊 실적발표</button>
+          <button class="cat-tab" data-cat="politics">🌐 정세·외교</button>
+          <button class="cat-tab" data-cat="economy">📈 경제지표</button>
+          <button class="cat-tab" data-cat="tech">💻 AI·반도체</button>
+          <button class="cat-tab" data-cat="bio">🧬 바이오</button>
+          <button class="cat-tab" data-cat="ev">🔋 전기차·배터리</button>
+          <button class="cat-tab" data-cat="energy">⚡ 에너지</button>
+          <button class="cat-tab" data-cat="defense">🚀 방산·우주</button>
+          <button class="cat-tab" data-cat="game">🎮 게임·엔터</button>
+          <button class="cat-tab" data-cat="crypto">🪙 크립토</button>
+        </div>
+        <div class="filters">
+          <span class="filter-label">섹터</span>
+          <button class="filter-chip active" data-sector="all">전체</button>
+          <button class="filter-chip" data-sector="AI">AI</button>
+          <button class="filter-chip" data-sector="반도체">반도체</button>
+          <button class="filter-chip" data-sector="전기차">전기차</button>
+          <button class="filter-chip" data-sector="배터리">배터리</button>
+          <button class="filter-chip" data-sector="바이오">바이오</button>
+          <button class="filter-chip" data-sector="에너지">에너지</button>
+          <button class="filter-chip" data-sector="핀테크">핀테크</button>
+          <button class="filter-chip" data-sector="금융">금융</button>
+          <button class="filter-chip" data-sector="클라우드">클라우드</button>
+          <button class="filter-chip" data-sector="로봇">로봇</button>
+          <button class="filter-chip" data-sector="방산·우주">방산·우주</button>
+          <button class="filter-chip" data-sector="게임">게임</button>
+          <button class="filter-chip" data-sector="크립토">크립토</button>
+          <button class="filter-chip" data-sector="자동차">자동차</button>
+          <button class="filter-chip" data-sector="물류·운송">물류·운송</button>
+          <span class="filter-sep"></span>
+          <button type="button" id="wlNewsToggle" class="filter-chip" onclick="toggleWatchlistNews()">⭐ 관심종목만</button>
+        </div>
+      </div>
+
+      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:15px;font-weight:700;text-align:center">
+        🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
+      </div>
+
+      <div id="issuesContainer">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>이슈 불러오는 중...</p>
+        </div>
+      </div><!-- issuesContainer end -->
+
+      <!-- Pagination -->
+      <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:24px;padding-bottom:8px"></div>
+
+      <!-- 모바일 전용: 최신 3건만 보여준 뒤 전체 목록은 news.html로 유도 (desktop은 CSS로 숨김) -->
+      <div style="text-align:center;margin-top:14px">
+        <a href="/news.html" id="newsMoreBtn" style="display:none;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">뉴스 더 보기 →</a>
+      </div>
+    </div>
+
+    <!-- 🌡️ 지금 산업 온도 (news.html의 loadSectorTemp를 그대로 재사용 — 컨테이너만 있으면
+         loadIssues()가 자동으로 채운다. 종목 추천이 아니라 뉴스 톤 집계라 리스크 없음) -->
+    <div id="sectorTempBoard"></div>
+
+    <!-- 📊 시장 지표 대시보드 (2026-08: 데스크톱도 기본 접힘 — 아래 mkt-more-toggle 참고) -->
     <div id="mktDashSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
           <span class="sh-mark"></span>
-          <span class="sh-title">시장 지표</span>
+          <span class="sh-title">시장 요약</span>
           <span class="sh-desc">오늘 주요 지수·환율·유가가 오르내린 정도</span>
         </div>
       </div>
@@ -1379,109 +1487,7 @@ button { font-family: inherit; }
       </div>
     </div>
 
-    <!-- 📊 실시간 랭킹 (토스 공식) -->
-    <div id="rankingsSection" class="section-block">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark"></span>
-          <span class="sh-title">실시간 랭킹</span>
-          <span class="sh-desc">지금 사람들이 가장 많이 보고 사고파는 종목 (토스 공식 · 장 마감 시 마지막 정규장 기준)</span>
-        </div>
-        <div class="section-head-r">
-          <span style="font-size:13.5px;color:var(--text3)" id="rankingsUpdated">—</span>
-        </div>
-      </div>
-      <div class="rk-controls">
-        <div class="rk-markets" id="rkMarkets">
-          <button class="rk-mkt active" data-mkt="all" onclick="setRkMarket('all',this)">전체</button>
-          <button class="rk-mkt" data-mkt="kr" onclick="setRkMarket('kr',this)">국장</button>
-          <button class="rk-mkt" data-mkt="us" onclick="setRkMarket('us',this)">해외</button>
-        </div>
-        <div class="rk-sep"></div>
-        <div class="rk-cats" id="rkCats">
-          <button class="rk-cat active" data-cat="popular" onclick="setRkCat('popular',this)">🔥 인기</button>
-          <button class="rk-cat" data-cat="amount" onclick="setRkCat('amount',this)">💰 거래대금</button>
-          <button class="rk-cat" data-cat="volume" onclick="setRkCat('volume',this)">📊 거래량</button>
-          <button class="rk-cat" data-cat="gainers" onclick="setRkCat('gainers',this)">🚀 급상승</button>
-          <button class="rk-cat" data-cat="losers" onclick="setRkCat('losers',this)">📉 급하락</button>
-        </div>
-      </div>
-      <div id="rankingsBody"><div class="rk-loading">불러오는 중...</div></div>
-    </div>
-
-    <!-- 📢 피드 광고 (2026-07 개편: 매수 후보 아래로 이동) -->
-    <div id="feedAdSlot" style="margin:20px 0"></div>
-
-    <!-- 📰 최신 분석 이슈 (2026-07 개편: 시장현황 프리뷰보다 위로 — 이 사이트의 핵심 가치인
-         "이슈→수혜주" 흐름을 신규 방문자가 스크롤 없이 바로 보게) -->
-    <div id="issuesSection" class="section-block">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--purple)"></span>
-          <span class="sh-title">최신 분석 이슈</span>
-          <span class="sh-desc">뉴스 하나가 어떤 업종과 회사 주가까지 흔드는지 따라가 봅니다</span>
-          <span id="feedLiveTag" style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
-        </div>
-        <span style="font-size:13.5px;color:var(--text3)" id="issuesCount"></span>
-      </div>
-
-      <!-- 카테고리 + 섹터 필터 + 검색 (이슈 피드 전용 툴바) -->
-      <div class="feed-toolbar">
-        <div class="category-tabs" id="categoryTabs">
-          <button class="cat-tab active" data-cat="all">🔥 전체</button>
-          <button class="cat-tab" data-cat="earnings">📊 실적발표</button>
-          <button class="cat-tab" data-cat="politics">🌐 정세·외교</button>
-          <button class="cat-tab" data-cat="economy">📈 경제지표</button>
-          <button class="cat-tab" data-cat="tech">💻 AI·반도체</button>
-          <button class="cat-tab" data-cat="bio">🧬 바이오</button>
-          <button class="cat-tab" data-cat="ev">🔋 전기차·배터리</button>
-          <button class="cat-tab" data-cat="energy">⚡ 에너지</button>
-          <button class="cat-tab" data-cat="defense">🚀 방산·우주</button>
-          <button class="cat-tab" data-cat="game">🎮 게임·엔터</button>
-          <button class="cat-tab" data-cat="crypto">🪙 크립토</button>
-        </div>
-        <div class="filters">
-          <span class="filter-label">섹터</span>
-          <button class="filter-chip active" data-sector="all">전체</button>
-          <button class="filter-chip" data-sector="AI">AI</button>
-          <button class="filter-chip" data-sector="반도체">반도체</button>
-          <button class="filter-chip" data-sector="전기차">전기차</button>
-          <button class="filter-chip" data-sector="배터리">배터리</button>
-          <button class="filter-chip" data-sector="바이오">바이오</button>
-          <button class="filter-chip" data-sector="에너지">에너지</button>
-          <button class="filter-chip" data-sector="핀테크">핀테크</button>
-          <button class="filter-chip" data-sector="금융">금융</button>
-          <button class="filter-chip" data-sector="클라우드">클라우드</button>
-          <button class="filter-chip" data-sector="로봇">로봇</button>
-          <button class="filter-chip" data-sector="방산·우주">방산·우주</button>
-          <button class="filter-chip" data-sector="게임">게임</button>
-          <button class="filter-chip" data-sector="크립토">크립토</button>
-          <button class="filter-chip" data-sector="자동차">자동차</button>
-          <button class="filter-chip" data-sector="물류·운송">물류·운송</button>
-        </div>
-      </div>
-
-      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:15px;font-weight:700;text-align:center">
-        🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
-      </div>
-
-      <div id="issuesContainer">
-        <div class="loading-state">
-          <div class="spinner"></div>
-          <p>이슈 불러오는 중...</p>
-        </div>
-      </div><!-- issuesContainer end -->
-
-      <!-- Pagination -->
-      <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:24px;padding-bottom:8px"></div>
-
-      <!-- 모바일 전용: 최신 3건만 보여준 뒤 전체 목록은 news.html로 유도 (desktop은 CSS로 숨김) -->
-      <div style="text-align:center;margin-top:14px">
-        <a href="/news.html" id="newsMoreBtn" style="display:none;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">뉴스 더 보기 →</a>
-      </div>
-    </div>
-
-    <!-- 🔥 마켓 히트맵 (시장 현황 프리뷰 — 2026-07 개편으로 이슈 피드 아래로 이동) -->
+    <!-- 🔥 마켓 히트맵 -->
     <div id="heatmapSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
@@ -1508,8 +1514,15 @@ button { font-family: inherit; }
       </div>
     </div>
 
-    <div style="text-align:center;margin:-8px 0 8px">
+    <div style="text-align:center;margin:-8px 0 24px">
       <a href="/heatmap.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">🔥 히트맵 전체보기 →</a>
+    </div>
+
+    <!-- 🧺 ETF (2026-08 신규: 새 위젯 없이 기존 "전체보기" 링크 카드 패턴만 재사용) -->
+    <div class="section-block" style="text-align:center;padding:24px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg)">
+      <div style="font-size:17px;font-weight:700;margin-bottom:6px">🧺 ETF로 산업 전체 흐름 살펴보기</div>
+      <div style="font-size:14px;color:var(--text3);margin-bottom:16px">테마별 ETF 랭킹과 보유 종목을 확인할 수 있어요</div>
+      <a href="/etf.html" style="display:inline-block;padding:10px 22px;border-radius:10px;background:var(--blue);color:#fff;font-weight:700;font-size:15.5px;text-decoration:none">ETF 살펴보기 →</a>
     </div>
 
     <!-- 🇰🇷 국장 현황 (거래량 TOP / 상한가 / 하한가 / 수급 TOP) -->
@@ -1543,6 +1556,39 @@ button { font-family: inherit; }
     <div style="text-align:center;margin:-8px 0 24px">
       <a href="/kr-market.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">🇰🇷 국장 현황 전체보기 →</a>
     </div>
+
+    <!-- 📊 실시간 랭킹 (토스 공식) -->
+    <div id="rankingsSection" class="section-block">
+      <div class="section-head">
+        <div class="section-head-l">
+          <span class="sh-mark"></span>
+          <span class="sh-title">실시간 랭킹</span>
+          <span class="sh-desc">지금 사람들이 가장 많이 보고 사고파는 종목 (토스 공식 · 장 마감 시 마지막 정규장 기준)</span>
+        </div>
+        <div class="section-head-r">
+          <span style="font-size:13.5px;color:var(--text3)" id="rankingsUpdated">—</span>
+        </div>
+      </div>
+      <div class="rk-controls">
+        <div class="rk-markets" id="rkMarkets">
+          <button class="rk-mkt active" data-mkt="all" onclick="setRkMarket('all',this)">전체</button>
+          <button class="rk-mkt" data-mkt="kr" onclick="setRkMarket('kr',this)">국장</button>
+          <button class="rk-mkt" data-mkt="us" onclick="setRkMarket('us',this)">해외</button>
+        </div>
+        <div class="rk-sep"></div>
+        <div class="rk-cats" id="rkCats">
+          <button class="rk-cat active" data-cat="popular" onclick="setRkCat('popular',this)">🔥 인기</button>
+          <button class="rk-cat" data-cat="amount" onclick="setRkCat('amount',this)">💰 거래대금</button>
+          <button class="rk-cat" data-cat="volume" onclick="setRkCat('volume',this)">📊 거래량</button>
+          <button class="rk-cat" data-cat="gainers" onclick="setRkCat('gainers',this)">🚀 급상승</button>
+          <button class="rk-cat" data-cat="losers" onclick="setRkCat('losers',this)">📉 급하락</button>
+        </div>
+      </div>
+      <div id="rankingsBody"><div class="rk-loading">불러오는 중...</div></div>
+    </div>
+
+    <!-- 📢 피드 광고 -->
+    <div id="feedAdSlot" style="margin:20px 0"></div>
 
     <div class="watchlist-view" id="watchlistView"></div>
   </div>

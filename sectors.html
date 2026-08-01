@@ -15,12 +15,12 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="StockRipple">
 <meta property="og:title" content="섹터 파급 지도 — StockRipple">
-<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
 <meta property="og:url" content="https://stockripple.vercel.app/sectors.html">
 <meta property="og:locale" content="ko_KR">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="섹터 파급 지도 — StockRipple">
-<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
 <style>
 :root {
   --bg: #15171e; --bg-rgb: 21,23,30; --card: #1e2129; --border: rgba(255,255,255,0.075); --border2: rgba(255,255,255,0.14);
@@ -637,7 +637,7 @@ function select(tag, keepScroll) {
   document.getElementById('chainBody').innerHTML = chain;
 
   // 선택 섹터 종목 전체
-  document.getElementById('flowStocks').innerHTML = coGroup(`💼 ${tag} 수혜 종목 전체`, s.companies);
+  document.getElementById('flowStocks').innerHTML = coGroup(`💼 ${tag} 관련 종목 전체`, s.companies);
   // behavior:'smooth'는 이 프로젝트 브라우저 환경에서 스크롤 자체가 아예 안 되는 버그를
   // 실측으로 확인(app.js changePage와 동일 원인, 2026-07-28) — instant로 통일.
   if (!keepScroll) card.scrollIntoView({ behavior: 'instant', block: 'nearest' });

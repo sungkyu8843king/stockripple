@@ -13,12 +13,12 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="StockRipple">
 <meta property="og:title" content="이슈 분석 — StockRipple">
-<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
 <meta property="og:url" content="https://stockripple.vercel.app/analysis.html">
 <meta property="og:locale" content="ko_KR">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="이슈 분석 — StockRipple">
-<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -693,8 +693,23 @@ function renderPage(issue, analysis, companies) {
       const secHtml = secs.length ? `<div>
         <div style="font-size:14.5px;font-weight:700;color:var(--blue);margin-bottom:9px">📡 관련 산업 영향</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px">${secs.map(s=>{const m=tm[s.tone]||tm.neu;return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:15.5px;font-weight:600;padding:6px 13px;border-radius:999px;color:${m.c};background:${m.b}">${escHtml(s.name)}<span style="font-size:13.5px;opacity:.8">${m.l}</span></span>`;}).join('')}</div></div>` : '';
+      // 📋 근거 요약 — 이 분석이 뭘 근거로 나왔는지 한눈에. DART 공시 등 실제로 없는
+      // 데이터는 넣지 않고, 이미 확보된 것만(출처 기사/핵심 포인트/관련 기업/같은 섹터
+      // 과거 이슈) 링크 형태로 정리. "추천 근거"가 아니라 "분석 근거"로 표현.
+      const evidenceHtml = `
+        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--border-soft)">
+          <span style="font-size:14.5px;font-weight:700;color:var(--text2)">📋 근거</span>
+          ${issue.source_url
+            ? `<a href="${escHtml(issue.source_url)}" target="_blank" rel="noopener noreferrer" style="font-size:14.5px;color:var(--blue);text-decoration:none">출처 기사 ↗</a>`
+            : `<span style="font-size:14.5px;color:var(--text3)">출처: ${escHtml(issue.source_name || '뉴스')}</span>`}
+          ${kp.length ? `<span style="font-size:14px;color:var(--text3)">·</span><span style="font-size:14.5px;color:var(--text2)">핵심 포인트 ${kp.length}개</span>` : ''}
+          ${companies.length ? `<span style="font-size:14px;color:var(--text3)">·</span><span style="font-size:14.5px;color:var(--text2)">관련 기업 ${companies.length}개</span>` : ''}
+          <span style="font-size:14px;color:var(--text3)">·</span>
+          <a href="#relatedIssuesWrap" style="font-size:14.5px;color:var(--blue);text-decoration:none">같은 섹터 과거 이슈 보기 ↓</a>
+        </div>`;
       return `<div class="ai-card">${kpHtml}${secHtml}
         <div style="font-size:13px;color:var(--text3);margin-top:14px;line-height:1.5">산업 영향 방향은 뉴스 분류이며 특정 종목의 매수·매도 의견이 아닙니다.</div>
+        ${evidenceHtml}
       </div>`;
     })()}
 
