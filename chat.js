@@ -96,8 +96,11 @@
      경계로 잘려 안 보이는 현상이 있어서(2026-08 실측), 말풍선은 버튼의 형제로 빼고
      별도 래퍼(.srr-collapse-wrap)에 위치 기준(position:relative)을 둔다. */
   .srr-collapse-wrap{position:relative;margin-bottom:8px;flex-shrink:0}
-  .srr-key-hint{position:absolute;top:50%;right:calc(100% + 12px);transform:translateY(-50%);display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:12.5px;font-weight:700;color:#fff;background:var(--blue);padding:7px 13px;border-radius:10px;box-shadow:0 4px 14px rgba(36,87,230,.45);pointer-events:none;animation:srrHintNudge 2.2s ease-in-out infinite}
-  .srr-key-hint b{font-family:'SF Mono',Menlo,monospace;font-size:14px}
+  .srr-key-hint{position:absolute;top:50%;right:calc(100% + 12px);transform:translateY(-50%);display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:12.5px;font-weight:700;color:#fff;background:var(--blue);padding:6px 13px 6px 7px;border-radius:10px;box-shadow:0 4px 14px rgba(36,87,230,.45);pointer-events:none;animation:srrHintNudge 2.2s ease-in-out infinite}
+  /* \ 글자를 파란 배경 위에 흰 굵은 글씨로만 두니 잘 안 읽힌다는 피드백(2026-08) —
+     실제 키보드 키캡처럼 흰 배경 + 테두리 박스 안에 넣어서 "이게 누르는 키다"가
+     한눈에 보이게 함. */
+  .srr-key-hint kbd{font-family:'SF Mono',Menlo,monospace;font-size:13px;font-weight:800;color:var(--blue);background:#fff;border-radius:5px;padding:2px 8px;line-height:1.4;box-shadow:0 1px 0 rgba(0,0,0,.2);font-style:normal}
   .srr-key-hint::after{content:'';position:absolute;top:50%;right:-5px;transform:translateY(-50%);width:0;height:0;border-style:solid;border-width:5px 0 5px 6px;border-color:transparent transparent transparent var(--blue)}
   @keyframes srrHintNudge{0%,15%,100%{transform:translateY(-50%) translateX(0)}7%{transform:translateY(-50%) translateX(-5px)}}
   @media (prefers-reduced-motion:reduce){ .srr-key-hint{animation:none} }
@@ -195,7 +198,7 @@
       <button class="srr-item srr-collapse" id="srRailCollapse" title="접기/펼치기 (\\ 키, 닫기는 Esc)">
         <span id="srRailCollapseIcon">«</span><span class="srr-label">열기·닫기</span>
       </button>
-      <span class="srr-key-hint"><b>\\</b><span>단축키</span></span>
+      <span class="srr-key-hint"><kbd>\\</kbd><span>단축키</span></span>
     </div>
     ${chatEnabled ? `<button class="srr-item" data-tab="chat"><span>💬</span><span class="srr-label">채팅</span><span class="badge" id="srRailChatBadge"></span></button>` : ''}
     <button class="srr-item" data-tab="rank"><span>📊</span><span class="srr-label">실시간</span></button>
