@@ -374,6 +374,9 @@ function _siteHeaderHtml(activePath) {
         </div>
         <div id="onboardError" class="auth-error"></div>
         <button type="button" id="onboardSubmitBtn" class="auth-submit-btn" onclick="submitOnboarding()" disabled>시작하기</button>
+        <div class="auth-switch" style="margin-top:10px">
+          <button onclick="cancelOnboarding()" class="auth-link">동의하지 않고 나가기</button>
+        </div>
       </div>
     </div>
 
@@ -461,13 +464,15 @@ function randomNickname() {
   const num = Math.floor(1000 + Math.random() * 9000);
   return `${a}${n}${num}`;
 }
-// created_at과 last_sign_in_at이 거의 같은 시각이면 "방금 처음 가입한" 세션이라고 본다
-// (Supabase가 최초 가입 시 이 두 값을 함께 찍음) — 이 기능 도입 전부터 있던 기존
-// 회원이 뒤늦게 프로필 행을 만드는 경우와 구분하기 위한 값. OAuth는 가입/로그인 버튼이
-// 하나뿐이라(동의 체크 없이도 바로 계정이 만들어짐) 이 값으로만 "진짜 신규 가입"을 구분할 수 있다.
-function _isFreshSignup(user) {
-  if (!user.created_at || !user.last_sign_in_at) return false;
-  return Math.abs(new Date(user.last_sign_in_at) - new Date(user.created_at)) < 120000; // 2분
+// 이 온보딩(닉네임 설정+약관 동의) 기능이 배포된 시점 이후 만들어진 계정만 온보딩
+// 대상으로 본다 — 그 전부터 있던 기존 회원은 원래 요청대로 조용히 임의 닉네임만 받는다.
+// last_sign_in_at 근접 여부 같은 "방금 로그인했는지"로 판단하면, 온보딩에서
+// "동의하지 않고 나가기"를 누른 뒤 시간이 좀 지나 다시 로그인했을 때 "기존 회원"으로
+// 오분류돼 동의 없이 조용히 통과해버리는 구멍이 생긴다 — created_at은 고정값이라 그 문제가 없다.
+const NICKNAME_ONBOARDING_LAUNCH = new Date('2026-08-01T12:00:00Z');
+function _needsOnboarding(user) {
+  if (!user.created_at) return false;
+  return new Date(user.created_at) >= NICKNAME_ONBOARDING_LAUNCH;
 }
 async function ensureNickname(user) {
   if (!user) { currentNickname = null; return; }
@@ -478,12 +483,17 @@ async function ensureNickname(user) {
       window.dispatchEvent(new CustomEvent('sr-nickname-change', { detail: { nickname: currentNickname } }));
       return;
     }
-    if (_isFreshSignup(user)) {
+    // privacy.html/terms.html은 온보딩 모달 안에서 링크로 열어보는 대상이라 여기서까지
+    // 막으면 정작 약관을 읽으러 갔을 때 그 페이지에서도 모달이 또 떠서 못 읽는
+    // 모순이 생긴다(2026-08 실측) — 이 두 페이지에서는 모달을 띄우지 않는다.
+    const onboardExempt = location.pathname === '/privacy.html' || location.pathname === '/terms.html';
+    if (_needsOnboarding(user) && !onboardExempt) {
       // 방금 가입한 계정 — 닉네임을 조용히 자동 생성하지 않고, 직접 정하게 하면서
       // 약관 동의도 같이 받는다(구글/카카오는 시작하기 전 동의 화면이 따로 없어서).
       showOnboarding(user);
       return;
     }
+    if (onboardExempt) return; // 아직 프로필이 없어도 이 두 페이지에선 조용히 넘어간다
     // 이 기능 도입 전부터 있던 기존 회원 — 원래 요청대로 조용히 임의 닉네임 생성.
     const nick = randomNickname();
     const { error } = await sb.from('user_profiles').insert({ user_id: user.id, nickname: nick });
@@ -534,6 +544,15 @@ async function submitOnboarding() {
   currentNickname = nick;
   window.dispatchEvent(new CustomEvent('sr-nickname-change', { detail: { nickname: nick } }));
   overlay.style.display = 'none';
+}
+// 동의하지 않고 나가기 — 프로필(닉네임/약관동의) 행 없이는 우리 서비스 이용 자체가
+// 안 되므로, 방금 만들어진 세션을 로그아웃시켜 로그인 전 상태로 되돌린다. 카카오/구글
+// 쪽 연동 자체는 남아있어 다음에 다시 로그인하면 동일한 온보딩을 다시 거치게 된다.
+async function cancelOnboarding() {
+  const overlay = document.getElementById('onboardOverlay');
+  if (overlay) overlay.style.display = 'none';
+  await sb.auth.signOut();
+  if (typeof showToast === 'function') showToast('동의하지 않아 가입을 취소했습니다.', 'info');
 }
 function _syncDropdownNick() {
   const el = document.getElementById('userDropdownNick');
