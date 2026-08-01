@@ -88,8 +88,9 @@
   }
   #srRail{display:none;position:fixed;right:0;top:0;bottom:0;width:64px;z-index:9001;background:var(--bg2);border-left:1px solid var(--border);flex-direction:column;align-items:center;padding:14px 0;gap:4px}
   @media (min-width:1200px){ #srRail{display:flex} }
-  .srr-collapse{width:36px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;margin-bottom:10px;flex-shrink:0}
+  .srr-collapse{width:36px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;margin-bottom:4px;flex-shrink:0}
   .srr-collapse:hover{background:var(--bg4);color:var(--text)}
+  .srr-key-hint{font-size:10px;font-family:'SF Mono',Menlo,monospace;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:1px 6px;margin-bottom:12px;cursor:default;flex-shrink:0}
   .srr-item{position:relative;width:56px;padding:9px 0 7px;border:none;background:none;color:var(--text3);font-size:19px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:10px}
   .srr-item:hover{background:var(--bg3);color:var(--text2)}
   .srr-item.active{color:var(--blue);background:var(--blue-dim)}
@@ -120,6 +121,9 @@
   .srk-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-soft);cursor:pointer;text-decoration:none;color:var(--text)}
   .srk-row:hover{background:var(--bg3)}
   .srk-rank{width:16px;font-size:13px;font-weight:700;color:var(--text3);flex-shrink:0}
+  .srk-mkt-badge{flex-shrink:0;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:5px;white-space:nowrap}
+  .srk-mkt-badge.kr{background:var(--blue-dim);color:var(--blue)}
+  .srk-mkt-badge.us{background:var(--purple-dim);color:var(--purple)}
   .srk-name{flex:1;min-width:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .srk-price{text-align:right;flex-shrink:0}
   .srk-price .v{font-size:13.5px;font-weight:700;font-family:'SF Mono',monospace}
@@ -176,7 +180,8 @@
   const rail = document.createElement('div');
   rail.id = 'srRail';
   rail.innerHTML = `
-    <button class="srr-collapse" id="srRailCollapse" title="접기/펼치기">«</button>
+    <button class="srr-collapse" id="srRailCollapse" title="접기/펼치기 (\\ 키, 닫기는 Esc)">«</button>
+    <div class="srr-key-hint" title="\\ 키를 누르면 열고 닫을 수 있어요 (닫기는 Esc도 가능)">\\</div>
     ${chatEnabled ? `<button class="srr-item" data-tab="chat"><span>💬</span><span class="srr-label">채팅</span><span class="badge" id="srRailChatBadge"></span></button>` : ''}
     <button class="srr-item" data-tab="rank"><span>📊</span><span class="srr-label">실시간</span></button>
     <button class="srr-item" data-tab="wl"><span>⭐</span><span class="srr-label">관심</span></button>
@@ -449,6 +454,12 @@
       el.innerHTML = `<div class="v">${fmt.format(data.price)}</div>${chg != null ? `<div class="c ${cls}">${sign}${chg.toFixed(2)}%</div>` : ''}`;
     } catch {}
   }
+  // 관심/최근 본 탭은 랭킹 탭과 달리 국장·해외 종목이 한 목록에 섞여 있어(구간별로
+  // 나뉘지 않음) 로고 없이도 구분되게 국장/미장 배지를 붙인다.
+  function _srkMktBadge(market, ticker) {
+    const isKr = market === 'KR' || /\.K[SQ]$/i.test(ticker || '');
+    return `<span class="srk-mkt-badge ${isKr ? 'kr' : 'us'}">${isKr ? '국장' : '미장'}</span>`;
+  }
   async function loadWlTab() {
     const el = panel.querySelector('#srWlList');
     if (!el) return;
@@ -462,6 +473,7 @@
       if (!data || !data.length) { el.innerHTML = `<div class="srk-empty">관심종목이 없습니다<br>종목 카드의 ☆를 눌러 추가해보세요</div>`; return; }
       el.innerHTML = data.map(w => `
         <a class="srk-row" href="/company.html?ticker=${encodeURIComponent(w.ticker)}">
+          ${_srkMktBadge(w.market, w.ticker)}
           <span class="srk-name">${esc(w.name || w.ticker)}</span>
           <span class="srk-price" id="srwl_${esc(w.ticker)}"><div class="v">—</div></span>
         </a>`).join('');
@@ -481,6 +493,7 @@
     if (!items.length) { el.innerHTML = `<div class="srk-empty">최근 본 종목이 없습니다<br>종목 페이지를 방문하면 여기 쌓여요</div>`; return; }
     el.innerHTML = items.map(it => `
       <a class="srk-row" href="/company.html?ticker=${encodeURIComponent(it.ticker)}">
+        ${_srkMktBadge(it.market, it.ticker)}
         <span class="srk-name">${esc(it.name || it.ticker)}</span>
         <span class="srk-price" id="srrc_${esc(it.ticker)}"><div class="v">—</div></span>
       </a>`).join('');
@@ -583,6 +596,28 @@
       srSwitchTab(tab);
       if (tab === 'chat') setTimeout(() => input.focus(), 250);
     });
+  });
+
+  // ── 키보드 단축키 — 이 프로젝트에 딱히 정해진 관례가 없어서, VS Code/Notion류
+  // 앱들이 사이드바 토글에 흔히 쓰는 백슬래시(\)를 열기/닫기 토글로, Esc를 닫기 전용으로
+  // 뒀다(Esc는 이 사이트 다른 곳(검색 결과 모달 등)에서도 이미 "닫기"로 쓰이는 관례라
+  // 통일). 입력창에 포커스가 있을 땐 \ 토글은 무시(타이핑 방해 방지) — Esc는 입력 중에도
+  // "패널 닫기"로 동작하게 둔다(포커스만 blur하는 게 아니라).
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (panel.classList.contains('open')) closePanel();
+      return;
+    }
+    if (e.key !== '\\' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+    e.preventDefault();
+    if (panel.classList.contains('open')) {
+      closePanel();
+    } else {
+      if (isDesktopWide()) lsSet(HIDDEN_KEY, false);
+      openPanel();
+    }
   });
 
   // 최초 진입 시 데스크톱 + 사용자가 이전에 명시적으로 숨긴 적 없으면 기본으로 열어둠.
