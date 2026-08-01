@@ -2358,6 +2358,15 @@ async function init() {
   document.title = `${company.name_ko || company.name_en || ticker} (${ticker}) — StockRipple`;
   _isKr = company.market === 'KR';
 
+  // 🕐 최근 본 종목 기록 — 우측 패널의 "최근 본" 탭이 읽는 localStorage 키에 push.
+  // 서버 저장 없이 클라이언트에만 남기므로 기기/브라우저별로 따로 쌓인다(의도된 동작).
+  try {
+    const key = 'sr_recent_views';
+    const list = JSON.parse(localStorage.getItem(key) || '[]').filter(it => it.ticker !== ticker);
+    list.unshift({ ticker, name: company.name_ko || company.name_en || ticker, market: company.market, ts: Date.now() });
+    localStorage.setItem(key, JSON.stringify(list.slice(0, 20)));
+  } catch {}
+
   const [priceData] = await Promise.all([
     loadPrice(ticker),
     _isKr ? loadTossQuote(ticker) : Promise.all([loadUsdKrwRate(), loadTossQuote(ticker)]),

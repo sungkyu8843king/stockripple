@@ -66,6 +66,7 @@
   #srChatInput button:disabled{opacity:.5;cursor:default}
   .src-note{font-size:13px;color:var(--text3);padding:0 16px 10px;flex-shrink:0}
   @media (max-width:640px){ #srChatBtn{bottom:76px;right:12px} }
+  @media (min-width:1200px){ #srChatBtn{display:none} } /* 데스크톱은 원형 버튼 대신 레일이 대신함 */
   /* PC 고정 패널(2026-07-28) — 넓은 화면은 기본으로 열어두고 본문이 패널을 피해 여백을
      둔다. html(documentElement)에 거는 이유 두 가지: (1) 이 스크립트가 모든 페이지에
      공통 로드되는데 페이지마다 본문 컨테이너 클래스명이 달라서(main-content/page-wrap
@@ -80,15 +81,29 @@
   /* transition:padding-right 없음 — 실측 결과 이 속성에 transition을 걸면(어느 값으로도)
      html 루트에서 padding-right 자체가 아예 반영되지 않는 현상이 재현됐다(프로덕션에서
      직접 확인 — transition 제거 시 즉시 정상화). 애니메이션은 포기하고 즉시 전환만. */
-  @media (min-width:1200px){ html.sr-chat-pinned-open{ padding-right:340px; } }
-  /* ── 탭(채팅/랭킹, 2026-08) ── 이 패널은 이제 항상 주입되고(채팅이 꺼져 있어도),
-     그 안에서 채팅 탭만 admin 플래그로 노출 여부가 갈린다. 탭이 1개뿐이면(채팅 꺼짐)
-     탭바 자체를 숨기고 랭킹만 바로 보여준다. */
+  /* ── 아이콘 레일(2026-08) — 데스크톱 전용. 패널을 64px만큼 오른쪽으로 밀어 레일 옆에 붙인다. ── */
+  @media (min-width:1200px){
+    #srChatPanel{ right:64px; }
+    html.sr-chat-pinned-open{ padding-right:404px; } /* 340(패널) + 64(레일) */
+  }
+  #srRail{display:none;position:fixed;right:0;top:0;bottom:0;width:64px;z-index:9001;background:var(--bg2);border-left:1px solid var(--border);flex-direction:column;align-items:center;padding:14px 0;gap:4px}
+  @media (min-width:1200px){ #srRail{display:flex} }
+  .srr-collapse{width:36px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;margin-bottom:10px;flex-shrink:0}
+  .srr-collapse:hover{background:var(--bg4);color:var(--text)}
+  .srr-item{position:relative;width:56px;padding:9px 0 7px;border:none;background:none;color:var(--text3);font-size:19px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:10px}
+  .srr-item:hover{background:var(--bg3);color:var(--text2)}
+  .srr-item.active{color:var(--blue);background:var(--blue-dim)}
+  .srr-item .srr-label{font-size:11px;font-weight:700}
+  .srr-item .badge{position:absolute;top:1px;right:6px;min-width:15px;height:15px;border-radius:999px;background:var(--red);color:#fff;font-size:10.5px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 4px}
+  /* ── 탭(채팅/랭킹/관심/최근 본, 2026-08) ── 이 패널은 이제 항상 주입되고(채팅이 꺼져
+     있어도), 그 안에서 채팅 탭만 admin 플래그로 노출 여부가 갈린다. ≥1200px에서는
+     좌측 레일이 탭 전환을 대신하므로 패널 안 탭바는 숨긴다(중복 컨트롤 방지). */
   .src-tabs{display:flex;flex-shrink:0;border-bottom:1px solid var(--border)}
-  .src-tab{flex:1;padding:10px 0;text-align:center;background:none;border:none;font-size:14.5px;font-weight:700;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent}
+  @media (min-width:1200px){ .src-tabs{display:none !important} }
+  .src-tab{flex:1;padding:10px 0;text-align:center;background:none;border:none;font-size:13.5px;font-weight:700;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent}
   .src-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
   #srChatTabBody{flex:1;min-height:0;display:flex;flex-direction:column}
-  #srRankTabBody{flex:1;min-height:0;overflow-y:auto;padding:12px 14px 14px}
+  .srk-tab-body{flex:1;min-height:0;overflow-y:auto;padding:12px 14px 14px}
   .srk-search{position:relative;margin-bottom:10px}
   .srk-search input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-size:14.5px;outline:none;font-family:inherit}
   .srk-search input:focus{border-color:var(--blue)}
@@ -122,16 +137,18 @@
   panel.innerHTML = `
     <div class="src-head"><span class="live" id="srHeadLive"></span><b id="srHeadTitle">실시간 채팅</b><span class="me" id="srChatMe"></span>
       <button class="src-close" id="srChatClose" title="숨기기">✕</button></div>
-    <div class="src-tabs" id="srTabs" style="display:${chatEnabled ? 'flex' : 'none'}">
-      <button class="src-tab" data-tab="chat">💬 채팅</button>
+    <div class="src-tabs" id="srTabs">
+      ${chatEnabled ? `<button class="src-tab" data-tab="chat">💬 채팅</button>` : ''}
       <button class="src-tab" data-tab="rank">📊 랭킹</button>
+      <button class="src-tab" data-tab="wl">⭐ 관심</button>
+      <button class="src-tab" data-tab="recent">🕐 최근 본</button>
     </div>
     <div id="srChatTabBody">
       <div id="srChatList"></div>
       <div id="srChatInput"><input id="srChatText" maxlength="300" placeholder="메시지 입력 (최대 300자)"><button id="srChatSend">전송</button></div>
       <div class="src-note">신고 3회 누적 시 임시 숨김 · 매매 권유/비방은 제재될 수 있어요</div>
     </div>
-    <div id="srRankTabBody" style="display:none">
+    <div id="srRankTabBody" class="srk-tab-body" style="display:none">
       <div class="srk-search"><input id="srkSearchInput" placeholder="종목명, 티커 검색" autocomplete="off"><div id="srkSugBox"></div></div>
       <div class="srk-mkts" id="srkMkts">
         <button class="srk-mkt active" data-mkt="all">전체</button>
@@ -146,8 +163,25 @@
         <button class="srk-cat" data-cat="losers">📉 급하락</button>
       </div>
       <div id="srkList"><div class="srk-loading">불러오는 중...</div></div>
+    </div>
+    <div id="srWlTabBody" class="srk-tab-body" style="display:none">
+      <div id="srWlList"><div class="srk-loading">불러오는 중...</div></div>
+    </div>
+    <div id="srRecentTabBody" class="srk-tab-body" style="display:none">
+      <div id="srRecentList"><div class="srk-empty">최근 본 종목이 없습니다</div></div>
     </div>`;
   document.body.appendChild(btn); document.body.appendChild(panel);
+
+  // ── 아이콘 레일(≥1200px) ─────────────────────────────────────
+  const rail = document.createElement('div');
+  rail.id = 'srRail';
+  rail.innerHTML = `
+    <button class="srr-collapse" id="srRailCollapse" title="접기/펼치기">«</button>
+    ${chatEnabled ? `<button class="srr-item" data-tab="chat"><span>💬</span><span class="srr-label">채팅</span><span class="badge" id="srRailChatBadge"></span></button>` : ''}
+    <button class="srr-item" data-tab="rank"><span>📊</span><span class="srr-label">실시간</span></button>
+    <button class="srr-item" data-tab="wl"><span>⭐</span><span class="srr-label">관심</span></button>
+    <button class="srr-item" data-tab="recent"><span>🕐</span><span class="srr-label">최근 본</span></button>`;
+  document.body.appendChild(rail);
 
   const list = panel.querySelector('#srChatList');
   const input = panel.querySelector('#srChatText');
@@ -175,7 +209,13 @@
     if (seen.has(m.id)) return; seen.add(m.id);
     list.insertAdjacentHTML('beforeend', msgHtml(m));
     if (scroll) list.scrollTop = list.scrollHeight;
-    if (!panel.classList.contains('open') && !m.hidden) { unread++; badge.style.display = 'flex'; badge.textContent = unread > 9 ? '9+' : unread; }
+    if (!panel.classList.contains('open') && !m.hidden) {
+      unread++;
+      const txt = unread > 9 ? '9+' : unread;
+      badge.style.display = 'flex'; badge.textContent = txt;
+      const railBadge = rail.querySelector('#srRailChatBadge');
+      if (railBadge) { railBadge.style.display = 'flex'; railBadge.textContent = txt; }
+    }
   }
   function replaceMsg(m) { // realtime UPDATE(숨김/해제)
     const el = list.querySelector(`[data-id="${m.id}"]`);
@@ -380,20 +420,82 @@
     if (!e.target.closest('.srk-search')) srkSugBox.innerHTML = '';
   });
 
+  // ── ⭐ 관심 탭 — renderWatchlistView()(app.js)와 동일한 쿼리를 재사용, 가격도
+  // 같은 엔드포인트(/api/stock-price) 재사용. DOM id는 app.js의 wlp_*/wlc_*와
+  // 겹치지 않게 srwl_ 접두어로 분리(같은 페이지에 두 워치리스트 뷰가 동시에 있을 수 있음).
+  async function _srPriceFill(elId, ticker) {
+    try {
+      const res = await fetch(`/api/stock-price?ticker=${encodeURIComponent(ticker)}`);
+      const data = await res.json();
+      const el = document.getElementById(elId);
+      if (!el || !data.price) return;
+      const cur = data.currency || 'USD';
+      const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, maximumFractionDigits: cur === 'KRW' ? 0 : 2 });
+      const chg = data.changePercent;
+      const cls = chg > 0 ? 'up' : chg < 0 ? 'dn' : '';
+      const sign = chg > 0 ? '+' : '';
+      el.innerHTML = `<div class="v">${fmt.format(data.price)}</div>${chg != null ? `<div class="c ${cls}">${sign}${chg.toFixed(2)}%</div>` : ''}`;
+    } catch {}
+  }
+  async function loadWlTab() {
+    const el = panel.querySelector('#srWlList');
+    if (!el) return;
+    if (typeof currentUser === 'undefined' || !currentUser) {
+      el.innerHTML = `<div class="srk-empty">로그인하면 관심종목을 볼 수 있어요<br><button class="src-more" style="opacity:1;color:var(--blue);font-weight:700;margin-top:6px" onclick="openAuthModal()">로그인</button></div>`;
+      return;
+    }
+    el.innerHTML = `<div class="srk-loading">불러오는 중...</div>`;
+    try {
+      const { data } = await sb.from('user_watchlist').select('ticker,name,market').order('added_at', { ascending: false });
+      if (!data || !data.length) { el.innerHTML = `<div class="srk-empty">관심종목이 없습니다<br>종목 카드의 ☆를 눌러 추가해보세요</div>`; return; }
+      el.innerHTML = data.map(w => `
+        <a class="srk-row" href="/company.html?ticker=${encodeURIComponent(w.ticker)}">
+          <span class="srk-name">${esc(w.name || w.ticker)}</span>
+          <span class="srk-price" id="srwl_${esc(w.ticker)}"><div class="v">—</div></span>
+        </a>`).join('');
+      data.forEach(w => _srPriceFill('srwl_' + w.ticker, w.ticker));
+    } catch { el.innerHTML = `<div class="srk-empty">불러오기 실패</div>`; }
+  }
+
+  // ── 🕐 최근 본 탭 — 서버 테이블 없이 localStorage로 최근 조회 종목을 기록/표시.
+  // 기록은 company.html의 init()에서 sr_recent_views 키에 직접 push(이 파일은 읽기만).
+  function readRecentViews() {
+    try { return JSON.parse(localStorage.getItem('sr_recent_views')) || []; } catch { return []; }
+  }
+  function loadRecentTab() {
+    const el = panel.querySelector('#srRecentList');
+    if (!el) return;
+    const items = readRecentViews();
+    if (!items.length) { el.innerHTML = `<div class="srk-empty">최근 본 종목이 없습니다<br>종목 페이지를 방문하면 여기 쌓여요</div>`; return; }
+    el.innerHTML = items.map(it => `
+      <a class="srk-row" href="/company.html?ticker=${encodeURIComponent(it.ticker)}">
+        <span class="srk-name">${esc(it.name || it.ticker)}</span>
+        <span class="srk-price" id="srrc_${esc(it.ticker)}"><div class="v">—</div></span>
+      </a>`).join('');
+    items.forEach(it => _srPriceFill('srrc_' + it.ticker, it.ticker));
+  }
+
   // ── 탭 전환 ────────────────────────────────────────────────
   let _activeTab = chatEnabled ? 'chat' : 'rank';
-  const chatTabBody = panel.querySelector('#srChatTabBody');
-  const rankTabBody = panel.querySelector('#srRankTabBody');
+  let _srWlLoaded = false, _srRecentLoaded = false;
+  const tabBodies = {
+    chat: panel.querySelector('#srChatTabBody'),
+    rank: panel.querySelector('#srRankTabBody'),
+    wl: panel.querySelector('#srWlTabBody'),
+    recent: panel.querySelector('#srRecentTabBody'),
+  };
+  const TAB_TITLES = { chat: '실시간 채팅', rank: '실시간 랭킹', wl: '관심종목', recent: '최근 본 종목' };
   const headTitle = panel.querySelector('#srHeadTitle');
   const headLive = panel.querySelector('#srHeadLive');
   const chatMeEl = panel.querySelector('#srChatMe');
   function srSwitchTab(tab) {
     if (tab === 'chat' && !chatEnabled) tab = 'rank';
+    if (!tabBodies[tab]) tab = 'rank';
     _activeTab = tab;
     panel.querySelectorAll('.src-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    chatTabBody.style.display = tab === 'chat' ? 'flex' : 'none';
-    rankTabBody.style.display = tab === 'rank' ? 'block' : 'none';
-    headTitle.textContent = tab === 'chat' ? '실시간 채팅' : '실시간 랭킹';
+    rail.querySelectorAll('.srr-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    Object.entries(tabBodies).forEach(([k, el]) => { if (el) el.style.display = k === tab ? (k === 'chat' ? 'flex' : 'block') : 'none'; });
+    headTitle.textContent = TAB_TITLES[tab] || '';
     headLive.style.display = tab === 'chat' ? '' : 'none';
     chatMeEl.style.display = tab === 'chat' ? '' : 'none';
     if (tab === 'chat') {
@@ -401,32 +503,44 @@
       if (!seen.size) loadInitial();
       subscribe();
       list.scrollTop = list.scrollHeight;
-    } else if (!_srkLoaded) {
-      _srkLoaded = true;
-      initRankTab();
+    } else if (tab === 'rank' && !_srkLoaded) {
+      _srkLoaded = true; initRankTab();
+    } else if (tab === 'wl' && !_srWlLoaded) {
+      _srWlLoaded = true; loadWlTab();
+    } else if (tab === 'recent' && !_srRecentLoaded) {
+      _srRecentLoaded = true; loadRecentTab();
     }
   }
   panel.querySelectorAll('.src-tab').forEach(b => b.addEventListener('click', () => srSwitchTab(b.dataset.tab)));
 
-  // ── PC 고정 패널(2026-07-28) ────────────────────────────────
+  // ── PC 고정 패널(2026-07-28, 2026-08 레일 대응 확장) ────────────
   // 넓은 화면(≥1200px)에서는 기본으로 열어두고, 본문이 패널에 가리지 않게 body에
   // 여백 클래스를 같이 토글한다. "숨기기"를 누르면 접히고, 그 선택은 localStorage에
-  // 저장돼 다음 방문에도 유지된다(매번 다시 열리면 오히려 성가심) — FAB을 다시 누르면
-  // 언제든 재오픈 가능하고, 그러면 숨김 선택이 해제된다.
+  // 저장돼 다음 방문에도 유지된다(매번 다시 열리면 오히려 성가심) — 레일 아이콘/원형
+  // FAB을 다시 누르면 언제든 재오픈 가능하고, 그러면 숨김 선택이 해제된다.
   const PIN_BREAKPOINT = 1200;
   const HIDDEN_KEY = 'sr_chat_pinned_hidden';
   const isDesktopWide = () => window.innerWidth >= PIN_BREAKPOINT;
+  const railCollapseBtn = rail.querySelector('#srRailCollapse');
+
+  function updateRailCollapseIcon() {
+    if (railCollapseBtn) railCollapseBtn.textContent = panel.classList.contains('open') ? '«' : '»';
+  }
 
   function openPanel() {
     panel.classList.add('open');
     document.documentElement.classList.toggle('sr-chat-pinned-open', isDesktopWide());
     unread = 0; badge.style.display = 'none';
+    const railBadge = rail.querySelector('#srRailChatBadge');
+    if (railBadge) railBadge.style.display = 'none';
     srSwitchTab(_activeTab);
+    updateRailCollapseIcon();
   }
   function closePanel() {
     panel.classList.remove('open');
     document.documentElement.classList.remove('sr-chat-pinned-open');
     if (isDesktopWide()) lsSet(HIDDEN_KEY, true);
+    updateRailCollapseIcon();
   }
 
   btn.addEventListener('click', () => {
@@ -440,6 +554,26 @@
   });
   panel.querySelector('#srChatClose').addEventListener('click', closePanel);
 
+  // 레일: 접기/펼치기 버튼은 패널 열림 상태만 토글. 아이콘 버튼은 그 탭으로 열거나,
+  // 이미 그 탭이 열려 있으면 패널을 닫는다(같은 아이콘 재클릭 = 닫기).
+  railCollapseBtn?.addEventListener('click', () => {
+    if (panel.classList.contains('open')) { closePanel(); } else { openPanel(); }
+  });
+  rail.querySelectorAll('.srr-item').forEach(b => {
+    b.addEventListener('click', () => {
+      const tab = b.dataset.tab;
+      if (panel.classList.contains('open') && _activeTab === tab) {
+        closePanel();
+        return;
+      }
+      if (isDesktopWide()) lsSet(HIDDEN_KEY, false);
+      if (!panel.classList.contains('open')) openPanel();
+      srSwitchTab(tab);
+      if (tab === 'chat') setTimeout(() => input.focus(), 250);
+    });
+  });
+
   // 최초 진입 시 데스크톱 + 사용자가 이전에 명시적으로 숨긴 적 없으면 기본으로 열어둠.
   if (isDesktopWide() && !lsGet(HIDDEN_KEY, false)) openPanel();
+  updateRailCollapseIcon();
 })();
