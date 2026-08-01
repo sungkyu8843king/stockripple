@@ -239,6 +239,54 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .ripple-sector-name { font-size: 16px; font-weight: 600; min-width: 0; }
 .ripple-reason { font-size: 14.5px; color: var(--text2); line-height: 1.55; }
 
+/* AI 투자 시나리오 — 순차적 인과 사슬(뉴스→산업→산업→...→종목)을 세로 흐름 +
+   애니메이션으로 보여준다(2026-08, "시그니처 기능" 요청). ripple_chain이 있는
+   분석만 이 컴포넌트를 쓰고, 없으면(구버전 분석) 기존 .ripple-section으로 폴백. */
+.chain-section { margin-bottom: 36px; }
+.chain-flow { display: flex; flex-direction: column; align-items: center; max-width: 620px; margin: 0 auto; }
+.chain-node {
+  width: 100%; background: var(--bg2); border: 1.5px solid var(--border); border-radius: 14px;
+  padding: 15px 18px; opacity: 0; transform: translateY(14px);
+  transition: opacity .5s var(--ease), transform .5s var(--ease);
+}
+.chain-flow.chain-animate .chain-node { opacity: 1; transform: translateY(0); }
+.chain-node.conf-low { border-style: dashed; }
+.chain-node-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.chain-node-idx {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--blue-dim); color: var(--blue);
+  font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.chain-node-step { font-size: 16.5px; font-weight: 700; min-width: 0; }
+.chain-node-conf { margin-left: auto; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; flex-shrink: 0; white-space: nowrap; }
+.chain-node-conf.high { background: var(--red-dim); color: var(--red); }
+.chain-node-conf.medium { background: var(--yellow-dim); color: var(--yellow); }
+.chain-node-conf.low { background: var(--bg3); color: var(--text3); }
+.chain-node-reason { font-size: 14px; color: var(--text2); line-height: 1.55; }
+.chain-connector {
+  width: 2px; height: 24px; background: linear-gradient(var(--border), var(--blue)); position: relative;
+  opacity: 0; transform: scaleY(0); transform-origin: top; transition: opacity .4s, transform .5s var(--ease);
+}
+.chain-flow.chain-animate .chain-connector { opacity: 1; transform: scaleY(1); }
+.chain-connector::after {
+  content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
+  border-style: solid; border-width: 6px 4px 0 4px; border-color: var(--blue) transparent transparent transparent;
+}
+.chain-companies { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+.chain-company-chip {
+  display: inline-flex; align-items: center; gap: 7px; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 999px; padding: 6px 13px 6px 8px; text-decoration: none; color: var(--text);
+  font-size: 13.5px; font-weight: 600; transition: border-color .15s;
+}
+.chain-company-chip:hover { border-color: var(--blue); }
+.chain-company-chip .chain-tk {
+  font-family: Consolas, monospace; font-size: 11px; font-weight: 700; padding: 2px 6px;
+  border-radius: 5px; background: var(--blue-dim); color: var(--blue);
+}
+.chain-note { font-size: 12.5px; color: var(--text3); text-align: center; margin-top: 14px; line-height: 1.6; }
+@media (prefers-reduced-motion: reduce) {
+  .chain-node, .chain-connector { transition: none; opacity: 1; transform: none; }
+}
+
 /* Companies Section */
 .companies-section { margin-bottom: 36px; }
 .companies-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
@@ -486,9 +534,46 @@ async function loadRelatedIssues(issue) {
   } catch (e) { /* silent */ }
 }
 
+// AI 투자 시나리오 — ripple_chain(순서 있는 인과 사슬)을 세로 흐름 카드로 렌더링.
+// 뒤 단계로 갈수록 근거가 약해질 수 있어 confidence를 항상 같이 보여주고,
+// "가설"이라는 걸 note로 명시한다(정답처럼 보이지 않게 — 2026-08 운영자 피드백 반영).
+function renderRippleChain(chain) {
+  if (!chain || !chain.length) return '';
+  const confLabel = { high: '확신 높음', medium: '확신 중간', low: '가설 수준' };
+  const nodes = chain.map((node, i) => {
+    const conf = node.confidence === 'high' ? 'high' : node.confidence === 'low' ? 'low' : 'medium';
+    const companies = (node.companies || []).filter(c => c && c.ticker);
+    const connector = i > 0 ? `<div class="chain-connector"></div>` : '';
+    return `${connector}
+      <div class="chain-node conf-${conf}">
+        <div class="chain-node-head">
+          <span class="chain-node-idx">${i + 1}</span>
+          <span class="chain-node-step">${escHtml(node.step || '')}</span>
+          <span class="chain-node-conf ${conf}">${confLabel[conf]}</span>
+        </div>
+        ${node.reason ? `<div class="chain-node-reason">${escHtml(node.reason)}</div>` : ''}
+        ${companies.length ? `<div class="chain-companies">${companies.map(c => `
+          <a class="chain-company-chip" href="/company.html?ticker=${encodeURIComponent(c.ticker)}">
+            <span class="chain-tk">${escHtml(c.ticker.replace(/\.(KS|KQ)$/i, ''))}</span>${escHtml(c.name_ko || c.name_en || c.ticker)}
+          </a>`).join('')}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="chain-section">
+      <div class="section-title">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.5"/><circle cx="12" cy="19" r="2.5"/><path d="M12 7.5v9"/></svg>
+        AI 투자 시나리오 <span style="font-size:15.5px;color:var(--text2);font-weight:400">(${chain.length}단계 연쇄)</span>
+      </div>
+      <div class="chain-flow" id="rippleChainFlow">${nodes}</div>
+      <div class="chain-note">⚠️ AI가 뉴스를 근거로 추론한 산업 연쇄 가설입니다. 뒤로 갈수록(3단계 이상) 확신도가 낮아질 수 있으니, 투자 판단의 근거가 아니라 참고 자료로만 활용하세요.</div>
+    </div>`;
+}
+
 function renderPage(issue, analysis, companies) {
   const sectors = issue.sectors || [];
   const rippleEffects = analysis?.ripple_effects || [];
+  const rippleChain = analysis?.ripple_chain || [];
   const confidence = analysis?.confidence_score || 0;
 
   const sectorTags = sectors.map(s =>
@@ -720,14 +805,14 @@ function renderPage(issue, analysis, companies) {
       ${negCount ? `<div class="ip-row"><span class="ip-tag neg">피해 우려</span><span class="ip-names">${[...negFromTable.map(c => c.companies?.name_ko || c.companies?.name_en), ...negFromRipple.map(co => co.name_ko || co.name_en)].filter(Boolean).slice(0, 6).map(escHtml).join(' · ')}</span></div>` : ''}
     </div>` : ''}
 
-    ${rippleEffects.length ? `
+    ${rippleChain.length ? renderRippleChain(rippleChain) : (rippleEffects.length ? `
     <div class="ripple-section">
       <div class="section-title">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 0"/><circle cx="12" cy="12" r="3"/></svg>
         파급 섹터 분석 <span style="font-size:15.5px;color:var(--text2);font-weight:400">(${rippleEffects.length}개 섹터)</span>
       </div>
       <div class="ripple-grid">${rippleCards}</div>
-    </div>` : ''}
+    </div>` : '')}
 
     ${posCompanies.length ? `
     <div class="companies-section">
@@ -764,6 +849,13 @@ function renderPage(issue, analysis, companies) {
   `;
 
   document.getElementById('pageWrap').innerHTML = html;
+
+  // AI 투자 시나리오 체인 애니메이션 시작 — innerHTML 대입 직후 바로 클래스를 붙이면
+  // 브라우저가 시작 상태(opacity:0)를 페인트할 틈 없이 바로 최종 상태로 그려버려
+  // 트랜지션이 아예 안 보인다. rAF를 두 번 걸어 한 프레임 페인트를 보장한 뒤 시작한다.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.getElementById('rippleChainFlow')?.classList.add('chain-animate');
+  }));
 
   loadRelatedIssues(issue);
 
