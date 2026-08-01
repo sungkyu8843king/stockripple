@@ -110,6 +110,11 @@ function _siteChromeInjectStyle() {
 /* 상단 검색 — 모의투자 주문창의 실시간 자동완성과 같은 방식으로 통일(2026-08-01) */
 #hSugBox:empty{display:none}
 .hsug{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--bg2);border:1px solid var(--border-strong);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.42);z-index:300;max-height:340px;overflow-y:auto}
+/* 모바일에서 검색창 자체가 로고 옆 남는 폭만큼만 좁게 잡혀서(≤760px는 폭 제한 없이
+   flex:1이지만 실제로는 로고를 빼면 200px 안팎) 드롭다운도 그 폭을 그대로 물려받아
+   종목명이 "삼성..."처럼 심하게 잘렸다 — 드롭다운은 입력창 폭에 안 맞추고 화면 우측에
+   더 넓게 펼친다(오버레이라 입력창보다 넓어도 위에 뜰 뿐 레이아웃에 영향 없음). */
+@media (max-width:760px){ .hsug{left:auto;right:0;width:min(94vw,420px)} }
 .hsug-item{display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;border-bottom:1px solid var(--border-soft);text-decoration:none;color:var(--text)}
 .hsug-item:last-child{border-bottom:none}
 .hsug-item:hover,.hsug-item.on{background:var(--bg3)}

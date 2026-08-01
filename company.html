@@ -309,7 +309,11 @@ body {
 .stat-value.yellow { color: var(--yellow); }
 
 /* Section Headers */
-.section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+/* 모바일에서 아이콘+제목+뱃지+버튼이 한 줄에 다 못 들어가면(펀더멘털 섹션처럼 뱃지가
+   여러 개 붙는 경우) flex-shrink로 안이 찌그러지면서 "펀더멘털"→"펀더멘/털"처럼 단어
+   중간이 줄바꿈되던 문제 수정 — nowrap으로 텍스트 자체는 안 쪼개지게 하고, flex-wrap으로
+   안 들어가는 항목은 통째로 다음 줄로 내린다(단어가 아니라 항목 단위로 줄바꿈). */
+.section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; white-space: nowrap; }
 .section-title svg { color: var(--text3); }
 
 /* Chart Section */
@@ -705,11 +709,11 @@ body {
 .ck-tbl { width: 100%; border-collapse: collapse; font-size: 15px; }
 .ck-tbl thead th { font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); font-weight: 600; text-align: right; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .ck-tbl thead th:first-child { text-align: left; }
-.ck-tbl td { padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.ck-tbl td { padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
 .ck-tbl td:first-child { text-align: left; font-family: 'Inter', sans-serif; color: var(--text2); }
 .ck-tbl tbody tr:last-child td { border-bottom: none; }
 .ck-tbl tbody tr:hover td { background: rgba(77,141,255,0.05); }
-.ck-cell { display: inline-block; min-width: 62px; padding: 3px 9px; border-radius: 6px; font-weight: 600; font-size: 14.5px; }
+.ck-cell { display: inline-block; min-width: 62px; padding: 3px 9px; border-radius: 6px; font-weight: 600; font-size: 14.5px; white-space: nowrap; }
 .ck-cell.p { color: var(--red); background: var(--red-dim); }
 .ck-cell.n { color: var(--blue); background: var(--blue-dim); }
 
