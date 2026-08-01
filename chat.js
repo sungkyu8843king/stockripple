@@ -509,7 +509,14 @@
   }
 
   // ── 탭 전환 ────────────────────────────────────────────────
-  let _activeTab = chatEnabled ? 'chat' : 'rank';
+  // 마지막으로 보던 탭을 기억 — 이 사이트는 페이지 이동마다 chat.js가 새로 로드되므로
+  // (SPA 아님) 저장 안 하면 페이지를 옮길 때마다 항상 기본 탭(채팅)으로 되돌아간다.
+  const LAST_TAB_KEY = 'sr_chat_last_tab';
+  const VALID_TABS = ['chat', 'rank', 'wl', 'recent'];
+  let _activeTab = lsGet(LAST_TAB_KEY, null);
+  if (!VALID_TABS.includes(_activeTab) || (_activeTab === 'chat' && !chatEnabled)) {
+    _activeTab = chatEnabled ? 'chat' : 'rank';
+  }
   let _srWlLoaded = false, _srRecentLoaded = false;
   const tabBodies = {
     chat: panel.querySelector('#srChatTabBody'),
@@ -525,6 +532,7 @@
     if (tab === 'chat' && !chatEnabled) tab = 'rank';
     if (!tabBodies[tab]) tab = 'rank';
     _activeTab = tab;
+    lsSet(LAST_TAB_KEY, tab);
     panel.querySelectorAll('.src-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     rail.querySelectorAll('.srr-item').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     Object.entries(tabBodies).forEach(([k, el]) => { if (el) el.style.display = k === tab ? (k === 'chat' ? 'flex' : 'block') : 'none'; });
