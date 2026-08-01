@@ -90,12 +90,15 @@
   /* 레일이 뜨는 폭에서는 의견주기 아이콘이 레일 안(테마 아래)으로 옮겨가므로,
      페이지마다 따로 떠 있던 독립 .fb-fab(좌하단 보라색 원)은 숨겨 중복을 없앤다. */
   @media (min-width:1200px){ #srRail{display:flex} .fb-fab{display:none} }
-  .srr-collapse{position:relative;width:36px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;margin-bottom:12px;flex-shrink:0}
+  .srr-collapse-wrap{position:relative;margin-bottom:12px;flex-shrink:0}
+  .srr-collapse{width:36px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer}
   .srr-collapse:hover{background:var(--bg4);color:var(--text)}
   /* \ 키 단축키 힌트 — 좁은 레일(64px) 안에 글자를 욱여넣으니 뭉개져 보인다는
      피드백(2026-08) — 레일 폭 제약을 아예 벗어나서, 접기 버튼 왼쪽 바깥(빈 화면 쪽)으로
      튀어나오는 말풍선으로 바꿨다. 화살표 꼬리로 버튼과 시각적으로 연결되고, 좌우로
-     살짝 흔들리는 애니메이션을 반복해 시선을 끈다. */
+     살짝 흔들리는 애니메이션을 반복해 시선을 끈다. <button> 안에 절대위치 자식을 두면
+     WebKit 계열에서 버튼 자체 경계로 잘려 안 보이는 현상이 있어(2026-08 실측),
+     .srr-key-hint는 버튼의 형제로 빼고 별도 래퍼(.srr-collapse-wrap)에 위치 기준을 둔다. */
   .srr-key-hint{position:absolute;top:50%;right:calc(100% + 12px);transform:translateY(-50%);display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:12.5px;font-weight:700;color:#fff;background:var(--blue);padding:7px 13px;border-radius:10px;box-shadow:0 4px 14px rgba(36,87,230,.45);pointer-events:none;animation:srrHintNudge 2.2s ease-in-out infinite}
   .srr-key-hint b{font-family:'SF Mono',Menlo,monospace;font-size:14px}
   .srr-key-hint::after{content:'';position:absolute;top:50%;right:-5px;transform:translateY(-50%);width:0;height:0;border-style:solid;border-width:5px 0 5px 6px;border-color:transparent transparent transparent var(--blue)}
@@ -191,10 +194,10 @@
   const rail = document.createElement('div');
   rail.id = 'srRail';
   rail.innerHTML = `
-    <button class="srr-collapse" id="srRailCollapse" title="접기/펼치기 (\\ 키, 닫기는 Esc)">
-      «
+    <div class="srr-collapse-wrap">
+      <button class="srr-collapse" id="srRailCollapse" title="접기/펼치기 (\\ 키, 닫기는 Esc)">«</button>
       <span class="srr-key-hint"><b>\\</b><span>열기·닫기</span></span>
-    </button>
+    </div>
     ${chatEnabled ? `<button class="srr-item" data-tab="chat"><span>💬</span><span class="srr-label">채팅</span><span class="badge" id="srRailChatBadge"></span></button>` : ''}
     <button class="srr-item" data-tab="rank"><span>📊</span><span class="srr-label">실시간</span></button>
     <button class="srr-item" data-tab="wl"><span>⭐</span><span class="srr-label">관심</span></button>
