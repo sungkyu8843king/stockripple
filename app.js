@@ -5324,15 +5324,32 @@ function onHeroSearchInput(v) {
   _heroSugTimer = setTimeout(() => runHeroSearch(q), 220);
 }
 
+// 이슈 피드 섹터 필터 칩(index.html #categoryTabs 옆 .filters)과 동일한 실제 태그 값 —
+// 사용자가 이 중 하나를 정확히 입력하면 회사명 부분일치 검색으로 넘기지 않는다.
+// (실측 버그: "반도체" 입력 시 hFindMatches가 회사명에 "반도체"가 포함된 "제주반도체"를
+// 찾아 그리로 보내버림 — 사용자는 반도체 "산업" 뉴스를 원했지 그 회사를 원한 게 아니었음.
+// 이 목록에 정확히 일치하면 종목 검색 자체를 생략하고 뉴스 섹터 필터로 우선 보낸다.)
+const SECTOR_KEYWORDS = ['AI', '반도체', '전기차', '배터리', '바이오', '에너지', '핀테크', '금융', '클라우드', '로봇', '방산·우주', '게임', '크립토', '자동차', '물류·운송'];
+function matchSectorKeyword(raw) {
+  const q = (raw || '').trim();
+  return SECTOR_KEYWORDS.find(s => s.toLowerCase() === q.toLowerCase()) || null;
+}
+
 async function runHeroSearch(q) {
   const box = document.getElementById('heroSugBox');
   if (!box || typeof hFindMatches !== 'function') return;
+  const sectorMatch = matchSectorKeyword(q);
   box.innerHTML = `<div class="hsug"><div class="hsug-loading">검색 중…</div></div>`;
-  const items = await hFindMatches(q);
+  const items = sectorMatch ? [] : await hFindMatches(q);
   const cur = (document.getElementById('heroSearchInput')?.value || '').trim();
   if (cur !== q) return;
-  box.innerHTML = items.length
-    ? `<div class="hsug">${items.map(m => {
+  const sectorHtml = sectorMatch
+    ? `<a class="hsug-item" href="/news.html?sector=${encodeURIComponent(sectorMatch)}">
+        <span class="hsug-nm">🔥 "${escHtml(sectorMatch)}" 관련 뉴스 전체 보기</span>
+      </a>`
+    : '';
+  box.innerHTML = (sectorHtml || items.length)
+    ? `<div class="hsug">${sectorHtml}${items.map(m => {
         const isKr = m.market === 'KR' || /\.K[SQ]$/i.test(m.ticker);
         return `<a class="hsug-item" href="/company.html?ticker=${encodeURIComponent(m.ticker)}">
           <span class="hsug-tk ${isKr ? 'kr' : 'us'}">${escHtml(m.ticker.replace(/\.(KS|KQ)$/i, ''))}</span>
@@ -5348,6 +5365,8 @@ async function runHeroSearch(q) {
 async function heroSearchEnter(v) {
   const raw = (v || '').trim();
   if (!raw) return;
+  const sectorMatch = matchSectorKeyword(raw);
+  if (sectorMatch) { location.href = `/news.html?sector=${encodeURIComponent(sectorMatch)}`; return; }
   const box = document.getElementById('heroSugBox');
   const first = box?.querySelector('.hsug-item');
   if (first) { location.href = first.getAttribute('href'); return; }
