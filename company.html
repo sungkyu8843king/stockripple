@@ -554,6 +554,13 @@ body {
 .cmp-chip {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-pill);
   padding: 7px 13px; font-size: 14.5px; color: var(--text2); display: inline-flex; align-items: center; gap: 7px;
+  white-space: nowrap;
+}
+/* 모바일에서는 RSI/PER/PBR 등 지표 칩이 두 줄로 줄바꿈되며 세로 공간을 많이 잡아먹어서,
+   줄바꿈 대신 한 줄 가로 스크롤로 바꾼다. */
+@media (max-width: 700px) {
+  .cmp-chips { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .cmp-chip { flex-shrink: 0; }
 }
 .cmp-chip .cdot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
 .cmp-chip b { font-family: var(--mono); font-weight: 600; color: var(--text); font-size: 15px; letter-spacing: -0.01em; }

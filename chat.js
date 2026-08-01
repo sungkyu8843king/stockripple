@@ -112,8 +112,9 @@
   .srk-mkts{display:flex;gap:4px;background:var(--bg3);border-radius:10px;padding:3px;margin-bottom:8px}
   .srk-mkt{flex:1;border:none;background:transparent;color:var(--text2);font-size:13.5px;font-weight:700;padding:6px 0;border-radius:8px;cursor:pointer}
   .srk-mkt.active{background:var(--blue);color:#fff}
-  .srk-cats{display:flex;gap:5px;overflow-x:auto;margin-bottom:10px;scrollbar-width:none}
+  .srk-cats{display:flex;gap:5px;overflow-x:auto;margin-bottom:10px;scrollbar-width:none;cursor:grab}
   .srk-cats::-webkit-scrollbar{display:none}
+  .srk-cats.dragging{cursor:grabbing;user-select:none}
   .srk-cat{flex-shrink:0;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:13px;font-weight:600;padding:5px 10px;border-radius:999px;cursor:pointer;white-space:nowrap}
   .srk-cat.active{border-color:var(--blue);color:var(--blue);background:var(--blue-dim)}
   .srk-sub-head{font-size:12.5px;font-weight:700;color:var(--text3);margin:10px 0 6px;letter-spacing:.02em}
@@ -406,6 +407,25 @@
     panel.querySelectorAll('.srk-cat').forEach(x => x.classList.toggle('active', x === b));
     _srkRender();
   });
+
+  // PC에서 숨겨둔 스크롤바(scrollbar-width:none) 때문에 이 줄을 스크롤할 방법이
+  // 트랙패드 좌우 스와이프뿐이었다 — 마우스 클릭+드래그로도 스크롤되게 추가.
+  (function setupDragScroll(el) {
+    let down = false, startX = 0, startScroll = 0, moved = false;
+    el.addEventListener('mousedown', e => {
+      down = true; moved = false;
+      startX = e.pageX; startScroll = el.scrollLeft;
+      el.classList.add('dragging');
+    });
+    window.addEventListener('mousemove', e => {
+      if (!down) return;
+      const walk = e.pageX - startX;
+      if (Math.abs(walk) > 4) moved = true;
+      el.scrollLeft = startScroll - walk;
+    });
+    window.addEventListener('mouseup', () => { down = false; el.classList.remove('dragging'); });
+    el.addEventListener('click', e => { if (moved) { e.stopPropagation(); e.preventDefault(); } }, true);
+  })(panel.querySelector('#srkCats'));
 
   // 랭킹 탭 검색 — 새 매칭 로직을 만들지 않고 site-header.js의 hFindMatches를 재사용,
   // 결과 마크업도 전역 .hsug/.hsug-item 클래스(_siteChromeInjectStyle이 이미 주입)를 그대로 씀.
