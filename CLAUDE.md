@@ -116,13 +116,21 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 - 소스가 죽으면 자동 제외되고 **남은 소스로 가중치가 재정규화**된다. 카드에 반영 소스·신뢰도(소스 수 + 표준편차 기반 4단계)·직전 종가·실측 평균오차를 노출해 근거를 검증할 수 있다.
 - 원재료: `?source=kr-proxy` — EWY(MSCI 한국 ETF)·`^SOX`·`KRW=X`·ADR/직상장 8종(SKM/KB/PKX/LPL/WF/SHG/KEP/**SKHY**). ADR을 늘리려면 `KR_PROXY_SYMBOLS`에 추가. **SKHY(SK하이닉스, 2026-07-31 NASDAQ 직상장)** 발견 후 EST_MODEL도 같이 갱신 — 그 전엔 미국 상장 자체가 없어 삼성전자처럼 binance perp+EWY+SOX로 추정했지만, 이제 다른 6개 ADR 종목과 같은 패턴(adr:SKHY w2.2 + ewy w0.5)으로 훨씬 직접적인 신호를 쓴다. 삼성전자는 여전히 미국 상장이 없어(런던/슈투트가르트 등 유럽 예탁만 있음, 실측 확인) 기존 방식 유지 — 새 한국 종목의 미국 상장 여부는 감으로 판단하지 말고 Yahoo `v1/finance/search`로 실측 확인할 것(거래량까지 확인, OTC 휴지 종목이 섞여 나올 수 있음).
 - **⚠️ 바이낸스 주식 perp는 Vercel에서 HTTP 451(지역 차단)** (2026-07-31 실측). 브라우저는 뚫릴 수 있어 클라이언트가 읽어 `?bn=티커:등락%,…`로 서버에 넘기면 모델에 합류한다. **DB에 남는 정확도 스냅샷은 서버 단독 계산이라 이 값에 오염되지 않는다.** 서버에서 직접 재시도하게 바꾸지 말 것.
-- **KOSPI 선물은 Yahoo에 없다** — `KSU=F` 404, `^KS200`은 현물이라 장중에만 갱신.
+- **KOSPI 선물은 Yahoo에 없다** — `KSU=F` 404, `^KS200`은 현물이라 장중에만 갱신. **코스피200 야간선물은 2026-08-01부터 KIS(한국투자증권) Open API로 반영** — 아래 전용 섹션 참고. `kis_night_future` 소스로 8종목 전부에 들어가 있고, `kr-market.html`에 별도 배너로도 보여준다(개별 종목 ADR과 달리 시장 전체 신호라서).
 
 **실측 정확도 (`db/est-accuracy.sql` — Supabase에서 실행 필요)**
 - `?action=record` (ADMIN/CRON 인증): KST 평일 07~09시면 그날 추정치를 스냅샷, 개장 후엔 실제 시가로 정산해 `error_pct`(= 실제 − 추정, 양수면 과소추정)를 채운다. **매시간 불러도 멱등** — 창 밖이면 서버가 스스로 스킵. `analyze-backlog.yml`이 호출한다.
 - `?action=accuracy` (공개): 티커별 MAE·편향(bias)·표본수. 화면에 "실측 평균오차 ±N%p (M회)"로 표시.
 - **감으로 beta를 고치지 말 것.** 2026-07-31 실측에서 삼성전자 추정 +9.5% vs 실제 +21.7%(시가 +24.2%)로 크게 과소추정했는데, 그날은 반도체 폭등이 겹친 극단값이라 하루치로 튜닝하면 과적합된다. `est_accuracy`가 며칠 쌓인 뒤 `bias`를 보고 조정할 것.
 - 화면의 **"이건 예상 수치입니다" 경고는 사용자가 명시적으로 요구한 것**이니 임의로 빼지 말 것(유사투자자문업 리스크와도 직결). 장중 모드에서는 추정이 아니므로 자동으로 숨긴다.
+
+**코스피200 야간선물(KIS Open API, 2026-08-01 추가)** — `api/market-data.js`의 `fetchKisNightFuture()`/`getKisToken()`/`getKisNightFutureCode()`.
+- **한국투자증권 실계좌 + API키가 필요하다**(무료지만 계좌 개설 필수). `KIS_APP_KEY`/`KIS_APP_SECRET`은 Vercel 환경변수(로컬엔 값 없음, 다른 시크릿들과 동일 패턴).
+- **⚠️ access_token 발급은 KIS 쪽에서 하루 단위로 제한된다.** 서버리스라 요청마다 프로세스가 새로 뜨므로 인메모리 캐싱이 안 되고, `kis_token_cache` 테이블(단일 행, service_role 전용 RLS — 다른 캐시 테이블과 달리 anon 읽기 정책 없음, `db/kis-token-cache.sql`)에 저장해 만료 전까지 재사용한다. **이 캐시를 건너뛰고 매 요청 재발급하는 코드로 절대 바꾸지 말 것** — 발급 제한에 걸리면 하루 종일 이 소스가 죽는다.
+- 종목코드(`FID_INPUT_ISCD`, 예: `A01609`)는 분기 만기 롤오버가 있어 KIS가 공개 배포하는 마스터파일(`new.real.download.dws.co.kr/common/master/fo_cme_code.mst.zip`, 인증 불필요, EUC-KR 고정폭 텍스트)에서 KOSPI200 근월물(가장 빠른 만기)을 골라 같은 테이블에 하루 단위로 캐싱한다. 컬럼 레이아웃은 KIS 공식 예제(`github.com/koreainvestment/open-trading-api` `stocks_info/domestic_cme_future_code.py`)에서 이식.
+- 실측 확인된 필드(`/uapi/domestic-futureoption/v1/quotations/inquire-price`, `tr_id: FHMIF10000000`, `FID_COND_MRKT_DIV_CODE=F`): `output1.futs_prpr`(현재가)·`output1.futs_prdy_ctrt`(전일대비율%)·`output1.futs_prdy_clpr`(전일종가). `output2`/`output3`은 참고용 코스피 종합/코스피200 현물 지수라 안 씀.
+- 실패해도(계좌 문제·네트워크·만기 롤오버 실패 등) 다른 소스처럼 fail-open — `fetchKisNightFuture()`가 null 반환, 모델은 남은 소스로 재정규화.
+- `?source=kis-test`(어드민 인증) — 디버그 전용, 원본 KIS 응답을 그대로 반환. 문제 생기면 여기부터 확인. `diag` 필드로 토큰발급/코드조회/시세조회 중 어느 단계까지 갔는지 알 수 있다.
 
 ## 모의투자 (`portfolio.html`) — 2026-08-01 전면 재작성
 
