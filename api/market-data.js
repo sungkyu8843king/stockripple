@@ -16,6 +16,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { verifyAdmin } from '../lib/auth.js';
+import WebSocket from 'ws';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -45,6 +46,20 @@ export default async function handler(req, res) {
         new Promise(resolve => setTimeout(() => resolve({ error: '25초 워치독 — 어딘가 응답 없이 멈춤', diag: _diag }), 25000)),
       ]);
       return res.status(200).json({ ok: true, result });
+    }
+    case 'kis-ws-test': {
+      // 디버그 전용(TEMP) — H0MFASP0 WebSocket 실시간 체결가 원본을 확인. kis-test와
+      // 동일하게 어드민 인증 필요(?secret= 쿼리도 허용, 임시 디버그라 편의 우선).
+      const authHeader2 = req.headers.authorization || (req.query.secret ? `Bearer ${req.query.secret}` : '');
+      const _a2 = await verifyAdmin(authHeader2);
+      if (!_a2.ok) return res.status(401).json({ error: _a2.error });
+      res.setHeader('Cache-Control', 'no-store');
+      const _diag2 = {};
+      const result2 = await Promise.race([
+        debugKisWebSocket(_diag2),
+        new Promise(resolve => setTimeout(() => resolve({ error: '25초 워치독 — 어딘가 응답 없이 멈춤', diag: _diag2 }), 25000)),
+      ]);
+      return res.status(200).json({ ok: true, result: result2 });
     }
     case 'technicals':   return handleTechnicals(req, res);
     case 'earnings':     return (req.query.type === 'analyst') ? handleAnalyst(res) : handleEarnings(res);
@@ -766,6 +781,77 @@ async function getKisNightFutureCode() {
     id: 1, night_future_code: best.code, night_future_code_updated_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   });
   return best.code;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// [TEMP DEBUG — 2026-08] REST 스냅샷(inquire-price)이 비현실적인 등락률(+18.79%,
+// 몇 시간째 고정)을 주는 문제의 원인 파악용. WebSocket 실시간 체결가(H0MFASP0)로
+// 받은 원본 메시지를 그대로 눈으로 확인하기 위함 — 정상으로 보이면 REST 대신
+// 이 경로로 갈아탈지 판단하고, 확인 끝나면 이 블록 자체를 뗄 것(?source=kis-test와
+// 동일한 임시 디버그 관례).
+// approval_key는 REST 접근토큰(oauth2/tokenP)과 별개 자격증명(oauth2/Approval).
+// ════════════════════════════════════════════════════════════════════════
+async function getKisApprovalKey() {
+  const r = await fetch('https://openapi.koreainvestment.com:9443/oauth2/Approval', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ grant_type: 'client_credentials', appkey: process.env.KIS_APP_KEY, secretkey: process.env.KIS_APP_SECRET }),
+    signal: AbortSignal.timeout(10000),
+  });
+  const bodyText = await r.text();
+  if (!r.ok) throw new Error(`KIS approval HTTP ${r.status}: ${bodyText.slice(0, 300)}`);
+  let j; try { j = JSON.parse(bodyText); } catch { throw new Error('KIS approval response not JSON: ' + bodyText.slice(0, 200)); }
+  if (!j.approval_key) throw new Error('KIS approval response missing approval_key: ' + bodyText.slice(0, 300));
+  return j.approval_key;
+}
+
+async function debugKisWebSocket(diag = {}) {
+  diag.stage = 'start';
+  if (!kisConfigured()) { diag.stage = 'not_configured'; return { error: 'KIS_APP_KEY/KIS_APP_SECRET not set', diag }; }
+  const messages = [];
+  let ws;
+  try {
+    diag.stage = 'approval+code_fetch';
+    const [approvalKey, code] = await Promise.all([
+      getKisApprovalKey().then(k => { diag.approvalOk = true; return k; }),
+      getKisNightFutureCode().then(c => { diag.codeOk = true; diag.code = c; return c; }),
+    ]);
+
+    diag.stage = 'ws_connect';
+    await new Promise((resolve, reject) => {
+      ws = new WebSocket('ws://ops.koreainvestment.com:21000');
+      const connTimer = setTimeout(() => reject(new Error('WS connect timeout(10s)')), 10000);
+      ws.once('open', () => { clearTimeout(connTimer); resolve(); });
+      ws.once('error', (e) => { clearTimeout(connTimer); reject(e); });
+    });
+    diag.stage = 'ws_open';
+
+    ws.send(JSON.stringify({
+      header: { approval_key: approvalKey, custtype: 'P', tr_type: '1', 'content-type': 'utf-8' },
+      body: { input: { tr_id: 'H0MFASP0', tr_key: code } },
+    }));
+    diag.stage = 'subscribed';
+
+    // 최대 12초 동안 오는 메시지를 전부 모은다 — ACK/PINGPONG만 오고 실제 체결이 없을 수도
+    // 있으니(주말/휴장) "아무것도 안 옴"도 유효한 결과로 취급, 타임아웃이어도 에러 아님.
+    await new Promise((resolve) => {
+      const collectTimer = setTimeout(resolve, 12000);
+      ws.on('message', (data) => {
+        messages.push(data.toString().slice(0, 500));
+        if (messages.length >= 20) { clearTimeout(collectTimer); resolve(); }
+      });
+      ws.on('close', () => { clearTimeout(collectTimer); resolve(); });
+      ws.on('error', () => { clearTimeout(collectTimer); resolve(); });
+    });
+    diag.stage = 'done';
+    return { code, messageCount: messages.length, messages, diag };
+  } catch (e) {
+    diag.stage = 'error:' + diag.stage;
+    diag.errorMessage = e.message;
+    return { error: e.message, diag };
+  } finally {
+    try { ws?.close(); } catch {}
+  }
 }
 
 // raw:true면 파싱 없이 KIS 원본 응답을 그대로 반환(?source=kis-test 디버그용) —
