@@ -99,8 +99,11 @@
   .srr-key-hint{position:absolute;top:50%;right:calc(100% + 12px);transform:translateY(-50%);display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:12.5px;font-weight:700;color:#fff;background:var(--blue);padding:6px 13px 6px 7px;border-radius:10px;box-shadow:0 4px 14px rgba(36,87,230,.45);pointer-events:none;animation:srrHintNudge 2.2s ease-in-out infinite}
   /* \ 글자를 파란 배경 위에 흰 굵은 글씨로만 두니 잘 안 읽힌다는 피드백(2026-08) —
      실제 키보드 키캡처럼 흰 배경 + 테두리 박스 안에 넣어서 "이게 누르는 키다"가
-     한눈에 보이게 함. */
-  .srr-key-hint kbd{font-family:'SF Mono',Menlo,monospace;font-size:13px;font-weight:800;color:var(--blue);background:#fff;border-radius:5px;padding:2px 8px;line-height:1.4;box-shadow:0 1px 0 rgba(0,0,0,.2);font-style:normal}
+     한눈에 보이게 함. 폰트는 반드시 Consolas를 앞에 둔다 — 'SF Mono'/Menlo는 macOS
+     전용이라 윈도우에서는 시스템 기본 monospace로 대체되는데, 일부 한글 윈도우 폰트가
+     0x5C(백슬래시)를 레거시 EUC-KR 관례대로 원화기호(₩)로 그려버리는 문제가 실측됨.
+     Consolas(윈도우 기본 코딩 폰트)는 이 문제가 없다. */
+  .srr-key-hint kbd{font-family:Consolas,'SF Mono',Menlo,monospace;font-size:13px;font-weight:800;color:var(--blue);background:#fff;border-radius:5px;padding:2px 8px;line-height:1.4;box-shadow:0 1px 0 rgba(0,0,0,.2);font-style:normal}
   .srr-key-hint::after{content:'';position:absolute;top:50%;right:-5px;transform:translateY(-50%);width:0;height:0;border-style:solid;border-width:5px 0 5px 6px;border-color:transparent transparent transparent var(--blue)}
   @keyframes srrHintNudge{0%,15%,100%{transform:translateY(-50%) translateX(0)}7%{transform:translateY(-50%) translateX(-5px)}}
   @media (prefers-reduced-motion:reduce){ .srr-key-hint{animation:none} }
