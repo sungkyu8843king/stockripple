@@ -621,6 +621,13 @@ body {
 .hist-upside.neg { color: var(--blue); background: var(--blue-dim); }
 .hist-title { font-size: 16.5px; font-weight: 650; line-height: 1.45; letter-spacing: -0.01em; margin-bottom: 6px; }
 .hist-reason { font-size: 15.5px; color: var(--text2); line-height: 1.65; }
+/* "왜?" 체크리스트 — analysis.html의 같은 클래스와 동일 톤(2026-08). 등급/평점(별점 등)
+   대신 "최근 어떤 뉴스에서 몇 번 언급됐는지"만 사실대로 보여주는 걸로 확정(유사투자자문업
+   리스크 검토 결과) — 종목 페이지에 upside_pct 같은 수치 배지도 의도적으로 안 넣음. */
+.reasons-why { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 5px; }
+.reasons-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.reasons-list li { font-size: 14.5px; font-weight: 600; color: var(--text); line-height: 1.4; position: relative; padding-left: 20px; }
+.reasons-list li::before { content: '✔'; position: absolute; left: 0; top: 0; color: var(--green); font-weight: 800; font-size: 12.5px; }
 
 /* ── 단일 스크롤 섹션 ── */
 .cmp-sec { margin-top: 30px; }
@@ -1421,6 +1428,13 @@ function renderPage(company, records, priceData) {
     <div class="cmp-chips" id="cmpChips"></div>
     <div id="techChipsWrap"></div>
 
+    <!-- 📰 최근 뉴스 언급 — 등급/평점이 아니라 "최근 어떤 뉴스에 몇 번 언급됐는지"만
+         보여주는 순수 이력(유사투자자문업 리스크 검토 후 이 형태로 확정, 2026-08) -->
+    <section class="cmp-sec" id="newsHistorySec" style="display:none">
+      <div class="ck-sec-head"><span class="tick"></span><h3>📰 최근 뉴스 언급</h3><span class="note" id="newsHistoryNote"></span></div>
+      <div id="newsHistoryWrap"></div>
+    </section>
+
     <!-- 📈 차트 (lightweight-charts 캔들+거래량 + 매물대) -->
     <section class="cmp-sec">
       <div class="ck-sec-head"><span class="tick"></span><h3>📈 차트</h3><span class="note">토스 공식 · 일봉</span></div>
@@ -1478,6 +1492,7 @@ function renderPage(company, records, priceData) {
   // 사실 지표 · 펀더멘털 (AI 종합분석은 company_summary 비활성화로 제거됨)
   loadTechChips(ticker);
   loadFundamentals(ticker);
+  loadNewsHistory(company.id);
 
   // Toss 공식: 종목마스터(시총·경고 뱃지) · 호가 · 일별 시세
   loadStockMeta(ticker);
@@ -1743,6 +1758,52 @@ function renderTradeBox(records) {
     ${trade.th ? `<div style="font-size:15.5px;color:var(--green);margin-bottom:6px;line-height:1.55"><b>💡 매수 근거:</b> ${escHtml(trade.th)}</div>` : ''}
     ${trade.rk ? `<div style="font-size:15.5px;color:var(--yellow);margin-bottom:16px;line-height:1.55;font-weight:500"><b>⚠️ 리스크:</b> ${escHtml(trade.rk)}</div>` : ''}
   `;
+}
+
+// ── 📰 최근 뉴스 언급 — 등급/평점이 아니라 "최근 어떤 뉴스에 몇 번 언급됐는지"만
+// 사실대로 보여주는 순수 이력(유사투자자문업 리스크 검토 후 이 형태로 확정, 2026-08).
+// analysis_companies는 긍정 파급 후보만 저장하므로(부정은 ripple_effects JSON에만 있음)
+// "긍정 N%" 같은 비율은 계산하지 않는다 — 그냥 "최근 언급 뉴스 목록 + 이유"로만 구성.
+function _parseReasonsFromRationale(rationale) {
+  if (!rationale) return null;
+  const idx = rationale.indexOf('[REASONS]');
+  if (idx < 0) return null;
+  try {
+    const after = rationale.slice(idx + 9);
+    const nextMarker = after.search(/\[(TRADE|FUND)\]/);
+    const json = (nextMarker >= 0 ? after.slice(0, nextMarker) : after).trim();
+    const arr = JSON.parse(json);
+    return Array.isArray(arr) && arr.length ? arr : null;
+  } catch { return null; }
+}
+async function loadNewsHistory(companyId) {
+  const sec = document.getElementById('newsHistorySec');
+  const wrap = document.getElementById('newsHistoryWrap');
+  const note = document.getElementById('newsHistoryNote');
+  if (!sec || !wrap || !companyId) return;
+  try {
+    const { data } = await sb
+      .from('analysis_companies')
+      .select('rationale, entry_date, analyses(issues(id, title, published_at))')
+      .eq('company_id', companyId)
+      .order('entry_date', { ascending: false })
+      .limit(5);
+    const rows = (data || []).filter(r => r.analyses?.issues?.title);
+    if (!rows.length) return; // 섹션 자체를 숨긴 채로 둠(display:none 유지) — 언급 없으면 안 보여줌
+
+    if (note) note.textContent = `최근 ${rows.length}건`;
+    wrap.innerHTML = `<div class="hist-list">${rows.map(r => {
+      const issue = r.analyses.issues;
+      const reasons = _parseReasonsFromRationale(r.rationale);
+      const dateStr = issue.published_at ? new Date(issue.published_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '';
+      return `<a class="hist-card" href="/analysis.html?id=${encodeURIComponent(issue.id)}">
+        <div class="hist-card-top"><span class="hist-date">${escHtml(dateStr)}</span></div>
+        <div class="hist-title">${escHtml(issue.title)}</div>
+        ${reasons ? `<div class="reasons-why">왜?</div><ul class="reasons-list">${reasons.slice(0, 3).map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>` : ''}
+      </a>`;
+    }).join('')}</div>`;
+    sec.style.display = '';
+  } catch { /* 실패해도 섹션을 안 보여줄 뿐, 페이지 나머지에 영향 없음 */ }
 }
 
 // ── Toss 종목 마스터: 시가총액 + 경고/상태 뱃지 ───────────────
