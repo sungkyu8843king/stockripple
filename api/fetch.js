@@ -11,6 +11,79 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+// ─── 근접 중복 판별 ──────────────────────────────────────
+// source_url 완전일치만으로는 못 잡는 케이스가 실제로 자주 발생: FinancialJuice가 같은
+// 사건을 문구 그대로(또는 거의 그대로) 다른 URL로 재게시하거나, 구글뉴스 RSS가 같은
+// 기사에 매번 다른 추적 파라미터를 붙인 링크를 내려줌 (2026-07-21, 한 배치에서 5쌍/10건
+// 리터럴 중복 확인 — 전부 FinancialJuice). 제목을 정규화해 최근 48시간 수집분과 비교,
+// 완전일치 또는 의미 토큰 Jaccard 유사도 0.55 이상이면 중복으로 보고 skip한다.
+// 주의: 같은 사건이라도 서로 다른 세부 사실을 다루는 헤드라인(예: 트럼프 행정명령의
+// 조항 A vs 조항 B)까지 병합하려 하지 않음 — 실측상 그런 쌍은 스테밍 적용 후에도 유사도가
+// 0.1~0.15대로 임계값에 크게 못 미쳐 안전하게 구분된다.
+// 2026-07-21: "Trump imposing tariffs on Canadian goods" vs "Trump imposes tariff on
+// Canadian imports"처럼 같은 사건을 동사/복수형만 바꿔 쓴 기사쌍이 raw Jaccard 0.23으로
+// 기존 0.55 임계값을 못 넘어 중복으로 못 잡히던 게 실제로 발생(사용자 리포트) — 가벼운
+// 접미사 스테밍(imposes/imposing→impos, tariffs→tariff)으로 그 쌍이 0.45까지 올라오는 걸
+// 확인, 임계값을 0.42로 낮춰 잡히게 함. 완전히 다른 어휘로 재서술된 헤드라인(예: "U.S. hits
+// Canada with stiff new tariffs")까지는 토큰 중복 방식의 한계로 여전히 못 잡음(의미 기반
+// 비교가 필요) — 별도 개선 필요 시 이 주석 참고.
+const TITLE_STOPWORDS = new Set(['the','a','an','to','of','in','on','for','and','or','with','by','at','is','are','it','its','that','this','as','from','said','says','say','will','after','over','me']);
+function normalizeTitle(title) {
+  return (title || '')
+    .replace(/^\[트럼프\]\s*/, '')
+    .replace(/^FinancialJuice:\s*/i, '')
+    .replace(/^White House:\s*/i, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+// 가벼운 접미사 스테밍 — 복수형/동사활용 변형(tariffs/tariff, imposes/imposing/imposed)을
+// 같은 토큰으로 합침. -tion 명사(discrimination 등)는 의미가 뚜렷이 갈리므로 건드리지 않음.
+function stem(word) {
+  if (word.length > 6 && word.endsWith('ies')) return word.slice(0, -3) + 'y';
+  if (word.length > 5 && word.endsWith('ing') && !word.endsWith('tion')) return word.slice(0, -3);
+  if (word.length > 4 && word.endsWith('ed') && !word.endsWith('tion')) return word.slice(0, -2);
+  if (word.length > 4 && word.endsWith('es')) return word.slice(0, -2);
+  if (word.length > 3 && word.endsWith('s') && !word.endsWith('ss')) return word.slice(0, -1);
+  return word;
+}
+function titleTokens(normalized) {
+  return new Set(normalized.split(' ').filter(w => w.length >= 2 && !TITLE_STOPWORDS.has(w)).map(stem));
+}
+function isNearDuplicateTitle(a, b) {
+  if (!a.norm || !b.norm) return false;
+  if (a.norm === b.norm) return true;
+  if (a.tokens.size === 0 || b.tokens.size === 0) return false;
+  let intersection = 0;
+  for (const t of a.tokens) if (b.tokens.has(t)) intersection++;
+  const union = a.tokens.size + b.tokens.size - intersection;
+  return union > 0 && (intersection / union) >= 0.42;
+}
+async function loadRecentTitleFingerprints(hours = 48) {
+  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const { data } = await supabase.from('issues').select('title').gte('published_at', since).limit(500);
+  return (data || []).map(row => {
+    const norm = normalizeTitle(row.title);
+    return { norm, tokens: titleTokens(norm) };
+  });
+}
+// dupChecker: DB에서 미리 불러온 최근 제목 + 이번 실행 중 새로 저장한 제목을 함께 대조
+// (한 번의 fetch 실행 안에서 같은 이벤트가 여러 피드/쿼리에 동시에 잡히는 경우 방지)
+function makeDupChecker(seedFingerprints) {
+  const seen = [...seedFingerprints];
+  return {
+    isDuplicate(title) {
+      const candidate = { norm: normalizeTitle(title), tokens: titleTokens(normalizeTitle(title)) };
+      return seen.some(s => isNearDuplicateTitle(candidate, s));
+    },
+    add(title) {
+      const norm = normalizeTitle(title);
+      seen.push({ norm, tokens: titleTokens(norm) });
+    },
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const _auth = await verifyAdmin(req.headers.authorization);
@@ -47,7 +120,8 @@ const QUERIES = [
 async function handleNews(res) {
   if (!NEWS_API_KEY) return res.status(500).json({ error: 'NEWS_API_KEY not configured' });
 
-  const results = { fetched: 0, saved: 0, errors: [] };
+  const results = { fetched: 0, saved: 0, duplicatesSkipped: 0, errors: [] };
+  const dupChecker = makeDupChecker(await loadRecentTitleFingerprints());
   // NewsAPI 무료 쿼터(100콜/일) 때문에 회당 5쿼리만 실행하되, 고정 slice는 뒤쪽 쿼리
   // (바이오·한국어)가 영원히 안 돌므로 실행 시각 기준으로 시작점을 순환시킨다
   const rotStart = (new Date().getUTCHours() * 2 + (new Date().getUTCMinutes() >= 30 ? 1 : 0)) % QUERIES.length;
@@ -65,6 +139,7 @@ async function handleNews(res) {
         // 해석하면 중복이 수집마다 1개씩 불어나는 자가증폭이 된다 → limit(1) 배열 체크 사용
         const { data: existing } = await supabase.from('issues').select('id').eq('source_url', article.url).limit(1);
         if (existing?.length) continue;
+        if (dupChecker.isDuplicate(article.title)) { results.duplicatesSkipped++; continue; }
         const { error } = await supabase.from('issues').insert({
           title: article.title,
           summary: article.description || article.content?.slice(0, 500),
@@ -75,7 +150,7 @@ async function handleNews(res) {
           tags: query.q.split(' ').slice(0, 3),
           is_analyzed: false,
         });
-        if (!error) results.saved++;
+        if (!error) { results.saved++; dupChecker.add(article.title); }
       }
       await new Promise(r => setTimeout(r, 200));
     } catch (err) {
@@ -107,6 +182,10 @@ const RSS_FEEDS = [
   { url: 'https://www.hankyung.com/feed/finance',               name: '한국경제',     sectors: ['금융', '경제'],   isKorean: true },
   { url: 'https://www.edaily.co.kr/rss/rss.asp?sitetype=stock', name: '이데일리',     sectors: ['증권', '주식'],   isKorean: true },
   { url: 'https://www.mk.co.kr/rss/30000001/',                  name: '매일경제',     sectors: ['증권', '주식'],   isKorean: true },
+  // 국내 증시 보강 — Google News 한국판 검색 RSS(코스피/코스닥/증시). 개별 언론사 RSS가
+  // 자주 죽거나(서울경제 404 등) UA 차단되는 걸 우회해 국장 이슈 유입량을 안정적으로 늘림.
+  // (국장 종목이 최근 뉴스에 거의 안 잡히던 gap 보강, 2026-07 — 삼성전자가 7/7 이후 매칭 0건이던 문제)
+  { url: 'https://news.google.com/rss/search?q=when:1d%20%EC%BD%94%EC%8A%A4%ED%94%BC%20OR%20%EC%BD%94%EC%8A%A4%EB%8B%A5%20OR%20%EC%A6%9D%EC%8B%9C%20OR%20%EB%B0%98%EB%8F%84%EC%B2%B4&hl=ko&gl=KR&ceid=KR:ko', name: '구글뉴스 증시', sectors: ['증권', '주식'], isKorean: true },
 
   // 국내 바이오·제약 전문지 — 일반 경제지가 놓치는 K-bio 임상/FDA/IPO 뉴스 커버
   // (HLB 리보세라닙 FDA 재심사 등 대형 catalyst가 issues에 전혀 안 잡히던 gap 보강, 2026-07)
@@ -126,11 +205,16 @@ const RSS_FEEDS = [
   { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', name: 'CNBC Markets', sectors: ['글로벌', '주식'] },
   { url: 'https://www.cnbc.com/id/15839135/device/rss/rss.html', name: 'CNBC Top',    sectors: ['글로벌', '경제'] },
   { url: 'https://seekingalpha.com/feed.xml',                    name: 'SeekingAlpha',sectors: ['주식', '분석'] },
+  // Reuters — 공식 feeds.reuters.com 폐쇄 후 Google News의 source:Reuters 검색 RSS로 대체.
+  { url: 'https://news.google.com/rss/search?q=when:2d%20source:Reuters&hl=en-US&gl=US&ceid=US:en', name: 'Reuters', sectors: ['글로벌', '주식'] },
+  // FinancialJuice — 실시간 매크로/지표/중앙은행 헤드라인(시장 변동성 유발 이벤트 커버).
+  { url: 'https://www.financialjuice.com/feed.ashx?xml=rss',     name: 'FinancialJuice', sectors: ['경제', '글로벌'] },
   { url: 'https://truthsocial.com/@realDonaldTrump.rss',         name: 'Truth Social',sectors: ['정치·외교', '트럼프'], isTrump: true },
 ];
 
 async function handleRss(res) {
-  const results = { fetched: 0, saved: 0, errors: [], feedStatus: {} };
+  const results = { fetched: 0, saved: 0, duplicatesSkipped: 0, errors: [], feedStatus: {} };
+  const dupChecker = makeDupChecker(await loadRecentTitleFingerprints());
 
   // 모든 피드 병렬 fetch (각 6초 타임아웃 → 전체 ~6초 내에 끝)
   const fetchResults = await Promise.allSettled(
@@ -171,10 +255,21 @@ async function handleRss(res) {
       const { data: exists } = await supabase.from('issues').select('id').eq('source_url', item.link).limit(1);
       if (exists?.length) continue;
       results.fetched++;
-      const cleanText = s => s ? s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : null;
+      // 순서 중요: 엔티티 디코드 → 태그 제거. 구글뉴스 RSS 등은 title/description에
+      // <a href="...">본문</a>&nbsp;&nbsp;<font color="#6f6f6f">출처</font> 식으로 실제 HTML
+      // 태그+엔티티를 실어보낸다 — 태그 제거를 먼저 하면 엔티티로 인코딩된 태그(있는 경우)가
+      // 안 잡히므로 디코드를 먼저 한다.
+      const cleanText = s => {
+        if (!s) return null;
+        const decoded = s
+          .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
+          .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/&apos;/gi, "'");
+        return decoded.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      };
       const title = feed.isTrump
         ? `[트럼프] ${cleanText(item.description || item.title)?.slice(0, 120) || item.title.slice(0, 120)}`
-        : item.title.slice(0, 300);
+        : (cleanText(item.title) || item.title).slice(0, 300);
+      if (dupChecker.isDuplicate(title)) { results.duplicatesSkipped++; continue; }
       const { error } = await supabase.from('issues').insert({
         title,
         summary: cleanText(item.description)?.slice(0, 800) || null,
@@ -185,7 +280,7 @@ async function handleRss(res) {
         tags: feed.isTrump ? ['Trump', '트럼프', 'TruthSocial'] : [],
         is_analyzed: false,
       });
-      if (!error) results.saved++;
+      if (!error) { results.saved++; dupChecker.add(title); }
     }
   }
   return res.status(200).json(results);

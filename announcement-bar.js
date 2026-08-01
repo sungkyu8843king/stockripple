@@ -19,11 +19,14 @@
     var bar = document.createElement('div');
     bar.id = 'srAnnouncementBar';
     bar.style.cssText = 'position:sticky;top:0;left:0;right:0;z-index:99999;background:#fef3c7;color:#92400e;'
-      + 'font-size:13px;font-weight:600;line-height:1.5;padding:10px 40px;text-align:center;'
+      + 'font-size:15.5px;font-weight:600;line-height:1.5;padding:10px 40px;text-align:center;'
       + 'border-bottom:1px solid #fbbf24;font-family:inherit';
-    bar.innerHTML = '🚨 ' + escHtml(d.message)
+    // 서버 메시지가 이미 🚨로 시작하면(과거 실수로 다시 들어가는 경우를 대비) 중복으로
+    // 두 번 뜨지 않게 한 번은 걸러낸다 — 아이콘의 유일한 출처는 항상 이 배너여야 한다.
+    var msg = String(d.message).replace(/^\s*🚨\s*/, '');
+    bar.innerHTML = '🚨 ' + escHtml(msg)
       + '<button aria-label="닫기" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);'
-      + 'background:none;border:none;font-size:15px;cursor:pointer;color:#92400e;padding:4px 8px;line-height:1">✕</button>';
+      + 'background:none;border:none;font-size:17px;cursor:pointer;color:#92400e;padding:4px 8px;line-height:1">✕</button>';
     document.body.insertBefore(bar, document.body.firstChild);
 
     bar.querySelector('button').addEventListener('click', function () {

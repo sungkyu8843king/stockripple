@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<script>(function(){try{if(localStorage.getItem('sr_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="/sr-pulse.js" defer></script>
+<title>말말말 — StockRipple</title>
+<!-- Open Graph / 링크 공유 미리보기 (정적 — 동적 티커 페이지는 일반 설명) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="StockRipple">
+<meta property="og:title" content="말말말 — StockRipple">
+<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta property="og:url" content="https://stockripple.vercel.app/talks.html">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="말말말 — StockRipple">
+<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15171e; --bg-rgb: 21,23,30; --bg2:#1e2129; --bg3:#262a34; --bg4:#2f333f;
+  --border:rgba(255,255,255,0.075); --border-strong:rgba(255,255,255,0.16);
+  --text:#f2f4f8; --text2:#a6adbb; --text3:#6c7385;
+  --red:#ff6b6b; --green:#3ddb7f; --blue:#4d8dff; --yellow:#f0b45e; --purple:#9d7bff;
+  --blue-dim:rgba(77,141,255,0.14);
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+
+/* ── 라이트 모드 오버라이드 (2026-07-27) ── */
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --bg-rgb: 245,246,248; --bg2: #ffffff; --bg3: #eef0f3; --bg4: #e3e6eb;
+  --border: rgba(15,17,23,0.09); --border-strong: rgba(15,17,23,0.18);
+  --text: #14161c; --text2: #4b5163; --text3: #6b7280;
+  --red: #dc2626; --green: #15803d; --blue: #1d4ed8; --yellow: #a16207; --purple: #7c3aed;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.55}
+a{color:inherit}
+/* 메인 사이트 헤더와 통일 */
+.header{position:sticky;top:0;z-index:100;background:rgba(var(--bg-rgb),0.80);backdrop-filter:blur(14px) saturate(150%);border-bottom:1px solid var(--border);padding:0 24px}
+.header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px;height:56px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
+.logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--blue) 0%,var(--purple) 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;box-shadow:0 3px 10px rgba(36,87,230,0.30)}
+.logo-text{font-size:19px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
+.logo-sub{font-size:13px;color:var(--text3);font-weight:500;margin-top:1px}
+.header-nav{display:flex;gap:2px;margin-left:auto;align-items:center}
+.nav-btn{padding:7px 13px;border-radius:10px;font-size:15.5px;font-weight:500;background:none;border:none;color:var(--text2);cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px;transition:all .12s;white-space:nowrap}
+.nav-btn:hover{background:var(--bg3);color:var(--text)}
+.nav-btn.active{background:var(--blue);color:#fff;font-weight:600}
+.nav-btn-primary{background:var(--blue);color:#fff;padding:7px 16px;margin-left:6px;border-radius:10px;font-size:15.5px;font-weight:600;text-decoration:none}
+.nav-btn-primary:hover{background:#1e4ccc}
+.nav-new{position:relative}
+.nav-new::after{content:"";position:absolute;top:2px;right:1px;width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--bg),0 0 6px var(--red)}
+@media (max-width:760px){ .header-inner{flex-wrap:wrap;height:auto;padding:8px 0;row-gap:6px;position:relative} .header-nav .nav-btn-primary{position:absolute;top:8px;right:0;margin-left:0} }
+@media (max-width:900px){ .header-nav{flex-wrap:wrap;row-gap:4px} }
+@media (max-width:680px){ .logo-sub{display:none} .nav-btn{padding:6px 9px;font-size:14.5px} .header{padding:0 16px} }
+.wrap{max-width:920px;margin:0 auto;padding:18px 20px 70px}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:15.5px;color:var(--text2);text-decoration:none;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg2);margin-bottom:18px}
+.back:hover{border-color:var(--border-strong);color:var(--text)}
+.hero-title{font-size:22px;font-weight:800;letter-spacing:-0.025em;margin-bottom:4px;display:flex;align-items:center;gap:9px}
+.hero-title span{color:var(--blue)}
+.hero-sub{font-size:15.5px;color:var(--text3);line-height:1.6;margin:5px 0 20px}
+.topic-tabs{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.topic-tab{border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:16px;font-weight:700;padding:11px 18px;border-radius:12px;cursor:pointer;white-space:nowrap}
+.topic-tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.topic-hero{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px 22px;margin-bottom:22px}
+.th-title{font-size:21px;font-weight:750;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.th-intro{font-size:16px;color:var(--text2);line-height:1.7;margin-top:10px}
+.rel-label{font-size:13.5px;font-weight:700;color:var(--text3);letter-spacing:.06em;margin:18px 0 10px;text-transform:uppercase}
+.rel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px}
+.rel-card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 13px;text-decoration:none;display:block;transition:border-color .15s,transform .15s}
+.rel-card:hover{border-color:var(--border-strong);transform:translateY(-1px)}
+.rel-name{font-size:14.5px;color:var(--text2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rel-px{font-size:18px;font-weight:800;font-family:var(--mono);letter-spacing:-.02em;margin-top:5px;font-variant-numeric:tabular-nums}
+.rel-chg{font-size:14.5px;font-weight:700;font-family:var(--mono);margin-top:1px}
+.rel-chg.up{color:var(--red)}.rel-chg.dn{color:var(--blue)}.rel-chg.flat{color:var(--text3)}
+.tl-label{font-size:16px;font-weight:750;margin:4px 0 13px;display:flex;align-items:center;gap:7px}
+.timeline{position:relative;padding-left:20px}
+.timeline::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:var(--border)}
+.tl-item{display:block;position:relative;padding:0 0 18px 8px;text-decoration:none}
+.tl-item::before{content:"";position:absolute;left:-19px;top:5px;width:9px;height:9px;border-radius:50%;background:var(--blue);border:2px solid var(--bg)}
+.tl-meta{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+.tl-date{font-size:14px;font-family:var(--mono);color:var(--text3);font-variant-numeric:tabular-nums}
+.tl-src{font-size:13px;color:var(--text3);background:var(--bg3);padding:1px 8px;border-radius:6px}
+.tl-title{font-size:16.5px;font-weight:650;line-height:1.5;color:var(--text);overflow-wrap:anywhere;word-break:break-word}
+.tl-item:hover .tl-title{color:var(--blue)}
+.tl-sum{font-size:15px;color:var(--text2);line-height:1.65;margin-top:5px;overflow-wrap:anywhere;word-break:break-word}
+.loading,.empty{padding:34px;text-align:center;color:var(--text3);font-size:15.5px}
+@media (max-width:560px){ .hero-title{font-size:21px} .rel-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/talks.html');</script>
+<div class="wrap">
+  <a class="back" href="/index.html">← 홈</a>
+  <h1 class="hero-title">💬 <span>말말말</span></h1>
+  <p class="hero-sub">지금 시장을 흔드는 주제를 타임라인으로. 헤드라인·출처·한줄 상황과 연관 지수·종목의 움직임까지.</p>
+  <div class="topic-tabs" id="topicTabs"></div>
+  <div id="topicBody"><div class="loading">불러오는 중...</div></div>
+</div>
+
+<script>
+// sb는 site-header.js가 공용 제공(2026-07-22) — 여기서 재선언 안 함.
+
+const TOPICS = [
+  {
+    id:'iran', emoji:'🛢️', title:'미·이란 전쟁',
+    intro:'미국과 이란의 군사 충돌이 중동 정세를 흔들고 있어요. 호르무즈 해협·원유 공급 우려가 커지면 유가·금·방산주가 출렁이고, 항공·해운은 비용 압박을 받습니다.',
+    keywords:['Iran','이란','Israel','이스라엘','Hormuz','호르무즈','중동','Middle East','Tehran','테헤란','Kuwait','Strait'],
+    indices:[{sym:'oil',name:'WTI 원유'},{sym:'gold',name:'금'}],
+    stocks:[{t:'012450.KS',name:'한화에어로스페이스'},{t:'079550.KS',name:'LIG넥스원'},{t:'003490.KS',name:'대한항공'}],
+  },
+  {
+    id:'lev', emoji:'📈', title:'코스피 레버리지 상품',
+    intro:'증시 급락 속에서도 개인 투자자들이 레버리지·인버스 상품에 대규모로 베팅하며, 위험 경고와 매수 문턱 인상 논의가 나오고 있어요. 지수 방향에 2배로 연동돼 변동성이 큽니다.',
+    keywords:['레버리지','인버스','곱버스'],
+    indices:[{sym:'kospi',name:'코스피'},{sym:'kosdaq',name:'코스닥'}],
+    stocks:[{t:'122630.KS',name:'KODEX 레버리지'},{t:'252670.KS',name:'KODEX 200선물인버스2X'},{t:'005930.KS',name:'삼성전자'},{t:'000660.KS',name:'SK하이닉스'}],
+  },
+];
+let _topic = TOPICS[0].id;
+
+function fmtDate(iso){ return iso ? iso.slice(5,10).replace('-','.') : ''; }
+// 발행 일시(날짜+시간, KST) — published_at은 UTC로 저장되므로 +9시간 보정해서 표시
+function fmtDateTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  const k = new Date(d.getTime() + 9*60*60*1000);
+  const mm = String(k.getUTCMonth()+1).padStart(2,'0');
+  const dd = String(k.getUTCDate()).padStart(2,'0');
+  const hh = String(k.getUTCHours()).padStart(2,'0');
+  const mi = String(k.getUTCMinutes()).padStart(2,'0');
+  return `${mm}.${dd} ${hh}:${mi}`;
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function chgCls(v){ return v==null?'flat':v>0?'up':v<0?'dn':'flat'; }
+function fmtChg(v){ if(v==null) return '—'; const s=v>0?'+':''; return `${s}${v.toFixed(2)}%`; }
+function fmtPx(v,cur){ if(v==null) return '—'; return cur==='KRW' ? '₩'+Math.round(v).toLocaleString('ko-KR') : (cur==='USD'?'$':'')+Number(v).toLocaleString('en-US',{maximumFractionDigits:2}); }
+// 일부 피드(구글뉴스 등)의 summary는 (이스케이프된) HTML을 담고 있어 정제한다.
+// 순서 중요: 엔티티 디코드 → 태그 제거 → URL 제거. (반대로 하면 &lt;a&gt;가 태그로 되살아남)
+function cleanSum(s, title){
+  if(!s) return '';
+  let t = String(s)
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#3[49];/g,"'").replace(/&nbsp;/g,' ')
+    .replace(/<[^>]*>/g,' ').replace(/https?:\/\/\S+/g,'').replace(/\s+/g,' ').trim();
+  if(t.length < 12) return '';
+  if(title && t.slice(0,18).toLowerCase() === title.slice(0,18).toLowerCase()) return ''; // 제목과 거의 동일하면 생략
+  return t;
+}
+
+function renderTabs(){
+  document.getElementById('topicTabs').innerHTML = TOPICS.map(t =>
+    `<button class="topic-tab ${t.id===_topic?'active':''}" onclick="selectTopic('${t.id}')">${t.emoji} ${esc(t.title)}</button>`).join('');
+}
+function selectTopic(id){ _topic = id; renderTabs(); loadTopic(); }
+
+async function loadTopic(){
+  const topic = TOPICS.find(t=>t.id===_topic);
+  const body = document.getElementById('topicBody');
+  body.innerHTML = `
+    <div class="topic-hero">
+      <div class="th-title">${topic.emoji} ${esc(topic.title)}</div>
+      <div class="th-intro">${esc(topic.intro)}</div>
+      <div class="rel-label">📊 연관 지수·종목 현황</div>
+      <div class="rel-grid" id="relGrid"><div class="loading" style="grid-column:1/-1">시세 불러오는 중...</div></div>
+    </div>
+    <div class="tl-label">🕒 이슈 타임라인</div>
+    <div id="timeline"><div class="loading">뉴스 불러오는 중...</div></div>`;
+  loadRelated(topic);
+  loadTimeline(topic);
+}
+
+async function loadRelated(topic){
+  const grid = document.getElementById('relGrid');
+  try{
+    const [idxJson, qJson] = await Promise.all([
+      fetch('/api/indices').then(r=>r.ok?r.json():null).catch(()=>null),
+      topic.stocks.length ? fetch('/api/quotes?tickers='+topic.stocks.map(s=>encodeURIComponent(s.t)).join(',')).then(r=>r.ok?r.json():null).catch(()=>null) : null,
+    ]);
+    const idxData = idxJson?.data || {};
+    const qData = qJson?.data || {};
+    const cards = [];
+    for(const i of topic.indices){
+      const d = idxData[i.sym];
+      cards.push(`<a class="rel-card" href="/market-detail.html?sym=${i.sym}"><div class="rel-name">${esc(i.name)}</div><div class="rel-px">${fmtPx(d?.price, i.sym==='oil'||i.sym==='gold'?'USD':'')}</div><div class="rel-chg ${chgCls(d?.changePercent)}">${fmtChg(d?.changePercent)}</div></a>`);
+    }
+    for(const s of topic.stocks){
+      const d = qData[s.t];
+      cards.push(`<a class="rel-card" href="/company.html?ticker=${encodeURIComponent(s.t)}"><div class="rel-name">${esc(s.name)}</div><div class="rel-px">${fmtPx(d?.price, d?.currency||'KRW')}</div><div class="rel-chg ${chgCls(d?.changePercent)}">${fmtChg(d?.changePercent)}</div></a>`);
+    }
+    grid.innerHTML = cards.join('');
+  }catch{ grid.innerHTML = '<div class="empty" style="grid-column:1/-1">시세를 불러올 수 없어요.</div>'; }
+}
+
+async function loadTimeline(topic){
+  const tl = document.getElementById('timeline');
+  try{
+    const orClause = topic.keywords.map(k=>`title.ilike.%${k}%`).join(',');
+    const { data, error } = await sb.from('issues')
+      .select('id,title,summary,source_url,source_name,published_at,ai_digest,analyses(ai_summary)')
+      .or(orClause).order('published_at',{ascending:false}).limit(40);
+    if(error) throw error;
+    // 같은 사건 중복(매체별) 제거 — 제목 앞부분 기준
+    const seen = new Set(); const items = [];
+    for(const it of (data||[])){
+      const key = (it.title||'').replace(/["'“”‘’]/g,'').slice(0,24).toLowerCase();
+      if(seen.has(key)) continue; seen.add(key);
+      items.push(it); if(items.length>=20) break;
+    }
+    if(!items.length){ tl.innerHTML = '<div class="empty">아직 이 주제의 뉴스가 없어요.</div>'; return; }
+    tl.innerHTML = '<div class="timeline">' + items.map(it=>{
+      const href = it.source_url || `/analysis.html?id=${it.id}`;
+      const ext = it.source_url ? ' target="_blank" rel="noopener"' : '';
+      // Claude가 분석한 한국어 요약(ai_summary, 파급효과 파이프라인은 현재 비활성) → 순수 기사 요약(ai_digest) →
+      // 둘 다 없으면 원문 피드 요약을 정제해 대체
+      const aiSum = (it.analyses && it.analyses[0] && it.analyses[0].ai_summary) ? it.analyses[0].ai_summary.trim() : '';
+      const sum = aiSum || (it.ai_digest || '').trim() || cleanSum(it.summary, it.title);
+      return `<a class="tl-item" href="${esc(href)}"${ext}>
+        <div class="tl-meta"><span class="tl-date">${fmtDateTime(it.published_at)}</span><span class="tl-src">${esc(it.source_name||'')}</span></div>
+        <div class="tl-title">${esc(it.title)}</div>
+        ${sum ? `<div class="tl-sum">${esc(sum)}</div>` : ''}
+      </a>`;
+    }).join('') + '</div>';
+  }catch(e){ tl.innerHTML = '<div class="empty">뉴스를 불러올 수 없어요.</div>'; }
+}
+
+renderTabs();
+loadTopic();
+initAuth();
+</script>
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
+</body>
+</html>

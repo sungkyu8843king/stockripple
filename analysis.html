@@ -1,33 +1,61 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>(function(){try{if(localStorage.getItem('sr_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="/announcement-bar.js" defer></script>
 <script src="/sr-pulse.js" defer></script>
+<script src="/coupang-interstitial.js" defer></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
 <title>이슈 분석 — StockRipple</title>
+<!-- Open Graph / 링크 공유 미리보기 (정적 — 동적 티커 페이지는 일반 설명) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="StockRipple">
+<meta property="og:title" content="이슈 분석 — StockRipple">
+<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta property="og:url" content="https://stockripple.vercel.app/analysis.html">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="이슈 분석 — StockRipple">
+<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
 :root {
-  --bg: #ffffff; --bg2: #f6f6f8; --bg3: #ececf0; --bg4: #dededf;
-  --border: #e5e5ea; --border-strong: #c4c4c9; --border-soft: rgba(0,0,0,0.06);
-  --text: #0a0a0a; --text2: #4b4b52; --text3: #86868b;
-  --blue: #0066cc; --blue-dim: rgba(0,102,204,0.10);
-  --green: #00873a; --green-dim: rgba(0,135,58,0.10);
-  --red:   #e31937; --red-dim:   rgba(227,25,55,0.10);
-  --yellow:#b8860b; --purple:#7c3aed;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
-  --r-lg: 20px; --r-md: 14px; --r-sm: 10px;
+  --bg: #15171e; --bg-rgb: 21,23,30; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
+  --border: rgba(255,255,255,0.075); --border-strong: rgba(255,255,255,0.16); --border-soft: rgba(255,255,255,0.05);
+  --text: #f2f4f8; --text2: #a6adbb; --text3: #6c7385;
+  --blue: #4d8dff; --blue-dim: rgba(77,141,255,0.14);
+  --green: #3ddb7f; --green-dim: rgba(61,219,127,0.14);
+  --red:   #ff6b6b; --red-dim:   rgba(255,107,107,0.14);
+  --yellow:#f0b45e; --yellow-dim: rgba(240,180,94,0.16); --purple:#9d7bff; --purple-dim: rgba(157,123,255,0.16);
+  --shadow-card: 0 10px 30px -14px rgba(0,0,0,0.55);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-pop: 0 20px 50px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-focus: 0 0 0 3px rgba(77,141,255,0.22);
+  --r-lg: 20px; --r-md: 14px; --r-sm: 10px; --r-xs: 7px; --r-xl: 20px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1); --t-fast: 120ms;
+}
+
+/* ── 라이트 모드 오버라이드 (2026-07-27) ── */
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --bg-rgb: 245,246,248; --bg2: #ffffff; --bg3: #eef0f3; --bg4: #e3e6eb;
+  --border: rgba(15,17,23,0.09); --border-strong: rgba(15,17,23,0.18); --border-soft: rgba(15,17,23,0.05);
+  --text: #14161c; --text2: #4b5163; --text3: #6b7280;
+  --red: #dc2626; --green: #15803d; --blue: #1d4ed8; --yellow: #a16207; --purple: #7c3aed;
+  --shadow-sm: 0 2px 8px rgba(15,17,23,0.10);
+  --shadow-card: 0 10px 30px -14px rgba(15,17,23,0.16);
+  --shadow-pop: 0 20px 50px rgba(15,17,23,0.20), 0 4px 12px rgba(15,17,23,0.10);
+  --shadow-focus: 0 0 0 3px rgba(29,78,216,0.18);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(255,255,255,0.85); backdrop-filter: blur(12px) saturate(180%);
+  background: rgba(var(--bg-rgb),0.80); backdrop-filter: blur(12px) saturate(180%);
   border-bottom: 1px solid var(--border); padding: 0 24px;
 }
 .header-inner {
@@ -36,34 +64,105 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 .back-btn {
   display: flex; align-items: center; gap: 6px; color: var(--text2);
-  text-decoration: none; font-size: 13px; background: none; border: none; cursor: pointer;
+  text-decoration: none; font-size: 15.5px; background: none; border: none; cursor: pointer;
   padding: 5px 10px; border-radius: 6px; transition: all 0.15s;
 }
 .back-btn:hover { background: var(--bg3); color: var(--text); }
-.logo-sm { font-size: 14px; font-weight: 700; color: var(--text2); }
+.logo-sm { font-size: 16px; font-weight: 700; color: var(--text2); }
 .logo-sm span { color: var(--blue); }
+
+/* 메인 상단바(index.html)와 통일 — 로고/검색/네비/로그인 */
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.logo-icon {
+  width: 32px; height: 32px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 700; box-shadow: 0 3px 10px rgba(36,87,230,0.30); flex-shrink: 0;
+}
+.logo-text { font-size: 19px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+.logo-sub { font-size: 13px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
+.header-nav { display: flex; gap: 2px; margin-left: auto; align-items: center; }
+.nav-btn {
+  padding: 7px 13px; border-radius: var(--r-md); font-size: 15.5px; font-weight: 500;
+  background: none; border: none; color: var(--text2); cursor: pointer;
+  text-decoration: none; display: flex; align-items: center; gap: 6px;
+  transition: all var(--t-fast) var(--ease); white-space: nowrap;
+}
+.nav-btn:hover { background: var(--bg3); color: var(--text); }
+.nav-btn.active { background: var(--blue); color: #fff; font-weight: 600; }
+.nav-new { position: relative; }
+.nav-new::after { content: ""; position: absolute; top: 2px; right: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px var(--bg), 0 0 6px var(--red); }
+.nav-btn-primary {
+  background: var(--blue); color: #fff; padding: 7px 16px; margin-left: 6px;
+  border-radius: var(--r-md); font-size: 15.5px; font-weight: 600;
+  text-decoration: none; cursor: pointer; border: none; transition: all var(--t-fast);
+}
+.nav-btn-primary:hover { background: #1e4ccc; }
+.user-menu { position: relative; flex-shrink: 0; }
+.user-avatar-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--blue-dim); color: var(--blue);
+  border: 1.5px solid var(--blue); font-size: 15.5px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.user-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md);
+  min-width: 140px; overflow: hidden; z-index: 500; box-shadow: var(--shadow-pop);
+}
+.dropdown-item {
+  display: block; width: 100%; padding: 10px 14px; font-size: 15.5px;
+  color: var(--text2); background: none; border: none; text-align: left;
+  cursor: pointer; text-decoration: none; transition: all var(--t-fast);
+}
+.dropdown-item:hover { background: var(--bg3); color: var(--text); }
+/* PC 전용 상단 종목 검색창 — 모바일(700px 이하)에서는 숨김 */
+.header-search {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 7px 10px; flex: 1 1 auto; max-width: 260px; min-width: 0;
+}
+.header-search svg { color: var(--text3); flex-shrink: 0; }
+.header-search input { flex: 1; min-width: 0; border: none; outline: none; background: none; font-size: 15.5px; color: var(--text); font-family: inherit; }
+.header-search input::placeholder { color: var(--text3); }
+@media (max-width: 900px) { .header-search { display: none; } }
+@media (max-width: 760px) {
+  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; position: relative; }
+  .header-nav { flex-wrap: wrap; row-gap: 4px; }
+  /* 로그인/유저메뉴는 로고와 같은 첫 줄 우측 끝에 고정 — 아래로 줄바꿈되는 네비 목록과 분리 */
+  #loginBtn, .user-menu { position: absolute; top: 8px; right: 0; margin-left: 0; }
+}
+@media (max-width: 680px) { .logo-sub { display: none; } .nav-btn { padding: 6px 9px; font-size: 14.5px; } .header { padding: 0 16px; } }
+.sp-card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; text-decoration: none; color: var(--text); transition: transform .12s var(--ease), border-color .12s, box-shadow .12s; }
+.sp-card:hover { transform: translateY(-2px); border-color: var(--blue); box-shadow: 0 8px 24px rgba(0,102,204,0.10); }
+.sp-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.sp-ticker { font-family: 'SF Mono', monospace; font-size: 14.5px; font-weight: 700; padding: 3px 9px; border-radius: 6px; letter-spacing: .3px; }
+.sp-market { font-size: 13.5px; color: var(--text3); font-weight: 500; }
+.sp-name { font-size: 17px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.sp-name-sub { font-size: 13.5px; color: var(--text3); font-weight: 400; }
+.sp-arrow { font-size: 13.5px; color: var(--blue); margin-top: 4px; font-weight: 500; }
 
 .page-wrap { max-width: 1100px; margin: 0 auto; padding: 32px 24px 60px; }
 
 /* Issue Header */
 .issue-header { margin-bottom: 32px; }
 .issue-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
-.meta-source { font-size: 12px; color: var(--text3); display: flex; align-items: center; gap: 5px; }
+.meta-source { font-size: 14.5px; color: var(--text3); display: flex; align-items: center; gap: 5px; }
 .source-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
-.meta-date { font-size: 12px; color: var(--text3); }
+.meta-date { font-size: 14.5px; color: var(--text3); }
 .meta-sep { color: var(--border); }
 .issue-title { font-size: 24px; font-weight: 700; line-height: 1.4; margin-bottom: 12px; }
-.issue-summary { font-size: 14px; color: var(--text2); line-height: 1.7; margin-bottom: 16px; }
+.issue-summary { font-size: 16px; color: var(--text2); line-height: 1.7; margin-bottom: 16px; }
 .issue-sectors { display: flex; gap: 6px; flex-wrap: wrap; }
-.sector-tag { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
-.tag-semi   { background: rgba(0,102,204,0.10); color: #0066cc; }
-.tag-ev     { background: rgba(0,135,58,0.10);  color: #00873a; }
-.tag-ai     { background: rgba(124,58,237,0.10);color: #7c3aed; }
-.tag-bio    { background: rgba(227,25,55,0.10); color: #e31937; }
-.tag-fin    { background: rgba(184,134,11,0.12);color: #b8860b; }
-.tag-cloud  { background: rgba(0,102,204,0.10); color: #0066cc; }
-.tag-robot  { background: rgba(124,58,237,0.10);color: #7c3aed; }
-.tag-energy { background: rgba(0,135,58,0.10);  color: #00873a; }
+.sector-tag { font-size: 13.5px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
+.tag-semi   { background: rgba(0,102,204,0.10); color: #4d8dff; }
+.tag-ev     { background: rgba(0,135,58,0.10);  color: #3ddb7f; }
+.tag-ai     { background: rgba(124,58,237,0.10);color: #9d7bff; }
+.tag-bio    { background: rgba(227,25,55,0.10); color: #ff6b6b; }
+.tag-fin    { background: rgba(184,134,11,0.12);color: #f0b45e; }
+.tag-cloud  { background: rgba(0,102,204,0.10); color: #4d8dff; }
+.tag-robot  { background: rgba(124,58,237,0.10);color: #9d7bff; }
+.tag-energy { background: rgba(0,135,58,0.10);  color: #3ddb7f; }
 .tag-default { background: var(--bg3); color: var(--text2); }
 
 /* AI Summary Card — Tesla-light */
@@ -72,7 +171,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   background:
     radial-gradient(ellipse 80% 100% at 0% 0%, rgba(0,102,204,0.06), transparent 60%),
     radial-gradient(ellipse 70% 100% at 100% 100%, rgba(124,58,237,0.06), transparent 60%),
-    #ffffff;
+    var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--r-lg, 20px);
   padding: 24px 26px;
@@ -85,20 +184,39 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   width: 3px; border-radius: var(--r-lg, 20px) 0 0 var(--r-lg, 20px);
   background: linear-gradient(180deg, var(--blue), var(--purple));
 }
-.ai-badge { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--blue); font-weight: 700; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.6px; }
+.ai-badge { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--blue); font-weight: 700; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.6px; }
 .ai-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); animation: pulse 2s infinite; box-shadow: 0 0 0 3px rgba(0,102,204,0.18); }
 @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
-.ai-text { font-size: 14.5px; line-height: 1.75; color: var(--text); font-weight: 400; }
+.ai-text { font-size: 16.5px; line-height: 1.75; color: var(--text); font-weight: 400; }
 
 /* Confidence */
 .confidence-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
-.conf-label { font-size: 11px; color: var(--text2); font-weight: 600; white-space: nowrap; }
+.conf-label { font-size: 13.5px; color: var(--text2); font-weight: 600; white-space: nowrap; }
 .conf-bar { flex: 1; height: 6px; background: var(--bg3); border-radius: 999px; overflow: hidden; }
 .conf-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--blue), var(--purple)); transition: width 1s var(--ease, ease); box-shadow: 0 0 8px rgba(0,102,204,0.25); }
-.conf-pct { font-size: 13px; font-weight: 800; color: var(--blue); font-family: var(--font-mono, monospace); }
+.conf-pct { font-size: 15.5px; font-weight: 800; color: var(--blue); font-family: var(--font-mono, monospace); }
+
+/* 투자 포인트 요약 */
+.invest-point { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg, 16px); padding: 16px 18px; margin-bottom: 24px; }
+.ip-title { font-size: 15.5px; font-weight: 700; margin-bottom: 12px; }
+.ip-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.ip-row:last-child { margin-bottom: 0; }
+.ip-tag { flex-shrink: 0; font-size: 13.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.ip-tag.pos { color: var(--red); background: var(--red-dim); }
+.ip-tag.neg { color: var(--blue); background: var(--blue-dim); }
+.ip-names { font-size: 16px; color: var(--text); line-height: 1.6; font-weight: 500; }
+
+/* 관련 과거 이슈 타임라인 */
+.related-section { margin-top: 8px; }
+.related-list { display: flex; flex-direction: column; gap: 8px; }
+.related-item { display: flex; align-items: center; gap: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; text-decoration: none; color: var(--text); transition: border-color 0.12s; }
+.related-item:hover { border-color: var(--blue); }
+.related-date { font-size: 14px; color: var(--text3); font-family: var(--font-mono, monospace); white-space: nowrap; flex-shrink: 0; }
+.related-title { flex: 1; font-size: 16px; font-weight: 500; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.related-sectors { display: flex; gap: 4px; flex-shrink: 0; }
 
 /* Section Headers */
-.section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
 .section-title svg { color: var(--text3); }
 
 /* Ripple Flow */
@@ -111,15 +229,15 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .ripple-card:hover { border-color: var(--blue); }
 .ripple-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .impact-badge {
-  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
+  font-size: 13px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
   text-transform: uppercase; letter-spacing: 0.5px;
   white-space: nowrap; flex-shrink: 0;
 }
-.impact-positive { background: var(--green-dim); color: var(--green); }
-.impact-negative { background: var(--red-dim); color: var(--red); }
+.impact-positive { background: var(--red-dim); color: var(--red); }
+.impact-negative { background: var(--blue-dim); color: var(--blue); }
 .impact-neutral { background: var(--bg3); color: var(--text2); }
-.ripple-sector-name { font-size: 14px; font-weight: 600; min-width: 0; }
-.ripple-reason { font-size: 12px; color: var(--text2); line-height: 1.55; }
+.ripple-sector-name { font-size: 16px; font-weight: 600; min-width: 0; }
+.ripple-reason { font-size: 14.5px; color: var(--text2); line-height: 1.55; }
 
 /* Companies Section */
 .companies-section { margin-bottom: 36px; }
@@ -130,43 +248,58 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 .card-star {
   position: absolute; top: 12px; right: 12px;
-  background: none; border: none; cursor: pointer; font-size: 16px;
+  background: none; border: none; cursor: pointer; font-size: 18px;
   color: var(--text3); line-height: 1; padding: 2px; z-index: 2;
   transition: all 0.15s;
 }
-.card-star.active { color: #b8860b; }
+.card-star.active { color: #f0b45e; }
 .card-star:hover { transform: scale(1.2); }
 .company-ticker-link { text-decoration: none; }
 .company-ticker-link:hover .company-ticker { opacity: 0.8; }
 .company-card:hover { border-color: var(--blue); box-shadow: 0 4px 20px rgba(47,129,247,0.1); transform: translateY(-1px); }
 
-/* Auth Modal (shared) */
+/* Auth Modal (index.html/company.html과 통일) */
 .auth-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 2000;
+  position: fixed; inset: 0; background: rgba(19,23,34,0.45); z-index: 2000;
   display: flex; align-items: center; justify-content: center; padding: 20px;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px); animation: fadeIn 0.15s ease;
 }
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 .auth-modal {
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 16px;
-  width: 100%; max-width: 400px; padding: 32px; position: relative;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-xl);
+  width: 100%; max-width: 380px; padding: 36px 32px 28px; position: relative;
+  animation: slideUp 0.2s ease; box-shadow: var(--shadow-pop);
 }
-.auth-close { position: absolute; top: 14px; right: 14px; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; padding: 4px; border-radius: 4px; }
+@keyframes slideUp { from { transform: translateY(16px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+.auth-close { position: absolute; top: 14px; right: 14px; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; width: 28px; height: 28px; border-radius: var(--r-xs); display: flex; align-items: center; justify-content: center; transition: all var(--t-fast); }
 .auth-close:hover { background: var(--bg3); color: var(--text); }
-.auth-logo { font-size: 16px; font-weight: 700; color: var(--text2); margin-bottom: 20px; }
+.auth-logo { font-size: 17px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
 .auth-logo span { color: var(--blue); }
-.auth-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
-.auth-btn-google { width: 100%; padding: 11px; border-radius: 8px; font-size: 14px; font-weight: 500; background: var(--bg3); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.15s; margin-bottom: 16px; }
-.auth-btn-google:hover { background: var(--border); }
-.auth-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; color: var(--text3); font-size: 12px; }
+.auth-title { font-size: 24px; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.02em; }
+.auth-btn-google { width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 16px; font-weight: 500; background: #fff; border: 1px solid #dadce0; color: #3c4043; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all var(--t-fast); margin-bottom: 20px; box-shadow: var(--shadow-sm); }
+.auth-btn-google:hover { background: #f8f9fa; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+.auth-btn-google:active { background: #f1f3f4; }
+.auth-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; color: var(--text3); font-size: 14.5px; }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-.auth-input { width: 100%; padding: 10px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; margin-bottom: 10px; outline: none; transition: border-color 0.15s; font-family: inherit; }
-.auth-input:focus { border-color: var(--blue); }
-.auth-submit-btn { width: 100%; padding: 11px; border-radius: 8px; font-size: 14px; font-weight: 600; background: var(--blue); border: none; color: #fff; cursor: pointer; transition: all 0.15s; margin-top: 4px; }
-.auth-submit-btn:hover { background: #388be8; }
-.auth-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.auth-switch { margin-top: 16px; text-align: center; font-size: 13px; color: var(--text2); }
-.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 13px; }
+.auth-field { position: relative; margin-bottom: 12px; }
+.auth-field label { display: block; font-size: 14.5px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
+.auth-input { width: 100%; padding: 10px 12px; background: var(--bg3); border: 1.5px solid var(--border); border-radius: var(--r-sm); color: var(--text); font-size: 16px; outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); font-family: inherit; box-sizing: border-box; }
+.auth-input:focus { border-color: var(--blue); box-shadow: var(--shadow-focus); background: var(--bg2); }
+.auth-input::placeholder { color: var(--text3); }
+.auth-error { font-size: 14.5px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
+.auth-error.success { color: var(--green); }
+.auth-submit-btn { width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 16px; font-weight: 700; background: var(--blue); border: none; color: #fff; cursor: pointer; transition: all var(--t-fast); }
+.auth-submit-btn:hover { background: #1e4ccc; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(36,87,230,0.35); }
+.auth-submit-btn:active { transform: none; box-shadow: none; }
+.auth-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.auth-switch { margin-top: 18px; text-align: center; font-size: 15.5px; color: var(--text3); }
+.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15.5px; font-weight: 600; }
 .auth-link:hover { text-decoration: underline; }
+.auth-consent { margin-bottom: 14px; }
+.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; color: var(--text2); cursor: pointer; line-height: 1.5; }
+.auth-consent-label input[type="checkbox"] { margin-top: 2px; width: 15px; height: 15px; flex-shrink: 0; accent-color: var(--blue); cursor: pointer; }
+.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15px; font-weight: 600; padding: 0; text-decoration: underline; }
+.auth-privacy-text { margin-top: 8px; padding: 10px 12px; background: var(--bg3); border-radius: var(--r-sm); font-size: 14px; color: var(--text3); line-height: 1.7; }
 
 /* Chart Modal */
 .chart-overlay {
@@ -179,14 +312,14 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   width: 100%; max-width: 720px; padding: 24px; position: relative;
 }
 .chart-modal-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
-.chart-modal-ticker { font-family: 'SF Mono', monospace; font-size: 13px; font-weight: 700; }
-.chart-modal-ticker.kr { background: rgba(0,102,204,0.10); color: #0066cc; padding: 3px 8px; border-radius: 5px; }
+.chart-modal-ticker { font-family: 'SF Mono', monospace; font-size: 15.5px; font-weight: 700; }
+.chart-modal-ticker.kr { background: rgba(0,102,204,0.10); color: #4d8dff; padding: 3px 8px; border-radius: 5px; }
 .chart-modal-ticker.us { background: var(--bg3); color: var(--text2); padding: 3px 8px; border-radius: 5px; }
-.chart-modal-name { font-size: 18px; font-weight: 700; margin: 6px 0 2px; }
+.chart-modal-name { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
 .chart-modal-price { font-size: 24px; font-weight: 700; }
-.chart-modal-change { font-size: 14px; font-weight: 600; margin-left: 8px; }
-.chart-modal-change.pos { color: var(--green); }
-.chart-modal-change.neg { color: var(--red); }
+.chart-modal-change { font-size: 16px; font-weight: 600; margin-left: 8px; }
+.chart-modal-change.pos { color: var(--red); }
+.chart-modal-change.neg { color: var(--blue); }
 .chart-close {
   background: none; border: none; color: var(--text3); cursor: pointer;
   font-size: 20px; line-height: 1; padding: 4px; border-radius: 4px;
@@ -194,38 +327,38 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .chart-close:hover { background: var(--bg3); color: var(--text); }
 .chart-range-btns { display: flex; gap: 6px; margin: 14px 0 12px; }
 .range-btn {
-  padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  padding: 4px 12px; border-radius: 6px; font-size: 14.5px; font-weight: 600;
   border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; transition: all 0.15s;
 }
 .range-btn.active, .range-btn:hover { background: var(--blue); border-color: var(--blue); color: #fff; }
 .chart-canvas-wrap { position: relative; height: 260px; }
-.chart-loading { text-align: center; padding: 60px; color: var(--text3); font-size: 13px; }
+.chart-loading { text-align: center; padding: 60px; color: var(--text3); font-size: 15.5px; }
 .company-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
 .company-ticker {
-  font-size: 13px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 15.5px; font-weight: 700; font-family: 'SF Mono', 'Fira Code', monospace;
   background: var(--bg3); color: var(--text2); padding: 4px 10px; border-radius: 6px;
 }
-.company-ticker.kr { background: rgba(0,102,204,0.10); color: #0066cc; }
-.company-ticker.us { background: rgba(124,58,237,0.10); color: #7c3aed; }
+.company-ticker.kr { background: rgba(0,102,204,0.10); color: #4d8dff; }
+.company-ticker.us { background: rgba(124,58,237,0.10); color: #9d7bff; }
 .company-info { flex: 1; }
-.company-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
-.company-market { font-size: 11px; color: var(--text3); }
+.company-name { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+.company-market { font-size: 13.5px; color: var(--text3); }
 .upside-badge {
   font-size: 20px; font-weight: 800; padding: 4px 10px; border-radius: 8px;
   white-space: nowrap;
 }
-.upside-pos { background: var(--green-dim); color: var(--green); }
-.upside-neg { background: var(--red-dim); color: var(--red); }
-.company-rationale { font-size: 12px; color: var(--text2); line-height: 1.55; margin-bottom: 10px; }
-.company-ripple { font-size: 11px; color: var(--text3); }
+.upside-pos { background: var(--red-dim); color: var(--red); }
+.upside-neg { background: var(--blue-dim); color: var(--blue); }
+.company-rationale { font-size: 14.5px; color: var(--text2); line-height: 1.55; margin-bottom: 10px; }
+.company-ripple { font-size: 13.5px; color: var(--text3); }
 .company-ripple span { color: var(--blue); }
 .company-footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
-.price-info { font-size: 12px; color: var(--text2); }
+.price-info { font-size: 14.5px; color: var(--text2); }
 .price-info .price { font-weight: 600; color: var(--text); }
 .conf-mini { display: flex; align-items: center; gap: 6px; flex: 1; justify-content: flex-end; }
 .conf-mini-bar { width: 60px; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
 .conf-mini-fill { height: 100%; border-radius: 2px; }
-.conf-mini-pct { font-size: 11px; color: var(--text3); }
+.conf-mini-pct { font-size: 13.5px; color: var(--text3); }
 
 /* Chart Section */
 .chart-section { margin-bottom: 36px; }
@@ -233,7 +366,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
   padding: 20px;
 }
-.chart-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--text2); }
+.chart-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--text2); }
 .chart-wrap { position: relative; height: 280px; }
 
 /* Loading / Error */
@@ -242,7 +375,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 600px) {
-  .issue-title { font-size: 18px; }
+  .issue-title { font-size: 20px; }
   .companies-grid { grid-template-columns: 1fr; }
   .ripple-grid { grid-template-columns: 1fr; }
 }
@@ -250,15 +383,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 </head>
 <body>
 
-<header class="header">
-  <div class="header-inner">
-    <a href="/" class="back-btn">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-      피드로 돌아가기
-    </a>
-    <span class="logo-sm">Stock<span>Ripple</span></span>
-  </div>
-</header>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/analysis.html');</script>
 
 <div class="page-wrap" id="pageWrap">
   <div class="loading-state">
@@ -267,21 +395,14 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
-const SUPABASE_URL = 'https://nmvfffzpkqyzztiobwtt.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_22PPW0eCY3Tvy3vZVZYKFw_yCb8cI2f';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// SUPABASE_URL/ANON_KEY/sb/트래킹은 site-header.js가 공용 제공(2026-07-22) — 여기서 재선언 안 함.
 
-// 실시간 접속자 표시용 (관리자 대시보드) — 페이지뷰 집계가 아니라 현재 열려있는 탭 수 근사치
-(function trackPresence() {
-  try {
-    let sid = sessionStorage.getItem('sr_sid');
-    if (!sid) { sid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; sessionStorage.setItem('sr_sid', sid); }
-    const ch = sb.channel('site-presence', { config: { presence: { key: sid } } });
-    ch.subscribe(status => { if (status === 'SUBSCRIBED') ch.track({ page: location.pathname }); });
-  } catch {}
-})();
+// 2026-07-27: Chart.js 색상을 라이트/다크 토글에 맞춰 렌더 시점에 다시 읽기 위한 헬퍼.
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
 
 const sectorColors = {
   '반도체': 'tag-semi', 'AI': 'tag-ai', '전기차': 'tag-ev', '배터리': 'tag-ev',
@@ -314,7 +435,7 @@ async function loadStockPrice(ticker, el) {
       const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: data.currency || 'USD', maximumFractionDigits: 2 });
       const cp = data.changePercent;
       const chgHtml = (cp != null && !isNaN(cp))
-        ? ` <span class="price-chg" style="color:${cp >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700" title="당일 등락(최근 시세 기준)">${cp >= 0 ? '▲' : '▼'} ${cp >= 0 ? '+' : ''}${Number(cp).toFixed(2)}%</span>`
+        ? ` <span class="price-chg" style="color:${cp >= 0 ? 'var(--red)' : 'var(--blue)'};font-weight:700" title="당일 등락(최근 시세 기준)">${cp >= 0 ? '▲' : '▼'} ${cp >= 0 ? '+' : ''}${Number(cp).toFixed(2)}%</span>`
         : '';
       el.innerHTML = `<span class="price">${fmt.format(data.price)}</span>${chgHtml}`;
       if (data.marketCap) {
@@ -327,6 +448,42 @@ async function loadStockPrice(ticker, el) {
       }
     }
   } catch(e) {}
+}
+
+// 관련 과거 이슈 — 같은 섹터의 최근 분석 이슈 (파급효과 추적)
+async function loadRelatedIssues(issue) {
+  const wrap = document.getElementById('relatedIssuesWrap');
+  if (!wrap) return;
+  const sectors = issue.sectors || [];
+  if (!sectors.length) return;
+  try {
+    const { data } = await sb.from('issues')
+      .select('id,title,published_at,sectors')
+      .overlaps('sectors', sectors)
+      .neq('ai_digest', '')
+      .neq('id', issue.id)
+      .order('published_at', { ascending: false })
+      .limit(6);
+    if (!data || !data.length) return;
+    const rows = data.map(it => {
+      const dt = new Date(it.published_at);
+      const mmdd = `${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      const tags = (it.sectors || []).slice(0, 2).map(s => `<span class="sector-tag ${sectorColors[s] || 'tag-default'}" style="font-size:13px;padding:2px 7px">${escHtml(s)}</span>`).join('');
+      return `<a href="/analysis.html?id=${it.id}" class="related-item">
+        <span class="related-date">${mmdd}</span>
+        <span class="related-title">${escHtml(it.title)}</span>
+        <span class="related-sectors">${tags}</span>
+      </a>`;
+    }).join('');
+    wrap.innerHTML = `
+      <div class="related-section">
+        <div class="section-title">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          관련 과거 이슈 <span style="font-size:15.5px;color:var(--text2);font-weight:400">(같은 섹터 · ${data.length}건)</span>
+        </div>
+        <div class="related-list">${rows}</div>
+      </div>`;
+  } catch (e) { /* silent */ }
 }
 
 function renderPage(issue, analysis, companies) {
@@ -375,13 +532,21 @@ function renderPage(issue, analysis, companies) {
   };
   const tfLabel = { '1w':'단기 1주', '1m':'중기 1개월', '3m':'중장기 3개월', '6m':'장기 6개월' };
 
-  const companyCards = companies.map(c => {
+  // 기업 방향(긍정/부정) 판정: 매칭되는 파급섹터 impact 우선, 없으면 예상 상승률 부호
+  const _rippleImpactBySector = {};
+  rippleEffects.forEach(r => { if (r.sector) _rippleImpactBySector[r.sector] = r.impact; });
+  const companyDir = (c) => {
+    const imp = _rippleImpactBySector[c.ripple_sector];
+    if (imp === 'positive') return 'pos';
+    if (imp === 'negative') return 'neg';
+    if (c.upside_pct != null) return c.upside_pct >= 0 ? 'pos' : 'neg';
+    return 'pos';
+  };
+
+  const renderCoCard = (c) => {
     const co = c.companies;
     if (!co) return '';
     const isKr = co.market === 'KR';
-    const upsidePct = c.upside_pct;
-    const sign = upsidePct >= 0 ? '+' : '';
-    const upsideClass = upsidePct >= 0 ? 'upside-pos' : 'upside-neg';
     const confColor = getConfColor(c.confidence || 50);
     const parsed = parseTradeMeta(c.rationale);
     const trade  = parsed.trade;
@@ -390,19 +555,19 @@ function renderPage(issue, analysis, companies) {
     // 차트 테크니컬 칩 ([FUND] 메타의 rsi/sig/volr/mom1m/atrm)
     const fund = parsed.fund;
     const sigInfo = {
-      strong_bullish: ['정배열 강세', 'var(--green)'], bullish: ['상승 추세', 'var(--green)'],
-      neutral: ['중립', 'var(--text3)'], bearish: ['하락 추세', 'var(--red)'],
-      strong_bearish: ['역배열 약세', 'var(--red)'], overbought: ['과열', 'var(--yellow)'],
-      oversold: ['과매도', 'var(--red)'], oversold_bull: ['눌림목 기회', 'var(--blue)'],
+      strong_bullish: ['정배열 강세', 'var(--red)'], bullish: ['상승 추세', 'var(--red)'],
+      neutral: ['중립', 'var(--text3)'], bearish: ['하락 추세', 'var(--blue)'],
+      strong_bearish: ['역배열 약세', 'var(--blue)'], overbought: ['과열', 'var(--yellow)'],
+      oversold: ['과매도', 'var(--blue)'], oversold_bull: ['눌림목 기회', 'var(--blue)'],
     };
-    const techChip = (label, color) => `<span style="font-size:10px;font-weight:600;padding:3px 8px;border-radius:10px;border:1px solid ${color};color:${color}">${label}</span>`;
+    const techChip = (label, color) => `<span style="font-size:13px;font-weight:600;padding:3px 8px;border-radius:10px;border:1px solid ${color};color:${color}">${label}</span>`;
     let techChips = '';
     if (fund && (fund.rsi != null || fund.sig || fund.volr != null)) {
       const parts = [];
       if (fund.sig && sigInfo[fund.sig]) parts.push(techChip('📈 ' + sigInfo[fund.sig][0], sigInfo[fund.sig][1]));
       if (fund.rsi != null) parts.push(techChip('RSI ' + fund.rsi, fund.rsi >= 70 ? 'var(--yellow)' : fund.rsi <= 30 ? 'var(--red)' : 'var(--text2)'));
       if (fund.volr != null) parts.push(techChip('거래량 ' + fund.volr + '×', fund.volr >= 1.5 ? 'var(--blue)' : 'var(--text3)'));
-      if (fund.mom1m != null) parts.push(techChip('1개월 ' + fmtP(fund.mom1m), fund.mom1m >= 0 ? 'var(--green)' : 'var(--red)'));
+      if (fund.mom1m != null) parts.push(techChip('1개월 ' + fmtP(fund.mom1m), fund.mom1m >= 0 ? 'var(--red)' : 'var(--blue)'));
       if (fund.atrm != null) parts.push(techChip('월변동폭 ±' + fund.atrm + '%', 'var(--text3)'));
       if (parts.length) techChips = `<div style="display:flex;gap:5px;flex-wrap:wrap;margin:8px 0 2px">${parts.join('')}</div>`;
     }
@@ -410,21 +575,21 @@ function renderPage(issue, analysis, companies) {
     const tradeBox = trade ? `
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:10px;margin:8px 0;background:linear-gradient(135deg,rgba(63,185,80,.08),rgba(47,129,247,.08));border:1px solid rgba(63,185,80,.25);border-radius:8px">
         <div style="text-align:center">
-          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">매수가</div>
-          <div style="font-size:13px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace">${trade.elp != null ? fmtP(trade.elp) : '—'}~${trade.ehp != null ? fmtP(trade.ehp) : '—'}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:2px">매수가</div>
+          <div style="font-size:15.5px;font-weight:700;color:var(--blue);font-family:'SF Mono',monospace">${trade.elp != null ? fmtP(trade.elp) : '—'}~${trade.ehp != null ? fmtP(trade.ehp) : '—'}</div>
         </div>
         <div style="text-align:center;border-left:1px solid var(--border);border-right:1px solid var(--border)">
-          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">목표</div>
-          <div style="font-size:13px;font-weight:700;color:var(--green);font-family:'SF Mono',monospace">${trade.tp != null ? fmtP(trade.tp) : '—'}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:2px">목표</div>
+          <div style="font-size:15.5px;font-weight:700;color:var(--green);font-family:'SF Mono',monospace">${trade.tp != null ? fmtP(trade.tp) : '—'}</div>
         </div>
         <div style="text-align:center">
-          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">손절</div>
-          <div style="font-size:13px;font-weight:700;color:var(--red);font-family:'SF Mono',monospace">${trade.sl != null ? fmtP(trade.sl) : '—'}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:2px">손절</div>
+          <div style="font-size:15.5px;font-weight:700;color:var(--red);font-family:'SF Mono',monospace">${trade.sl != null ? fmtP(trade.sl) : '—'}</div>
         </div>
       </div>
-      ${trade.tf ? `<div style="font-size:11px;color:var(--blue);margin-bottom:6px;font-weight:600">⏱ ${tfLabel[trade.tf] || trade.tf}</div>` : ''}
-      ${trade.th ? `<div style="font-size:12px;color:var(--text2);margin-bottom:4px;line-height:1.5"><span style="color:var(--green);font-weight:700">💡 </span>${escHtml(trade.th)}</div>` : ''}
-      ${trade.rk ? `<div style="font-size:12px;color:var(--text3);line-height:1.5"><span style="color:var(--yellow);font-weight:700">⚠️ </span>${escHtml(trade.rk)}</div>` : ''}
+      ${trade.tf ? `<div style="font-size:13.5px;color:var(--blue);margin-bottom:6px;font-weight:600">⏱ ${tfLabel[trade.tf] || trade.tf}</div>` : ''}
+      ${trade.th ? `<div style="font-size:14.5px;color:var(--text2);margin-bottom:4px;line-height:1.5"><span style="color:var(--green);font-weight:700">💡 </span>${escHtml(trade.th)}</div>` : ''}
+      ${trade.rk ? `<div style="font-size:14.5px;color:var(--text3);line-height:1.5"><span style="color:var(--yellow);font-weight:700">⚠️ </span>${escHtml(trade.rk)}</div>` : ''}
     ` : '';
 
     return `
@@ -436,7 +601,6 @@ function renderPage(issue, analysis, companies) {
             <div class="company-name">${escHtml(co.name_ko || co.name_en || co.ticker)}</div>
             <div class="company-market">${isKr ? '한국 상장' : '미국 상장'} · ${escHtml(co.sector || c.ripple_sector || '')}</div>
           </div>
-          ${upsidePct != null ? `<div class="upside-badge ${upsideClass}">${sign}${upsidePct}%</div>` : ''}
         </div>
         <div class="company-rationale">${escHtml(parsed.reason || '')}</div>
         ${techChips}
@@ -450,7 +614,43 @@ function renderPage(issue, analysis, companies) {
           </div>
         </div>
       </div>`;
-  }).join('');
+  };
+
+  // 부정 기업용 간단 카드 (ripple_effects JSON의 피해 우려 기업 — 검증/시세 없이 표시)
+  const renderNegSimpleCard = (co) => {
+    const isKr = /\.K[SQ]$/i.test(co.ticker || '') || co.market === 'KR';
+    return `
+      <div class="company-card">
+        <div class="company-top">
+          <a href="/company.html?ticker=${encodeURIComponent(co.ticker)}" class="company-ticker-link" onclick="event.stopPropagation()"><span class="company-ticker ${isKr ? 'kr' : 'us'}">${escHtml(co.ticker)}</span></a>
+          <div class="company-info">
+            <div class="company-name">${escHtml(co.name_ko || co.name_en || co.ticker)}</div>
+            <div class="company-market">${isKr ? '한국 상장' : '미국 상장'}${co._sector ? ' · ' + escHtml(co._sector) : ''}</div>
+          </div>
+        </div>
+        ${co.rationale ? `<div class="company-rationale">${escHtml(co.rationale)}</div>` : ''}
+        ${co._sector ? `<div class="company-ripple">파급 섹터: <span>${escHtml(co._sector)}</span></div>` : ''}
+      </div>`;
+  };
+
+  // 긍정 영향 기업 = 검증된 매수 후보(analysis_companies)
+  const posCompanies = companies.filter(c => c.companies && companyDir(c) === 'pos');
+  const posCards = posCompanies.map(renderCoCard).join('');
+
+  // 부정 영향 기업 = analysis_companies(neg) + ripple_effects negative 섹터 기업 (티커 중복 제거)
+  const negFromTable = companies.filter(c => c.companies && companyDir(c) === 'neg');
+  const negTickers = new Set(negFromTable.map(c => (c.companies?.ticker || '').toUpperCase()).filter(Boolean));
+  const negFromRipple = [];
+  rippleEffects.filter(r => r.impact === 'negative').forEach(r => {
+    (r.companies || []).forEach(co => {
+      const tk = (co.ticker || '').toUpperCase();
+      if (!tk || negTickers.has(tk)) return;
+      negTickers.add(tk);
+      negFromRipple.push({ ...co, _sector: r.sector });
+    });
+  });
+  const negCount = negFromTable.length + negFromRipple.length;
+  const negCards = negFromTable.map(renderCoCard).join('') + negFromRipple.map(renderNegSimpleCard).join('');
 
   const html = `
     <div class="issue-header">
@@ -458,7 +658,7 @@ function renderPage(issue, analysis, companies) {
         <span class="meta-source"><span class="source-dot"></span>${escHtml(issue.source_name || '뉴스')}</span>
         <span class="meta-sep">·</span>
         <span class="meta-date">${timeAgo(issue.published_at)}</span>
-        ${issue.source_url ? `<a href="${escHtml(issue.source_url)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--blue);margin-left:4px">원문 보기 ↗</a>` : ''}
+        ${issue.source_url ? `<a href="${escHtml(issue.source_url)}" target="_blank" rel="noopener noreferrer" style="font-size:13.5px;color:var(--blue);margin-left:4px">원문 보기 ↗</a>` : ''}
       </div>
       <h1 class="issue-title">${escHtml(issue.title)}</h1>
       ${issue.summary ? `<p class="issue-summary">${escHtml(issue.summary)}</p>` : ''}
@@ -474,26 +674,65 @@ function renderPage(issue, analysis, companies) {
         <div class="conf-bar"><div class="conf-fill" style="width:${confidence}%"></div></div>
         <span class="conf-pct">${confidence}%</span>
       </div>
+    </div>` : (issue.ai_digest ? `
+    <div class="ai-card">
+      <div class="ai-badge"><span class="ai-badge-dot"></span>📝 AI 기사 요약</div>
+      <div class="ai-text">${escHtml(issue.ai_digest)}</div>
+    </div>` : '')}
+
+    ${(() => {
+      // 뉴스 키포인트 + 관련 산업 방향성(news_analysis) — 종목 미지정 편집성 태깅.
+      const na = issue.news_analysis || {};
+      const kp = Array.isArray(na.keypoints) ? na.keypoints.slice(0, 3) : [];
+      const secs = Array.isArray(na.sectors) ? na.sectors.slice(0, 3) : [];
+      if (!kp.length && !secs.length) return '';
+      const tm = { pos:{l:'우호적',c:'#ff6b6b',b:'rgba(255,107,107,.14)'}, neg:{l:'비우호적',c:'#4d8dff',b:'rgba(77,141,255,.14)'}, neu:{l:'중립',c:'var(--text3)',b:'rgba(255,255,255,.06)'} };
+      const kpHtml = kp.length ? `<div style="margin-bottom:${secs.length?16:0}px">
+        <div style="font-size:14.5px;font-weight:700;color:var(--blue);margin-bottom:9px">🔑 핵심 포인트</div>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px">${kp.map(k=>`<li style="font-size:16px;color:var(--text);line-height:1.55;position:relative;padding-left:16px"><span style="position:absolute;left:0;color:var(--blue);font-weight:700">·</span>${escHtml(k)}</li>`).join('')}</ul></div>` : '';
+      const secHtml = secs.length ? `<div>
+        <div style="font-size:14.5px;font-weight:700;color:var(--blue);margin-bottom:9px">📡 관련 산업 영향</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">${secs.map(s=>{const m=tm[s.tone]||tm.neu;return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:15.5px;font-weight:600;padding:6px 13px;border-radius:999px;color:${m.c};background:${m.b}">${escHtml(s.name)}<span style="font-size:13.5px;opacity:.8">${m.l}</span></span>`;}).join('')}</div></div>` : '';
+      return `<div class="ai-card">${kpHtml}${secHtml}
+        <div style="font-size:13px;color:var(--text3);margin-top:14px;line-height:1.5">산업 영향 방향은 뉴스 분류이며 특정 종목의 매수·매도 의견이 아닙니다.</div>
+      </div>`;
+    })()}
+
+    ${(posCompanies.length || negCount) ? `
+    <div class="invest-point">
+      <div class="ip-title">💡 이 뉴스의 투자 포인트</div>
+      ${posCompanies.length ? `<div class="ip-row"><span class="ip-tag pos">수혜</span><span class="ip-names">${posCompanies.slice(0, 6).map(c => escHtml(c.companies?.name_ko || c.companies?.name_en || '')).filter(Boolean).join(' · ')}</span></div>` : ''}
+      ${negCount ? `<div class="ip-row"><span class="ip-tag neg">피해 우려</span><span class="ip-names">${[...negFromTable.map(c => c.companies?.name_ko || c.companies?.name_en), ...negFromRipple.map(co => co.name_ko || co.name_en)].filter(Boolean).slice(0, 6).map(escHtml).join(' · ')}</span></div>` : ''}
     </div>` : ''}
 
     ${rippleEffects.length ? `
     <div class="ripple-section">
       <div class="section-title">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 0"/><circle cx="12" cy="12" r="3"/></svg>
-        파급 섹터 분석 <span style="font-size:13px;color:var(--text2);font-weight:400">(${rippleEffects.length}개 섹터)</span>
+        파급 섹터 분석 <span style="font-size:15.5px;color:var(--text2);font-weight:400">(${rippleEffects.length}개 섹터)</span>
       </div>
       <div class="ripple-grid">${rippleCards}</div>
     </div>` : ''}
 
-    ${companies.length ? `
+    ${posCompanies.length ? `
     <div class="companies-section">
       <div class="section-title">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
-        수혜 기업 분석 <span style="font-size:13px;color:var(--text2);font-weight:400">(${companies.length}개 기업)</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--red-dim);color:var(--red);font-size:15.5px">▲</span>
+        긍정 영향 기업 <span style="font-size:15.5px;color:var(--text2);font-weight:400">(${posCompanies.length}개 · 수혜 예상)</span>
       </div>
-      <div class="companies-grid">${companyCards}</div>
-    </div>
+      <div class="companies-grid">${posCards}</div>
+    </div>` : ''}
 
+    ${negCount ? `
+    <div class="companies-section">
+      <div class="section-title">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--blue-dim);color:var(--blue);font-size:15.5px">▼</span>
+        부정 영향 기업 <span style="font-size:15.5px;color:var(--text2);font-weight:400">(${negCount}개 · 피해 우려)</span>
+      </div>
+      <div class="companies-grid">${negCards}</div>
+    </div>` : ''}
+
+    ${companies.length ? `
     <div class="chart-section">
       <div class="section-title">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -504,9 +743,14 @@ function renderPage(issue, analysis, companies) {
         <div class="chart-wrap"><canvas id="upsideChart"></canvas></div>
       </div>
     </div>` : ''}
+
+    <!-- 관련 과거 이슈 타임라인 (같은 섹터) -->
+    <div id="relatedIssuesWrap"></div>
   `;
 
   document.getElementById('pageWrap').innerHTML = html;
+
+  loadRelatedIssues(issue);
 
   document.querySelectorAll('[data-ticker]').forEach(el => {
     loadStockPrice(el.dataset.ticker, el);
@@ -555,10 +799,10 @@ function renderChart(companies) {
         }
       },
       scales: {
-        x: { ticks: { color: '#4b4b52', font: { size: 11 } }, grid: { color: '#e5e5ea' } },
+        x: { ticks: { color: cssVar('--text3','#6c7385'), font: { size: 11 } }, grid: { color: cssVar('--border-soft','rgba(255,255,255,0.06)') } },
         y: {
-          ticks: { color: '#4b4b52', font: { size: 11 }, callback: v => `${v}%` },
-          grid: { color: '#e5e5ea' },
+          ticks: { color: cssVar('--text3','#6c7385'), font: { size: 11 }, callback: v => `${v}%` },
+          grid: { color: cssVar('--border-soft','rgba(255,255,255,0.06)') },
         }
       }
     }
@@ -566,8 +810,13 @@ function renderChart(companies) {
 }
 
 async function init() {
+  // 공유 링크는 /analysis/{id} 형태(share-btn이 이 URL을 만든다). vercel.json이 이걸
+  // analysis.html로 rewrite하지만 rewrite는 서버 측이라 브라우저 주소는 그대로
+  // /analysis/{id}로 남는다 — 즉 location.search가 비어 있어서 예전에는 여기서
+  // 곧장 홈으로 돌려보냈다(공유받은 사람이 뉴스 대신 홈을 보게 되던 버그).
+  // 쿼리(?id=) 우선, 없으면 경로에서 파싱.
   const params = new URLSearchParams(location.search);
-  const id = params.get('id');
+  const id = params.get('id') || (location.pathname.match(/^\/analysis\/([^/?#]+)/)?.[1] ?? null);
   if (!id) { location.href = '/'; return; }
 
   const { data: issue, error: issueErr } = await sb
@@ -595,37 +844,55 @@ async function init() {
   renderPage(issue, analysis, companies);
 }
 
-initAnalysisAuth();
+initAuth();
 init();
 
-/* ── Auth & Watchlist ── */
+/* ── 상단 로그인/유저메뉴 (company.html/index.html의 app.js 로직과 통일) + Watchlist ── */
 let _authUser = null;
 let _wlCache = new Set();
 
-async function initAnalysisAuth() {
+async function initAuth() {
   const { data: { session } } = await sb.auth.getSession();
   _authUser = session?.user ?? null;
+  renderUserMenu(_authUser);
   if (_authUser) {
     const { data } = await sb.from('user_watchlist').select('ticker');
     _wlCache = new Set((data || []).map(r => r.ticker));
   }
   sb.auth.onAuthStateChange(async (event, session) => {
     _authUser = session?.user ?? null;
+    renderUserMenu(_authUser);
     if (_authUser) {
       const { data } = await sb.from('user_watchlist').select('ticker');
       _wlCache = new Set((data || []).map(r => r.ticker));
     } else {
       _wlCache.clear();
     }
-    if (event === 'SIGNED_IN') closeAnalysisAuthModal();
+    if (event === 'SIGNED_IN') closeAuthModal();
   });
 }
+
+function renderUserMenu(user) {
+  const loginBtn = document.getElementById('loginBtn');
+  const userMenu = document.getElementById('userMenu');
+  if (!loginBtn || !userMenu) return;
+  if (!user) {
+    loginBtn.style.display = '';
+    userMenu.style.display = 'none';
+  } else {
+    loginBtn.style.display = 'none';
+    userMenu.style.display = '';
+    document.getElementById('userAvatar').textContent = (user.email || '?')[0].toUpperCase();
+  }
+}
+// toggleUserDropdown/doSignOut은 site-header.js 공용 버전 사용(2026-07-22) — 이 페이지의
+// doSignOut은 관심종목 캐시(_wlCache) 정리 로직이 없어 공용판과 동작 차이가 없었음.
 
 function isAnalysisWatched(ticker) { return _wlCache.has(ticker); }
 
 async function toggleAnalysisWatch(e, btn) {
   e.stopPropagation();
-  if (!_authUser) { openAnalysisAuthModal(); return; }
+  if (!_authUser) { openAuthModal(); return; }
   const { wlTicker: ticker, wlName: name, wlMarket: market } = btn.dataset;
   if (_wlCache.has(ticker)) {
     await sb.from('user_watchlist').delete().eq('ticker', ticker);
@@ -639,57 +906,7 @@ async function toggleAnalysisWatch(e, btn) {
   btn.textContent = w ? '★' : '☆';
 }
 
-function openAnalysisAuthModal() {
-  document.getElementById('analysisAuthOverlay').style.display = 'flex';
-}
-function closeAnalysisAuthModal() {
-  document.getElementById('analysisAuthOverlay').style.display = 'none';
-}
-async function analysisSubmitAuth(e) {
-  e.preventDefault();
-  const mode = document.getElementById('analysisAuthForm').dataset.mode;
-  const email = document.getElementById('analysisAuthEmail').value.trim();
-  const pass = document.getElementById('analysisAuthPass').value;
-  const errEl = document.getElementById('analysisAuthError');
-  const btn = document.getElementById('analysisAuthSubmitBtn');
-  btn.disabled = true; btn.textContent = '처리 중...';
-  errEl.textContent = '';
-  try {
-    let result;
-    if (mode === 'signup') {
-      result = await sb.auth.signUp({ email, password: pass });
-      if (result.error) throw result.error;
-      if (result.data?.user && !result.data.session) {
-        errEl.style.color = 'var(--green)';
-        errEl.textContent = '이메일을 확인해 인증 링크를 클릭하세요.';
-        return;
-      }
-    } else {
-      result = await sb.auth.signInWithPassword({ email, password: pass });
-      if (result.error) throw result.error;
-    }
-  } catch (err) {
-    errEl.style.color = 'var(--red)';
-    const msgs = { 'Invalid login credentials': '이메일 또는 비밀번호가 올바르지 않습니다.' };
-    errEl.textContent = msgs[err.message] || err.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = document.getElementById('analysisAuthForm').dataset.mode === 'signin' ? '로그인' : '가입하기';
-  }
-}
-async function analysisSignInGoogle() {
-  await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } });
-}
-function switchAnalysisAuthMode(mode) {
-  const isSignIn = mode === 'signin';
-  document.getElementById('analysisAuthTitle').textContent = isSignIn ? '로그인' : '회원가입';
-  document.getElementById('analysisAuthSubmitBtn').textContent = isSignIn ? '로그인' : '가입하기';
-  document.getElementById('analysisAuthSwitch').innerHTML = isSignIn
-    ? `계정이 없나요? <button onclick="switchAnalysisAuthMode('signup')" class="auth-link">회원가입</button>`
-    : `이미 계정이 있나요? <button onclick="switchAnalysisAuthMode('signin')" class="auth-link">로그인</button>`;
-  document.getElementById('analysisAuthForm').dataset.mode = mode;
-  document.getElementById('analysisAuthError').textContent = '';
-}
+
 
 /* ── Stock Chart Modal ── */
 let _chartInstance = null;
@@ -788,24 +1005,24 @@ function renderLineChart(data) {
               return ' ' + fmt.format(v);
             }
           },
-          backgroundColor: '#ffffff', borderColor: '#e5e5ea', borderWidth: 1,
-          titleColor: '#4b4b52', bodyColor: '#0a0a0a',
+          backgroundColor: cssVar('--bg2','#1e2129'), borderColor: cssVar('--border-strong','rgba(255,255,255,0.14)'), borderWidth: 1,
+          titleColor: cssVar('--text2','#a6adbb'), bodyColor: cssVar('--text','#f2f4f8'),
         }
       },
       scales: {
         x: {
           ticks: {
-            color: '#4b4b52', font: { size: 10 }, maxTicksLimit: 6,
+            color: cssVar('--text3','#6c7385'), font: { size: 10 }, maxTicksLimit: 6,
             callback(val, i, ticks) { return labels[i]?.slice(5); }
           },
-          grid: { color: '#e5e5ea' }
+          grid: { color: cssVar('--border-soft','rgba(255,255,255,0.06)') }
         },
         y: {
           ticks: {
-            color: '#4b4b52', font: { size: 10 },
+            color: cssVar('--text3','#6c7385'), font: { size: 10 },
             callback: v => currency === 'KRW' ? v.toLocaleString('ko-KR') : v.toFixed(0)
           },
-          grid: { color: '#e5e5ea' }
+          grid: { color: cssVar('--border-soft','rgba(255,255,255,0.06)') }
         }
       }
     }
@@ -846,27 +1063,7 @@ function selectRange(range) {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChart(); });
 </script>
 
-<!-- Auth Modal -->
-<div id="analysisAuthOverlay" class="auth-overlay" style="display:none" onclick="if(event.target===this)closeAnalysisAuthModal()">
-  <div class="auth-modal">
-    <button class="auth-close" onclick="closeAnalysisAuthModal()">✕</button>
-    <div class="auth-logo">Stock<span>Ripple</span></div>
-    <h2 class="auth-title" id="analysisAuthTitle">로그인</h2>
-    <button class="auth-btn-google" onclick="analysisSignInGoogle()">
-      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-      Google로 계속하기
-    </button>
-    <div class="auth-divider"><span>이메일로 계속하기</span></div>
-    <form id="analysisAuthForm" data-mode="signin" onsubmit="analysisSubmitAuth(event)">
-      <input type="email" id="analysisAuthEmail" class="auth-input" placeholder="example@email.com" required autocomplete="email">
-      <input type="password" id="analysisAuthPass" class="auth-input" placeholder="비밀번호 (6자 이상)" required minlength="6" autocomplete="current-password">
-      <div id="analysisAuthError" style="font-size:12px;min-height:18px;margin-bottom:4px"></div>
-      <button type="submit" id="analysisAuthSubmitBtn" class="auth-submit-btn">로그인</button>
-    </form>
-    <div class="auth-switch" id="analysisAuthSwitch">
-      계정이 없나요? <button onclick="switchAnalysisAuthMode('signup')" class="auth-link">회원가입</button>
-    </div>
-  </div>
-</div>
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
 </body>
 </html>

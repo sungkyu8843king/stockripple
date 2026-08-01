@@ -23,11 +23,13 @@
  *  GET  /api/admin?action=analytics&type=daily|hourly|referrers|paths|dwell|live[&days=N] → 방문자 통계 조회
  *  GET  /api/admin?action=feature-flags       → Claude 토큰 사용 기능 on/off 상태 조회
  *  POST /api/admin?action=feature-flags {key?, keys?, enabled} → 개별/일괄 on/off (key·keys 생략 시 전체)
+ *  GET  /api/admin?action=shares-outstanding  → 히트맵 시총 계산용 상장주식수 캐시 조회 (공개)
+ *  POST /api/admin?action=crawl-shares-outstanding {start?, force?} → 상장주식수 크롤(7일 신선도가드, resumable)
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAdmin, verifyUser } from '../lib/auth.js';
-import { FEATURE_FLAG_DEFS, isFeatureEnabled } from '../lib/feature-flags.js';
+import { FEATURE_FLAG_DEFS, isFeatureEnabled, isFeatureEnabledStrict } from '../lib/feature-flags.js';
 import { submitAgentJob, extractJobText, parseJobJson, JOB_STUCK_TIMEOUT_MS } from '../lib/agent-jobs.js';
 
 // 일부 액션(dart-sync, sec-13f, extract-investments)은 무거우므로 최대 60초 허용
@@ -82,6 +84,13 @@ export default async function handler(req, res) {
   // track: 방문자 애널리틱스 수집 — 모든 방문자가 매 페이지에서 호출하므로 공개.
   // 실패해도 방문 경험에 영향 없도록 내부에서 항상 200을 반환한다.
   if (action === 'track') return handleTrack(req, res);
+  // issues-feed / insights-raw: 홈 등 6개 페이지가 전부 쓰는 "최신 분석 이슈"/"투자 인사이트"
+  // 피드 — 원래 방문자 브라우저가 Supabase를 직접(캐싱 없이) 호출하던 걸 서버+엣지캐시로
+  // 옮긴 것(트래픽 급증 시 DB 보호 목적). 공개 조회이므로 인증 불필요.
+  if (action === 'issues-feed')  return handleIssuesFeed(req, res);
+  if (action === 'insights-raw') return handleInsightsRaw(req, res);
+  // shares-outstanding: 히트맵 트리맵 시총 계산용 상장주식수 캐시 조회 — 공개(가격만큼 민감하지 않은 정보)
+  if (action === 'shares-outstanding') return handleSharesOutstandingGet(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -92,6 +101,8 @@ export default async function handler(req, res) {
   if (action === 'stats')               return handleStats(req, res);
   if (action === 'extract-investments') return handleExtractInvestments(req, res);
   if (action === 'company-summary-backfill') return handleCompanySummaryBackfill(req, res);
+  if (action === 'article-digest-backfill') return handleArticleDigestBackfill(req, res);
+  if (action === 'rank-reason-backfill') return handleRankReasonBackfill(req, res);
   if (action === 'list-investments')    return handleListInvestments(req, res);
   if (action === 'update-investment')   return handleUpdateInvestment(req, res);
   if (action === 'delete-investment')   return handleDeleteInvestment(req, res);
@@ -101,6 +112,10 @@ export default async function handler(req, res) {
   if (action === 'dart-upload-corp-codes') return handleDartUploadCorpCodes(req, res);
   if (action === 'verify-kr-names') return handleVerifyKrNames(req, res);
   if (action === 'fix-kr-broken-names') return handleFixKrBrokenNames(req, res);
+  if (action === 'fix-broken-titles') return handleFixBrokenTitles(req, res);
+  if (action === 'crawl-etf-holdings') return handleCrawlEtfHoldings(req, res);
+  if (action === 'crawl-shares-outstanding') return handleCrawlSharesOutstanding(req, res);
+  if (action === 'chat-admin') return handleChatAdmin(req, res);
   if (action === 'ai-market-summary') return handleAiMarketSummaryPost(req, res);
   if (action === 'daily-report') return handleDailyReportPost(req, res);
   if (action === 'weekly-schedule') return handleWeeklySchedulePost(req, res);
@@ -116,6 +131,9 @@ export default async function handler(req, res) {
     return req.method === 'GET' ? handleFeatureFlagsGet(req, res) : handleFeatureFlagsPost(req, res);
   }
   if (action === 'agent-poll') return handleAgentPoll(req, res);
+  if (action === 'earnings-manual-list')   return handleEarningsManualList(req, res);
+  if (action === 'earnings-manual-upsert') return handleEarningsManualUpsert(req, res);
+  if (action === 'earnings-manual-delete') return handleEarningsManualDelete(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -237,7 +255,10 @@ async function handleTrack(req, res) {
       if (referrer) {
         try { referrer_host = new URL(referrer).hostname.replace(/^www\./, '').slice(0, 100); } catch {}
       }
-      await supabase.from('page_views').insert({
+      // insert였던 걸 upsert+ignoreDuplicates로 변경 — 같은 view_id가 중복 전송되면(더블 파이어,
+      // 뒤로가기 재방문 등) 매번 "duplicate key" 에러가 나면서 불필요한 재시도/오류 로그가 쌓였음
+      // (2026-07-19 트래픽 급증 때 실제로 이 에러가 반복 관측됨). 멱등하게 그냥 무시.
+      const { error } = await supabase.from('page_views').upsert({
         view_id: String(view_id).slice(0, 100),
         session_id: String(session_id).slice(0, 100),
         path: String(path).slice(0, 300),
@@ -246,14 +267,17 @@ async function handleTrack(req, res) {
         utm_source: utm_source ? String(utm_source).slice(0, 100) : null,
         utm_medium: utm_medium ? String(utm_medium).slice(0, 100) : null,
         utm_campaign: utm_campaign ? String(utm_campaign).slice(0, 100) : null,
-      });
+      }, { onConflict: 'view_id', ignoreDuplicates: true });
+      if (error) console.error('[track:enter]', error.message, error.details || '', error.hint || '', error.code || '');
     } else if (event === 'leave') {
       if (!view_id || dwell_ms == null) return res.status(200).json({ ok: false });
       const clamped = Math.max(0, Math.min(Number(dwell_ms) || 0, 3 * 3600 * 1000)); // 최대 3시간으로 클램프(비정상값 방지)
-      await supabase.from('page_views').update({ dwell_ms: clamped }).eq('view_id', String(view_id).slice(0, 100));
+      const { error } = await supabase.from('page_views').update({ dwell_ms: clamped }).eq('view_id', String(view_id).slice(0, 100));
+      if (error) console.error('[track:leave]', error.message, error.details || '', error.hint || '', error.code || '');
     }
     return res.status(200).json({ ok: true });
-  } catch {
+  } catch (e) {
+    console.error('[track:exception]', e?.message || e);
     return res.status(200).json({ ok: false });
   }
 }
@@ -263,6 +287,23 @@ async function handleAnalytics(req, res) {
   const days = Math.min(Math.max(parseInt(req.query.days) || 14, 1), 90);
   const sinceIso = new Date(Date.now() - days * 86400000).toISOString();
   const ROW_CAP = 20000; // 개인/소규모 트래픽 기준 — 그 이상이면 DB 집계 함수로 전환 필요
+
+  // ⚠️ PostgREST(Supabase)는 .limit(20000)을 요청해도 서버 설정 db-max-rows(기본 1000)로
+  // 응답을 잘라 돌려준다 — 정렬 없이 가져오면 물리 순서(≈오래된 순) 1000행만 와서, 트래픽이
+  // 쌓인 뒤로는 "최근 날짜가 그래프에서 통째로 사라지는" 증상이 됨(2026-07-23 실측: 7/16 이후
+  // 공백 — 수집은 정상, 읽기만 잘림). 1000행씩 페이지네이션으로 ROW_CAP까지 전부 끌어온다.
+  async function fetchPageViews(selectCols, extra) {
+    const out = [];
+    for (let start = 0; start < ROW_CAP; start += 1000) {
+      let q = supabase.from('page_views').select(selectCols).gte('created_at', sinceIso);
+      if (extra) q = extra(q);
+      const { data, error } = await q.order('created_at', { ascending: true }).range(start, start + 999);
+      if (error) throw new Error(error.message);
+      out.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+    return out;
+  }
 
   try {
     if (type === 'live') {
@@ -282,12 +323,13 @@ async function handleAnalytics(req, res) {
     }
 
     if (type === 'daily') {
-      const { data, error } = await supabase.from('page_views').select('created_at, session_id')
-        .gte('created_at', sinceIso).limit(ROW_CAP);
-      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const data = await fetchPageViews('created_at, session_id');
       const byDay = {};
       for (const row of data || []) {
-        const day = row.created_at.slice(0, 10);
+        // created_at은 UTC로 저장됨 — 그냥 slice(0,10)하면 UTC 캘린더 날짜라 KST 00~09시
+        // 트래픽이 전날로 잘못 잡힌다(아래 hourly와 동일하게 +9h 보정 후 날짜를 뽑아야 함).
+        const kst = new Date(new Date(row.created_at).getTime() + 9 * 3600000);
+        const day = kst.toISOString().slice(0, 10);
         (byDay[day] ??= new Set()).add(row.session_id);
       }
       const items = Object.entries(byDay)
@@ -298,9 +340,7 @@ async function handleAnalytics(req, res) {
 
     if (type === 'hourly') {
       // 최근 N일 통합 — 몇 시대에 방문이 몰리는지 (KST 기준)
-      const { data, error } = await supabase.from('page_views').select('created_at, session_id')
-        .gte('created_at', sinceIso).limit(ROW_CAP);
-      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const data = await fetchPageViews('created_at, session_id');
       const byHour = {};
       for (const row of data || []) {
         const kst = new Date(new Date(row.created_at).getTime() + 9 * 3600000);
@@ -312,9 +352,7 @@ async function handleAnalytics(req, res) {
     }
 
     if (type === 'referrers') {
-      const { data, error } = await supabase.from('page_views').select('referrer_host, utm_source, session_id')
-        .gte('created_at', sinceIso).limit(ROW_CAP);
-      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const data = await fetchPageViews('referrer_host, utm_source, session_id');
       const groups = {};
       for (const row of data || []) {
         const key = row.utm_source ? `📣 ${row.utm_source}` : (row.referrer_host || '직접 방문/북마크');
@@ -328,9 +366,7 @@ async function handleAnalytics(req, res) {
     }
 
     if (type === 'dwell') {
-      const { data, error } = await supabase.from('page_views').select('path, dwell_ms')
-        .gte('created_at', sinceIso).not('dwell_ms', 'is', null).limit(ROW_CAP);
-      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const data = await fetchPageViews('path, dwell_ms', q => q.not('dwell_ms', 'is', null));
       const byPath = {};
       for (const row of data || []) {
         (byPath[row.path] ??= []).push(row.dwell_ms);
@@ -347,9 +383,7 @@ async function handleAnalytics(req, res) {
 
     if (type === 'paths') {
       // 최근 세션들의 페이지 이동 순서 (샘플 — 세션당 최대 20페이지)
-      const { data, error } = await supabase.from('page_views').select('session_id, path, created_at')
-        .gte('created_at', sinceIso).order('created_at', { ascending: true }).limit(ROW_CAP);
-      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const data = await fetchPageViews('session_id, path, created_at');
       const bySession = {};
       for (const row of data || []) {
         (bySession[row.session_id] ??= []).push({ path: row.path, at: row.created_at });
@@ -481,8 +515,11 @@ async function handleBanUser(req, res) {
 // ════════════════════════════════════════════════════════════
 async function handleGetAnnouncement(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  // 긴급 안내라는 목적상 즉시 반영돼야 함 — 캐시 없음 (조회 1건짜리 가벼운 쿼리라 비용 부담 없음)
-  res.setHeader('Cache-Control', 'no-store');
+  // "조회 1건짜리라 비용 부담 없음"이 트래픽 급증 시 깨짐 — 매 페이지(사이트 전체)가 호출하는
+  // 엔드포인트라 no-store면 방문자 수만큼 그대로 Supabase에 꽂힌다(2026-07-19 커뮤니티 유입
+  // 트래픽에서 실제로 site_announcement 포함 여러 엔드포인트가 한꺼번에 522/57014로 무너짐,
+  // 이 함수가 유력 용의자 중 하나). 15초 캐시로 긴급 배너 반영 지연은 미미하게 감수.
+  res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=60');
   const { data, error } = await supabase
     .from('site_announcement')
     .select('active, message, updated_at, source, auto_expires_at')
@@ -498,7 +535,10 @@ async function handleGetAnnouncement(req, res) {
     await supabase.from('announcement_log').update({ ended_at: now }).is('ended_at', null);
     return res.status(200).json({ active: false, message: '', source: 'auto' });
   }
-  return res.status(200).json({ active: !!data.active, message: data.message || '', updated_at: data.updated_at, source: data.source || 'manual' });
+  // 수동으로 끈 직후라 auto_expires_at이 "뮤트 마감시각"으로 쓰이는 중이면 관리자 화면에 노출
+  const muteUntil = (!data.active && data.source === 'manual' && data.auto_expires_at && new Date(data.auto_expires_at) > new Date())
+    ? data.auto_expires_at : null;
+  return res.status(200).json({ active: !!data.active, message: data.message || '', updated_at: data.updated_at, source: data.source || 'manual', mute_until: muteUntil });
 }
 
 async function handleSetAnnouncement(req, res) {
@@ -511,9 +551,14 @@ async function handleSetAnnouncement(req, res) {
   const wasActive = !!prev?.active;
 
   // 관리자가 대시보드에서 직접 저장하면 항상 'manual'로 표시 — 이후 자동 트리거
-  // 로직(analyze.js)이 이 배너를 절대 덮어쓰지 않도록 하는 표식.
+  // 로직(analyze.js/checkFuturesSidecar)이 이 배너를 절대 덮어쓰지 않도록 하는 표식.
+  // active:false로 끄는 경우도 마찬가지다 — 예전엔 이 케이스를 안 지켜줘서, 관리자가 끄자마자
+  // 다음 라이브 리프레시(최소 90초 간격)에서 사이드카 조건이 여전히 참이면 바로 다시 켜지는
+  // 버그가 있었다(2026-07-15 실측). active:false일 땐 auto_expires_at을 "이 시각까지는 자동이
+  // 재점화하지 않는다"는 뮤트 마감시각으로 재사용한다(2시간 — 위 auto 배너 TTL과 동일 길이).
+  const muteUntil = active ? null : new Date(Date.now() + 2 * 3600000).toISOString();
   const { error } = await supabase.from('site_announcement').upsert({
-    id: 1, active, message, source: 'manual', source_issue_id: null, auto_expires_at: null, updated_at: now,
+    id: 1, active, message, source: 'manual', source_issue_id: null, auto_expires_at: muteUntil, updated_at: now,
   });
   if (error) return res.status(500).json({ error: error.message });
 
@@ -607,8 +652,14 @@ async function handleSummary(req, res) {
       .order('created_at', { ascending: false })
       .limit(1);
     cached = cachedRows?.[0] || null;
+
+    // 기능 자체가 꺼져 있으면(어드민 일괄 on/off, 또는 유사투자자문업 리스크 대응으로 끔) —
+    // 아래 "3일 이내 캐시 즉시 서빙" 패스보다 먼저 체크해야 한다. 이 체크가 그 뒤에 있으면
+    // 신선한 캐시가 featureOff 여부와 무관하게 그대로 나가버린다(과거 실제로 이랬음).
+    const featureOff = !(await isFeatureEnabled(supabase, 'company_summary'));
+
     const CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
-    if (cached && Date.now() - new Date(cached.created_at).getTime() < CACHE_TTL_MS) {
+    if (!featureOff && cached && Date.now() - new Date(cached.created_at).getTime() < CACHE_TTL_MS) {
       return res.status(200).json({
         ok: true,
         ticker,
@@ -626,10 +677,6 @@ async function handleSummary(req, res) {
       });
     }
 
-    // 기능 자체가 꺼져 있으면(어드민 일괄 on/off) budget 체크와 동일하게 취급 —
-    // 새로 생성하지 않고 캐시가 있으면 stale로 그거라도 보여준다.
-    const featureOff = !(await isFeatureEnabled(supabase, 'company_summary'));
-
     // 하루 전체 Claude 호출 상한 — 캐시가 어떤 이유로든 안 먹어도 비용이 무한정
     // 늘어나지 않도록 하는 이중 안전장치. RPC 실패(마이그레이션 전 등)는 안전하게
     // 통과시킨다 — 이 안전장치가 아직 없다고 기능 자체를 막지는 않음.
@@ -644,7 +691,10 @@ async function handleSummary(req, res) {
       if (featureOff || budgetExceeded) {
         // 새로 생성은 못 하지만, DB에 예전 분석이 남아있으면 그거라도 보여준다
         // (완전히 안 나오는 것보다 낫다) — stale로 표시해 하단에 마지막 업데이트 시각 노출.
-        if (cached) {
+        // 단, featureOff가 유사투자자문업 리스크 대응(2026-07-21)으로 꺼진 경우엔 캐시된
+        // 매수논리(thesis/strategic_exposure)도 절대 노출하면 안 되므로 이 폴백을 건너뛴다
+        // — budget_exceeded(단순 비용 제한)일 때만 stale 캐시를 보여준다.
+        if (cached && !featureOff) {
           return res.status(200).json({
             ok: true,
             ticker,
@@ -1275,6 +1325,270 @@ function buildExtractInvestmentsDynamicBlock(issue) {
   return `뉴스 제목: ${issue.title}\n요약: ${issue.summary || '없음'}\n\n위 뉴스에 대해 위 규칙에 따라 JSON으로만 응답하세요.`;
 }
 
+// 유사투자자문업 리스크와 무관한 순수 기사 요약 + 키포인트 + 섹터 방향성(톤).
+// analyses/analysis_companies와 완전히 별개(2026-07-21 ai_digest, 2026-07-27 news_analysis 확장).
+// ⚠️ sectors[].tone은 "특정 종목의 매수/매도"가 아니라 "이 뉴스가 어떤 산업 테마에 우호적/
+//    비우호적/중립인가"라는 편집성 뉴스 분류다(신문의 산업 코멘트 수준). 종목명을 지정하지 않는다.
+const ARTICLE_DIGEST_STATIC_PROMPT = `당신은 금융 뉴스 분석가입니다. 아래 뉴스를 한국어로 분석해 요약·핵심포인트·관련 산업 방향을 JSON으로 반환하세요.
+
+엄격한 규칙 (매우 중요):
+- 주어진 정보에 있는 사실에만 근거할 것. 확실하지 않으면 추측해서 채우지 말 것.
+- ⚠️ 특정 종목(회사/티커)의 매수·매도를 권유하거나, 특정 종목이 오른다/내린다고 지목하지 말 것.
+- "수혜주", "유망", "투자 포인트", "매수 기회", "목표가" 같은 투자판단성 표현 절대 금지.
+- "본문이 제공되지 않았다"/"내용이 없다"/"제목만 있다" 같은 정보 부족 메타 언급 절대 금지.
+
+각 필드 작성 규칙:
+1) summary: 1~3문장 객관적 요약. 제목만 주어졌으면 제목을 매끄러운 완결 문장으로. 요약할 게 정말 없으면 "".
+2) keypoints: 이 뉴스의 핵심 사실을 8~20자 짧은 구로 2~3개(명사구, 마침표 없이). 예: ["엔비디아 신형 GPU 공개","공급 2026년 시작"]. 없으면 빈 배열.
+3) sectors: 이 뉴스와 명확히 관련된 산업 테마 1~3개. 각 항목 { "name": "산업명", "tone": "pos|neg|neu" }.
+   - name은 넓은 산업 테마로(예: 반도체, 2차전지, 바이오, 자동차, 인터넷/플랫폼, 방산, 조선, 금융, 에너지, 게임, 유통, 건설, 통신, 엔터, 항공, 원자재). 회사명 금지.
+   - tone: 이 뉴스가 그 산업에 우호적이면 "pos", 비우호적이면 "neg", 방향이 불분명하면 "neu".
+   - 뉴스와 산업의 연결이 명확할 때만. 억지로 만들지 말 것(불분명하면 빈 배열).
+
+다음 JSON만 반환하세요 (다른 텍스트 없이):
+{ "summary": "...", "keypoints": ["...","..."], "sectors": [{"name":"반도체","tone":"pos"}] }`;
+
+function buildArticleDigestDynamicBlock(issue) {
+  const hasSummary = issue.summary && issue.summary.trim();
+  const hasSectors = Array.isArray(issue.sectors) && issue.sectors.length;
+  const lines = [`뉴스 제목: ${issue.title}`];
+  if (hasSummary) lines.push(`기사 요약: ${issue.summary.trim()}`);
+  if (hasSectors) lines.push(`참고용 사전 분류 산업(맞으면 활용, 아니면 무시): ${issue.sectors.slice(0, 4).join(', ')}`);
+  return `${lines.join('\n')}\n\n위 뉴스를 위 규칙에 따라 JSON으로만 분석하세요.`;
+}
+const DIGEST_TONES = new Set(['pos', 'neg', 'neu']);
+function cleanNewsSectors(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.filter(s => s && typeof s.name === 'string' && s.name.trim())
+    .slice(0, 3)
+    .map(s => ({ name: String(s.name).trim().slice(0, 20), tone: DIGEST_TONES.has(s.tone) ? s.tone : 'neu' }));
+}
+function cleanKeypoints(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.filter(k => typeof k === 'string' && k.trim()).slice(0, 3).map(k => k.trim().slice(0, 40));
+}
+
+// AI가 규칙을 어기고 "본문이 제공되지 않았다" 류 정보부족 메타 코멘트를 요약으로 내놓는 경우가
+// 있어(제목만 있는 이슈에서 특히), 저장 전에 걸러낸다 — 이런 문구는 독자에게 무의미하다.
+const DIGEST_META_JUNK_RE = /(제공되지\s*않|본문[^.]{0,12}(없|제공)|내용[이은]?\s*(없|제공되지)|제목만|요약할\s*수\s*없|요약할\s*내용|확인할\s*수\s*없|확인되지\s*않|정보가?\s*(부족|없))/;
+
+async function handleArticleDigestBackfill(req, res) {
+  if (!(await isFeatureEnabled(supabase, 'article_digest'))) {
+    return res.status(200).json({ ok: true, scanned: 0, submitted: 0, disabled: true });
+  }
+  const limit = Math.min(parseInt(req.body?.limit || req.query?.limit, 10) || 60, 100);
+
+  // news_analysis(요약+키포인트+섹터톤)가 아직 없는 최신 이슈들. news_analysis 기준으로 잡으면
+  // 신규 이슈(ai_digest도 없음)와 구 이슈(ai_digest만 있고 키포인트/섹터톤 없음)를 함께 커버.
+  // is_analyzed 여부와 무관 — analyze 파이프라인과 별개로 채운다.
+  let { data: issues, error } = await supabase
+    .from('issues')
+    .select('id, title, summary, sectors')
+    .is('news_analysis', null)
+    .order('published_at', { ascending: false })
+    .limit(limit);
+  // news_analysis 컬럼 마이그레이션 전이면(에러 메시지에 컬럼명 포함) 구버전 선정(ai_digest 기준)으로 폴백.
+  if (error && /news_analysis/.test(error.message || '')) {
+    ({ data: issues, error } = await supabase
+      .from('issues').select('id, title, summary, sectors')
+      .is('ai_digest', null).order('published_at', { ascending: false }).limit(limit));
+  }
+  if (error) return res.status(500).json({ error: error.message });
+  if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, submitted: 0 });
+
+  const items = issues.map(issue => ({
+    itemId: issue.id,
+    static: ARTICLE_DIGEST_STATIC_PROMPT,
+    dynamic: buildArticleDigestDynamicBlock(issue),
+  }));
+  const result = await submitAgentJob({
+    pipeline: 'article_digest',
+    items,
+    payload: { issueIds: issues.map(i => i.id) },
+  });
+  return res.status(200).json({ ok: true, scanned: issues.length, ...result });
+}
+
+async function finalizeArticleDigest(row) {
+  const issueIds = row.payload?.issueIds || [];
+  const results = { updated: 0, skipped: 0, errors: [] };
+  for (const issueId of issueIds) {
+    try {
+      const text = extractJobText(row, issueId);
+      if (!text) { results.skipped++; continue; }
+      const parsed = parseJobJson(text);
+      const summary = (parsed.summary || '').toString().trim();
+      // 빈 요약이거나 "본문 제공 안 됨" 류 메타 코멘트면 요약 대신 빈 문자열 sentinel을 저장한다.
+      const isJunk = !summary || DIGEST_META_JUNK_RE.test(summary);
+      const clean = isJunk ? '' : summary.slice(0, 500);
+      // news_analysis는 처리 여부 표시도 겸한다(null이면 backfill이 계속 재선정) — 키포인트/
+      // 섹터톤이 비어도 항상 객체를 저장해 재시도를 막는다.
+      const news_analysis = { keypoints: cleanKeypoints(parsed.keypoints), sectors: cleanNewsSectors(parsed.sectors) };
+      let { error: upErr } = await supabase.from('issues')
+        .update({ ai_digest: clean, ai_digest_at: new Date().toISOString(), news_analysis })
+        .eq('id', issueId);
+      // news_analysis 컬럼 마이그레이션 전이면 그 컬럼 빼고 재시도(요약만이라도 저장).
+      if (upErr && /news_analysis/.test(upErr.message || '')) {
+        await supabase.from('issues')
+          .update({ ai_digest: clean, ai_digest_at: new Date().toISOString() })
+          .eq('id', issueId);
+      }
+      if (clean || news_analysis.keypoints.length || news_analysis.sectors.length) results.updated++; else results.skipped++;
+    } catch (e) {
+      results.errors.push({ issue_id: issueId, error: e.message?.slice(0, 200) });
+    }
+  }
+  return results;
+}
+
+// 홈 실시간 랭킹 종목별 "왜 이 랭킹에 있는지" 짧은 사유 — db/rank-reasons.sql 참조.
+// 뉴스 제목만으로 매칭하던 기존 방식은 다른 종목 얘기가 섞여 붙는 문제가 있었어(2026-07-22),
+// 랭킹 지표(등락률/거래대금/거래량) 자체를 1차 근거로 삼고, 관련성이 확실한 뉴스가 있으면만
+// 보조로 참고하게 한다. article_digest와 마찬가지로 Claude Code 큐를 거친다(direct API 금지 —
+// 2026-07-22에 article_digest를 API로 바꿨다가 세션 사용량 대비 실비용이 더 비싸 바로 되돌린 전례 있음).
+const RANK_CAT_LABEL = { popular: '인기', amount: '거래대금', volume: '거래량', gainers: '급상승', losers: '급하락' };
+
+const RANK_REASON_STATIC_PROMPT = `당신은 주식 데이터 분석가입니다. 아래 종목이 실시간 랭킹에 오른 '배경/테마'를 토스증권 'AI 요약'처럼 짧은 구(句)로 압축해 한국어 12~28자로 표현하세요.
+
+목표 스타일 (이런 느낌의 명사구/짧은 구, 마침표 없이):
+- "반도체주 동반 강세"
+- "삼성 로봇조직 신설 기대감"
+- "코스피 7000선 회복 흐름"
+- "AI주 차익실현 매물"
+- "미 반도체 규제 완화 소식"
+- "2차전지 섹터 반등"
+
+엄격한 규칙 (매우 중요):
+- 완결된 문장이 아니라 '왜 움직였나'를 압축한 짧은 구로. 마침표·문장 종결어미("~했다","~이다") 쓰지 말 것.
+- ⚠️ 등락률 숫자는 이미 화면에 같이 표시된다 — "+5.42% 상승", "-8% 하락" 처럼 수치를 그대로 되풀이하지 말 것. 대신 그 움직임의 배경(관련 뉴스 테마·섹터 흐름·시장 심리)을 쓸 것.
+- 명확히 관련된 뉴스가 있으면 그 핵심 테마만 압축. 이 종목과 무관해 보이는 뉴스는 절대 쓰지 말 것.
+- 레버리지/인버스 ETF는 추종 대상 섹터 흐름으로(예: "반도체 섹터 약세", "반도체 하락 베팅 수요"). 상품 이름만 나열하지 말 것.
+- 추측·전망 금지. 매수·매도 권유, "수혜"/"기회"/"유망"/"주목"/"관심" 같은 투자판단성 표현 절대 금지.
+- 뚜렷한 배경 근거(관련 뉴스·섹터 테마)가 없으면 reason을 빈 문자열("")로 반환 — 수치만으로 억지로 지어내지 말 것.
+- "본문이 없다"/"확인할 수 없다" 같은 메타 언급 금지. 28자 초과 금지.
+
+다음 JSON만 반환하세요 (다른 텍스트 없이):
+{ "reason": "12~28자 짧은 구 또는 빈 문자열" }`;
+
+function buildRankReasonDynamicBlock(e, newsSnippets) {
+  const catLabel = RANK_CAT_LABEL[e.category] || e.category;
+  const fmtAmt = e.tradingAmount == null ? null
+    : e.currency === 'KRW'
+      ? (e.tradingAmount >= 1e8 ? Math.round(e.tradingAmount / 1e8).toLocaleString() + '억원' : Math.round(e.tradingAmount).toLocaleString() + '원')
+      : '$' + Math.round(e.tradingAmount).toLocaleString();
+  const lines = [
+    `종목명: ${e.name}`,
+    `시장: ${e.market === 'KR' ? '국내' : '해외'}`,
+    `랭킹 카테고리: ${catLabel}`,
+    e.changePercent != null ? `등락률: ${e.changePercent > 0 ? '+' : ''}${e.changePercent.toFixed(2)}%` : null,
+    fmtAmt ? `거래대금: ${fmtAmt}` : null,
+    e.tradingVolume != null ? `거래량: ${Math.round(e.tradingVolume).toLocaleString()}` : null,
+  ].filter(Boolean);
+  if (newsSnippets?.length) {
+    lines.push('참고용 뉴스(이 종목과 무관할 수도 있음 — 명확히 관련될 때만 반영):');
+    newsSnippets.forEach((s, i) => lines.push(`  ${i + 1}. ${s.slice(0, 150)}`));
+  }
+  return lines.join('\n') + '\n\n위 정보를 바탕으로 규칙에 따라 JSON으로만 답하세요.';
+}
+
+async function handleRankReasonBackfill(req, res) {
+  if (!(await isFeatureEnabled(supabase, 'rank_reason'))) {
+    return res.status(200).json({ ok: true, scanned: 0, submitted: false, disabled: true });
+  }
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req.headers.host}`;
+  const count = Math.min(Math.max(parseInt(req.body?.count || req.query?.count, 10) || 8, 1), 12);
+  // 실행당 세션 사용량 상한 — 신규/변동분만 처리하고 나머지는 다음 실행(2시간 후)이 이어간다.
+  const maxNew = Math.min(Math.max(parseInt(req.body?.max || req.query?.max, 10) || 30, 1), 60);
+
+  const [krData, usData] = await Promise.all([
+    fetch(`${base}/api/toss?action=rankings-all&market=KR&count=${count}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`${base}/api/toss?action=rankings-all&market=US&count=${count}`).then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+
+  const entries = [];
+  for (const [market, data] of [['KR', krData], ['US', usData]]) {
+    if (!data?.categories) continue;
+    for (const category of Object.keys(data.categories)) {
+      for (const it of (data.categories[category] || [])) {
+        if (!it.linkTicker) continue;
+        entries.push({
+          ticker: it.linkTicker, market, category, name: it.name, symbol: it.symbol,
+          changePercent: it.changePercent, tradingAmount: it.tradingAmount, tradingVolume: it.tradingVolume, currency: it.currency,
+        });
+      }
+    }
+  }
+  if (!entries.length) return res.status(200).json({ ok: true, scanned: 0, submitted: false, reason: 'no rankings data' });
+
+  // 4시간 이내 사유가 이미 있으면 스킵 — 랭킹 구성이 보통 그보다 천천히 바뀌므로 대부분의
+  // 실행은 신규 진입 종목만 처리하게 되어 실행당 부담이 자연히 낮아진다.
+  const { data: existing } = await supabase.from('rank_reasons')
+    .select('ticker, market, category, updated_at')
+    .in('ticker', [...new Set(entries.map(e => e.ticker))]);
+  const freshCutoff = Date.now() - 4 * 3600 * 1000;
+  const freshSet = new Set((existing || [])
+    .filter(r => new Date(r.updated_at).getTime() > freshCutoff)
+    .map(r => `${r.ticker}|${r.market}|${r.category}`));
+
+  let pending = entries.filter(e => !freshSet.has(`${e.ticker}|${e.market}|${e.category}`));
+  const skippedFresh = entries.length - pending.length;
+  if (pending.length > maxNew) pending = pending.slice(0, maxNew);
+  if (!pending.length) return res.status(200).json({ ok: true, scanned: entries.length, submitted: false, reason: 'all fresh', skippedFresh });
+
+  // 관련 뉴스 후보 풀은 한 번만 조회해 종목별로 재사용(종목마다 따로 쿼리하지 않음).
+  const { data: newsPool } = await supabase.from('issues').select('title, ai_digest, published_at')
+    .neq('ai_digest', '').order('published_at', { ascending: false }).limit(300);
+  const pool = newsPool || [];
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const matchNews = (name, symbol) => {
+    const shortName = (name || '').replace(/\(.*?\)/g, '').trim();
+    const out = [];
+    for (const row of pool) {
+      const shown = (row.ai_digest && row.ai_digest.trim()) || row.title;
+      if (!shown) continue;
+      const nameHit = shortName.length >= 2 && shown.includes(shortName);
+      const symHit = symbol && symbol.length >= 2 && new RegExp(`\\b${escRe(symbol)}\\b`).test(shown);
+      if (nameHit || symHit) { out.push(shown); if (out.length >= 2) break; }
+    }
+    return out;
+  };
+
+  const items = pending.map(e => ({
+    itemId: `${e.ticker}|${e.market}|${e.category}`,
+    static: RANK_REASON_STATIC_PROMPT,
+    dynamic: buildRankReasonDynamicBlock(e, matchNews(e.name, e.symbol)),
+  }));
+  const result = await submitAgentJob({
+    pipeline: 'rank_reason',
+    items,
+    payload: { keys: pending.map(e => `${e.ticker}|${e.market}|${e.category}`) },
+  });
+  return res.status(200).json({ ok: true, scanned: entries.length, skippedFresh, ...result });
+}
+
+async function finalizeRankReason(row) {
+  const keys = row.payload?.keys || [];
+  const results = { updated: 0, skipped: 0, errors: [] };
+  const now = new Date().toISOString();
+  for (const key of keys) {
+    try {
+      const text = extractJobText(row, key);
+      if (!text) { results.skipped++; continue; }
+      const parsed = parseJobJson(text);
+      const reason = (parsed.reason || '').toString().trim().slice(0, 30);
+      const [ticker, market, category] = key.split('|');
+      await supabase.from('rank_reasons')
+        .upsert({ ticker, market, category, reason, updated_at: now }, { onConflict: 'ticker,market,category' });
+      if (reason) results.updated++; else results.skipped++;
+    } catch (e) {
+      results.errors.push({ key, error: e.message?.slice(0, 200) });
+    }
+  }
+  return results;
+}
+
 async function handleExtractInvestments(req, res) {
   if (!(await isFeatureEnabled(supabase, 'extract_investments'))) {
     return res.status(200).json({ ok: true, scanned: 0, extracted: 0, disabled: true });
@@ -1283,15 +1597,18 @@ async function handleExtractInvestments(req, res) {
   const sinceHours = parseInt(req.body?.since_hours || req.query?.since_hours || 48, 10);
   const maxIssues  = Math.min(parseInt(req.body?.max || req.query?.max || 30, 10), 60);
 
-  // 최근 분석된 이슈 수집
+  // 최근 이슈 수집. analyze 파이프라인이 꺼져있으면 is_analyzed가 다시는 true가 안 되므로
+  // (2026-07-21 유사투자자문업 리스크 대응) ai_digest 존재 여부로 "최근에 실제 처리된 이슈"를 대신 잡는다.
   const sinceIso = new Date(Date.now() - sinceHours * 3600 * 1000).toISOString();
-  const { data: issues, error: issErr } = await supabase
+  const useAnalyzedFilter = await isFeatureEnabled(supabase, 'analyze');
+  let issuesQ = supabase
     .from('issues')
     .select('id, title, summary, source_url')
-    .eq('is_analyzed', true)
     .gte('published_at', sinceIso)
     .order('published_at', { ascending: false })
     .limit(maxIssues);
+  issuesQ = useAnalyzedFilter ? issuesQ.eq('is_analyzed', true) : issuesQ.neq('ai_digest', '');
+  const { data: issues, error: issErr } = await issuesQ;
   if (issErr) return res.status(500).json({ error: issErr.message });
   if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, extracted: 0 });
 
@@ -1487,6 +1804,55 @@ async function handleDeleteInvestment(req, res) {
 }
 
 // ════════════════════════════════════════════════════════════
+// 8-1) 실적 발표 수동 입력 관리 (2026-07-29) — Nasdaq 캘린더가 방금 나온 실적의 실제
+//      EPS를 며칠씩 늦게 채우는 문제(실측)를 관리자가 직접 메울 수 있게 하는 어드민 CRUD.
+//      api/market-data.js handleEarningsCalendar(scope=reported)가 이 테이블을 Nasdaq
+//      데이터와 병합해서(같은 symbol+날짜면 이 값이 우선) 즉시 "발표 완료"에 반영한다.
+// ════════════════════════════════════════════════════════════
+async function handleEarningsManualList(req, res) {
+  const { data, error } = await supabase.from('earnings_manual')
+    .select('*').order('report_date', { ascending: false }).limit(200);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, items: data || [] });
+}
+
+async function handleEarningsManualUpsert(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const b = req.body || {};
+  const symbol = (b.symbol || '').toString().trim().toUpperCase();
+  const reportDate = (b.report_date || '').toString().trim();
+  if (!symbol || !/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) {
+    return res.status(400).json({ error: 'symbol, report_date(YYYY-MM-DD) required' });
+  }
+  const time = ['BMO', 'AMC'].includes((b.time || '').toString().toUpperCase()) ? b.time.toUpperCase() : null;
+  const num = v => (v === '' || v == null) ? null : Number(v);
+  const row = {
+    symbol, report_date: reportDate, time,
+    name: (b.name || '').toString().trim() || null,
+    eps_actual: num(b.eps_actual),
+    eps_estimate: num(b.eps_estimate),
+    surprise_pct: num(b.surprise_pct),
+    market_cap: num(b.market_cap),
+    updated_at: new Date().toISOString(),
+  };
+  if (b.id) row.id = parseInt(b.id, 10);
+
+  const { data, error } = await supabase.from('earnings_manual')
+    .upsert(row, { onConflict: 'symbol,report_date' }).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, item: data });
+}
+
+async function handleEarningsManualDelete(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const id = parseInt(req.body?.id, 10);
+  if (!id) return res.status(400).json({ error: 'id required' });
+  const { error } = await supabase.from('earnings_manual').delete().eq('id', id);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true });
+}
+
+// ════════════════════════════════════════════════════════════
 // 9) 전략투자 이벤트 히스토리 (그래프용 — 인증 불필요)
 // ════════════════════════════════════════════════════════════
 async function handleInvestmentEvents(req, res) {
@@ -1548,6 +1914,146 @@ async function handleThemeMap(req, res) {
     return res.status(200).json({ ok: true, map });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message, map: {} });
+  }
+}
+
+// 홈/뉴스 페이지의 "최신 분석 이슈" 피드 — 원래 app.js가 방문자 브라우저에서 Supabase를
+// 직접(anon key, 캐싱 전혀 없이) 호출했던 것을 서버로 옮긴 것. index/heatmap/kr-market/
+// picks/sectors/news 6개 페이지가 전부 이 피드를 쓰는데 기본 뷰(필터 없음, 1페이지)는
+// 사실상 전체 방문자가 동일 쿼리를 때리므로, 엣지 캐시로 트래픽 급증 시 origin(Supabase)
+// 호출을 흡수해 커넥션 소진/응답지연을 막는다. 쿼리 자체는 기존 app.js loadIssues()의
+// JOIN·필터 로직을 그대로 서버로 옮긴 것 — 결과 스키마 동일.
+const ISSUES_CAT_FILTERS = {
+  earnings: 'title.ilike.%실적%,title.ilike.%어닝%,title.ilike.%earnings%,title.ilike.%EPS%,title.ilike.%revenue%,sectors.cs.{실적발표}',
+  politics: 'title.ilike.%관세%,title.ilike.%무역%,title.ilike.%외교%,title.ilike.%제재%,title.ilike.%tariff%,title.ilike.%trade%,title.ilike.%geopolit%,title.ilike.%정치%,sectors.cs.{정치},sectors.cs.{외교},sectors.cs.{정세}',
+  economy:  'title.ilike.%금리%,title.ilike.%Fed%,title.ilike.%FOMC%,title.ilike.%물가%,title.ilike.%GDP%,title.ilike.%고용%,title.ilike.%인플레%,sectors.cs.{경제},sectors.cs.{금리},sectors.cs.{물가}',
+  tech:     'sectors.cs.{AI},sectors.cs.{반도체},sectors.cs.{클라우드},sectors.cs.{IT},sectors.cs.{로봇},title.ilike.%반도체%,title.ilike.%인공지능%,title.ilike.%semiconductor%,title.ilike.%엔비디아%,title.ilike.%nvidia%,title.ilike.%HBM%,title.ilike.%chip%',
+  bio:      'sectors.cs.{바이오},sectors.cs.{제약},sectors.cs.{헬스케어},title.ilike.%바이오%,title.ilike.%제약%,title.ilike.%신약%,title.ilike.%임상%,title.ilike.%FDA%,title.ilike.%biotech%,title.ilike.%pharma%',
+  ev:       'sectors.cs.{전기차},sectors.cs.{배터리},title.ilike.%전기차%,title.ilike.%배터리%,title.ilike.%테슬라%,title.ilike.%tesla%,title.ilike.%이차전지%,title.ilike.%2차전지%,title.ilike.%리튬%',
+  energy:   'sectors.cs.{에너지},sectors.cs.{원전},title.ilike.%원전%,title.ilike.%원자력%,title.ilike.%에너지%,title.ilike.%유가%,title.ilike.%태양광%,title.ilike.%수소%,title.ilike.%전력%,title.ilike.%nuclear%,title.ilike.%oil%',
+  defense:  'sectors.cs.{방산·우주},sectors.cs.{방산},sectors.cs.{우주},title.ilike.%방산%,title.ilike.%국방%,title.ilike.%미사일%,title.ilike.%위성%,title.ilike.%우주%,title.ilike.%로켓%,title.ilike.%defense%,title.ilike.%missile%',
+  game:     'sectors.cs.{게임},sectors.cs.{엔터},title.ilike.%게임%,title.ilike.%K팝%,title.ilike.%k-팝%,title.ilike.%넷플릭스%,title.ilike.%하이브%,title.ilike.%엔터테인먼트%,title.ilike.%netflix%',
+  crypto:   'sectors.cs.{크립토},sectors.cs.{암호화폐},title.ilike.%비트코인%,title.ilike.%암호화폐%,title.ilike.%이더리움%,title.ilike.%스테이블코인%,title.ilike.%bitcoin%,title.ilike.%crypto%,title.ilike.%stablecoin%',
+};
+async function handleIssuesFeed(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Cache-Control은 성공 응답에만 길게(45초) 건다 — 앞에서 무조건 걸어두면 일시적 실패(ok:false)
+  // 응답까지 엣지에 캐싱돼 DB가 바로 회복해도 45초 동안 전체 방문자가 에러를 보게 된다.
+
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const sector = (req.query.sector || 'all').toString();
+  const category = (req.query.category || 'all').toString();
+  const q = (req.query.q || '').toString().trim();
+  const pageSize = Math.min(Math.max(parseInt(req.query.pageSize) || 9, 1), 30);
+
+  // 유사투자자문업 리스크 대응(2026-07-21) + 노출 게이트 분리(2026-07-27): 공개 노출 여부는
+  // analyze(파이프라인 실행 on/off, 비용관리용) 플래그가 아니라 전용 fail-closed 플래그
+  // expose_ripple_effects로 판단한다 — analyze를 비용/운영 목적으로 다시 켜도 이 플래그가
+  // OFF(기본값)인 한 매수후보/신뢰도/파급효과 데이터는 공개 응답에 절대 안 실린다.
+  const includeAnalyses = await isFeatureEnabledStrict(supabase, 'expose_ripple_effects');
+  const applyFilters = qb => {
+    let out = includeAnalyses ? qb.eq('is_analyzed', true) : qb.neq('ai_digest', '');
+    if (sector !== 'all') out = out.contains('sectors', [sector]);
+    if (q) out = out.ilike('title', `%${q}%`);
+    if (category !== 'all' && ISSUES_CAT_FILTERS[category]) out = out.or(ISSUES_CAT_FILTERS[category]);
+    return out;
+  };
+
+  // 이 쿼리(특히 analyses/analysis_companies/companies 중첩 조인)가 Postgres 플래너 상태에
+  // 따라 간헐적으로 수십 초씩 걸리는 게 실측으로 확인됨(count:'estimated' 전환 후에도 재발) —
+  // 근본 원인이 뭐든(테이블 통계 갱신 주기, 플랜 캐시 등) 함수가 Vercel의 60초 하드킬까지
+  // 가서 504로 죽는 최악의 경우만은 절대 피해야 하므로, 쿼리별 하드 타임아웃을 걸어 무조건
+  // 몇 초 안에 응답한다 — 느리면 그냥 실패로 처리하고 클라이언트가 "다시 시도" 버튼을 보여준다.
+  const withTimeout = (query, ms) => {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), ms);
+    return query.abortSignal(ac.signal).then(r => { clearTimeout(timer); return r; }, e => { clearTimeout(timer); throw e; });
+  };
+
+  try {
+    // 유사투자자문업 리스크 대응(2026-07-21): 'analyze' 플래그가 꺼져 있으면 매수 후보/
+    // 신뢰도/파급효과 데이터(analyses 조인)를 공개 피드에서 아예 빼고 뉴스 제목/요약만
+    // 내려준다. (includeAnalyses는 위에서 이미 계산됨 — applyFilters도 같은 값을 씀)
+    // ai_digest(순수 기사 요약, 매수판단 없음)는 analyze 플래그와 무관하게 항상 포함 —
+    // analyses/analysis_companies와 완전히 별개 파이프라인이라 게이트할 이유가 없다.
+    // news_analysis(키포인트+섹터톤): analyses/analysis_companies와 무관한 독립 편집 필드라
+    // 노출 게이트와 상관없이 항상 포함(종목 미지정 산업 방향 태깅, 2026-07-27).
+    const selectCols = includeAnalyses
+      ? `id, title, summary, source_name, published_at, sectors, is_analyzed, ai_digest, news_analysis,
+        analyses!inner(id, confidence_score, ripple_effects, ai_summary,
+          analysis_companies(upside_pct, ripple_sector, is_accurate_1d, actual_return_1d, is_accurate_7d, actual_return_7d,
+            companies(ticker, name_ko, name_en, market)
+          )
+        )`
+      : 'id, title, summary, source_name, published_at, sectors, is_analyzed, ai_digest, news_analysis';
+    const buildDataQuery = (cols) => applyFilters(
+      supabase.from('issues').select(cols).order('published_at', { ascending: false })
+    ).range((page - 1) * pageSize, page * pageSize - 1);
+    const dataQuery = buildDataQuery(selectCols);
+
+    // count:'exact'는 Postgres가 매칭 행을 실제로 다 세야 해서(대형/블로트된 테이블일수록)
+    // 느림 — 페이지네이션 UI는 정확한 숫자가 필요 없으므로 통계 기반 추정치인 count:'estimated' 사용.
+    const countQuery = applyFilters(supabase.from('issues').select('id', { count: 'estimated', head: true }));
+
+    const [dataRes, countRes] = await Promise.allSettled([
+      withTimeout(dataQuery, 8000),
+      withTimeout(countQuery, 5000),
+    ]);
+
+    if (dataRes.status === 'rejected' || dataRes.value?.error) {
+      const msg = dataRes.status === 'rejected' ? String(dataRes.reason?.message || dataRes.reason) : dataRes.value.error.message;
+      // news_analysis 컬럼 마이그레이션 전이면 그 컬럼만 빼고 재시도(피드가 통째로 죽지 않게).
+      if (/news_analysis/.test(msg || '')) {
+        const retry = await withTimeout(buildDataQuery(selectCols.replace(', news_analysis', '')), 8000).catch(e => ({ error: { message: String(e?.message || e) } }));
+        if (!retry?.error) {
+          res.setHeader('Cache-Control', 'public, s-maxage=45, stale-while-revalidate=300');
+          return res.status(200).json({ ok: true, data: retry.data || [], totalCount: (retry.data || []).length, page, pageSize });
+        }
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ ok: false, error: msg, data: [], totalCount: 0 });
+    }
+    const data = dataRes.value.data || [];
+    // count는 부가정보(페이지 표시용)라 실패해도 본문 데이터는 그대로 응답 — 실패 시 이번 페이지
+    // 데이터 길이로 대충 채워서 페이지네이션 버튼이 완전히 사라지진 않게 한다.
+    const count = (countRes.status === 'fulfilled' && !countRes.value?.error) ? (countRes.value.count ?? data.length) : data.length;
+    res.setHeader('Cache-Control', 'public, s-maxage=45, stale-while-revalidate=300');
+    return res.status(200).json({ ok: true, data, totalCount: count, page, pageSize });
+  } catch (e) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ ok: false, error: e.message, data: [], totalCount: 0 });
+  }
+}
+
+// 홈/매수후보 "투자 인사이트" 카드의 원본 데이터 — 마찬가지로 방문자 브라우저의 직접
+// Supabase 호출을 캐싱되는 서버 엔드포인트로 옮긴 것. 티커별 집계·점수화는 여전히
+// 클라이언트(app.js loadInsights)에서 하므로 응답 스키마는 원래 쿼리 결과와 동일.
+async function handleInsightsRaw(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  // 유사투자자문업 리스크 대응(2026-07-21) + 노출 게이트 분리(2026-07-27): 매수 후보 카드
+  // 노출은 전용 fail-closed 플래그 expose_ripple_effects로만 판단(analyze와 무관) —
+  // app.js loadInsights는 data가 비면 섹션을 숨긴다.
+  if (!(await isFeatureEnabledStrict(supabase, 'expose_ripple_effects'))) {
+    return res.status(200).json({ ok: true, data: [] });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('analysis_companies')
+      .select(`
+        upside_pct, confidence, rationale, entry_date,
+        is_accurate_7d, actual_return_7d, is_accurate_1d, actual_return_1d,
+        companies(ticker, name_ko, name_en, market),
+        analyses!inner(issue_id, ai_summary,
+          issues!inner(id, title, published_at)
+        )
+      `)
+      .order('entry_date', { ascending: false })
+      .limit(500);
+    if (error) return res.status(200).json({ ok: false, error: error.message, data: [] });
+    return res.status(200).json({ ok: true, data: data || [] });
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: e.message, data: [] });
   }
 }
 
@@ -2138,6 +2644,255 @@ async function handleFixKrBrokenNames(req, res) {
   });
 }
 
+// 구글뉴스 RSS 등이 title/summary에 <a>/<font> 태그 + &nbsp; 등 엔티티를 실어보내는 버그로
+// 저장된 과거 이슈 일괄 정리 (근본 수정은 api/fetch.js — 이건 이미 저장된 데이터용).
+async function handleFixBrokenTitles(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const dryRun = !!req.body?.dry_run;
+
+  const { data: issues, error } = await supabase
+    .from('issues')
+    .select('id, title, summary')
+    .or('title.ilike.%<a href%,title.ilike.%&nbsp;%,title.ilike.%<font%,summary.ilike.%<a href%,summary.ilike.%&nbsp;%,summary.ilike.%<font%');
+  if (error) return res.status(500).json({ error: error.message });
+
+  const clean = s => {
+    if (!s) return s;
+    const decoded = s
+      .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/&apos;/gi, "'");
+    return decoded.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  };
+
+  const results = [];
+  for (const it of issues || []) {
+    const newTitle = clean(it.title);
+    const newSummary = clean(it.summary);
+    if (newTitle === it.title && newSummary === it.summary) continue;
+    if (!dryRun) {
+      const { error: upErr } = await supabase.from('issues').update({ title: newTitle, summary: newSummary }).eq('id', it.id);
+      if (upErr) { results.push({ id: it.id, ok: false, error: upErr.message }); continue; }
+    }
+    results.push({ id: it.id, ok: true, before: it.title, after: newTitle });
+  }
+
+  return res.status(200).json({
+    ok: true,
+    dryRun,
+    scanned: issues?.length || 0,
+    fixed: results.filter(r => r.ok).length,
+    results: results.slice(0, 50),
+  });
+}
+
+// ETF 보유종목 역인덱스 크롤 — 네이버 ETF 전체 목록의 각 ETF 상위10 구성종목(국내 티커)을
+// 긁어 etf_holdings 테이블에 적재(upsert). "이 종목을 담은 ETF"(company.html 역조회)용.
+// 1146개 ETF를 한 번(60s)에 다 못 돌 수 있으므로 start 오프셋으로 이어받기(resumable).
+// body: { start?: number, limit?: number } — 응답의 nextStart로 재호출하면 전량 커버.
+// "11조 5,043억"/"-101억" 같은 네이버 포맷 문자열 → 숫자(원). 랭킹 정렬용.
+function krwToNumber(s) {
+  if (s == null) return null;
+  if (typeof s === 'number') return isFinite(s) ? s : null;
+  const str = String(s).replace(/,/g, '').trim();
+  let total = 0, found = false, m;
+  if ((m = str.match(/(-?\d+(?:\.\d+)?)\s*조/))) { total += parseFloat(m[1]) * 1e12; found = true; }
+  if ((m = str.match(/(-?\d+(?:\.\d+)?)\s*억/))) { total += parseFloat(m[1]) * 1e8; found = true; }
+  if (!found && (m = str.match(/(-?\d+(?:\.\d+)?)\s*만/))) { total += parseFloat(m[1]) * 1e4; found = true; }
+  if (found) return total;
+  const n = parseFloat(str);
+  return isFinite(n) ? n : null;
+}
+
+// ── 상장주식수 캐시 (히트맵 트리맵 시총 계산용) — db/shares-outstanding.sql ──
+// 시총 = 실시간가 × 주식수. 주식수는 분기 단위로만 바뀌므로 라이브 조회(762콜) 대신 캐시한다.
+// 대상 티커 목록은 /data/shares-outstanding.json(최초 수집분, 저장소에 커밋됨)의 키를 쓴다 —
+// 히트맵 티커가 app.js(클라이언트)에 있어 서버가 직접 못 읽기 때문.
+// Toss 프록시가 동시성에 민감해(6이면 절반 실패 실측) 낮은 동시성 + 시간예산으로 resumable 처리.
+async function handleCrawlSharesOutstanding(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const t0 = Date.now();
+  const TIME_BUDGET_MS = 50000;
+  const start = Math.max(0, parseInt(req.body?.start) || 0);
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req.headers.host}`;
+
+  // 7일 이내에 이미 갱신됐으면 스킵 (cron이 매일 불러도 실제 크롤은 주 1회)
+  if (start === 0 && !req.body?.force) {
+    const { data: fresh } = await supabase.from('shares_outstanding')
+      .select('updated_at').order('updated_at', { ascending: false }).limit(1);
+    const last = fresh?.[0]?.updated_at ? new Date(fresh[0].updated_at).getTime() : 0;
+    if (last && Date.now() - last < 7 * 86400000) {
+      return res.status(200).json({ ok: true, skipped: true, reason: 'fresh within 7d', lastUpdated: fresh[0].updated_at });
+    }
+  }
+
+  let tickers = [];
+  try {
+    const r = await fetch(`${base}/data/shares-outstanding.json`, { signal: AbortSignal.timeout(10000) });
+    tickers = Object.keys(await r.json());
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: 'ticker list load failed: ' + e.message });
+  }
+  if (!tickers.length) return res.status(200).json({ ok: false, error: 'empty ticker list' });
+
+  let i = start, updated = 0, failed = 0;
+  const CONC = 3;
+  const worker = async () => {
+    while (i < tickers.length && Date.now() - t0 < TIME_BUDGET_MS) {
+      const t = tickers[i++];
+      // KR은 .KS/.KQ 없이 6자리, BRK-B류는 Toss가 점 표기(BRK.B)를 씀
+      const sym = t.replace(/\.(KS|KQ)$/, '').replace(/-/g, '.');
+      try {
+        const r = await fetch(`${base}/api/toss?action=meta&symbol=${encodeURIComponent(sym)}`, { signal: AbortSignal.timeout(9000) });
+        const j = await r.json();
+        if (j?.ok && j.sharesOutstanding) {
+          await supabase.from('shares_outstanding')
+            .upsert({ ticker: t, shares: j.sharesOutstanding, updated_at: new Date().toISOString() }, { onConflict: 'ticker' });
+          updated++;
+        } else failed++;
+      } catch { failed++; }
+    }
+  };
+  await Promise.all(Array.from({ length: CONC }, worker));
+
+  const done = i >= tickers.length;
+  return res.status(200).json({ ok: true, done, updated, failed, nextStart: done ? null : i, total: tickers.length });
+}
+
+// 공개 조회 — 히트맵 클라이언트가 시총 계산에 쓴다. 하루 단위 엣지 캐시라 원본 호출은 하루 몇 번뿐.
+async function handleSharesOutstandingGet(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  try {
+    // 762행이라 PostgREST 기본 1000행 제한 안에 들어옴
+    const { data, error } = await supabase.from('shares_outstanding').select('ticker, shares').limit(2000);
+    if (error || !data?.length) {
+      // DB 미마이그레이션/비어있음 → 클라이언트가 정적 JSON 폴백을 쓰도록 빈 응답
+      res.setHeader('Cache-Control', 'public, s-maxage=300');
+      return res.status(200).json({ ok: false, data: {} });
+    }
+    const out = {};
+    for (const r of data) out[r.ticker] = Number(r.shares);
+    res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=172800');
+    return res.status(200).json({ ok: true, data: out });
+  } catch (e) {
+    res.setHeader('Cache-Control', 'public, s-maxage=300');
+    return res.status(200).json({ ok: false, data: {}, error: e.message });
+  }
+}
+
+async function handleCrawlEtfHoldings(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const t0 = Date.now();
+  const TIME_BUDGET_MS = 55000;
+  const start = Math.max(0, parseInt(req.body?.start) || 0);
+  const limit = Math.min(Math.max(parseInt(req.body?.limit) || 1200, 1), 1200);
+
+  const NAVER_H = {
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+    'Referer': 'https://m.stock.naver.com/', 'Accept': 'application/json, */*',
+  };
+
+  // 전체 목록(EUC-KR 디코드). 해외주식/원자재 ETF도 총보수·순자산·자금유입 랭킹(etf_snapshot)엔
+  // 기여하므로 더 이상 카테고리로 거르지 않는다 — 구성종목 인덱스(etf_holdings)만 국내 종목이
+  // 없으면 자연히 빈 배열이 되어 기록되지 않는다(아래 filter).
+  let list;
+  try {
+    const r = await fetch('https://finance.naver.com/api/sise/etfItemList.nhn', { headers: NAVER_H, signal: AbortSignal.timeout(8000) });
+    const buf = await r.arrayBuffer();
+    let text; try { text = new TextDecoder('euc-kr').decode(buf); } catch { text = new TextDecoder('utf-8').decode(buf); }
+    list = JSON.parse(text)?.result?.etfItemList || [];
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: 'etf list fetch failed: ' + e.message });
+  }
+
+  const slice = list.slice(start, start + limit);
+  const num = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isFinite(n) ? n : null; };
+
+  let processed = 0, rowsUpserted = 0, snapshotsUpserted = 0, timedOut = false;
+  const errors = [];
+  let idx = 0;
+  async function worker() {
+    while (idx < slice.length) {
+      if (Date.now() - t0 > TIME_BUDGET_MS) { timedOut = true; return; }
+      const e = slice[idx++];
+      try {
+        const r = await fetch(`https://m.stock.naver.com/api/stock/${e.itemcode}/etfAnalysis`, { headers: NAVER_H, signal: AbortSignal.timeout(7000) });
+        if (!r.ok) { errors.push(`${e.itemcode}:HTTP${r.status}`); continue; }
+        const j = await r.json();
+        processed++;
+
+        // ① 국내 구성종목 → 역인덱스(해외주식/원자재 ETF는 itemCode가 없어 자연히 빈 배열)
+        const holdings = (j?.etfTop10MajorConstituentAssets || [])
+          .filter(h => /^\d{6}$/.test(h.itemCode || ''))
+          .map(h => ({
+            etf_code: e.itemcode, etf_name: j.itemName || e.itemname, etf_tab_code: e.etfTabCode,
+            stock_code: h.itemCode, stock_name: h.itemName, weight: num(h.etfWeight), seq: h.seq,
+          }));
+        if (holdings.length) {
+          const { error } = await supabase.from('etf_holdings').upsert(holdings, { onConflict: 'etf_code,stock_code' });
+          if (error) errors.push(`h:${e.itemcode}:${error.message}`);
+          else rowsUpserted += holdings.length;
+        }
+
+        // ② 스냅샷(총보수·추적오차·순자산·자금유입) — 랭킹용, 목록 API엔 없는 필드라 여기서만 저장
+        const inflow = j?.cumulativeNetInflowList || {};
+        const snap = {
+          code: e.itemcode, name: j.itemName || e.itemname, tab_code: e.etfTabCode,
+          total_fee: num(j.totalFee), tracking_error: num(j.chaseErrorRate), deviation_rate: num(j.deviationRate),
+          market_value_won: krwToNumber(j.marketValue),
+          issuer_name: j.issuerName || null,
+          net_inflow_1d_won: krwToNumber(inflow.cumulativeNetInflow1d),
+          net_inflow_1w_won: krwToNumber(inflow.cumulativeNetInflow1w),
+          updated_at: new Date().toISOString(),
+        };
+        const { error: snapErr } = await supabase.from('etf_snapshot').upsert(snap, { onConflict: 'code' });
+        if (snapErr) errors.push(`s:${e.itemcode}:${snapErr.message}`);
+        else snapshotsUpserted++;
+      } catch (err) { errors.push(`${e.itemcode}:${err.message}`); }
+    }
+  }
+  await Promise.all(Array.from({ length: 12 }, worker));
+
+  const consumed = start + processed;
+  const nextStart = timedOut ? consumed : (start + slice.length < list.length ? start + slice.length : null);
+  return res.status(200).json({
+    ok: true, totalEtfs: list.length, start, processed, rowsUpserted, snapshotsUpserted,
+    timedOut, nextStart, done: nextStart == null,
+    elapsedMs: Date.now() - t0, errorSample: errors.slice(0, 10),
+  });
+}
+
+// 실시간 채팅 검열 — GET: 최근 메시지(숨김 포함, 원문 그대로) / POST {id, op}:
+// unhide(숨김 해제 + 신고 초기화 — 재신고 3명부터 다시 숨김), hide(수동 숨김), delete(완전 삭제)
+async function handleChatAdmin(req, res) {
+  if (req.method === 'GET') {
+    const onlyReported = req.query?.filter === 'reported';
+    let q = supabase.from('chat_messages')
+      .select('id, sender_key, nickname, is_member, message, hidden, report_count, created_at')
+      .order('created_at', { ascending: false }).limit(100);
+    if (onlyReported) q = q.gt('report_count', 0);
+    const { data, error } = await q;
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ ok: true, items: data || [] });
+  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const { id, op } = req.body || {};
+  const msgId = parseInt(id);
+  if (!msgId || !['unhide', 'hide', 'delete'].includes(op)) return res.status(400).json({ error: 'bad request' });
+  let error = null;
+  if (op === 'delete') {
+    ({ error } = await supabase.from('chat_messages').delete().eq('id', msgId));
+  } else if (op === 'unhide') {
+    await supabase.from('chat_reports').delete().eq('message_id', msgId);
+    ({ error } = await supabase.from('chat_messages').update({ hidden: false, report_count: 0 }).eq('id', msgId));
+  } else {
+    ({ error } = await supabase.from('chat_messages').update({ hidden: true }).eq('id', msgId));
+  }
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true });
+}
+
 // ════════════════════════════════════════════════════════════
 // 16) 옵션 체인 요약 (Yahoo /v7/finance/options)
 // ════════════════════════════════════════════════════════════
@@ -2302,21 +3057,24 @@ async function handleAiMarketSummaryPost(req, res) {
     }
   }
 
-  // 최근 24h 분석된 이슈 60건 수집
+  // 최근 24h 이슈 60건 수집. analyze가 꺼져있으면(2026-07-21) is_analyzed가 다시는 true가
+  // 안 되므로 ai_digest 존재 여부로 "최근에 실제 처리된 이슈"를 대신 잡는다.
   const sinceIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const { data: issues } = await supabase
+  const useAnalyzedFilter = await isFeatureEnabled(supabase, 'analyze');
+  let summaryIssuesQ = supabase
     .from('issues')
-    .select('title, summary, sectors, published_at, analyses(ai_summary, confidence_score)')
-    .eq('is_analyzed', true)
+    .select('title, summary, ai_digest, sectors, published_at, analyses(ai_summary, confidence_score)')
     .gte('published_at', sinceIso)
     .order('published_at', { ascending: false })
     .limit(60);
+  summaryIssuesQ = useAnalyzedFilter ? summaryIssuesQ.eq('is_analyzed', true) : summaryIssuesQ.neq('ai_digest', '');
+  const { data: issues } = await summaryIssuesQ;
 
   if (!issues?.length) return res.status(200).json({ ok: true, generated: false, reason: 'No recent issues' });
 
   const ctx = issues.map(i => {
     const conf = i.analyses?.[0]?.confidence_score;
-    return `[${(i.published_at || '').slice(0, 16)}] (${conf || '?'}점) ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.summary || ''}`.slice(0, 400);
+    return `[${(i.published_at || '').slice(0, 16)}] (${conf || '?'}점) ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.ai_digest || i.summary || ''}`.slice(0, 400);
   }).join('\n\n');
 
   const dynamic = `당신은 한국어 금융 시장 분석가입니다. 아래 지난 24시간 분석 이슈 ${issues.length}건을 종합해서 오늘의 시장 종합 보고서를 작성하세요.
@@ -2400,6 +3158,16 @@ function smTagsOf(text) {
 }
 
 async function handleSectorMapGet(req, res) {
+  // 유사투자자문업 리스크 대응(2026-07-21) + 노출 게이트 분리(2026-07-27): 종목 랭킹/매수논리
+  // (top_stocks, sectors[].companies) 노출은 전용 fail-closed 플래그 expose_ripple_effects로만
+  // 판단한다(analyze와 무관) — 꺼져 있으면(기본값) 빈 맵으로 응답.
+  if (!(await isFeatureEnabledStrict(supabase, 'expose_ripple_effects'))) {
+    res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=7200');
+    return res.status(200).json({
+      ok: true, window_days: 30, based_on: 0, generated_at: new Date().toISOString(),
+      sectors: [], edges: [], top_stocks: [],
+    });
+  }
   const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
   const since7Ms = Date.now() - 7 * 86400000;
 
@@ -2602,14 +3370,31 @@ async function handleWeeklySchedulePost(req, res) {
   // 조립 단계(stage 'highlights' 직행)로 넘어간다 — 기존 `if (anthropic && newsRes?.data?.length)` 분기와 동일한 게이트.
   if (newsRes?.data?.length) {
     const titles = newsRes.data.map(n => n.title).filter(Boolean).slice(0, 300).join('\n');
+
+    // 경제지표 실제 발표치는 뉴스 분석 기반으로 찾는다(2026-07-16, ForexFactory+FMP 캘린더가
+    // 실측으로 며칠씩 완전히 죽어있던 사고 이후 — FMP_API_KEY 만료 확인됨, ForexFactory도
+    // Vercel에서만 계속 비어옴). econItems에 이미 있는 지표는 actual만 채우고, 캘린더가 아예
+    // 비어서 econItems에 없는 지표도 뉴스에서 새로 찾아서 추가한다 — 항상 시도(캘린더 상태와
+    // 무관하게). WS_CANON_INDICATORS 목록과 정확히 일치하는 이름만 인정해서 오매칭/창작 방지.
+    const actualsAsk = `
+
+또한 위 뉴스 제목 중에 아래 "주요 경제지표" 목록에 해당하는 지표의 실제 발표치가 명확히 언급된 게 있으면
+추출하세요(예: "Consumer Price Index: Inflation At 3.5% In June" → 목록의 지표명과 정확히 일치하면 그 수치).
+반드시 아래 목록의 지표명과 정확히 일치하는 것만, 수치가 뉴스에 명시적으로 나온 경우만, 그 지표가 실제로
+발표된 날짜(뉴스에 언급되지 않았으면 뉴스 게재일)도 함께. 추측·계산·창작 절대 금지 — 확실하지 않으면 포함하지 마세요.
+
+주요 경제지표 목록(미국):
+${WS_CANON_INDICATORS.join(', ')}`;
+
     const dynamic = `아래는 최근 10일간 수집된 금융 뉴스 제목들입니다. 이 중에서 ${weekStart} ~ ${new Date(rangeEndMs - 86400000).toISOString().slice(0, 10)} 사이에 예정된 "구체적 이벤트"만 추출하세요 (기업 상장/ADR 상장, 지수 편입, 주주총회, 잠정 실적발표, 월간 매출 발표, 제품 출시, 정책 시행 등).
 
 규칙:
 - 뉴스에 날짜나 시점("다음 주", "7월 7일" 등)이 실제로 언급된 이벤트만. 날짜 추측/창작 절대 금지
 - 이미 지나간 일, 단순 시황/전망 기사는 제외
 - 확실한 것이 없으면 빈 배열
+${actualsAsk}
 
-JSON만 반환: {"events":[{"date":"YYYY-MM-DD","title":"이벤트 설명 (30자 내)"}]}
+JSON만 반환: {"events":[{"date":"YYYY-MM-DD","title":"이벤트 설명 (30자 내)"}], "indicatorResults":[{"date":"YYYY-MM-DD","titleKo":"목록의 지표명 그대로","actual":"실제 수치(원문 단위 그대로)"}]}
 
 뉴스 제목:
 ${titles.slice(0, 15000)}`;
@@ -2619,6 +3404,19 @@ ${titles.slice(0, 15000)}`;
 
   return continueWeeklyScheduleAfterEvents(res, { ...wsPayloadBase, newsEvents: [] });
 }
+
+// 뉴스 기반 경제지표 실제치 추출에서 인정하는 지표명 화이트리스트 — market-data.js의
+// NAME_KO 한국어 표기와 맞춰뒀다(다른 이름 쓰면 매칭 안 되게 해서 오매칭/창작 방지).
+const WS_CANON_INDICATORS = [
+  '소비자물가 (MoM)', '근원 CPI (MoM)', '소비자물가 (YoY)', '근원 CPI (YoY)',
+  '생산자물가 (MoM)', '근원 PPI (MoM)', '생산자물가 (YoY)', '근원 PPI (YoY)',
+  '비농업 신규고용 (NFP)', '실업률', 'ADP 비농업 고용', '신규실업급여 청구', '계속실업급여 청구',
+  'GDP (QoQ)', 'GDP 예비치 (QoQ)', '소매판매 (MoM)', '근원 소매판매 (MoM)',
+  'ISM 제조업 PMI', 'ISM 서비스업 PMI', '제조업 PMI (예비)', '서비스업 PMI (예비)',
+  'PCE 물가 (MoM)', '근원 PCE 물가 (MoM)', 'PCE 물가 (YoY)', '근원 PCE 물가 (YoY)',
+  '미시간대 소비자심리', '미시간대 소비자심리 (예비)', '소비자신뢰지수 (CB)',
+  'FOMC 기준금리', '신규주택착공', '기존주택판매', '신규주택판매', '내구재주문 (MoM)',
+];
 
 // ── 일자별 조립 (KST 시각 기준) — stage 'events' 완료 후와 "뉴스 없음" 직행 경로 공용 ──
 function assembleWeekDays({ econItems, earnItems, tdItems, newsEvents, KST_MS }) {
@@ -2630,10 +3428,13 @@ function assembleWeekDays({ econItems, earnItems, tdItems, newsEvents, KST_MS })
   for (const e of econItems) {
     const dK = new Date(new Date(e.date).getTime() + KST_MS);
     const isFed = /speaks|testifies|speech|fomc member|fed chair|fomc press/i.test(e.title || '');
+    // 예상치만 있고 실제 발표치는 표시가 안 되던 문제 — market-pulse(type=economic)가 이미
+    // ForexFactory/FMP에서 actual을 채워주는데 여기서 안 읽고 있었다. 발표 후엔 같이 노출.
+    const stat = [e.forecast ? `예상 ${e.forecast}` : '', e.actual ? `발표 ${e.actual}` : ''].filter(Boolean).join('/');
     addItem(dK.toISOString().slice(0, 10), {
       time: dK.toISOString().slice(11, 16),
       type: isFed ? '연준' : '지표',
-      title: `${FLAG[e.country] || e.country} ${e.titleKo || e.title}${e.forecast ? ` (예상 ${e.forecast})` : ''}`,
+      title: `${FLAG[e.country] || e.country} ${e.titleKo || e.title}${stat ? ` (${stat})` : ''}`,
       stars: e.impact === 'High' ? 3 : 2,
     });
   }
@@ -2684,6 +3485,7 @@ function computeHighlightsFallback({ newsEvents, econItems, earnItems }) {
 async function finalizeWeeklyScheduleEvents(row) {
   const text = extractJobText(row, 'main');
   let newsEvents = [];
+  let econItems = row.payload.econItems || [];
   if (text) {
     try {
       const parsed = parseJobJson(text);
@@ -2693,9 +3495,34 @@ async function finalizeWeeklyScheduleEvents(row) {
         const t = new Date(`${e.date}T12:00:00Z`).getTime();
         return t >= rangeStartMs && t < rangeEndMs;
       }).slice(0, 10);
+
+      // 뉴스에서 찾은 실제 발표치를 econItems에 병합 — WS_CANON_INDICATORS 화이트리스트와
+      // 정확히 일치하는 이름만 인정(오매칭/창작 방지). 이미 econItems에 있는 지표면 actual만
+      // 채우고(기존 actual은 덮어쓰지 않음), 캘린더 API가 아예 못 준 지표는 뉴스만으로 새
+      // 항목을 만들어 추가한다 — ForexFactory/FMP가 통째로 죽어도(2026-07-16 실측: FMP 키
+      // 만료 + ForexFactory가 Vercel에서만 계속 빈 응답) 지표 섹션이 완전히 비지 않게 하려는
+      // 목적. 이번 주 범위(rangeStartMs~rangeEndMs) 밖 날짜는 무시.
+      if (Array.isArray(parsed.indicatorResults)) {
+        const { rangeStartMs: rMs, rangeEndMs: rMe } = row.payload;
+        for (const r of parsed.indicatorResults) {
+          if (!r?.titleKo || !r?.actual || !r?.date || !WS_CANON_INDICATORS.includes(r.titleKo)) continue;
+          const t = new Date(`${r.date}T12:00:00Z`).getTime();
+          if (isNaN(t) || t < rMs || t >= rMe) continue;
+          const idx = econItems.findIndex(e => e.titleKo === r.titleKo);
+          if (idx >= 0) {
+            if (econItems[idx].actual == null) econItems[idx] = { ...econItems[idx], actual: r.actual };
+          } else {
+            econItems.push({
+              date: `${r.date}T12:00:00.000Z`, titleKo: r.titleKo, title: r.titleKo,
+              country: 'USD', impact: 'High', forecast: null, previous: null,
+              actual: r.actual, lowerIsBetter: false,
+            });
+          }
+        }
+      }
     } catch { /* 파싱 실패 시 newsEvents=[]로 계속 진행(기존 동작과 동일) */ }
   }
-  return continueWeeklyScheduleAfterEvents(null, { ...row.payload, newsEvents });
+  return continueWeeklyScheduleAfterEvents(null, { ...row.payload, econItems, newsEvents });
 }
 
 const WS_KST_MS = 9 * 3600000;
@@ -2789,6 +3616,29 @@ async function fetchDrIndexQuote(symbol, name) {
     else changePercent = meta.regularMarketChangePercent ?? null;
     return { name, price, changePercent: changePercent != null ? Math.round(changePercent * 100) / 100 : null };
   } catch { return null; }
+}
+
+// 데일리 리포트의 "다가오는 핵심 이벤트"에 실적 발표를 넣을 때 AI가 정확한 날짜를 쓰도록,
+// earnings.html이 쓰는 실제 실적 캘린더(Nasdaq + 관리자 수동 보정 병합)를 그대로 재사용해
+// 앞으로 5거래일치 대형주 실적을 텍스트로 뽑아준다(2026-07-29). 서버 간 호출이라 실패해도
+// 리포트 생성 자체는 막지 않고 그냥 이 블록만 빈 문자열로 스킵된다.
+async function fetchUpcomingEarningsStr(req) {
+  try {
+    const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req?.headers?.host || 'stockripple-sungkyu.vercel.app'}`;
+    const r = await fetch(`${base}/api/earnings-calendar?scope=upcoming&days=5`, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return '';
+    const j = await r.json();
+    if (!j.ok) return '';
+    const lines = [];
+    for (const day of j.days || []) {
+      for (const it of day.items.slice(0, 4)) {
+        lines.push(`- ${it.symbol}(${it.name}) — ${day.date}${it.time ? ` ${it.time}` : ''}`);
+      }
+    }
+    return lines.slice(0, 15).join('\n');
+  } catch { return ''; }
 }
 
 // 리포트 대상 거래일: 해당 시장 타임존의 오늘 날짜 (장 마감 직후 생성 기준)
@@ -3033,20 +3883,38 @@ async function checkFuturesSidecar() {
     // marketStatus는 이미 위에서 KR 정규장 시간대로 걸러졌으니 여기선 값 유효성만 확인
     if (!d || isNaN(ratio) || Math.abs(ratio) < SIDECAR_THRESHOLD) return;
 
-    const { data: cur } = await supabase.from('site_announcement').select('active, source').eq('id', 1).maybeSingle();
-    if (cur?.active && cur?.source === 'manual') return; // 관리자 수동 배너 보존
+    const { data: cur } = await supabase.from('site_announcement').select('active, source, auto_expires_at').eq('id', 1).maybeSingle();
+    if (cur?.source === 'manual') {
+      if (cur.active) return; // 관리자가 켠 배너 보존
+      // 관리자가 방금 끈 배너 — auto_expires_at을 뮤트 마감시각으로 사용(handleSetAnnouncement 참고).
+      // 이게 없으면 다음 90초 리프레시에서 조건이 여전히 참이라 바로 다시 켜져버린다.
+      if (cur.auto_expires_at && new Date(cur.auto_expires_at) > new Date()) return;
+    }
+    // 이미 떠 있는 auto 배너(사이드카든 뉴스속보든)가 있으면 값을 새로 갈아끼우지 않는다 —
+    // 90초마다 재확인하며 그때그때 값(등락률·감지시각)으로 계속 덮어썼더니 화면에 뜬 값이
+    // 계속 바뀌어 보이는 문제가 있었다(2026-07-28 피드백). "처음 감지된 값 그대로 30분
+    // 유지 후 종료, 그 다음에 뜨는 게 다른 이벤트면 그건 새로 반영"이 원하는 동작이라,
+    // 슬롯이 비어 있을 때(아무 배너도 없거나 만료돼 꺼졌을 때)만 새로 만든다.
+    if (cur?.active && cur?.source === 'auto') return;
 
     const dir = ratio > 0 ? '매수' : '매도';
-    const message = `🚨 [속보] 코스피200 선물 ${ratio > 0 ? '+' : ''}${ratio.toFixed(2)}% — ${dir}사이드카 발동 조건 감지 (KRX 공식 확인 전)`;
+    // 🚨는 announcement-bar.js가 모든 배너 앞에 공통으로 붙이므로 여기서 또 넣으면 중복
+    // 표기된다(2026-07-28 발견). "KRX 공식 확인 전"이라는 모호한 문구 대신, 몇 시
+    // 몇 분에 이 근사치 조건을 감지했는지 구체적으로 보여준다.
+    const kstNow = new Date(Date.now() + 9 * 3600000);
+    const detectedAt = `${String(kstNow.getUTCHours()).padStart(2, '0')}시 ${String(kstNow.getUTCMinutes()).padStart(2, '0')}분 감지`;
+    const message = `[속보] 코스피200 선물 ${ratio > 0 ? '+' : ''}${ratio.toFixed(2)}% — ${dir}사이드카 발동 조건 (${detectedAt})`;
     const startedAt = new Date().toISOString();
+    // 최초 감지 시점에 딱 한 번만 세팅하고 이후 재확인에선(위 return으로) 손대지 않는다 —
+    // 30분 뒤 이 시각 그대로 자동 종료(handleGetAnnouncement의 lazy expire). 뉴스 키워드
+    // 기반 배너(analyze.js)도 동일 규칙(같은 30분)을 쓴다.
+    const SIDECAR_TTL_MS = 30 * 60 * 1000;
     await supabase.from('site_announcement').upsert({
       id: 1, active: true, message, source: 'auto', source_issue_id: null,
-      auto_expires_at: new Date(now + 2 * 3600000).toISOString(), updated_at: startedAt,
+      auto_expires_at: new Date(now + SIDECAR_TTL_MS).toISOString(), updated_at: startedAt,
     });
-    if (!cur?.active) {
-      await supabase.from('announcement_log').update({ ended_at: startedAt }).is('ended_at', null);
-      await supabase.from('announcement_log').insert({ source: 'auto', message, started_at: startedAt });
-    }
+    await supabase.from('announcement_log').update({ ended_at: startedAt }).is('ended_at', null);
+    await supabase.from('announcement_log').insert({ source: 'auto', message, started_at: startedAt });
   } catch (e) {
     console.error('futures sidecar check failed:', e.message);
   }
@@ -3128,6 +3996,9 @@ async function handleDailyReportPost(req, res) {
   }
 
   const market = ((req.body?.market || req.query?.market || 'US') + '').toUpperCase() === 'KR' ? 'KR' : 'US';
+  // focus='earnings' — 미장 마감+실적 발표가 몰리는 새벽 슬롯(KST 7:15)용 변형. 별도 리포트/테이블이
+  // 아니라 같은 daily_reports 행에 실적 뉴스 비중을 높인 프롬프트로 덮어쓰는 것뿐(upsert라 안전).
+  const focus = ((req.body?.focus || req.query?.focus || '') + '').toLowerCase() === 'earnings' ? 'earnings' : null;
   // 과거 날짜 소급 생성용(예: 크레딧 소진으로 놓친 날) — date를 명시하면 그 날짜로 라벨링하고,
   // 뉴스 수집 창도 그 거래일(해당 시장 타임존 00:00~24:00) 하루로 정확히 좁힌다.
   // 안 주면 기존 그대로 "오늘 날짜 + 최근 24h" 자동 생성 동작 (매일 cron이 쓰는 기본 경로는 변경 없음).
@@ -3140,11 +4011,14 @@ async function handleDailyReportPost(req, res) {
     DR_INDICES[market].map(x => fetchDrIndexQuote(x.symbol, x.name))
   )).filter(Boolean);
 
-  // 2) 뉴스 수집 창 — 기본은 최근 24h, date 백필 시에는 그 거래일 하루로 정확히 좁힘
+  // 2) 뉴스 수집 창 — 기본은 최근 24h, date 백필 시에는 그 거래일 하루로 정확히 좁힘.
+  // analyze가 꺼져있으면(2026-07-21) is_analyzed가 다시는 true가 안 되므로 ai_digest 존재
+  // 여부로 "최근에 실제 처리된 이슈"를 대신 잡는다.
+  const useAnalyzedFilterDr = await isFeatureEnabled(supabase, 'analyze');
   let issuesQuery = supabase
     .from('issues')
-    .select('title, summary, sectors, published_at, analyses(ai_summary, confidence_score)')
-    .eq('is_analyzed', true);
+    .select('title, summary, ai_digest, sectors, published_at, analyses(ai_summary, confidence_score)');
+  issuesQuery = useAnalyzedFilterDr ? issuesQuery.eq('is_analyzed', true) : issuesQuery.neq('ai_digest', '');
   if (overrideDate) {
     const tz = market === 'KR' ? 'Asia/Seoul' : 'America/New_York';
     const { startUtc, endUtc } = localDayBoundsUtc(overrideDate, tz);
@@ -3161,7 +4035,7 @@ async function handleDailyReportPost(req, res) {
   }
 
   const ctx = (issues || []).map(i => {
-    return `[${(i.published_at || '').slice(0, 16)}] ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.summary || ''}`.slice(0, 400);
+    return `[${(i.published_at || '').slice(0, 16)}] ${i.title}\n  ${i.analyses?.[0]?.ai_summary || i.ai_digest || i.summary || ''}`.slice(0, 400);
   }).join('\n\n');
 
   const idxStr = indices.map(i =>
@@ -3178,6 +4052,12 @@ async function handleDailyReportPost(req, res) {
       }).join('\n')
     : '(등록된 예정 catalyst 없음)';
 
+  // 실적발표 캘린더(2026-07-29) — catalysts 테이블의 AI 추출 항목은 뉴스 제목만 보고 날짜를
+  // 짐작해서 "이번 주 중(구체 날짜 미확정)" 같은 모호한 표기가 잦았다. earnings.html이 쓰는
+  // 실제 Nasdaq 캘린더(+관리자 수동 보정) 엔드포인트를 그대로 재사용해 정확한 날짜를 준다 —
+  // US 시장만(대형주 $10B+ 한정 데이터라 KR 리포트엔 안 붙임).
+  const earningsStr = market === 'US' ? await fetchUpcomingEarningsStr(req) : '';
+
   const prompt = `당신은 한국어 금융 시장 분석가입니다. ${reportDate}일자 ${marketLabel} 장 마감 데일리 리포트를 작성하세요.
 
 ■ 실제 지수 마감 데이터 (이 수치만 사용, 지어내지 말 것):
@@ -3185,7 +4065,11 @@ ${idxStr || '(지수 데이터 없음)'}
 
 ■ 다가오는 대형 catalyst (예정 이벤트 — 오늘 뉴스에 없더라도 시장이 주목하는 핵심):
 ${catStr}
-
+${earningsStr ? `
+■ 다가오는 실적 발표 일정 (실제 Nasdaq 캘린더 기준 — 이 목록의 날짜만 정확한 것으로 취급할 것,
+  아래 없는 종목의 실적 날짜는 절대 추측/창작하지 말 것):
+${earningsStr}
+` : ''}
 ■ 지난 24시간 뉴스/이슈 ${issues?.length || 0}건:
 ${ctx.slice(0, 10000)}
 
@@ -3196,8 +4080,15 @@ ${ctx.slice(0, 10000)}
    단, "지난 24시간 뉴스"에 그 catalyst가 이미 실제로 발생(실적 발표됨·FDA 결과 나옴·상장 완료 등)했다는
    내용이 있으면 — 그 사실은 이미 recap/top_events에 반영했을 것이므로 — upcoming_catalysts에는
    "예정"인 것처럼 다시 넣지 말고 제외한다. 같은 리포트 안에서 "이미 발표됨"과 "예정"을 동시에
-   말하는 자기모순을 절대 만들지 말 것.
-4. 사실 기반·객관적·한국어. 추측/날짜 창작 금지 — 지수·본문·catalyst 목록에 있는 것만 사용.
+   말하는 자기모순을 절대 만들지 말 것.${earningsStr ? `
+   실적 발표를 upcoming_catalysts에 넣을 때는 반드시 위 "다가오는 실적 발표 일정" 목록의
+   날짜를 그대로 쓸 것 — "이번 주 중", "구체 날짜 미확정" 같은 모호한 표현 금지, 그 목록에
+   없는 종목의 실적 날짜는 아예 언급하지 말 것.` : ''}
+4. 사실 기반·객관적·한국어. 추측/날짜 창작 금지 — 지수·본문·catalyst 목록에 있는 것만 사용.${focus === 'earnings' ? `
+5. ⭐ 이번 리포트는 장 마감 직후 실적 발표가 몰리는 시간대에 생성됩니다. "지난 24시간 뉴스"에 있는
+   실적 발표(어닝서프라이즈/쇼크, 가이던스 상향·하향, EPS·매출 발표 등) 관련 이슈를 최우선으로
+   추려서 headline·recap·top_events에 반영하세요. 실적 발표가 없는 날이면 이 지침은 무시하고
+   평소처럼 가장 큰 동인 위주로 작성.` : ''}
 
 다음 JSON만 반환 (다른 텍스트 없이):
 {
@@ -3285,6 +4176,45 @@ async function handleFeatureFlagsPost(req, res) {
   return res.status(200).json({ ok: true, updated: rows.map(r => r.key), enabled });
 }
 
+// ── 텔레그램 개인 알림 (2026-07-28) — account.html "알림 설정" 탭이 만들어두기만 하고
+// 실제로 보내는 코드가 없던 기능(user_settings.telegram_chat_id/notify_new_analysis
+// 컬럼은 있고 저장도 되지만, 그걸 읽어서 발송하는 쪽이 아예 없었음). AI 시장 종합/국장·
+// 미장 데일리 리포트 3종이 finalize(=DB 저장 완료)될 때, 구독 설정한 사용자 전원에게
+// 헤드라인+스니펫과 "더 보러 가기" 링크를 보낸다. 개별 chat_id가 무효하거나 텔레그램
+// API가 실패해도 리포트 저장 자체(finalize)를 절대 막으면 안 되므로 예외를 전부 삼킨다.
+function _escTg(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+async function notifyReportSubscribers(req, title, snippet, reportParam) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return;
+  try {
+    const { data: subs } = await supabase.from('user_settings')
+      .select('telegram_chat_id')
+      .eq('notify_new_analysis', true)
+      .not('telegram_chat_id', 'is', null);
+    if (!subs?.length) return;
+
+    const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req?.headers?.host || 'stockripple-sungkyu.vercel.app'}`;
+    // index.html의 ?report= 쿼리(2026-07-28 추가)가 로드 시 해당 리포트 모달을 자동으로
+    // 열어 상세까지 바로 보여준다 — 링크를 눌렀을 때 홈에 뚝 떨어뜨리지 않기 위함.
+    const url = `${base}/?report=${reportParam}`;
+    const text = `<b>${_escTg(title)}</b>\n\n${_escTg(snippet)}\n\n<a href="${url}">더 보러 가기 →</a>`;
+
+    await Promise.all(subs.map(s =>
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: s.telegram_chat_id, text, parse_mode: 'HTML' }),
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {})
+    ));
+  } catch (e) {
+    console.error('notifyReportSubscribers failed:', e.message);
+  }
+}
+
 // ════════════════════════════════════════════════════════════
 // 21) agent_jobs 폴링 — analyze.js의 batch-poll과 별개. extract_investments/
 //     ai_market_summary/weekly_schedule/catalysts/daily_report/company_summary
@@ -3297,21 +4227,37 @@ const AGENT_JOB_FINALIZERS = {
   catalysts:           { main: finalizeCatalysts },
   daily_report:        { main: finalizeDailyReport },
   weekly_schedule:      { events: finalizeWeeklyScheduleEvents, highlights: finalizeWeeklyScheduleHighlights },
+  article_digest:      { main: finalizeArticleDigest },
+  rank_reason:         { main: finalizeRankReason },
 };
 
+// claim(submitted→processing) 직후 finalize 도중 함수가 죽으면(Vercel 타임아웃 등) 그 row는
+// response가 이미 있는데도 status만 processing에 영구히 멈춰 다음 poll의 select(status=submitted)에
+// 아예 안 걸리는 버그가 있었다(id=99 실사례, 2026-07-15). finalize는 DB upsert 한 번뿐이라 몇 초면
+// 끝나야 정상이므로, 이 시간을 넘겨 processing인 row는 죽은 것으로 보고 같은 poll에서 바로 재시도한다.
+const PROCESSING_STUCK_TIMEOUT_MS = 10 * 60 * 1000;
+
 async function handleAgentPoll(req, res) {
-  const { data: rows, error } = await supabase.from('agent_jobs').select('*').eq('status', 'submitted').order('created_at', { ascending: true });
+  const { data: rows, error } = await supabase.from('agent_jobs').select('*')
+    .in('status', ['submitted', 'processing']).order('created_at', { ascending: true });
   if (error) return res.status(500).json({ error: 'agent_jobs table not ready: ' + error.message });
   if (!rows?.length) return res.status(200).json({ ok: true, checked: 0 });
 
   const outcomes = [];
   for (const row of rows) {
     const age = Date.now() - new Date(row.created_at).getTime();
+
+    // 방금 다른(동시) poll 호출이 claim해서 아직 finalize 중일 수 있는 신선한 processing → 건드리지 않고 대기
+    if (row.status === 'processing' && age <= PROCESSING_STUCK_TIMEOUT_MS) {
+      outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'processing' });
+      continue;
+    }
+
     if (!row.response) {
       if (age > JOB_STUCK_TIMEOUT_MS) {
         const { data: claimed } = await supabase.from('agent_jobs')
           .update({ status: 'timeout', completed_at: new Date().toISOString() })
-          .eq('id', row.id).eq('status', 'submitted').select();
+          .eq('id', row.id).eq('status', row.status).select();
         outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: claimed?.length ? 'timeout' : 'already_claimed' });
       } else {
         outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'processing' });
@@ -3320,7 +4266,7 @@ async function handleAgentPoll(req, res) {
     }
 
     const { data: claimed } = await supabase.from('agent_jobs')
-      .update({ status: 'processing' }).eq('id', row.id).eq('status', 'submitted').select();
+      .update({ status: 'processing' }).eq('id', row.id).eq('status', row.status).select();
     if (!claimed?.length) { outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'already_claimed' }); continue; }
 
     try {
@@ -3332,6 +4278,19 @@ async function handleAgentPoll(req, res) {
       const result = await finalizer(row, req);
       await supabase.from('agent_jobs').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', row.id);
       outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'completed', result });
+
+      // 텔레그램 구독자 알림 — 3종 리포트가 막 저장 완료된 시점. notifyReportSubscribers는
+      // 내부에서 모든 예외를 삼키므로 여기서 실패해도 위 completed 처리에는 영향 없다.
+      if (row.pipeline === 'ai_market_summary' && row.stage === 'main' && result) {
+        const teaser = (result.bullish_drivers?.[0] || result.bearish_drivers?.[0] || result.key_events_today?.[0] || '');
+        notifyReportSubscribers(req, `🤖 AI 시장 종합: ${result.headline || ''}`, teaser, 'ai').catch(() => {});
+      }
+      if (row.pipeline === 'daily_report' && row.stage === 'main' && result) {
+        const mktLabel = result.market === 'KR' ? '🇰🇷 국장' : '🇺🇸 미장';
+        const reportParam = result.market === 'KR' ? 'dr-kr' : 'dr-us';
+        const teaser = (result.recap?.[0] || result.top_events?.[0] || '');
+        notifyReportSubscribers(req, `${mktLabel} 데일리 리포트: ${result.headline || ''}`, teaser, reportParam).catch(() => {});
+      }
     } catch (e) {
       await supabase.from('agent_jobs').update({ status: 'submitted' }).eq('id', row.id);
       outcomes.push({ id: row.id, pipeline: row.pipeline, stage: row.stage, status: 'error', error: e.message });

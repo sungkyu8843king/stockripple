@@ -38,13 +38,18 @@ jobs:
       # analyze_batches(engine='agent')에 적재되고, 스케줄 에이전트가 답을 채우면 위
       # Batch Poll 스텝(10분 주기)이 기존과 동일한 로직으로 완료 처리를 이어받는다.
       # 이미 진행 중인 큐가 있으면 서버가 알아서 중복 제출을 스킵한다.
-      - name: AI Analyze (에이전트 큐 제출, 최대 20건 — 신규 유입만, 백로그는 2026-07-14에 의도적으로 스킵 처리함)
+      # 최대 40건 — 2026-07-15에 5→30, 2026-07-16에 30→40 상향(절반 최신순/절반 오래된순
+      # 분할 선택으로 바뀌면서 40=최신20+오래된20). limit=5로는 실유입 하루 670건+를 못
+      # 따라가서 ASML/엔비디아 H200 같은 중요 기사도 48h 스킵 규칙에 걸려 분석 한번 못
+      # 받고 사라지고 있었음. company-summary-backfill 등 무거운 파이프라인과 달리
+      # discover 단계는 항목당 가벼워서 이 값만 올림.
+      - name: AI Analyze (에이전트 큐 제출, 최대 40건 — 최신 20 + 오래된 20)
         if: github.event.schedule != '*/10 * * * *'
         run: |
           RESP=$(curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/analyze?mode=agent-submit" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 20}' || true)
+            -d '{"limit": 40}' || true)
           echo "$RESP" | jq -c '{submitted, staleSkipped, reason}' 2>/dev/null || echo "non-JSON response: $(echo "$RESP" | head -c 200)"
 
       # 예측 정확도 검증 — Vercel cron이 불안정해 GH Actions에서 매시간 실행 (due 항목만 처리, 멱등)
@@ -104,29 +109,50 @@ jobs:
           US_CLOSE=$(TZ=America/New_York date -d "$ET_DATE 16:00" +%s)
           if [ "$ET_DOW" -le 5 ] && [ "$ET_H" -ge 17 ]; then gen US "$ET_DATE" "$US_CLOSE"; else echo "US: 생성 창 아님 (dow=$ET_DOW h=$ET_H ET)"; fi
 
-      # AI 시장 종합 + 예정 catalyst 갱신 — 기존엔 cron-daily(하루 1회 01 UTC)에만 있어 GitHub 슬롯
+      # AI 시장 종합 갱신 — 기존엔 cron-daily(하루 1회 01 UTC)에만 있어 GitHub 슬롯
       # 드롭 시 며칠씩 멈췄음(실측 7/3 이후 정지). 매시간 도는 이 워크플로로 옮김.
-      # 서버에 신선도 가드가 있어 자주 불려도 낭비 없음(요약 3h 이내면 스킵, catalyst는 멱등).
-      - name: AI 시장 종합 + catalyst 갱신
+      # 서버에 8시간 신선도 가드가 있어(0/8/16시 KST) 자주 불려도 낭비 없음 — 스케줄
+      # Claude Code 에이전트가 매 홀수시 정각 슬롯에 이미 명시적으로 제출하므로, 여기선
+      # 그게 어떤 이유로든 드롭됐을 때를 위한 저비용 백업일 뿐이다.
+      # ⚠️ catalysts/company-summary-backfill은 2026-07-15부터 여기서 뺐다 — 서버에
+      # 신선도 가드가 없어서(멱등만 있고 "몇 시간마다 1번" 제한이 없음) 매시간 부르면 스케줄
+      # 에이전트가 정한 하루 예산(catalysts 1회/일, 종목분석 20개/일)을 그냥 무시하고 계속
+      # 쌓인다 — 다시 추가하지 말 것. 이 둘은 이제 스케줄 Claude Code 에이전트의 고정
+      # 시간대 제출표(SKILL.md)가 전담한다.
+      - name: AI 시장 종합 갱신
         if: github.event.schedule != '*/10 * * * *'
         run: |
-          echo "-- ai-market-summary --"
           curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=ai-market-summary" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
             | jq -c '{ok,generated,reason,headline}' 2>/dev/null || echo "  (non-JSON)"
-          echo "-- catalysts --"
-          curl -s --max-time 120 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=catalysts" \
-            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
-            | jq -c '{ok,added,candidates}' 2>/dev/null || echo "  (non-JSON)"
 
-      # 종목 AI 종합분석 사전 백필 — 방문자가 우연히 눌러야만(캐시 없으면 빈 화면) 생성되던
-      # company_summary를, 조회수 있는 종목 위주로 매시간 최대 25건씩 미리 큐에 채워둔다.
-      # 비용은 없음(agent 큐 제출만) — 스케줄 에이전트가 실제 처리. 이 크론이 드롭돼도
-      # 스케줄 Claude Code 에이전트(30분 주기)가 매 실행마다 직접 백업 제출도 한다.
-      - name: AI 종합분석 사전 백필
+      # 2026-07-27 추가: article_digest/rank_reason은 매수판단(analyze)과 무관한 순수 요약
+      # 파이프라인이라(유사투자자문업 리스크와 무관) 계속 돌아야 하는데, 이걸 큐(agent_jobs)에
+      # 제출하는 curl 호출 자체가 어디에도 없어서 ai_digest가 안 채워지고 있었다(is_analyzed도
+      # analyze 플래그가 꺼지면서 못 세팅되니, 공개 피드가 ai_digest 유무로 필터링하는데 그마저
+      # 안 채워져 피드가 통째로 멈춤 — 2026-07-27 실측, 13시간+ 공백). 응답 자체는 스케줄
+      # Claude Code 에이전트(SKILL.md)가 채운다 — 여기선 큐에 프롬프트만 쌓는다.
+      - name: 기사 요약(article_digest) 제출
         if: github.event.schedule != '*/10 * * * *'
         run: |
-          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=company-summary-backfill" \
+          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=article-digest-backfill" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
-            -d '{"limit": 25}' \
-            | jq -c '{ok,submitted,scanned,reason}' 2>/dev/null || echo "  (non-JSON)"
+            -d '{"limit": 60}' \
+            | jq -c '{ok,scanned,submitted,disabled}' 2>/dev/null || echo "  (non-JSON)"
+
+      - name: 랭킹 사유(rank_reason) 제출
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=rank-reason-backfill" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
+            | jq -c '{ok,scanned,submitted,disabled}' 2>/dev/null || echo "  (non-JSON)"
+
+      # 해외 추정가 모델의 실측 정확도 기록 — 개장 전(KST 07~09시)엔 그날 추정치를
+      # 스냅샷하고, 개장 후엔 실제 시가로 정산한다. 매시간 불러도 멱등이라 안전하며
+      # 창 밖이면 서버가 스스로 스킵한다(어느 시간대 run이 살아남든 하루 한 번은 잡힘).
+      - name: 추정가 정확도 기록/정산
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -s --max-time 60 "${{ secrets.VERCEL_URL }}/api/market-data?source=kr-estimate&action=record" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            | jq -c '{ok,date,hour,snapshot,settled,skipped}' 2>/dev/null || echo "  (non-JSON)"

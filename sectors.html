@@ -1,46 +1,74 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>(function(){try{if(localStorage.getItem('sr_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="/announcement-bar.js" defer></script>
 <script src="/sr-pulse.js" defer></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
 <title>섹터 파급 지도 — StockRipple</title>
+<!-- Open Graph / 링크 공유 미리보기 (정적 — 동적 티커 페이지는 일반 설명) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="StockRipple">
+<meta property="og:title" content="섹터 파급 지도 — StockRipple">
+<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta property="og:url" content="https://stockripple.vercel.app/sectors.html">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="섹터 파급 지도 — StockRipple">
+<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
 <style>
 :root {
-  --bg: #f6f7fa; --card: #ffffff; --border: #e5e8ee; --border2: #d3d8e2;
-  --text: #171b26; --text2: #4b5262; --text3: #8b93a5;
-  --blue: #3861f6; --green: #0f9d58; --red: #e5484d; --yellow: #c98a06;
-  --blue-dim: rgba(56,97,246,.09); --green-dim: rgba(15,157,88,.1); --red-dim: rgba(229,72,77,.1); --yellow-dim: rgba(201,138,6,.12);
+  --bg: #15171e; --bg-rgb: 21,23,30; --card: #1e2129; --border: rgba(255,255,255,0.075); --border2: rgba(255,255,255,0.14);
+  --text: #f2f4f8; --text2: #a6adbb; --text3: #6c7385;
+  --blue: #4d8dff; --green: #3ddb7f; --red: #ff6b6b; --yellow: #f0b45e;
+  --blue-dim: rgba(77,141,255,.14); --green-dim: rgba(61,219,127,.14); --red-dim: rgba(255,107,107,.14); --yellow-dim: rgba(240,180,94,.16);
   /* 다른 페이지들과 공유하는 상단 메뉴바/티커/로그인 모달(app.js)이 참조하는 변수 —
      이 페이지 자체 컴포넌트는 위 --card/--border 등 기존 변수를 그대로 계속 사용 */
-  --bg2: #ffffff; --bg3: #f2f4f7; --bg4: #e7eaf0;
-  --border-strong: #c9cedb; --border-soft: #eceef3;
-  --purple: #6d3fe0; --purple-dim: rgba(109,63,224,0.08);
+  --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
+  --border-strong: rgba(255,255,255,0.16); --border-soft: rgba(255,255,255,0.05);
+  --purple: #9d7bff; --purple-dim: rgba(157,123,255,0.16);
   --r-xs: 6px; --r-sm: 8px; --r-md: 10px; --r-lg: 14px; --r-xl: 18px; --r-pill: 999px;
   --t-fast: 120ms; --t-med: 200ms; --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
-  --shadow-sm: 0 1px 2px rgba(19,23,34,0.04);
-  --shadow-pop: 0 16px 48px rgba(19,23,34,0.16), 0 4px 12px rgba(19,23,34,0.08);
-  --shadow-focus: 0 0 0 3px rgba(36,87,230,0.15);
-  --page-max: 1400px; --page-pad: 16px;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-pop: 0 20px 50px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-focus: 0 0 0 3px rgba(77,141,255,0.22);
+  --page-max: 1600px; --page-pad: 16px;
+}
+
+/* ── 라이트 모드 오버라이드 (2026-07-27) ── */
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --bg-rgb: 245,246,248; --card: #ffffff;
+  --bg2: #ffffff; --bg3: #eef0f3; --bg4: #e3e6eb;
+  --border: rgba(15,17,23,0.09); --border2: rgba(15,17,23,0.18); --border-strong: rgba(15,17,23,0.18); --border-soft: rgba(15,17,23,0.05);
+  --text: #14161c; --text2: #4b5163; --text3: #6b7280;
+  --red: #dc2626; --green: #15803d; --blue: #1d4ed8; --yellow: #a16207; --purple: #7c3aed;
+  --shadow-sm: 0 2px 8px rgba(15,17,23,0.10);
+  --shadow-pop: 0 20px 50px rgba(15,17,23,0.20), 0 4px 12px rgba(15,17,23,0.10);
+  --shadow-focus: 0 0 0 3px rgba(29,78,216,0.18);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: var(--bg); color: var(--text); font-family: 'Pretendard', -apple-system, 'Noto Sans KR', sans-serif; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
 a { color: inherit; text-decoration: none; }
 .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px 80px; }
-h1 { font-size: 20px; font-weight: 800; }
-.sub { font-size: 12.5px; color: var(--text3); margin: 2px 0 16px; line-height: 1.6; }
+.hero-title { font-size: 22px; font-weight: 800; letter-spacing: -0.025em; margin-bottom: 4px; display: flex; align-items: center; gap: 9px; }
+.hero-title span { color: var(--blue); }
+.hero-sub { font-size: 15.5px; color: var(--text3); margin: 2px 0 16px; line-height: 1.6; }
+@media (max-width:560px){ .hero-title{font-size:21px} }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; overflow: hidden; }
-.card-title { font-size: 14.5px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.meta { font-size: 11px; color: var(--text3); font-weight: 400; }
-.up { color: var(--green); } .dn { color: var(--red); }
+.card-title { font-size: 16.5px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.meta { font-size: 13.5px; color: var(--text3); font-weight: 400; }
+.up { color: var(--red); } .dn { color: var(--blue); }
 
 /* ── 상단 메뉴바 (다른 페이지들과 동일 — index.html/kr-market.html 등과 마크업 통일) ── */
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(255,255,255,0.88);
+  background: rgba(var(--bg-rgb),0.80);
   backdrop-filter: blur(14px) saturate(160%);
   border-bottom: 1px solid var(--border);
   padding: 0 var(--page-pad);
@@ -49,29 +77,58 @@ h1 { font-size: 20px; font-weight: 800; }
   max-width: var(--page-max); margin: 0 auto;
   display: flex; align-items: center; gap: 20px; height: 58px;
 }
+.header-search {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 7px 10px; flex: 1 1 auto; max-width: 260px; min-width: 0;
+}
+.header-search svg { color: var(--text3); flex-shrink: 0; }
+.header-search input {
+  flex: 1; min-width: 0; border: none; outline: none; background: none;
+  font-size: 15.5px; color: var(--text); font-family: inherit;
+}
+.header-search input::placeholder { color: var(--text3); }
+@media (max-width: 900px) { .header-search { display: none; } }
+.hero-strip {
+  max-width: var(--page-max); margin: 0 auto;
+  padding: 14px var(--page-pad);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.hero-strip-text { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 320px; }
+.hero-strip-badge {
+  flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--blue);
+  background: var(--blue-dim, rgba(59,130,246,.1)); border-radius: 999px; padding: 3px 10px;
+}
+.hero-strip-headline {
+  font-size: 16px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; min-width: 0; cursor: pointer; transition: opacity .3s ease;
+}
+.hero-strip-headline:hover { color: var(--blue); }
 .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .logo-icon {
   width: 32px; height: 32px; border-radius: 9px;
   background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
   color: #fff;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 700;
+  font-size: 18px; font-weight: 700;
   box-shadow: 0 3px 10px rgba(36,87,230,0.30);
 }
-.logo-text { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
-.logo-sub { font-size: 10px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
+.logo-text { font-size: 19px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+.logo-sub { font-size: 13px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
 .header-nav { display: flex; gap: 2px; margin-left: auto; align-items: center; }
 .nav-btn {
-  padding: 7px 13px; border-radius: var(--r-md); font-size: 13px; font-weight: 500;
+  padding: 7px 13px; border-radius: var(--r-md); font-size: 15.5px; font-weight: 500;
   background: none; border: none; color: var(--text2); cursor: pointer;
   text-decoration: none; display: flex; align-items: center; gap: 6px;
   transition: all var(--t-fast) var(--ease); white-space: nowrap;
 }
 .nav-btn:hover { background: var(--bg3); color: var(--text); }
-.nav-btn.active { background: var(--text); color: #fff; font-weight: 600; }
+.nav-btn.active { background: var(--blue); color: #fff; font-weight: 600; }
+.nav-new { position: relative; }
+.nav-new::after { content: ""; position: absolute; top: 2px; right: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px var(--bg), 0 0 6px var(--red); }
 .nav-btn-primary {
   background: var(--blue); color: #fff; padding: 7px 16px; margin-left: 6px;
-  border-radius: var(--r-md); font-size: 13px; font-weight: 600;
+  border-radius: var(--r-md); font-size: 15.5px; font-weight: 600;
   text-decoration: none; cursor: pointer; border: none; transition: all var(--t-fast);
 }
 .nav-btn-primary:hover { background: #1e4ccc; }
@@ -93,19 +150,19 @@ h1 { font-size: 20px; font-weight: 800; }
 }
 .ticker-item {
   display: inline-flex; align-items: center; gap: 7px;
-  padding: 0 18px; font-size: 12px; font-weight: 500; height: 34px;
+  padding: 0 18px; font-size: 14.5px; font-weight: 500; height: 34px;
   position: relative;
 }
 .ticker-item::after {
   content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
   width: 3px; height: 3px; border-radius: 50%; background: var(--border-strong);
 }
-.ticker-name { color: var(--text3); font-weight: 600; font-size: 11px; letter-spacing: 0.02em; }
+.ticker-name { color: var(--text3); font-weight: 600; font-size: 13.5px; letter-spacing: 0.02em; }
 .ticker-price { color: var(--text); font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.ticker-chg { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
+.ticker-chg { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 13.5px; font-weight: 600; }
 .ticker-spark { width: 44px; height: 14px; flex-shrink: 0; opacity: .9; }
-.ticker-chg.up { color: var(--green); }
-.ticker-chg.dn { color: var(--red); }
+.ticker-chg.up { color: var(--red); }
+.ticker-chg.dn { color: var(--blue); }
 .ticker-chg.flat { color: var(--text3); }
 
 /* User Menu */
@@ -113,7 +170,7 @@ h1 { font-size: 20px; font-weight: 800; }
 .user-avatar-btn {
   width: 32px; height: 32px; border-radius: 50%;
   background: var(--blue-dim); color: var(--blue);
-  border: 1.5px solid var(--blue); font-size: 13px; font-weight: 700;
+  border: 1.5px solid var(--blue); font-size: 15.5px; font-weight: 700;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .user-dropdown {
@@ -123,7 +180,7 @@ h1 { font-size: 20px; font-weight: 800; }
   box-shadow: var(--shadow-pop);
 }
 .dropdown-item {
-  display: block; width: 100%; padding: 10px 14px; font-size: 13px;
+  display: block; width: 100%; padding: 10px 14px; font-size: 15.5px;
   color: var(--text2); background: none; border: none; text-align: left;
   cursor: pointer; text-decoration: none; transition: all var(--t-fast);
 }
@@ -147,16 +204,16 @@ h1 { font-size: 20px; font-weight: 800; }
 .auth-close {
   position: absolute; top: 14px; right: 14px;
   background: none; border: none; color: var(--text3); cursor: pointer;
-  font-size: 16px; width: 28px; height: 28px; border-radius: var(--r-xs);
+  font-size: 18px; width: 28px; height: 28px; border-radius: var(--r-xs);
   display: flex; align-items: center; justify-content: center;
   transition: all var(--t-fast);
 }
 .auth-close:hover { background: var(--bg3); color: var(--text); }
-.auth-logo { font-size: 15px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
+.auth-logo { font-size: 17px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
 .auth-logo span { color: var(--blue); }
 .auth-title { font-size: 24px; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.02em; }
 .auth-btn-google {
-  width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 14px; font-weight: 500;
+  width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 16px; font-weight: 500;
   background: #fff; border: 1px solid #dadce0; color: #3c4043;
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
   transition: all var(--t-fast); margin-bottom: 20px;
@@ -166,46 +223,46 @@ h1 { font-size: 20px; font-weight: 800; }
 .auth-btn-google:active { background: #f1f3f4; }
 .auth-divider {
   display: flex; align-items: center; gap: 12px;
-  margin-bottom: 18px; color: var(--text3); font-size: 12px;
+  margin-bottom: 18px; color: var(--text3); font-size: 14.5px;
 }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .auth-field { position: relative; margin-bottom: 12px; }
-.auth-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
+.auth-field label { display: block; font-size: 14.5px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
 .auth-input {
   width: 100%; padding: 10px 12px; background: var(--bg3); border: 1.5px solid var(--border);
-  border-radius: var(--r-sm); color: var(--text); font-size: 14px;
+  border-radius: var(--r-sm); color: var(--text); font-size: 16px;
   outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); font-family: inherit;
   box-sizing: border-box;
 }
 .auth-input:focus { border-color: var(--blue); box-shadow: var(--shadow-focus); background: var(--bg2); }
 .auth-input::placeholder { color: var(--text3); }
-.auth-error { font-size: 12px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
+.auth-error { font-size: 14.5px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
 .auth-error.success { color: var(--green); }
 .auth-submit-btn {
-  width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 14px; font-weight: 700;
+  width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 16px; font-weight: 700;
   background: var(--blue); border: none; color: #fff; cursor: pointer;
   transition: all var(--t-fast);
 }
 .auth-submit-btn:hover { background: #1e4ccc; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(36,87,230,0.35); }
 .auth-submit-btn:active { transform: none; box-shadow: none; }
 .auth-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-.auth-switch { margin-top: 18px; text-align: center; font-size: 13px; color: var(--text3); }
-.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 13px; font-weight: 600; }
+.auth-switch { margin-top: 18px; text-align: center; font-size: 15.5px; color: var(--text3); }
+.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15.5px; font-weight: 600; }
 .auth-link:hover { text-decoration: underline; }
 .auth-consent { margin-bottom: 14px; }
-.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text2); cursor: pointer; line-height: 1.5; }
+.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; color: var(--text2); cursor: pointer; line-height: 1.5; }
 .auth-consent-label input[type="checkbox"] { margin-top: 2px; width: 15px; height: 15px; flex-shrink: 0; accent-color: var(--blue); cursor: pointer; }
-.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 0; text-decoration: underline; }
+.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15px; font-weight: 600; padding: 0; text-decoration: underline; }
 .auth-privacy-text {
   margin-top: 8px; padding: 10px 12px; background: var(--bg3); border-radius: var(--r-sm);
-  font-size: 11.5px; color: var(--text3); line-height: 1.7;
+  font-size: 14px; color: var(--text3); line-height: 1.7;
 }
 
 /* Toast */
 .toast {
   position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-  background: var(--text); color: #fff; border: none; border-radius: var(--r-md);
-  padding: 12px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px;
+  background: var(--bg4); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r-md);
+  padding: 12px 16px; font-size: 15.5px; display: flex; align-items: center; gap: 8px;
   box-shadow: var(--shadow-pop); transform: translateY(80px); opacity: 0;
   transition: all var(--t-med) var(--ease); pointer-events: none;
 }
@@ -214,21 +271,24 @@ h1 { font-size: 20px; font-weight: 800; }
 .toast.error { box-shadow: 0 0 0 1.5px var(--red), var(--shadow-pop); }
 
 @media (max-width: 700px) {
-  .header-inner { gap: 10px; }
+  .header-inner { gap: 10px; flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; position: relative; }
+  .header-nav { flex-wrap: wrap; row-gap: 4px; }
+  /* 로그인/유저메뉴는 로고와 같은 첫 줄 우측 끝에 고정 — 아래로 줄바꿈되는 네비 목록과 분리 */
+  #loginBtn, .user-menu { position: absolute; top: 8px; right: 0; margin-left: 0; }
   .logo-sub { display: none; }
-  .nav-btn { padding: 6px 9px; font-size: 12px; }
+  .nav-btn { padding: 6px 9px; font-size: 14.5px; }
   .nav-btn span, .nav-btn { white-space: nowrap; }
 }
 
 /* ── 사분면 맵 ── */
 #mapSvg { width: 100%; height: auto; display: block; touch-action: manipulation; }
-.q-label { font-size: 13px; font-weight: 800; fill: #c6ccd9; }
-.q-sub { font-size: 8.5px; fill: #c6ccd9; }
-.axis-label { font-size: 9px; fill: var(--text3); }
+.q-label { font-size: 15.5px; font-weight: 800; fill: #c6ccd9; }
+.q-sub { font-size: 12px; fill: #c6ccd9; }
+.axis-label { font-size: 12px; fill: var(--text3); }
 .bubble { cursor: pointer; }
 .bubble:hover circle { stroke-width: 2; }
 .bubble.selected circle { stroke: var(--text); stroke-width: 2; }
-.bubble text { font-size: 9.5px; fill: var(--text2); font-weight: 700; pointer-events: none; }
+.bubble text { font-size: 12.5px; fill: var(--text2); font-weight: 700; pointer-events: none; }
 /* 히트 스트립 */
 .strip { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 10px; }
 .strip div { height: 100%; min-width: 2px; cursor: pointer; }
@@ -242,49 +302,49 @@ h1 { font-size: 20px; font-weight: 800; }
 }
 .chain-col.current { border-color: var(--text); box-shadow: 0 2px 10px rgba(0,0,0,.06); }
 .chain-col.dim { opacity: .85; }
-.chain-head { font-size: 13px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: baseline; gap: 6px; }
-.chain-head .w { font-size: 10px; color: var(--text3); font-weight: 600; }
-.chain-arrow { display: flex; align-items: center; font-size: 18px; color: var(--text3); flex-shrink: 0; }
+.chain-head { font-size: 15.5px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: baseline; gap: 6px; }
+.chain-head .w { font-size: 13px; color: var(--text3); font-weight: 600; }
+.chain-arrow { display: flex; align-items: center; font-size: 20px; color: var(--text3); flex-shrink: 0; }
 .chain-chip {
-  display: block; font-size: 12px; font-weight: 600; padding: 7px 10px; margin-bottom: 6px;
+  display: block; font-size: 14.5px; font-weight: 600; padding: 7px 10px; margin-bottom: 6px;
   border-radius: 9px; background: var(--red-dim); color: #b3383c; cursor: pointer;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .chain-chip:hover { filter: brightness(.95); }
-.chain-chip .pct { float: right; font-weight: 700; font-size: 11px; }
+.chain-chip .pct { float: right; font-weight: 700; font-size: 13.5px; }
 .chain-chip.sec { background: var(--blue-dim); color: var(--blue); }
-.chain-empty { font-size: 11px; color: var(--text3); }
+.chain-empty { font-size: 13.5px; color: var(--text3); }
 
 /* ── 종목 카드 ── */
-.grp-title { font-size: 12.5px; font-weight: 700; color: var(--text2); margin: 14px 0 8px; }
+.grp-title { font-size: 15px; font-weight: 700; color: var(--text2); margin: 14px 0 8px; }
 .co-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 8px; }
 .co-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: block; }
 .co-card:hover { border-color: var(--blue); }
 .co-top { display: flex; align-items: baseline; gap: 6px; }
-.co-ticker { font-size: 11px; font-weight: 700; color: var(--blue); font-family: monospace; }
-.co-name { font-size: 12.5px; font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.co-up { font-size: 12px; font-weight: 700; color: var(--green); }
-.co-meta { font-size: 10.5px; color: var(--text3); margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
-.empty { font-size: 12px; color: var(--text3); padding: 8px 0; }
+.co-ticker { font-size: 13.5px; font-weight: 700; color: var(--blue); font-family: monospace; }
+.co-name { font-size: 15px; font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co-up { font-size: 14.5px; font-weight: 700; color: var(--green); }
+.co-meta { font-size: 13px; color: var(--text3); margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+.empty { font-size: 14.5px; color: var(--text3); padding: 8px 0; }
 
 /* ── 종목 랭킹 ── */
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-.tab { font-size: 12px; font-weight: 700; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--text2); cursor: pointer; }
-.tab.active { background: var(--text); color: #fff; border-color: var(--text); }
+.tab { font-size: 14.5px; font-weight: 700; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--text2); cursor: pointer; }
+.tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
 .rk-row { display: flex; align-items: center; gap: 10px; padding: 11px 4px; border-bottom: 1px solid var(--border); }
 .rk-row:last-child { border-bottom: none; }
 .rk-row:hover { background: var(--bg); }
-.rk-num { width: 20px; text-align: center; font-size: 13px; font-weight: 800; color: var(--text3); flex-shrink: 0; }
+.rk-num { width: 20px; text-align: center; font-size: 15.5px; font-weight: 800; color: var(--text3); flex-shrink: 0; }
 .rk-main { flex: 1; min-width: 0; }
 .rk-name-line { display: flex; align-items: baseline; gap: 6px; }
-.rk-name { font-size: 13.5px; font-weight: 700; }
-.rk-tk { font-size: 10.5px; color: var(--text3); font-family: monospace; }
-.rk-mkt { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 5px; background: var(--blue-dim); color: var(--blue); }
-.rk-th { font-size: 11.5px; color: var(--text3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-name { font-size: 16px; font-weight: 700; }
+.rk-tk { font-size: 13px; color: var(--text3); font-family: monospace; }
+.rk-mkt { font-size: 12px; font-weight: 700; padding: 1px 5px; border-radius: 5px; background: var(--blue-dim); color: var(--blue); }
+.rk-th { font-size: 14px; color: var(--text3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rk-right { text-align: right; flex-shrink: 1; min-width: 0; max-width: 42%; }
 .rk-stat { white-space: normal; }
-.rk-stat { font-size: 11px; color: var(--text2); }
-.rk-chg { font-size: 12.5px; font-weight: 700; font-family: monospace; }
+.rk-stat { font-size: 13.5px; color: var(--text2); }
+.rk-chg { font-size: 15px; font-weight: 700; font-family: monospace; }
 
 /* ── 섹터 구성 리스트 ── */
 .sec-row { display: flex; align-items: center; gap: 10px; padding: 12px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
@@ -293,44 +353,41 @@ h1 { font-size: 20px; font-weight: 800; }
 .sec-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .sec-main { flex: 1; min-width: 0; }
 .sec-name-line { display: flex; align-items: center; gap: 7px; }
-.sec-name { font-size: 14px; font-weight: 800; }
-.sec-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
-.sec-badge.hot { background: var(--green-dim); color: var(--green); }
-.sec-badge.cold { background: var(--red-dim); color: var(--red); }
+.sec-name { font-size: 16px; font-weight: 800; }
+.sec-badge { font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.sec-badge.hot { background: var(--red-dim); color: var(--red); }
+.sec-badge.cold { background: var(--blue-dim); color: var(--blue); }
 .sec-badge.accel { background: var(--yellow-dim); color: var(--yellow); }
-.sec-desc { font-size: 11.5px; color: var(--text3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sec-share { width: 46px; text-align: right; font-size: 13px; font-weight: 700; color: var(--text2); flex-shrink: 0; }
-.sec-chg { width: 58px; text-align: right; font-size: 13px; font-weight: 800; font-family: monospace; flex-shrink: 0; }
-.loading { text-align: center; color: var(--text3); font-size: 13px; padding: 40px 0; }
+.sec-desc { font-size: 14px; color: var(--text3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sec-share { width: 46px; text-align: right; font-size: 15.5px; font-weight: 700; color: var(--text2); flex-shrink: 0; }
+.sec-chg { width: 58px; text-align: right; font-size: 15.5px; font-weight: 800; font-family: monospace; flex-shrink: 0; }
+.loading { text-align: center; color: var(--text3); font-size: 15.5px; padding: 40px 0; }
+
+/* 📚 지난 리포트 아카이브 모달 (app.js openReportArchive가 동적 생성) */
+.cal-overlay { position:fixed; inset:0; background:rgba(19,23,34,.55); z-index:9999; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s ease; backdrop-filter: blur(4px); }
+.cal-modal { background:var(--bg2); border-radius:var(--r-lg); width:min(960px,96vw); max-height:90vh; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border); box-shadow: var(--shadow-pop); }
+.cal-modal-head { padding:14px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.cal-modal-head h2 { font-size:17px; font-weight:800; margin:0; }
+.cal-close-btn { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; flex-shrink:0; background:var(--bg3); border:1px solid var(--border); border-radius:10px; color:var(--text1); font-size:20px; cursor:pointer; line-height:1; padding:0; }
+.cal-close-btn:hover { color:var(--text); }
+.cal-tabs { display:flex; gap:0; padding:0 20px; border-bottom:1px solid var(--border); }
+.cal-tab { flex:1; min-width:0; text-align:center; padding:9px 18px; font-size:15.5px; font-weight:600; color:var(--text3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color var(--t-fast); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:480px) {
+  .cal-tabs { padding:0 6px; }
+  .cal-tab { padding:9px 4px; font-size:13.5px; }
+}
+.cal-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
+.cal-tab:hover:not(.active) { color:var(--text2); }
+.cal-body { flex:1; overflow-y:auto; padding:0 8px 16px; }
+.arch-item { padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:6px; }
+.arch-item:hover { background:var(--bg3); }
 </style>
 </head>
 <body>
-<header class="header">
-  <div class="header-inner">
-    <a href="/" class="logo">
-      <div class="logo-icon">〜</div>
-      <div>
-        <div class="logo-text">StockRipple</div>
-        <div class="logo-sub">파급효과 주식 전망</div>
-      </div>
-    </a>
-    <nav class="header-nav" id="headerNav">
-      <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
-      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
-      <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
-      <a href="/sectors.html" class="nav-btn active">🧭 섹터 지도</a>
-      <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
-      <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
-      <div class="user-menu" id="userMenu" style="display:none">
-        <button class="user-avatar-btn" id="userAvatar" onclick="toggleUserDropdown()"></button>
-        <div class="user-dropdown" id="userDropdown" style="display:none">
-          <a href="/account.html" class="dropdown-item">계정 설정</a>
-          <button class="dropdown-item" onclick="doSignOut()">로그아웃</button>
-        </div>
-      </div>
-    </nav>
-  </div>
-</header>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/sectors.html');</script>
 
 <!-- Indices Ticker Bar -->
 <div class="indices-ticker" id="indicesTicker">
@@ -353,11 +410,16 @@ h1 { font-size: 20px; font-weight: 800; }
   </div>
 </div>
 
-<div class="wrap">
-  <div style="display:flex;align-items:center;gap:12px;padding:14px 0">
-    <h1>🧭 섹터 파급 지도</h1>
+<div class="hero-strip" id="heroBriefSection">
+  <div class="hero-strip-text">
+    <span class="hero-strip-badge">🤖 오늘의 AI 브리핑</span>
+    <span class="hero-strip-headline" id="heroHeadline" onclick="openHeroBriefDetail()" role="button" tabindex="0">오늘의 시장 브리핑을 불러오는 중...</span>
   </div>
-  <p class="sub"><b>산업/섹터 → 파급 흐름 → 종목</b> 순으로 좁혀가며 살펴보세요. 최근 30일 뉴스 분석에서 집계한 섹터별 파급 강도와, 섹터가 뜰 때 다음으로 움직이는 섹터·종목입니다.</p>
+</div>
+
+<div class="wrap">
+  <h1 class="hero-title">🧭 <span>섹터 파급 지도</span></h1>
+  <p class="hero-sub"><b>산업/섹터 → 파급 흐름 → 종목</b> 순으로 좁혀가며 살펴보세요. 최근 30일 뉴스 분석에서 집계한 섹터별 파급 강도와, 섹터가 뜰 때 다음으로 움직이는 섹터·종목입니다.</p>
 
   <div class="card">
     <div class="card-title">산업/섹터 사분면 <span class="meta" id="mapMeta"></span></div>
@@ -388,51 +450,9 @@ h1 { font-size: 20px; font-weight: 800; }
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
 
-<!-- Auth Modal -->
-<div id="authOverlay" class="auth-overlay" style="display:none" onclick="if(event.target===this)closeAuthModal()">
-  <div class="auth-modal">
-    <button class="auth-close" onclick="closeAuthModal()" aria-label="닫기">✕</button>
-    <div class="auth-logo">Stock<span>Ripple</span></div>
-    <h2 class="auth-title" id="authTitle">로그인</h2>
-    <button class="auth-btn-google" onclick="signInWithGoogle()">
-      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-      Google로 계속하기
-    </button>
-    <div class="auth-consent" id="authConsentRow" style="display:none">
-      <label class="auth-consent-label">
-        <input type="checkbox" id="authConsent">
-        <span>이메일 주소 수집·이용에 동의합니다. <button type="button" class="auth-link-inline" onclick="togglePrivacyText(event)">약관 보기</button></span>
-      </label>
-      <div id="authPrivacyText" class="auth-privacy-text" style="display:none">
-        · 수집 항목: 이메일 주소 (Google 로그인 시 Google 계정의 이메일)<br>
-        · 수집 목적: 회원 식별, 로그인, 관심종목·북마크 등 계정 기반 기능 제공<br>
-        · 보유 기간: 회원 탈퇴 시까지 — 탈퇴 즉시 파기<br>
-        · 제3자 제공: 없음<br>
-        · 동의를 거부할 수 있으나, 거부 시 회원가입이 제한됩니다.
-      </div>
-    </div>
-    <div class="auth-divider"><span>이메일로 계속하기</span></div>
-    <form id="authForm" data-mode="signin" onsubmit="submitAuth(event)" autocomplete="on">
-      <div class="auth-field">
-        <label for="authEmail">이메일</label>
-        <input type="email" id="authEmail" name="email" class="auth-input" placeholder="example@email.com" required autocomplete="email">
-      </div>
-      <div class="auth-field">
-        <label for="authPass" id="authPassLabel">비밀번호</label>
-        <input type="password" id="authPass" name="password" class="auth-input" placeholder="6자 이상" required minlength="6" autocomplete="current-password">
-      </div>
-      <div id="authError" class="auth-error"></div>
-      <button type="submit" id="authSubmitBtn" class="auth-submit-btn">로그인</button>
-    </form>
-    <div class="auth-switch" id="authSwitchText">
-      계정이 없나요? <button onclick="switchAuthMode('signup')" class="auth-link">회원가입</button>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/app.js" defer></script>
 <script>
 let DATA = null, QUOTES = {}, selected = null, rkSort = 'cnt';
@@ -569,7 +589,7 @@ function renderStrip() {
     let bg;
     if (chg != null) {
       const a = Math.min(1, Math.abs(chg) / 3) * 0.75 + 0.15;
-      bg = chg >= 0 ? `rgba(15,157,88,${a})` : `rgba(229,72,77,${a})`;
+      bg = chg >= 0 ? `rgba(229,72,77,${a})` : `rgba(77,141,255,${a})`;
     } else {
       bg = s.heat >= 1.1 ? 'rgba(229,72,77,.4)' : 'rgba(56,97,246,.3)';
     }
@@ -618,7 +638,9 @@ function select(tag, keepScroll) {
 
   // 선택 섹터 종목 전체
   document.getElementById('flowStocks').innerHTML = coGroup(`💼 ${tag} 수혜 종목 전체`, s.companies);
-  if (!keepScroll) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // behavior:'smooth'는 이 프로젝트 브라우저 환경에서 스크롤 자체가 아예 안 되는 버그를
+  // 실측으로 확인(app.js changePage와 동일 원인, 2026-07-28) — instant로 통일.
+  if (!keepScroll) card.scrollIntoView({ behavior: 'instant', block: 'nearest' });
 }
 
 function coGroup(title, comps) {
@@ -687,8 +709,8 @@ function renderList() {
     const badge = chg != null
       ? (chg >= 0.8 ? '<span class="sec-badge hot">강세</span>' : chg <= -0.8 ? '<span class="sec-badge cold">약세</span>' : '')
       : (s.heat >= 1.3 ? '<span class="sec-badge accel">가속</span>' : '');
-    const dot = chg != null ? (chg >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--border2)';
-    return `<div class="sec-row" onclick="select('${escHtml(s.tag)}');document.getElementById('flowCard').scrollIntoView({behavior:'smooth'})">
+    const dot = chg != null ? (chg >= 0 ? 'var(--red)' : 'var(--blue)') : 'var(--border2)';
+    return `<div class="sec-row" onclick="select('${escHtml(s.tag)}');document.getElementById('flowCard').scrollIntoView({behavior:'instant'})">
       <span class="sec-dot" style="background:${dot}"></span>
       <div class="sec-main">
         <div class="sec-name-line"><span class="sec-name">${escHtml(s.tag)}</span>${badge}</div>

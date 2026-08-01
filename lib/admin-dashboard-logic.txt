@@ -1,4 +1,4 @@
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', analytics: '📊 방문자 분석', feedback: '💬 사용자 피드백', users: '👤 회원 관리', announcement: '🚨 긴급 안내', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', 'earnings-manual': '📊 실적 발표 관리', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', analytics: '📊 방문자 분석', feedback: '💬 사용자 피드백', users: '👤 회원 관리', announcement: '🚨 긴급 안내', chat: '💬 채팅 관리', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -13,11 +13,13 @@ function showPanel(name) {
   if (name === 'accuracy') loadAccuracy();
   if (name === 'backtest' && !window._btLoaded) { window._btLoaded = true; loadBacktest(); }
   if (name === 'investments') invLoad();
+  if (name === 'earnings-manual') { emLoad(); emLoadGaps(); }
   if (name === 'views') loadViewStats();
   if (name === 'analytics') loadAnalyticsAll();
   if (name === 'feedback') loadFeedback();
   if (name === 'users') loadUsers();
   if (name === 'announcement') loadAnnouncement();
+  if (name === 'chat') chatAdminLoad();
 }
 
 // panels 라벨도 추가
@@ -971,6 +973,36 @@ async function invSec13fPoll() {
   } catch (e) { document.getElementById('invStatusBox').textContent = '❌ ' + e.message; }
 }
 
+// ETF 보유종목 역인덱스 크롤 — resumable(start/nextStart)이라 done:false면 자동으로 이어서 호출,
+// 한 번 클릭으로 전체(국내보유 ETF ~750개)가 끝날 때까지 진행한다.
+async function runCrawlEtfHoldings(start = 0) {
+  document.getElementById('invStatusBox').textContent = start === 0
+    ? '🔄 ETF 보유종목 크롤 중... (국내 보유 ETF 전체 대상)'
+    : `🔄 이어서 크롤 중... (누적 ${start}개 처리)`;
+  try {
+    const r = await fetch('/api/admin?action=crawl-etf-holdings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({ start }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok) {
+      document.getElementById('invStatusBox').textContent = '❌ ETF 크롤 실패: ' + (j.error || 'unknown');
+      return;
+    }
+    if (j.done) {
+      document.getElementById('invStatusBox').textContent =
+        `✅ ETF 크롤 완료 — 대상 ${j.totalEtfs}개 / 처리 ${j.processed}개 / 보유종목 ${j.rowsUpserted}행 / 스냅샷(보수·순자산·유입) ${j.snapshotsUpserted}개${j.errorSample?.length ? ' / 오류 ' + j.errorSample.length : ''}`;
+    } else {
+      document.getElementById('invStatusBox').textContent =
+        `🔄 진행 중 — 지금까지 ${j.nextStart}개 처리, 이어서 호출합니다...`;
+      await runCrawlEtfHoldings(j.nextStart);
+    }
+  } catch (e) {
+    document.getElementById('invStatusBox').textContent = '❌ ETF 크롤 오류: ' + e.message;
+  }
+}
+
 async function invLoadChart() {
   const ticker = document.getElementById('invChartTicker').value;
   const hint = document.getElementById('invChartHint');
@@ -1040,6 +1072,163 @@ async function invLoadChart() {
 
 if (typeof escAttr !== 'function') {
   window.escAttr = function(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 📊 실적 발표 관리 패널 (2026-07-29)
+// ═══════════════════════════════════════════════════════════════
+let _emEditId = null;
+
+async function emLoad() {
+  const box = document.getElementById('emTable');
+  box.innerHTML = '<tr><td colspan="8" class="loading-row">불러오는 중...</td></tr>';
+  try {
+    const r = await fetch('/api/admin?action=earnings-manual-list', {
+      headers: { Authorization: 'Bearer ' + (await getAuthToken()) },
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'list failed');
+    window._emItems = j.items || [];
+    if (!j.items.length) {
+      box.innerHTML = '<tr><td colspan="8" class="loading-row">아직 입력된 항목이 없습니다.</td></tr>';
+      return;
+    }
+    box.innerHTML = j.items.map(emRowHtml).join('');
+  } catch (e) {
+    box.innerHTML = `<tr><td colspan="8" style="color:var(--red)">로드 실패: ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+function emRowHtml(it) {
+  const surprise = it.surprise_pct != null
+    ? `${it.surprise_pct > 0 ? '+' : ''}${Number(it.surprise_pct).toFixed(1)}%`
+    : (it.eps_actual != null && it.eps_estimate ? `${Math.round(((it.eps_actual - it.eps_estimate) / Math.abs(it.eps_estimate)) * 1000) / 10}%(자동)` : '—');
+  return `<tr>
+    <td style="font-weight:700">${escHtml(it.symbol)}</td>
+    <td>${escHtml(it.name || '—')}</td>
+    <td>${escHtml(it.report_date)}</td>
+    <td>${escHtml(it.time || '—')}</td>
+    <td>${it.eps_actual != null ? it.eps_actual : '—'}</td>
+    <td>${it.eps_estimate != null ? it.eps_estimate : '—'}</td>
+    <td>${surprise}</td>
+    <td style="white-space:nowrap">
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="emEdit(${it.id})">수정</button>
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;color:var(--red)" onclick="emDelete(${it.id})">삭제</button>
+    </td>
+  </tr>`;
+}
+
+function emEdit(id) {
+  const it = (window._emItems || []).find(x => x.id === id);
+  if (!it) return;
+  _emEditId = id;
+  document.getElementById('emSymbol').value = it.symbol || '';
+  document.getElementById('emSymbol').disabled = true; // symbol+report_date가 unique key라 수정 중엔 잠금
+  document.getElementById('emName').value = it.name || '';
+  document.getElementById('emDate').value = it.report_date || '';
+  document.getElementById('emDate').disabled = true;
+  document.getElementById('emTime').value = it.time || '';
+  document.getElementById('emEpsActual').value = it.eps_actual ?? '';
+  document.getElementById('emEpsEstimate').value = it.eps_estimate ?? '';
+  document.getElementById('emSurprisePct').value = it.surprise_pct ?? '';
+  document.getElementById('emMarketCap').value = it.market_cap ?? '';
+  document.getElementById('emFormTitle').textContent = `✏️ ${it.symbol} (${it.report_date}) 수정 중`;
+  document.getElementById('emCancelBtn').style.display = '';
+  document.getElementById('emSymbol').scrollIntoView({ block: 'center' });
+}
+
+function emResetForm() {
+  _emEditId = null;
+  ['emSymbol', 'emName', 'emDate', 'emTime', 'emEpsActual', 'emEpsEstimate', 'emSurprisePct', 'emMarketCap']
+    .forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('emSymbol').disabled = false;
+  document.getElementById('emDate').disabled = false;
+  document.getElementById('emFormTitle').textContent = '➕ 실적 추가/수정';
+  document.getElementById('emCancelBtn').style.display = 'none';
+  document.getElementById('emFormMsg').textContent = '';
+}
+
+async function emSave() {
+  const msg = document.getElementById('emFormMsg');
+  const symbol = document.getElementById('emSymbol').value.trim().toUpperCase();
+  const reportDate = document.getElementById('emDate').value;
+  if (!symbol || !reportDate) {
+    msg.style.color = 'var(--red)'; msg.textContent = '티커와 발표일은 필수입니다.'; return;
+  }
+  const body = {
+    symbol, report_date: reportDate,
+    name: document.getElementById('emName').value.trim() || null,
+    time: document.getElementById('emTime').value || null,
+    eps_actual: document.getElementById('emEpsActual').value || null,
+    eps_estimate: document.getElementById('emEpsEstimate').value || null,
+    surprise_pct: document.getElementById('emSurprisePct').value || null,
+    market_cap: document.getElementById('emMarketCap').value || null,
+  };
+  if (_emEditId) body.id = _emEditId;
+
+  msg.style.color = 'var(--text2)'; msg.textContent = '저장 중...';
+  const data = await callApi('/api/admin?action=earnings-manual-upsert', body, null);
+  if (!data) { msg.style.color = 'var(--red)'; msg.textContent = '저장 실패'; return; }
+  msg.style.color = 'var(--green)'; msg.textContent = '✅ 저장 완료 — earnings.html에 바로 반영됩니다.';
+  showToast(`${symbol} 실적 저장 완료`, 'success');
+  emResetForm();
+  emLoad();
+}
+
+async function emDelete(id) {
+  if (!confirm('이 항목을 삭제할까요?')) return;
+  const data = await callApi('/api/admin?action=earnings-manual-delete', { id }, null);
+  if (!data) { showToast('삭제 실패', 'error'); return; }
+  showToast('삭제 완료', 'success');
+  emLoad();
+}
+
+// 발표일은 지났는데 Nasdaq이 아직 실제 EPS를 안 채운 종목 목록 — 관리자는 EPS 칸만
+// 채우면 됨(티커/날짜/예상치는 이미 캘린더에서 가져온 값 그대로 저장).
+async function emLoadGaps() {
+  const box = document.getElementById('emGapTable');
+  const countEl = document.getElementById('emGapCount');
+  box.innerHTML = '<tr><td colspan="7" class="loading-row">불러오는 중...</td></tr>';
+  try {
+    const r = await fetch('/api/earnings-calendar?scope=gaps&days=10', {
+      headers: { Authorization: 'Bearer ' + (await getAuthToken()) },
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'gaps failed');
+    window._emGaps = j.items || [];
+    countEl.textContent = j.items.length ? `(${j.items.length}건)` : '(없음)';
+    if (!j.items.length) {
+      box.innerHTML = '<tr><td colspan="7" class="loading-row">비어있는 종목이 없습니다 🎉</td></tr>';
+      return;
+    }
+    box.innerHTML = j.items.map((it, i) => `<tr id="emGapRow-${i}">
+      <td style="font-weight:700">${escHtml(it.symbol)}</td>
+      <td>${escHtml(it.name || '—')}</td>
+      <td>${escHtml(it.date)}</td>
+      <td>${escHtml(it.time || '—')}</td>
+      <td>${it.epsForecast != null ? it.epsForecast : '—'}</td>
+      <td><input id="emGapEps-${i}" type="number" step="0.01" placeholder="실제 EPS" style="width:100px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px"></td>
+      <td><button class="btn btn-primary" style="padding:5px 12px;font-size:12px" onclick="emSaveGap(${i})">저장</button></td>
+    </tr>`).join('');
+  } catch (e) {
+    box.innerHTML = `<tr><td colspan="7" style="color:var(--red)">로드 실패: ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function emSaveGap(i) {
+  const it = (window._emGaps || [])[i];
+  const input = document.getElementById(`emGapEps-${i}`);
+  const epsActual = input?.value;
+  if (!epsActual) { showToast('실제 EPS를 입력하세요', 'error'); return; }
+  const body = {
+    symbol: it.symbol, report_date: it.date, name: it.name, time: it.time,
+    eps_actual: epsActual, eps_estimate: it.epsForecast, market_cap: it.marketCap,
+  };
+  const data = await callApi('/api/admin?action=earnings-manual-upsert', body, null);
+  if (!data) { showToast('저장 실패', 'error'); return; }
+  showToast(`${it.symbol} 저장 완료`, 'success');
+  document.getElementById(`emGapRow-${i}`)?.remove();
+  emLoad();
 }
 
 // ── 사용자 피드백 (랜딩 페이지 챗봇 위젯 → 여기서 검토/상태 관리) ──
@@ -1125,6 +1314,11 @@ async function loadAnnouncement() {
     if (status) status.textContent = d.updated_at ? `마지막 수정: ${new Date(d.updated_at).toLocaleString('ko-KR')}` : '';
     const note = document.getElementById('annAutoNote');
     if (note) note.style.display = (d.active && d.source === 'auto') ? 'block' : 'none';
+    const muteNote = document.getElementById('annMuteNote');
+    if (muteNote) {
+      muteNote.style.display = d.mute_until ? 'block' : 'none';
+      if (d.mute_until) muteNote.textContent = `🔇 수동으로 끈 배너입니다 — ${new Date(d.mute_until).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' })}까지는 자동 감지가 다시 켜지지 않습니다.`;
+    }
   } catch {
     if (status) status.textContent = '불러오기 실패';
   }
@@ -1154,7 +1348,7 @@ async function loadAnnouncementLog() {
       : '<span style="color:var(--green);font-weight:700">노출 중</span>';
     return `<tr>
       <td>${badge}</td>
-      <td><div class="truncate" title="${escHtml(it.message || '')}">${escHtml(it.message || '—')}</div></td>
+      <td><div class="wrap-msg" title="${escHtml(it.message || '')}">${escHtml(it.message || '—')}</div></td>
       <td style="font-size:11px;color:var(--text3);white-space:nowrap">${fmt(it.started_at)}</td>
       <td style="font-size:11px;color:var(--text3);white-space:nowrap">${it.ended_at ? fmt(it.ended_at) : '—'}</td>
       <td style="text-align:right;font-size:11px">${dur}</td>
@@ -1385,4 +1579,47 @@ function initPresenceWatch() {
     }
   });
   _presenceCh.subscribe();
-}
+}
+
+// ── 💬 실시간 채팅 관리 ──────────────────────────────────────
+async function chatAdminLoad() {
+  const el = document.getElementById('chatAdminList');
+  if (!el) return;
+  el.innerHTML = '<div class="loading-row">불러오는 중...</div>';
+  const filter = document.getElementById('chatFilter')?.value || 'reported';
+  try {
+    const r = await fetch('/api/admin?action=chat-admin&filter=' + filter, { headers: { Authorization: 'Bearer ' + (await getAuthToken()) } });
+    const j = await r.json();
+    if (!j.ok) { el.innerHTML = '❌ ' + escHtml(j.error || '실패'); return; }
+    if (!j.items.length) { el.innerHTML = '<div class="loading-row">해당하는 메시지가 없습니다.</div>'; return; }
+    el.innerHTML = j.items.map(m => `
+      <div style="background:var(--bg2);border:1px solid ${m.hidden ? 'rgba(227,25,55,.4)' : 'var(--border)'};border-radius:10px;padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3);margin-bottom:6px;flex-wrap:wrap">
+          <b style="color:var(--text)">${escHtml(m.nickname)}</b>
+          ${m.is_member ? '<span class="badge badge-blue">회원</span>' : '<span class="badge badge-gray">게스트</span>'}
+          ${m.hidden ? '<span class="badge badge-red">숨김 중</span>' : ''}
+          ${m.report_count > 0 ? '<span class="badge badge-yellow">신고 ' + m.report_count + '</span>' : ''}
+          <span>${new Date(m.created_at).toLocaleString('ko-KR')}</span>
+          <span style="font-family:monospace;font-size:10px">${escHtml(m.sender_key)}</span>
+        </div>
+        <div style="font-size:13.5px;line-height:1.5;margin-bottom:10px;word-break:break-word">${escHtml(m.message)}</div>
+        <div style="display:flex;gap:6px">
+          ${m.hidden
+            ? '<button class="btn btn-success btn-sm" onclick="chatAdminOp(' + m.id + ', &quot;unhide&quot;)">✓ 숨김 해제 (신고 초기화)</button>'
+            : '<button class="btn btn-warn btn-sm" onclick="chatAdminOp(' + m.id + ', &quot;hide&quot;)">숨김</button>'}
+          <button class="btn btn-danger btn-sm" onclick="chatAdminOp(${m.id}, &quot;delete&quot;)">삭제</button>
+        </div>
+      </div>`).join('');
+  } catch (e) { el.innerHTML = '❌ ' + escHtml(e.message); }
+}
+async function chatAdminOp(id, op) {
+  if (op === 'delete' && !confirm('이 메시지를 완전히 삭제할까요?')) return;
+  const r = await fetch('/api/admin?action=chat-admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+    body: JSON.stringify({ id, op }),
+  });
+  const j = await r.json();
+  if (j.ok) { showToast(op === 'unhide' ? '숨김 해제됨' : op === 'hide' ? '숨김 처리됨' : '삭제됨', 'success'); chatAdminLoad(); }
+  else showToast('실패: ' + (j.error || ''), 'error');
+}

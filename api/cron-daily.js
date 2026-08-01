@@ -57,19 +57,18 @@ export default async function handler(req, res) {
   faf('/api/market-pulse?type=trump');
   // Claude Code 에이전트 큐에 제출만 하고 끝 — Anthropic 비용 없음. 완료 처리는
   // analyze-backlog.yml의 10분 주기 폴링(mode=batch-poll)이 이어받는다.
-  faf('/api/analyze?mode=agent-submit', { limit: 20 });
-  faf('/api/admin?action=extract-investments', { since_hours: 48, max: 25 });
+  faf('/api/analyze?mode=agent-submit', { limit: 30 });
   faf('/api/admin?action=dart-poll', { days: 2 });
   faf('/api/admin?action=dart-sync-corp-codes');  // 신규 KR 종목의 corp_code 자동 매핑 (예: 히트맵에 추가된 HLB류)
   faf('/api/admin?action=ai-market-summary');
   faf('/api/check-accuracy');
+  faf('/api/admin?action=crawl-etf-holdings');  // ETF 보유종목 역인덱스 갱신(company.html "이 종목을 담은 ETF")
+  faf('/api/admin?action=crawl-shares-outstanding');  // 히트맵 시총 계산용 상장주식수 캐시 갱신 — 핸들러 자체가 7일 신선도가드라 매일 불러도 실제 크롤은 주 1회
+  // extract-investments/weekly-schedule/catalysts는 2026-07-15부터 스케줄 Claude Code
+  // 에이전트(2시간 주기)의 고정 시간대 큐 제출표로 이관됨(13:15·23:15 / 수·일 21:15 / 15:15) —
+  // 여기서 매일 또 부르면 그 스케줄과 중복 제출된다. 제거하지 말고 다시 추가하지도 말 것.
 
-  // 주간 일정: 토·일은 다음 주 생성, 평일은 진행 중인 주 갱신 (지표 늦게 열리는 경우 자동 보충)
-  faf('/api/admin?action=weekly-schedule');
-  // 예정 catalyst: 지난 이벤트 정리 + 최근 뉴스에서 forward catalyst 자동 추출
-  faf('/api/admin?action=catalysts');
-
-  const jobs = ['fetch-news','fetch-rss','trump','analyze','extract-investments','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy','weekly-schedule','catalysts'];
+  const jobs = ['fetch-news','fetch-rss','trump','analyze','dart-poll','dart-sync-corp-codes','ai-market-summary','check-accuracy','crawl-etf-holdings','crawl-shares-outstanding'];
   return res.status(200).json({
     success: true,
     timestamp: new Date().toISOString(),

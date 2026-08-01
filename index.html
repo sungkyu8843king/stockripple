@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>(function(){try{if(localStorage.getItem('sr_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <!-- deploy-cache-probe: stockripple.vercel.app 도메인 캐시 재검증 테스트용 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +10,16 @@
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
 <title>StockRipple — 파급효과 주식 전망</title>
 <meta name="description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<!-- Open Graph / 링크 공유 미리보기 (정적 — 동적 티커 페이지는 일반 설명) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="StockRipple">
+<meta property="og:title" content="StockRipple — 파급효과 주식 전망">
+<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta property="og:url" content="https://stockripple.vercel.app/index.html">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="StockRipple — 파급효과 주식 전망">
+<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -20,41 +31,42 @@
  * 기존 변수명/클래스명은 전부 유지 (JS 인라인 스타일이 참조)
  * ───────────────────────────────────────────────────────────── */
 :root {
-  /* ── Canvas: soft gray page / white cards ── */
-  --bg:  #f4f5f8;          /* page canvas */
-  --bg2: #ffffff;          /* card surface */
-  --bg3: #f2f4f7;          /* nested / hover surface */
-  --bg4: #e7eaf0;          /* chip / highest elevation */
+  /* ── Canvas: 소프트 핀테크 다크 (2026-07 전면 다크 전환) ── */
+  --bg:  #15171e;          /* page canvas */
+  --bg-rgb: 21,23,30;
+  --bg2: #1e2129;          /* card surface */
+  --bg3: #262a34;          /* nested / hover surface */
+  --bg4: #2f333f;          /* chip / highest elevation */
 
   /* ── Borders ── */
-  --border:        #e6e8ee;
-  --border-strong: #c9cedb;
-  --border-soft:   #eceef3;
+  --border:        rgba(255,255,255,0.075);
+  --border-strong: rgba(255,255,255,0.16);
+  --border-soft:   rgba(255,255,255,0.05);
 
   /* ── Text ── */
-  --text:  #131722;        /* ink */
-  --text2: #434a59;
-  --text3: #8a92a5;
+  --text:  #f2f4f8;        /* ink */
+  --text2: #a6adbb;
+  --text3: #6c7385;
   --text-on-accent: #ffffff;
 
-  /* ── Semantic accents ── */
-  --red:        #dc2f3e;
-  --red-dim:    rgba(220,47,62,0.08);
-  --green:      #0a8754;
-  --green-dim:  rgba(10,135,84,0.08);
-  --blue:       #2457e6;
-  --blue-dim:   rgba(36,87,230,0.08);
-  --yellow:     #b06a10;
-  --yellow-dim: rgba(176,106,16,0.10);
-  --purple:     #6d3fe0;
-  --purple-dim: rgba(109,63,224,0.08);
+  /* ── Semantic accents (soft) ── */
+  --red:        #ff6b6b;
+  --red-dim:    rgba(255,107,107,0.14);
+  --green:      #3ddb7f;
+  --green-dim:  rgba(61,219,127,0.14);
+  --blue:       #4d8dff;
+  --blue-dim:   rgba(77,141,255,0.14);
+  --yellow:     #f0b45e;
+  --yellow-dim: rgba(240,180,94,0.16);
+  --purple:     #9d7bff;
+  --purple-dim: rgba(157,123,255,0.16);
 
-  /* ── Radii ── */
-  --r-xs: 6px;
-  --r-sm: 8px;
-  --r-md: 10px;
-  --r-lg: 14px;            /* card default */
-  --r-xl: 18px;
+  /* ── Radii (soft) ── */
+  --r-xs: 7px;
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;            /* card default */
+  --r-xl: 20px;
   --r-pill: 999px;
 
   /* ── Spacing ── */
@@ -62,10 +74,10 @@
   --s-5: 20px; --s-6: 24px; --s-7: 32px; --s-8: 40px;
 
   /* ── Elevation ── */
-  --shadow-sm:    0 1px 2px rgba(19,23,34,0.04);
-  --shadow-card:  0 1px 2px rgba(19,23,34,0.04), 0 4px 16px rgba(19,23,34,0.04);
-  --shadow-pop:   0 16px 48px rgba(19,23,34,0.16), 0 4px 12px rgba(19,23,34,0.08);
-  --shadow-focus: 0 0 0 3px rgba(36,87,230,0.15);
+  --shadow-sm:    0 2px 8px rgba(0,0,0,0.3);
+  --shadow-card:  0 10px 30px -14px rgba(0,0,0,0.55);
+  --shadow-pop:   0 20px 50px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-focus: 0 0 0 3px rgba(77,141,255,0.22);
 
   /* ── Motion ── */
   --ease:  cubic-bezier(0.22, 1, 0.36, 1);
@@ -74,19 +86,34 @@
   --t-slow: 360ms;
 
   /* ── Typography ── */
-  --font-sans: 'Inter', 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+  --font-sans: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
   --fs-xs: 11px; --fs-sm: 12px; --fs-md: 14px;
   --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 26px; --fs-3xl: 36px;
 
   /* ── Layout ── */
-  --page-max: 1400px;
+  --page-max: 1600px;
   --page-pad: 28px;
+}
+
+/* ── 라이트 모드 오버라이드 (2026-07-27) — html[data-theme=light]일 때만 적용,
+   나머지는 위 다크 기본값을 그대로 상속. 액센트는 흰 배경에서도 대비가 유지되도록 더 짙게. ── */
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --bg-rgb: 245,246,248;
+  --bg2: #ffffff; --bg3: #eef0f3; --bg4: #e3e6eb;
+  --card: #ffffff;
+  --border: rgba(15,17,23,0.09); --border-strong: rgba(15,17,23,0.18); --border-soft: rgba(15,17,23,0.05); --border2: rgba(15,17,23,0.18);
+  --text: #14161c; --text2: #4b5163; --text3: #6b7280; --text-on-accent: #ffffff;
+  --red: #dc2626; --green: #15803d; --blue: #1d4ed8; --yellow: #a16207; --purple: #7c3aed; --amber: #a16207;
+  --shadow-sm: 0 2px 8px rgba(15,17,23,0.10);
+  --shadow-card: 0 10px 30px -14px rgba(15,17,23,0.16);
+  --shadow-pop: 0 20px 50px rgba(15,17,23,0.20), 0 4px 12px rgba(15,17,23,0.10);
+  --shadow-focus: 0 0 0 3px rgba(29,78,216,0.18);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { height: 100%; }
+html { height: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 /* overflow-x:hidden은 body에만 — html(루트)에 걸면 iOS Safari에서 position:sticky가
    깨지고 세로 스크롤 자체가 막히는 경우가 있어 body 단독으로 한정한다 */
 body {
@@ -192,7 +219,7 @@ button { font-family: inherit; }
  * ═══════════════════════════════════════════ */
 .header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(255,255,255,0.88);
+  background: rgba(var(--bg-rgb),0.80);
   backdrop-filter: blur(14px) saturate(160%);
   border-bottom: 1px solid var(--border);
   padding: 0 var(--page-pad);
@@ -201,29 +228,44 @@ button { font-family: inherit; }
   max-width: var(--page-max); margin: 0 auto;
   display: flex; align-items: center; gap: 20px; height: 58px;
 }
+.header-search {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 7px 10px; flex: 1 1 auto; max-width: 260px; min-width: 0;
+}
+.header-search svg { color: var(--text3); flex-shrink: 0; }
+.header-search input {
+  flex: 1; min-width: 0; border: none; outline: none; background: none;
+  font-size: 15.5px; color: var(--text); font-family: inherit;
+}
+.header-search input::placeholder { color: var(--text3); }
+@media (max-width: 900px) { .header-search { display: none; } }
 .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .logo-icon {
   width: 32px; height: 32px; border-radius: 9px;
   background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
   color: #fff;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 700;
+  font-size: 18px; font-weight: 700;
   box-shadow: 0 3px 10px rgba(36,87,230,0.30);
 }
-.logo-text { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
-.logo-sub { font-size: 10px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
+.logo-text { font-size: 19px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+.logo-sub { font-size: 13px; color: var(--text3); font-weight: 500; margin-top: 1px; letter-spacing: 0; }
 .header-nav { display: flex; gap: 2px; margin-left: auto; align-items: center; }
 .nav-btn {
-  padding: 7px 13px; border-radius: var(--r-md); font-size: 13px; font-weight: 500;
+  padding: 7px 13px; border-radius: var(--r-md); font-size: 15.5px; font-weight: 500;
   background: none; border: none; color: var(--text2); cursor: pointer;
   text-decoration: none; display: flex; align-items: center; gap: 6px;
   transition: all var(--t-fast) var(--ease); white-space: nowrap;
 }
 .nav-btn:hover { background: var(--bg3); color: var(--text); }
-.nav-btn.active { background: var(--text); color: #fff; font-weight: 600; }
+.nav-btn.active { background: var(--blue); color: #fff; font-weight: 600; }
+/* 신규 카테고리 표시 — 빨간 원형 뱃지 */
+.nav-new { position: relative; }
+.nav-new::after { content: ""; position: absolute; top: 2px; right: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px var(--bg), 0 0 6px var(--red); }
 .nav-btn-primary {
   background: var(--blue); color: #fff; padding: 7px 16px; margin-left: 6px;
-  border-radius: var(--r-md); font-size: 13px; font-weight: 600;
+  border-radius: var(--r-md); font-size: 15.5px; font-weight: 600;
   text-decoration: none; cursor: pointer; border: none; transition: all var(--t-fast);
 }
 .nav-btn-primary:hover { background: #1e4ccc; }
@@ -248,56 +290,41 @@ button { font-family: inherit; }
 }
 .ticker-item {
   display: inline-flex; align-items: center; gap: 7px;
-  padding: 0 18px; font-size: 12px; font-weight: 500; height: 34px;
+  padding: 0 18px; font-size: 14.5px; font-weight: 500; height: 34px;
   position: relative;
 }
 .ticker-item::after {
   content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
   width: 3px; height: 3px; border-radius: 50%; background: var(--border-strong);
 }
-.ticker-name { color: var(--text3); font-weight: 600; font-size: 11px; letter-spacing: 0.02em; }
+.ticker-name { color: var(--text3); font-weight: 600; font-size: 13.5px; letter-spacing: 0.02em; }
 .ticker-price { color: var(--text); font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.ticker-chg { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
+.ticker-chg { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 13.5px; font-weight: 600; }
 .ticker-spark { width: 44px; height: 14px; flex-shrink: 0; opacity: .9; }
-.ticker-chg.up { color: var(--green); }
-.ticker-chg.dn { color: var(--red); }
+.ticker-chg.up { color: var(--red); }
+.ticker-chg.dn { color: var(--blue); }
 .ticker-chg.flat { color: var(--text3); }
 
 /* ═══════════════════════════════════════════
- * Hero — compact command header + KPI strip
+ * Hero strip — 1줄 AI 브리핑 + 매수후보 CTA (2026-07 개편: 예전엔 슬로건+통계 5개가
+ * 첫 화면 대부분을 차지해서 방문자가 원하는 정보(오늘 시장이 어떤지)를 안 보여줬음.
+ * 지수 자체는 이미 위 .indices-ticker가 보여주고 있어서, 여기선 AI 한줄 요약만.
  * ═══════════════════════════════════════════ */
-.hero {
+.hero-strip {
   max-width: var(--page-max); margin: 0 auto;
-  padding: 26px var(--page-pad) 0;
+  padding: 14px var(--page-pad);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
 }
-.hero-title { font-size: 22px; font-weight: 800; margin-bottom: 4px; letter-spacing: -0.025em; }
-.hero-title span { color: var(--blue); }
-.hero-sub { font-size: 13px; color: var(--text3); line-height: 1.6; }
-
-.stats-bar {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0,1fr));
-  gap: 10px;
-  margin: 16px 0 0;
+.hero-strip-text { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 320px; }
+.hero-strip-badge {
+  flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--blue);
+  background: var(--blue-dim, rgba(59,130,246,.1)); border-radius: 999px; padding: 3px 10px;
 }
-.stat-item {
-  display: flex; flex-direction: column; gap: 4px;
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--r-lg); padding: 14px 16px;
-  box-shadow: var(--shadow-sm);
-  position: relative; overflow: hidden;
+.hero-strip-headline {
+  font-size: 16px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; min-width: 0; cursor: pointer; transition: opacity .3s ease;
 }
-.stat-item::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--bg4);
-}
-.stat-item:has(.stat-value.blue)::before  { background: var(--blue); }
-.stat-item:has(.stat-value.green)::before { background: var(--green); }
-.stat-label { font-size: 10.5px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
-.stat-value { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.15; }
-.stat-value.green { color: var(--green); }
-.stat-value.blue { color: var(--blue); }
-.stat-sep { display: none; }
+.hero-strip-headline:hover { color: var(--blue); }
 
 /* ═══════════════════════════════════════════
  * Layout
@@ -305,7 +332,7 @@ button { font-family: inherit; }
 .main-content { padding: 0; }
 .layout-with-sidebar {
   max-width: var(--page-max); margin: 0 auto; padding: 22px var(--page-pad) 48px;
-  display: grid; grid-template-columns: minmax(0,1fr) 328px; gap: 24px; align-items: start;
+  display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: 26px; align-items: start;
 }
 @media (max-width: 1100px) {
   /* minmax(0,1fr) 필수 — 그냥 1fr이면 그리드 트랙 최소 너비가 내용물의
@@ -328,10 +355,33 @@ button { font-family: inherit; }
   align-self: center;
   width: 4px; height: 16px; border-radius: 2px; background: var(--blue); flex-shrink: 0;
 }
-.sh-title { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
-.sh-desc  { font-size: 11.5px; color: var(--text3); font-weight: 500; }
+.sh-title { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+.sh-desc  { font-size: 14px; color: var(--text3); font-weight: 500; }
 .section-head-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .section-block { margin-bottom: 28px; }
+
+/* 👋 첫 방문자 소개 스트립 */
+.intro-strip {
+  display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;
+  padding: 18px 20px; border-radius: 14px;
+  background: var(--bg2); border: 1px solid var(--border); border-left: 4px solid var(--blue);
+}
+.intro-strip[hidden] { display: none; }
+.intro-strip-body { flex: 1; min-width: 0; }
+.intro-strip-title { font-size: 17px; font-weight: 800; margin-bottom: 8px; }
+.intro-strip-text { font-size: 15.5px; line-height: 1.7; color: var(--text2); margin: 0; }
+.intro-strip-text b { color: var(--text1); font-weight: 700; }
+.intro-strip-note { margin-top: 8px; }
+.intro-strip-close {
+  flex-shrink: 0; align-self: center; padding: 11px 16px; border-radius: 10px; cursor: pointer;
+  font-size: 14.5px; font-weight: 700; white-space: nowrap;
+  background: var(--blue); color: #fff; border: none;
+}
+.intro-strip-close:hover { filter: brightness(1.08); }
+@media (max-width: 640px) {
+  .intro-strip { flex-direction: column; gap: 12px; padding: 16px; }
+  .intro-strip-close { align-self: stretch; }
+}
 /* 홈 미리보기: 히트맵/국장현황은 일부만 보여주고 전체는 /heatmap.html, /kr-market.html로 유도
    (정보 밀도 완화 — 전체 랭킹/탭은 전용 페이지에서) */
 /* 히트맵은 섹터 뷰(박스 11개, 작음)일 땐 크롭 없이 전부 보여주고, 전체보기/드릴다운
@@ -358,26 +408,26 @@ button { font-family: inherit; }
   box-shadow: var(--shadow-sm);
 }
 .category-tabs {
-  display: flex; gap: 4px; overflow-x: auto;
+  display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x;
   scrollbar-width: none; padding-bottom: 0;
 }
 .category-tabs::-webkit-scrollbar { display: none; }
 .cat-tab {
-  padding: 7px 14px; border-radius: var(--r-md); font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  padding: 7px 14px; border-radius: var(--r-md); font-size: 15px; font-weight: 600; white-space: nowrap;
   border: none; background: transparent; color: var(--text2); cursor: pointer;
   transition: all var(--t-fast) var(--ease);
 }
 .cat-tab:hover { background: var(--bg3); color: var(--text); }
-.cat-tab.active { background: var(--text); color: #fff; }
+.cat-tab.active { background: var(--blue); color: #fff; }
 
 .filters {
   display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
   padding-top: 10px; border-top: 1px dashed var(--border);
   margin-bottom: 0;
 }
-.filter-label { font-size: 11px; color: var(--text3); font-weight: 700; margin-right: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.filter-label { font-size: 13.5px; color: var(--text3); font-weight: 700; margin-right: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
 .filter-chip {
-  padding: 4px 11px; border-radius: var(--r-pill); font-size: 12px; font-weight: 500;
+  padding: 4px 11px; border-radius: var(--r-pill); font-size: 14.5px; font-weight: 500;
   border: 1px solid var(--border); background: var(--bg2); color: var(--text2);
   cursor: pointer; transition: all var(--t-fast);
 }
@@ -393,7 +443,7 @@ button { font-family: inherit; }
 .search-box:focus-within { background: var(--bg2); border-color: var(--blue); box-shadow: var(--shadow-focus); }
 .search-box input {
   background: none; border: none; outline: none; color: var(--text);
-  font-size: 12.5px; width: 200px; font-family: inherit;
+  font-size: 15px; width: 200px; font-family: inherit;
 }
 .search-box input::placeholder { color: var(--text3); }
 
@@ -406,7 +456,7 @@ button { font-family: inherit; }
 }
 .hm-tab {
   background: transparent; border: none; color: var(--text2);
-  padding: 5px 11px; border-radius: var(--r-sm); font-size: 11.5px; font-weight: 500;
+  padding: 5px 11px; border-radius: var(--r-sm); font-size: 14px; font-weight: 500;
   cursor: pointer; transition: all var(--t-fast) var(--ease); white-space: nowrap;
 }
 .hm-tab:hover { color: var(--text); }
@@ -416,7 +466,7 @@ button { font-family: inherit; }
 }
 .icon-btn {
   background: var(--bg3); border: none; color: var(--text2);
-  padding: 5px 9px; border-radius: var(--r-sm); font-size: 11.5px; cursor: pointer;
+  padding: 5px 9px; border-radius: var(--r-sm); font-size: 14px; cursor: pointer;
   transition: background var(--t-fast);
 }
 .icon-btn:hover { background: var(--bg4); }
@@ -440,16 +490,122 @@ button { font-family: inherit; }
   box-shadow: 0 10px 30px rgba(19,23,34,0.10);
 }
 .card-header { padding: 15px 16px 0; display: flex; align-items: flex-start; gap: 12px; }
-.card-source { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.card-source { font-size: 13.5px; color: var(--text3); display: flex; align-items: center; gap: 6px; font-weight: 500; }
 .source-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
-.card-date { font-size: 10px; color: var(--text3); margin-left: auto; text-align: right; line-height: 1.6; flex-shrink: 0; }
-.card-date .rel { font-size: 11px; color: var(--text2); display: block; font-weight: 600; }
-.card-date .abs { color: var(--text3); font-family: var(--font-mono); font-size: 10px; }
+.card-date { font-size: 13px; color: var(--text3); margin-left: auto; text-align: right; line-height: 1.6; flex-shrink: 0; }
+.card-date .rel { font-size: 13.5px; color: var(--text2); display: block; font-weight: 600; }
+.card-date .abs { color: var(--text3); font-family: var(--font-mono); font-size: 13px; }
 .card-body { padding: 10px 16px 14px; }
-.card-title { font-size: 14.5px; font-weight: 700; line-height: 1.45; margin-bottom: 7px; letter-spacing: -0.01em; }
-.card-summary { font-size: 12px; color: var(--text2); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.card-sectors { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
-.sector-tag { font-size: 10.5px; padding: 3px 8px; border-radius: var(--r-xs); font-weight: 600; }
+.card-title { font-size: 16.5px; font-weight: 700; line-height: 1.45; margin-bottom: 7px; letter-spacing: -0.01em; }
+.card-ai-summary { font-size: 15px; color: var(--text2); line-height: 1.6; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card-flow-label { font-size: 12.5px; font-weight: 700; color: var(--text3); letter-spacing: .03em; margin: 10px 0 4px; }
+
+/* ═══ 📊 시장 지표 대시보드 (2026-07 추가) — 지금 매수 후보 위에 표시 ═══ */
+.mkt-status { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; font-size: 14.5px; color: var(--text2); }
+.mkt-status-item { display: flex; align-items: center; gap: 6px; }
+.mkt-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+.mkt-status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.mkt-status-dot.closed { background: var(--text3); }
+.mkt-dash-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); grid-auto-flow: dense; gap: 10px; }
+@media (max-width: 900px) { .mkt-dash-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+@media (max-width: 520px) { .mkt-dash-grid { grid-template-columns: minmax(0,1fr); } }
+
+/* 히어로(대형) + 서브히어로(반대 시장 지수) — 나스닥/코스피가 시간대에 따라 서로 자리를 바꾼다.
+   서브히어로도 .mkt-hero 스타일을 그대로 공유(차트/52주 범위 포함), 폭 비율만 다르다 */
+.mkt-hero-row { display: flex; gap: 10px; align-items: stretch; margin-bottom: 10px; }
+.mkt-hero-row .mkt-hero { flex: 1 1 0; min-width: 0; }
+.mkt-hero-row .mkt-hero.mkt-hero-sub { flex: 1 1 0; }
+@media (max-width: 640px) { .mkt-hero-row { flex-direction: column; } }
+
+/* "더 많은 지표 보기" 토글 — 모바일에서만 기본 접힘, 데스크톱은 버튼을 숨기고 항상 펼침 */
+.mkt-more-toggle {
+  display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 9px; font-size: 15px; font-weight: 700; color: var(--text2); cursor: pointer;
+  margin-bottom: 10px; transition: background var(--t-fast);
+}
+.mkt-more-toggle:hover { background: var(--bg3); }
+@media (min-width: 641px) {
+  .mkt-more-toggle { display: none; }
+  .mkt-dash-grid.collapsed { display: grid; }
+}
+@media (max-width: 640px) {
+  .mkt-dash-grid.collapsed { display: none; }
+}
+
+.mkt-hero {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 10px 16px; display: flex; flex-direction: column; box-shadow: var(--shadow-card);
+}
+.mkt-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.mkt-hero-name { font-size: 14.5px; font-weight: 700; }
+.mkt-hero-tag { font-size: 13px; color: var(--text3); margin-top: 1px; }
+.mkt-hero-val { font-size: 21px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.mkt-hero-chg { font-size: 14px; font-weight: 700; font-family: var(--font-mono); margin-top: 1px; }
+.mkt-hero-chart { height: 44px; margin: 6px 0 3px; position: relative; }
+.mkt-hero-chart svg { width: 100%; height: 100%; display: block; }
+.mkt-spark-svg-slot { display: block; width: 100%; height: 100%; }
+
+/* 차트 끝점 "라이브" 핑 — 해당 장이 열려 있을 때만(areaSparkSvg live=true) 붙는다 */
+@keyframes mktSparkPing { 0% { transform: scale(1); opacity: .65; } 75%, 100% { transform: scale(2.4); opacity: 0; } }
+.mkt-spark-ping { transform-box: fill-box; transform-origin: center; animation: mktSparkPing 1.8s cubic-bezier(.0,.0,.2,1) infinite; }
+
+/* 차트 호버/드래그 툴팁 — 히어로 카드 차트에서만 사용(setMktChartData가 붙이는 오버레이) */
+.mkt-chart-guide {
+  position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border-strong);
+  opacity: 0; pointer-events: none; transform: translateX(-50%); transition: opacity .1s;
+}
+.mkt-chart-hover-dot {
+  position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--text);
+  border: 2px solid var(--bg2); box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  opacity: 0; pointer-events: none; transform: translate(-50%,-50%); transition: opacity .1s;
+}
+.mkt-chart-tip {
+  position: absolute; top: -4px; transform: translate(-50%,-100%);
+  background: var(--bg4); border: 1px solid var(--border-strong); border-radius: 6px;
+  padding: 4px 8px; font-size: 12.5px; font-weight: 700; white-space: nowrap;
+  display: flex; gap: 6px; align-items: baseline; z-index: 5;
+  opacity: 0; pointer-events: none; transition: opacity .1s; box-shadow: var(--shadow-sm);
+}
+.mkt-chart-tip.align-l { transform: translate(-8%,-100%); }
+.mkt-chart-tip.align-r { transform: translate(-92%,-100%); }
+.mkt-chart-tip-time { color: var(--text3); font-weight: 600; font-family: var(--font-mono); font-size: 12px; }
+.mkt-chart-tip-val { font-family: var(--font-mono); color: var(--text); }
+.mkt-chart-interactive.showing-tip .mkt-chart-guide,
+.mkt-chart-interactive.showing-tip .mkt-chart-hover-dot,
+.mkt-chart-interactive.showing-tip .mkt-chart-tip { opacity: 1; }
+.mkt-chart-interactive { cursor: crosshair; touch-action: pan-y; }
+.mkt-52w { margin-top: 3px; }
+.mkt-52w-label { font-size: 12.5px; color: var(--text3); margin-bottom: 3px; display: flex; justify-content: space-between; }
+.mkt-52w-track { height: 4px; border-radius: 3px; background: var(--bg4); position: relative; }
+.mkt-52w-dot { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); border: 2px solid var(--bg2); transform: translate(-50%,-50%); }
+
+.mkt-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 11px 13px; display: flex; align-items: center; gap: 10px; min-width: 0;
+}
+.mkt-card-main { flex: 1; min-width: 0; }
+.mkt-card-name { font-size: 13.5px; color: var(--text2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mkt-card-val { font-size: 16px; font-weight: 700; font-family: var(--font-mono); margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mkt-card-chg { font-size: 13px; font-weight: 700; font-family: var(--font-mono); margin-top: 1px; }
+.mkt-card-spark { width: 46px; height: 28px; flex-shrink: 0; }
+.mkt-card-spark svg { width: 100%; height: 100%; display: block; }
+.mkt-card.mkt-link { color: var(--text2); text-decoration: none; cursor: pointer; justify-content: space-between; }
+.mkt-card.mkt-link:hover { border-color: var(--border-strong); }
+.mkt-card.mkt-link .mkt-card-name { color: var(--text); }
+.mkt-link-cta { font-size: 13px; color: var(--blue); font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+/* 클릭 가능한 시장지표 카드 + 장열림 초록 동그라미 */
+.mkt-card-link { text-decoration: none; color: inherit; cursor: pointer; transition: border-color var(--t-fast), transform var(--t-fast); }
+.mkt-card-link:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.mkt-live-dot { display: none; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); margin-right: 5px; vertical-align: middle; }
+.mkt-live-dot.on { display: inline-block; animation: mktDotPulse 1.5s infinite; }
+@keyframes mktDotPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.mkt-hero.mkt-card-link .mkt-hero-name { display: flex; align-items: center; }
+.mkt-card-val.flash-up, .mkt-hero-val.flash-up { animation: priceFlashUp .9s ease-out; }
+.mkt-card-val.flash-down, .mkt-hero-val.flash-down { animation: priceFlashDown .9s ease-out; }
+.pos { color: var(--red); } .neg { color: var(--blue); }
+.card-sectors { display: flex; flex-wrap: wrap; gap: 5px; }
+.sector-tag { font-size: 13px; padding: 3px 8px; border-radius: var(--r-xs); font-weight: 600; }
 .tag-semi   { background: var(--blue-dim);   color: var(--blue); }
 .tag-ev     { background: var(--green-dim);  color: var(--green); }
 .tag-ai     { background: var(--purple-dim); color: var(--purple); }
@@ -460,18 +616,18 @@ button { font-family: inherit; }
 .tag-energy { background: var(--green-dim);  color: var(--green); }
 .tag-default{ background: var(--bg3); color: var(--text2); }
 .card-footer { padding: 11px 16px; border-top: 1px solid var(--border-soft); display: flex; align-items: center; gap: 12px; background: var(--bg3); }
-.footer-stat { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); }
+.footer-stat { display: flex; align-items: center; gap: 5px; font-size: 14.5px; color: var(--text2); }
 .footer-stat .val { font-weight: 700; font-variant-numeric: tabular-nums; }
 .footer-stat .val.green { color: var(--green); }
 .footer-stat .val.blue { color: var(--blue); }
 .confidence-bar { flex: 1; height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; }
 .confidence-fill { height: 100%; border-radius: 2px; background: var(--blue); transition: width 0.6s; }
 .view-btn {
-  margin-left: auto; font-size: 12px; color: var(--blue); font-weight: 700;
+  margin-left: auto; font-size: 14.5px; color: var(--blue); font-weight: 700;
   background: none; border: none; cursor: pointer; white-space: nowrap;
 }
 .share-btn {
-  background: none; border: none; color: var(--text3); font-size: 13px;
+  background: none; border: none; color: var(--text3); font-size: 15.5px;
   cursor: pointer; padding: 2px 4px; line-height: 1; flex-shrink: 0;
 }
 .share-btn:hover { color: var(--blue); }
@@ -480,14 +636,14 @@ button { font-family: inherit; }
 .card-companies { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 6px; }
 .mini-company { display: flex; align-items: center; gap: 8px; }
 .mini-ticker {
-  font-size: 11px; font-weight: 700; font-family: var(--font-mono);
+  font-size: 13.5px; font-weight: 700; font-family: var(--font-mono);
   background: var(--bg3); color: var(--text2); padding: 2px 7px; border-radius: var(--r-xs);
   min-width: 60px; text-align: center;
 }
-.mini-name { font-size: 12px; color: var(--text2); flex: 1; }
-.mini-upside { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.mini-upside.up { color: var(--green); }
-.mini-upside.dn { color: var(--red); }
+.mini-name { font-size: 14.5px; color: var(--text2); flex: 1; }
+.mini-upside { font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mini-upside.up { color: var(--red); }
+.mini-upside.dn { color: var(--blue); }
 
 /* ═══════════════════════════════════════════
  * States
@@ -502,18 +658,18 @@ button { font-family: inherit; }
 
 .empty-state { text-align: center; padding: 80px 24px; }
 .empty-icon { font-size: 44px; margin-bottom: 16px; }
-.empty-title { font-size: 19px; font-weight: 700; margin-bottom: 8px; }
-.empty-sub { font-size: 13.5px; color: var(--text2); max-width: 400px; margin: 0 auto 24px; line-height: 1.6; }
+.empty-title { font-size: 21px; font-weight: 700; margin-bottom: 8px; }
+.empty-sub { font-size: 16px; color: var(--text2); max-width: 400px; margin: 0 auto 24px; line-height: 1.6; }
 .empty-btn {
   display: inline-block; padding: 10px 20px; background: var(--blue); color: #fff;
-  border-radius: var(--r-md); font-size: 14px; font-weight: 600; text-decoration: none; border: none; cursor: pointer;
+  border-radius: var(--r-md); font-size: 16px; font-weight: 600; text-decoration: none; border: none; cursor: pointer;
 }
 
 /* Toast */
 .toast {
   position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-  background: var(--text); color: #fff; border: none; border-radius: var(--r-md);
-  padding: 12px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px;
+  background: var(--bg4); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r-md);
+  padding: 12px 16px; font-size: 15.5px; display: flex; align-items: center; gap: 8px;
   box-shadow: var(--shadow-pop); transform: translateY(80px); opacity: 0;
   transition: all var(--t-med) var(--ease); pointer-events: none;
 }
@@ -524,24 +680,24 @@ button { font-family: inherit; }
 /* Pagination */
 .pagination { display: flex; justify-content: center; gap: 8px; margin: 32px 0; }
 .page-btn {
-  padding: 7px 13px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500;
+  padding: 7px 13px; border-radius: var(--r-sm); font-size: 15.5px; font-weight: 500;
   background: var(--bg2); border: 1px solid var(--border); color: var(--text2);
   cursor: pointer; transition: all var(--t-fast);
 }
 .page-btn:hover { border-color: var(--blue); color: var(--blue); }
-.page-btn.active { background: var(--text); border-color: var(--text); color: #fff; font-weight: 700; }
+.page-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Accuracy Badge */
 .accuracy-badge {
-  font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
+  font-size: 13.5px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
   background: var(--green-dim); color: var(--green);
 }
 .accuracy-badge.low { background: var(--red-dim); color: var(--red); }
 
 /* Star / Watchlist */
 .star-btn {
-  background: none; border: none; cursor: pointer; font-size: 15px;
+  background: none; border: none; cursor: pointer; font-size: 17px;
   padding: 0 2px; line-height: 1; color: var(--text3); transition: all var(--t-fast);
   flex-shrink: 0;
 }
@@ -576,17 +732,17 @@ button { font-family: inherit; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
-.fb-header-title { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
-.fb-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; padding: 4px; }
+.fb-header-title { font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.fb-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 20px; padding: 4px; }
 .fb-close:hover { color: var(--text); }
 .fb-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.fb-msg { max-width: 84%; padding: 10px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.fb-msg { max-width: 84%; padding: 10px 13px; border-radius: 14px; font-size: 16px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 .fb-msg.bot { align-self: flex-start; background: var(--bg3); color: var(--text); border-bottom-left-radius: 4px; }
 .fb-msg.user { align-self: flex-end; background: var(--purple); color: #fff; border-bottom-right-radius: 4px; }
 .fb-quick-replies { display: flex; flex-wrap: wrap; gap: 7px; align-self: flex-start; max-width: 100%; }
 .fb-qr-btn {
   padding: 8px 14px; border-radius: 999px; border: 1px solid var(--purple);
-  background: var(--purple-dim); color: var(--purple); font-size: 13px; font-weight: 600;
+  background: var(--purple-dim); color: var(--purple); font-size: 15.5px; font-weight: 600;
   cursor: pointer; transition: all var(--t-fast);
 }
 .fb-qr-btn:hover { background: var(--purple); color: #fff; }
@@ -595,17 +751,17 @@ button { font-family: inherit; }
 .fb-input-row { display: flex; gap: 8px; align-items: flex-end; }
 .fb-input-row textarea, .fb-input-row input {
   flex: 1; resize: none; border: 1px solid var(--border); border-radius: var(--r-md);
-  background: var(--bg); color: var(--text); padding: 9px 12px; font-size: 13.5px;
+  background: var(--bg); color: var(--text); padding: 9px 12px; font-size: 16px;
   font-family: inherit; max-height: 100px;
 }
 .fb-input-row textarea:focus, .fb-input-row input:focus { outline: none; border-color: var(--purple); }
 .fb-send-btn {
   background: var(--purple); color: #fff; border: none; border-radius: var(--r-md);
-  padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+  padding: 9px 14px; font-size: 15.5px; font-weight: 700; cursor: pointer; flex-shrink: 0;
 }
 .fb-send-btn:hover { background: #6a2ee0; }
 .fb-send-btn:disabled { opacity: .5; cursor: default; }
-.fb-skip-btn { background: none; border: none; color: var(--text3); font-size: 12px; cursor: pointer; margin-top: 6px; text-decoration: underline; }
+.fb-skip-btn { background: none; border: none; color: var(--text3); font-size: 14.5px; cursor: pointer; margin-top: 6px; text-decoration: underline; }
 
 /* ═══════════════════════════════════════════
  * Auth Modal
@@ -627,16 +783,16 @@ button { font-family: inherit; }
 .auth-close {
   position: absolute; top: 14px; right: 14px;
   background: none; border: none; color: var(--text3); cursor: pointer;
-  font-size: 16px; width: 28px; height: 28px; border-radius: var(--r-xs);
+  font-size: 18px; width: 28px; height: 28px; border-radius: var(--r-xs);
   display: flex; align-items: center; justify-content: center;
   transition: all var(--t-fast);
 }
 .auth-close:hover { background: var(--bg3); color: var(--text); }
-.auth-logo { font-size: 15px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
+.auth-logo { font-size: 17px; font-weight: 800; color: var(--text3); margin-bottom: 6px; }
 .auth-logo span { color: var(--blue); }
 .auth-title { font-size: 24px; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.02em; }
 .auth-btn-google {
-  width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 14px; font-weight: 500;
+  width: 100%; padding: 12px 16px; border-radius: var(--r-md); font-size: 16px; font-weight: 500;
   background: #fff; border: 1px solid #dadce0; color: #3c4043;
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
   transition: all var(--t-fast); margin-bottom: 20px;
@@ -646,39 +802,39 @@ button { font-family: inherit; }
 .auth-btn-google:active { background: #f1f3f4; }
 .auth-divider {
   display: flex; align-items: center; gap: 12px;
-  margin-bottom: 18px; color: var(--text3); font-size: 12px;
+  margin-bottom: 18px; color: var(--text3); font-size: 14.5px;
 }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .auth-field { position: relative; margin-bottom: 12px; }
-.auth-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
+.auth-field label { display: block; font-size: 14.5px; font-weight: 600; color: var(--text3); margin-bottom: 5px; }
 .auth-input {
   width: 100%; padding: 10px 12px; background: var(--bg3); border: 1.5px solid var(--border);
-  border-radius: var(--r-sm); color: var(--text); font-size: 14px;
+  border-radius: var(--r-sm); color: var(--text); font-size: 16px;
   outline: none; transition: border-color var(--t-fast), box-shadow var(--t-fast); font-family: inherit;
   box-sizing: border-box;
 }
 .auth-input:focus { border-color: var(--blue); box-shadow: var(--shadow-focus); background: var(--bg2); }
 .auth-input::placeholder { color: var(--text3); }
-.auth-error { font-size: 12px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
+.auth-error { font-size: 14.5px; min-height: 18px; margin: 4px 0 8px; color: var(--red); }
 .auth-error.success { color: var(--green); }
 .auth-submit-btn {
-  width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 14px; font-weight: 700;
+  width: 100%; padding: 12px; border-radius: var(--r-md); font-size: 16px; font-weight: 700;
   background: var(--blue); border: none; color: #fff; cursor: pointer;
   transition: all var(--t-fast);
 }
 .auth-submit-btn:hover { background: #1e4ccc; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(36,87,230,0.35); }
 .auth-submit-btn:active { transform: none; box-shadow: none; }
 .auth-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-.auth-switch { margin-top: 18px; text-align: center; font-size: 13px; color: var(--text3); }
-.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 13px; font-weight: 600; }
+.auth-switch { margin-top: 18px; text-align: center; font-size: 15.5px; color: var(--text3); }
+.auth-link { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15.5px; font-weight: 600; }
 .auth-link:hover { text-decoration: underline; }
 .auth-consent { margin-bottom: 14px; }
-.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text2); cursor: pointer; line-height: 1.5; }
+.auth-consent-label { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; color: var(--text2); cursor: pointer; line-height: 1.5; }
 .auth-consent-label input[type="checkbox"] { margin-top: 2px; width: 15px; height: 15px; flex-shrink: 0; accent-color: var(--blue); cursor: pointer; }
-.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 0; text-decoration: underline; }
+.auth-link-inline { background: none; border: none; color: var(--blue); cursor: pointer; font-size: 15px; font-weight: 600; padding: 0; text-decoration: underline; }
 .auth-privacy-text {
   margin-top: 8px; padding: 10px 12px; background: var(--bg3); border-radius: var(--r-sm);
-  font-size: 11.5px; color: var(--text3); line-height: 1.7;
+  font-size: 14px; color: var(--text3); line-height: 1.7;
 }
 
 /* User Menu */
@@ -686,7 +842,7 @@ button { font-family: inherit; }
 .user-avatar-btn {
   width: 32px; height: 32px; border-radius: 50%;
   background: var(--blue-dim); color: var(--blue);
-  border: 1.5px solid var(--blue); font-size: 13px; font-weight: 700;
+  border: 1.5px solid var(--blue); font-size: 15.5px; font-weight: 700;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .user-dropdown {
@@ -696,7 +852,7 @@ button { font-family: inherit; }
   box-shadow: var(--shadow-pop);
 }
 .dropdown-item {
-  display: block; width: 100%; padding: 10px 14px; font-size: 13px;
+  display: block; width: 100%; padding: 10px 14px; font-size: 15.5px;
   color: var(--text2); background: none; border: none; text-align: left;
   cursor: pointer; text-decoration: none; transition: all var(--t-fast);
 }
@@ -715,20 +871,20 @@ button { font-family: inherit; }
 }
 .wl-top { display: flex; align-items: center; gap: 8px; }
 .wl-ticker {
-  font-size: 12px; font-weight: 700; font-family: var(--font-mono);
+  font-size: 14.5px; font-weight: 700; font-family: var(--font-mono);
   padding: 3px 8px; border-radius: var(--r-xs);
 }
 .wl-ticker.kr { background: var(--blue-dim);   color: var(--blue); }
 .wl-ticker.us { background: var(--purple-dim); color: var(--purple); }
-.wl-name { font-size: 13px; font-weight: 700; flex: 1; }
-.wl-remove { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 16px; line-height: 1; }
+.wl-name { font-size: 15.5px; font-weight: 700; flex: 1; }
+.wl-remove { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 18px; line-height: 1; }
 .wl-remove:hover { color: var(--red); }
 .wl-price-row { display: flex; align-items: baseline; gap: 8px; }
 .wl-price { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.wl-chg { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.wl-chg.up { color: var(--green); }
-.wl-chg.dn { color: var(--red); }
-.wl-link { font-size: 12px; color: var(--blue); text-decoration: none; font-weight: 600; }
+.wl-chg { font-size: 15.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-chg.up { color: var(--red); }
+.wl-chg.dn { color: var(--blue); }
+.wl-link { font-size: 14.5px; color: var(--blue); text-decoration: none; font-weight: 600; }
 .wl-link:hover { text-decoration: underline; }
 
 /* ═══════════════════════════════════════════
@@ -741,10 +897,10 @@ button { font-family: inherit; }
 }
 .sidebar-card-header {
   padding: 11px 16px; border-bottom: 1px solid var(--border-soft);
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
   background: var(--bg3);
 }
-.sidebar-card-title { font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; letter-spacing: -0.01em; }
+.sidebar-card-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; letter-spacing: -0.01em; min-width: 0; white-space: nowrap; }
 .live-dot {
   width: 6px; height: 6px; border-radius: 50%; background: var(--green);
   animation: pulse 1.5s ease infinite;
@@ -752,33 +908,44 @@ button { font-family: inherit; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 .sidebar-card-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 9px; }
 
+/* 📅 일정 통합 탭 (2026-07 사이드바 개편) */
+.sched-tabs { display: flex; gap: 3px; padding: 8px 12px 0; }
+.sched-tab {
+  flex: 1; font-size: 14px; font-weight: 600; color: var(--text3);
+  background: none; border: none; padding: 7px 4px; border-radius: 8px 8px 0 0;
+  cursor: pointer; text-align: center;
+}
+.sched-tab.active { color: var(--blue); background: var(--bg); }
+.sched-panel { display: none; padding: 10px 16px 12px; }
+.sched-panel.active { display: block; }
+
 /* Index Row */
 .index-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.index-name { font-size: 12.5px; color: var(--text2); font-weight: 500; }
+.index-name { font-size: 15px; color: var(--text2); font-weight: 500; }
 .idx-clickable { cursor: pointer; transition: color var(--t-fast); }
 .idx-clickable:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
-.index-val { font-size: 12.5px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.index-chg { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.index-chg.up { color: var(--green); }
-.index-chg.dn { color: var(--red); }
+.index-val { font-size: 15px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.index-chg { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.index-chg.up { color: var(--red); }
+.index-chg.dn { color: var(--blue); }
 .index-bar { flex: 1; height: 3px; background: var(--bg3); border-radius: 2px; max-width: 60px; }
 .index-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
 
 /* ── Realtime quote tick effects ── */
 @keyframes tickUp {
-  0%   { background: rgba(10,135,84,.28); box-shadow: 0 0 12px rgba(10,135,84,.35); transform: scale(1.02); }
-  100% { background: var(--bg3); box-shadow: none; transform: scale(1); }
-}
-@keyframes tickDown {
   0%   { background: rgba(220,47,62,.28); box-shadow: 0 0 12px rgba(220,47,62,.35); transform: scale(1.02); }
   100% { background: var(--bg3); box-shadow: none; transform: scale(1); }
 }
+@keyframes tickDown {
+  0%   { background: rgba(77,141,255,.28); box-shadow: 0 0 12px rgba(77,141,255,.35); transform: scale(1.02); }
+  100% { background: var(--bg3); box-shadow: none; transform: scale(1); }
+}
 @keyframes priceFlashUp {
-  0%   { color: var(--green); text-shadow: 0 0 10px rgba(10,135,84,.45); }
+  0%   { color: var(--red); text-shadow: 0 0 10px rgba(220,47,62,.45); }
   100% { color: var(--text); text-shadow: none; }
 }
 @keyframes priceFlashDown {
-  0%   { color: var(--red); text-shadow: 0 0 10px rgba(220,47,62,.45); }
+  0%   { color: var(--blue); text-shadow: 0 0 10px rgba(77,141,255,.45); }
   100% { color: var(--text); text-shadow: none; }
 }
 @keyframes livePulse {
@@ -801,29 +968,29 @@ button { font-family: inherit; }
 .earnings-item:last-child { border-bottom: none; }
 .earnings-header { display: flex; align-items: center; gap: 8px; }
 .earnings-ticker {
-  font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
+  font-size: 13.5px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
   background: var(--bg3); color: var(--text2); font-family: var(--font-mono); flex-shrink: 0;
 }
-.earnings-company { font-size: 12px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.earnings-date { font-size: 11px; color: var(--text3); }
-.earnings-meta { display: flex; gap: 10px; font-size: 11px; color: var(--text3); }
-.earnings-beat { color: var(--green); font-weight: 700; }
-.earnings-miss { color: var(--red); font-weight: 700; }
+.earnings-company { font-size: 14.5px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.earnings-date { font-size: 13.5px; color: var(--text3); }
+.earnings-meta { display: flex; gap: 10px; font-size: 13.5px; color: var(--text3); }
+.earnings-beat { color: var(--red); font-weight: 700; }
+.earnings-miss { color: var(--blue); font-weight: 700; }
 .earnings-upcoming { color: var(--yellow); }
-.ei-timing-bmo { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--blue-dim); color: var(--blue); flex-shrink: 0; }
-.ei-timing-amc { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--purple-dim); color: var(--purple); flex-shrink: 0; }
-.ei-date-row { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
+.ei-timing-bmo { font-size: 13px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--blue-dim); color: var(--blue); flex-shrink: 0; }
+.ei-timing-amc { font-size: 13px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--purple-dim); color: var(--purple); flex-shrink: 0; }
+.ei-date-row { font-size: 13.5px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
 .ei-today { color: var(--red); font-weight: 700; }
 .ei-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .ei-metric { background: var(--bg3); border-radius: var(--r-xs); padding: 5px 8px; }
-.ei-metric-label { font-size: 10px; color: var(--text3); margin-bottom: 2px; }
-.ei-metric-val { font-size: 12px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.ei-metric-label { font-size: 13px; color: var(--text3); margin-bottom: 2px; }
+.ei-metric-val { font-size: 14.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .ei-metric-val.whisper { color: var(--blue); }
 .ei-metric-val.iv { color: var(--yellow); }
-.ei-metric-val.rev { color: var(--text2); font-size: 11px; }
-.ei-metric-val.beat { color: var(--green); }
-.ei-metric-val.miss { color: var(--red); }
-.ei-growth { font-size: 10px; color: var(--text3); margin-top: 1px; }
+.ei-metric-val.rev { color: var(--text2); font-size: 13.5px; }
+.ei-metric-val.beat { color: var(--red); }
+.ei-metric-val.miss { color: var(--blue); }
+.ei-growth { font-size: 13px; color: var(--text3); margin-top: 1px; }
 
 /* Economic Calendar */
 .eco-item { padding: 8px 0; border-bottom: 1px solid var(--border-soft); }
@@ -831,64 +998,71 @@ button { font-family: inherit; }
 .eco-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
 .eco-dot-high   { width: 7px; height: 7px; border-radius: 50%; background: var(--red);    flex-shrink: 0; }
 .eco-dot-medium { width: 7px; height: 7px; border-radius: 50%; background: var(--yellow); flex-shrink: 0; }
-.eco-title  { font-size: 12px; font-weight: 600; flex: 1; line-height: 1.3; }
-.eco-flag   { font-size: 12px; flex-shrink: 0; }
-.eco-time   { font-size: 10px; color: var(--text3); font-family: var(--font-mono); margin-bottom: 3px; }
-.eco-values { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.eco-title  { font-size: 14.5px; font-weight: 600; flex: 1; line-height: 1.3; }
+.eco-flag   { font-size: 14.5px; flex-shrink: 0; }
+.eco-time   { font-size: 13px; color: var(--text3); font-family: var(--font-mono); margin-bottom: 3px; }
+.eco-values { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13.5px; }
 .eco-actual         { font-weight: 700; padding: 1px 5px; border-radius: 3px; font-variant-numeric: tabular-nums; }
-.eco-actual.beat    { color: var(--green);  background: var(--green-dim); }
-.eco-actual.miss    { color: var(--red);    background: var(--red-dim); }
+.eco-actual.beat    { color: var(--red);  background: var(--red-dim); }
+.eco-actual.miss    { color: var(--blue);    background: var(--blue-dim); }
 .eco-actual.meet    { color: var(--text2);  background: var(--bg3); }
 .eco-actual.pending { color: var(--yellow); background: var(--yellow-dim); }
 .eco-consensus { color: var(--text3); }
 .eco-prev      { color: var(--text3); }
-.eco-section-label { font-size: 10px; color: var(--text3); font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 6px 0 2px; }
+.eco-section-label { font-size: 13px; color: var(--text3); font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 6px 0 2px; }
 .eco-section-label:first-child { padding-top: 0; }
 .eco-item-done { opacity: .7; }
 .eco-result-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:2px; }
-.eco-meta-row  { display:flex; gap:6px; font-size:10px; color:var(--text3); flex-wrap:wrap; }
+.eco-meta-row  { display:flex; gap:6px; font-size:13px; color:var(--text3); flex-wrap:wrap; }
 
 /* Calendar Modal */
 .cal-overlay { position:fixed; inset:0; background:rgba(19,23,34,.55); z-index:9999; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s ease; backdrop-filter: blur(4px); }
 .cal-modal { background:var(--bg2); border-radius:var(--r-lg); width:min(960px,96vw); max-height:90vh; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border); box-shadow: var(--shadow-pop); }
 .cal-modal-head { padding:14px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-.cal-modal-head h2 { font-size:15px; font-weight:800; margin:0; }
-.cal-close-btn { background:none; border:none; color:var(--text3); font-size:22px; cursor:pointer; line-height:1; padding:0 2px; }
+.cal-modal-head h2 { font-size:17px; font-weight:800; margin:0; }
+.cal-close-btn { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; flex-shrink:0; background:var(--bg3); border:1px solid var(--border); border-radius:10px; color:var(--text1); font-size:20px; cursor:pointer; line-height:1; padding:0; }
 .cal-close-btn:hover { color:var(--text); }
 .cal-tabs { display:flex; gap:0; padding:0 20px; border-bottom:1px solid var(--border); }
-.cal-tab { padding:9px 18px; font-size:13px; font-weight:600; color:var(--text3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color var(--t-fast); }
+.cal-tab { flex:1; min-width:0; text-align:center; padding:9px 18px; font-size:15.5px; font-weight:600; color:var(--text3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color var(--t-fast); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:480px) {
+  .cal-tabs { padding:0 6px; }
+  .cal-tab { padding:9px 4px; font-size:13.5px; }
+}
 .cal-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
 .cal-tab:hover:not(.active) { color:var(--text2); }
 .cal-body { flex:1; overflow-y:auto; padding:0 8px 16px; }
-.cal-tbl { width:100%; border-collapse:collapse; font-size:12px; }
-.cal-tbl th { padding:8px 10px; text-align:left; color:var(--text3); font-size:11px; font-weight:700; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg2); z-index:1; white-space:nowrap; }
+.cal-tbl { width:100%; border-collapse:collapse; font-size:14.5px; }
+.cal-tbl th { padding:8px 10px; text-align:left; color:var(--text3); font-size:13.5px; font-weight:700; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg2); z-index:1; white-space:nowrap; }
 .cal-tbl td { padding:7px 10px; border-bottom:1px solid var(--border-soft); vertical-align:middle; }
 .cal-tbl tr:hover td { background:var(--bg3); }
 .cal-day-hd { background:var(--bg3) !important; }
 
 /* 실적발표 캘린더 — 월 그리드 뷰 */
-.cal-nav-btn { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; color:var(--text2); cursor:pointer; }
+.cal-nav-btn { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:14.5px; font-weight:600; color:var(--text2); cursor:pointer; }
 .cal-nav-btn:hover { background:var(--bg4); color:var(--text); }
 .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding:0 4px; }
-.cal-grid-dow { text-align:center; font-size:11px; font-weight:700; color:var(--text3); padding:4px 0 8px; }
+.cal-grid-dow { text-align:center; font-size:13.5px; font-weight:700; color:var(--text3); padding:4px 0 8px; }
 .cal-grid-cell { min-height:64px; border:1px solid var(--border-soft); border-radius:8px; padding:5px 5px 3px; background:var(--bg2); }
 .cal-grid-cell.empty { border-color:transparent; background:transparent; }
 .cal-grid-cell.today { border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
 .cal-grid-cell.has-events { cursor:pointer; }
 .cal-grid-cell.has-events:hover { background:var(--bg3); }
-.cal-grid-daynum { font-size:11px; font-weight:700; color:var(--text2); margin-bottom:3px; }
+.cal-grid-daynum { font-size:13.5px; font-weight:700; color:var(--text2); margin-bottom:3px; }
 .cal-grid-cell.today .cal-grid-daynum { color:var(--blue); }
-.cal-grid-badge { font-size:9.5px; font-weight:700; font-family:var(--font-mono); color:var(--blue); background:var(--blue-dim); border-radius:3px; padding:1px 4px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.cal-grid-more { font-size:9.5px; color:var(--text3); font-weight:600; }
-#earningsDayDetail { border-top:1px solid var(--border); padding-top:12px; font-size:12.5px; }
+.cal-grid-badge { font-size:12.5px; font-weight:700; font-family:var(--font-mono); color:var(--blue); background:var(--blue-dim); border-radius:3px; padding:1px 4px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cal-grid-more { font-size:12.5px; color:var(--text3); font-weight:600; }
+#earningsDayDetail { border-top:1px solid var(--border); padding-top:12px; font-size:15px; }
 
 /* 데일리 리포트 탭 + 아카이브 */
-.dr-tab { flex:1; padding:6px 0; font-size:12px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:6px; cursor:pointer; transition:all .15s; }
+.dr-tab { flex:1; padding:11px 0; border-radius:10px; font-size:14.5px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:6px; cursor:pointer; transition:all .15s; }
 .dr-tab.active { color:#fff; background:var(--blue); border-color:var(--blue); }
+.rp-archive-btn { display:inline-flex; align-items:center; gap:4px; font-size:14px; font-weight:700; color:var(--blue);
+  background:var(--blue-dim); border:1px solid transparent; border-radius:999px; padding:9px 14px; cursor:pointer; white-space:nowrap; }
+.rp-archive-btn:hover { border-color:var(--blue); }
 .dr-tab:hover:not(.active) { color:var(--text1); }
-.dr-mood { font-size:10px; font-weight:700; padding:3px 8px; border-radius:999px; color:#fff; }
+.dr-mood { font-size:13px; font-weight:700; padding:3px 8px; border-radius:999px; color:#fff; }
 /* 새 리포트 알림 뱃지 */
-.dr-new-pill { font-size:9px; font-weight:800; letter-spacing:.3px; color:#fff; background:var(--red); padding:2px 6px; border-radius:999px; margin-left:6px; vertical-align:middle; animation:drPulse 1.6s ease-in-out infinite; }
+.dr-new-pill { font-size:12px; font-weight:800; letter-spacing:.3px; color:#fff; background:var(--red); padding:2px 6px; border-radius:999px; margin-left:6px; vertical-align:middle; animation:drPulse 1.6s ease-in-out infinite; }
 .dr-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--red); margin-left:5px; vertical-align:middle; box-shadow:0 0 0 2px var(--bg2); }
 @keyframes drPulse { 0%,100%{opacity:1} 50%{opacity:.45} }
 /* 모바일 데일리 리포트 플로팅 버튼 + 바텀시트 */
@@ -898,51 +1072,50 @@ button { font-family: inherit; }
 .dr-fab.has-new .dr-fab-dot { display:block; }
 .dr-sheet { position:fixed; inset:0; z-index:9300; background:rgba(19,23,34,.55); backdrop-filter:blur(4px); display:none; align-items:flex-end; justify-content:center; animation:fadeIn .15s ease; }
 .dr-sheet.show { display:flex; }
-.dr-sheet-panel { background:var(--bg2); width:100%; max-width:620px; max-height:88vh; border-radius:18px 18px 0 0; border:1px solid var(--border); border-bottom:none; display:flex; flex-direction:column; overflow:hidden; animation:drSlideUp .22s cubic-bezier(.2,.8,.2,1); }
+.dr-sheet-panel { background:var(--bg2); width:100%; max-width:620px; height:88vh; max-height:88vh; border-radius:18px 18px 0 0; border:1px solid var(--border); border-bottom:none; display:flex; flex-direction:column; overflow:hidden; animation:drSlideUp .22s cubic-bezier(.2,.8,.2,1); }
 @keyframes drSlideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
 .dr-sheet-head { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 8px; border-bottom:1px solid var(--border); }
 .dr-sheet-grip { position:absolute; top:6px; left:50%; transform:translateX(-50%); width:36px; height:4px; border-radius:2px; background:var(--border); }
-.dr-sheet-body { padding:12px 18px 26px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.dr-sheet-body { flex:1; min-height:0; padding:12px 18px 26px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 /* 바텀시트 안에서는 가독성 위해 폰트 확대 (사이드바 인라인 스타일을 !important로 덮음) */
-.dr-big .dr-headline { font-size:16px !important; line-height:1.45 !important; }
-.dr-big .dr-sec { font-size:12px !important; margin-top:12px !important; }
-.dr-big .dr-list { font-size:14px !important; line-height:1.65 !important; }
+.dr-big .dr-headline { font-size:18px !important; line-height:1.45 !important; }
+.dr-big .dr-sec { font-size:14.5px !important; margin-top:12px !important; }
+.dr-big .dr-list { font-size:16px !important; line-height:1.65 !important; }
 .dr-big .dr-list li { margin-bottom:3px; }
-.dr-big .dr-mood { font-size:12px; padding:4px 10px; }
+.dr-big .dr-mood { font-size:14.5px; padding:4px 10px; }
 /* 다가오는 핵심 catalyst 콜아웃 */
-.dr-cat { font-size:11px; color:var(--text1); background:var(--bg3); border-left:2.5px solid var(--purple); border-radius:4px; padding:4px 8px; line-height:1.45; }
-.dr-big .dr-cat { font-size:13.5px !important; padding:6px 10px; }
+.dr-cat { font-size:13.5px; color:var(--text1); background:var(--bg3); border-left:2.5px solid var(--purple); border-radius:4px; padding:4px 8px; line-height:1.45; }
+.dr-big .dr-cat { font-size:16px !important; padding:6px 10px; }
 @media (max-width: 1100px) { .dr-fab { display:flex; } }   /* 모바일에서 FAB 표시 (기본 규칙보다 뒤에 와야 우선 적용) */
 .arch-item { padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:6px; }
-.arch-item:hover { background:rgba(255,255,255,.04); }
-.arch-back { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--blue); cursor:pointer; margin-bottom:10px; }
-.acc-tab { padding:4px 10px; font-size:11px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:999px; cursor:pointer; }
+.arch-item:hover { background:var(--bg3); }
+.acc-tab { padding:4px 10px; font-size:13.5px; font-weight:600; color:var(--text3); background:var(--bg3); border:1px solid var(--border); border-radius:999px; cursor:pointer; }
 .acc-tab.active { color:#fff; background:var(--blue); border-color:var(--blue); }
-.cal-day-hd td { font-size:11px; font-weight:700; color:var(--text3); letter-spacing:.5px; padding:5px 10px; text-transform:uppercase; }
-.cal-beat { color:var(--green); font-weight:700; }
-.cal-miss { color:var(--red);   font-weight:700; }
+.cal-day-hd td { font-size:13.5px; font-weight:700; color:var(--text3); letter-spacing:.5px; padding:5px 10px; text-transform:uppercase; }
+.cal-beat { color:var(--red); font-weight:700; }
+.cal-miss { color:var(--blue);   font-weight:700; }
 .cal-meet { color:var(--text2); font-weight:700; }
 .cal-pend { color:var(--yellow); }
-.cal-hi   { color:var(--red);    font-size:10px; font-weight:700; }
-.cal-med  { color:var(--yellow); font-size:10px; }
+.cal-hi   { color:var(--red);    font-size:13px; font-weight:700; }
+.cal-med  { color:var(--yellow); font-size:13px; }
 
 /* Trump / Truth Social */
 .trump-item { padding: 8px 0; border-bottom: 1px solid var(--border-soft); }
 .trump-item:last-child { border-bottom: none; }
-.trump-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; color: var(--red); background: var(--red-dim); padding: 2px 7px; border-radius: 3px; margin-bottom: 4px; }
-.trump-text  { font-size: 12px; line-height: 1.5; color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.trump-meta  { font-size: 10px; color: var(--text3); margin-top: 3px; font-family: var(--font-mono); }
+.trump-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--red); background: var(--red-dim); padding: 2px 7px; border-radius: 3px; margin-bottom: 4px; }
+.trump-text  { font-size: 14.5px; line-height: 1.5; color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.trump-meta  { font-size: 13px; color: var(--text3); margin-top: 3px; font-family: var(--font-mono); }
 
 /* Analyst Ratings */
 .analyst-item { padding: 10px 0; border-bottom: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 5px; }
 .analyst-item:last-child { border-bottom: none; }
 .analyst-header { display: flex; align-items: center; gap: 6px; }
 .analyst-ticker {
-  font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
+  font-size: 13.5px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-xs);
   background: var(--bg3); color: var(--text2); font-family: var(--font-mono); flex-shrink: 0;
 }
-.analyst-name { font-size: 12px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.analyst-consensus { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+.analyst-name { font-size: 14.5px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.analyst-consensus { font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
 .ac-strong-buy { background: var(--green-dim);  color: var(--green); }
 .ac-buy        { background: var(--green-dim);  color: var(--green); }
 .ac-hold       { background: var(--yellow-dim); color: var(--yellow); }
@@ -952,14 +1125,14 @@ button { font-family: inherit; }
 .ab-buy  { background: var(--green);  border-radius: 3px 0 0 3px; }
 .ab-hold { background: #e3b53a; }
 .ab-sell { background: var(--red); border-radius: 0 3px 3px 0; }
-.analyst-bar-legend { display: flex; gap: 8px; font-size: 10px; color: var(--text3); }
+.analyst-bar-legend { display: flex; gap: 8px; font-size: 13px; color: var(--text3); }
 .abl-buy { color: var(--green); }
 .abl-hold{ color: var(--yellow); }
 .abl-sell{ color: var(--red); }
-.analyst-pt { font-size: 11px; color: var(--text2); }
-.analyst-pt-range { font-size: 10px; color: var(--text3); }
+.analyst-pt { font-size: 13.5px; color: var(--text2); }
+.analyst-pt-range { font-size: 13px; color: var(--text3); }
 .analyst-recent { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
-.analyst-action { font-size: 10px; display: flex; align-items: center; gap: 4px; color: var(--text3); }
+.analyst-action { font-size: 13px; display: flex; align-items: center; gap: 4px; color: var(--text3); }
 .aa-icon-up   { color: var(--green); font-weight: 700; }
 .aa-icon-down { color: var(--red); font-weight: 700; }
 .aa-icon-main { color: var(--text3); }
@@ -969,10 +1142,10 @@ button { font-family: inherit; }
 /* Breaking News */
 .breaking-item { padding: 8px 0; border-bottom: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 3px; }
 .breaking-item:last-child { border-bottom: none; }
-.breaking-time { font-size: 10px; color: var(--text3); font-family: var(--font-mono); }
-.breaking-title { font-size: 12px; line-height: 1.45; }
+.breaking-time { font-size: 13px; color: var(--text3); font-family: var(--font-mono); }
+.breaking-title { font-size: 14.5px; line-height: 1.45; }
 .breaking-badge {
-  display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px;
+  display: inline-block; font-size: 13px; font-weight: 700; padding: 1px 6px;
   border-radius: 3px; margin-bottom: 3px;
 }
 .badge-breaking { background: var(--red-dim);    color: var(--red); }
@@ -991,7 +1164,7 @@ button { font-family: inherit; }
 .site-footer-inner {
   max-width: var(--page-max); margin: 0 auto; padding: 20px var(--page-pad);
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  font-size: 11px; color: var(--text3); line-height: 1.6;
+  font-size: 13.5px; color: var(--text3); line-height: 1.6;
 }
 .site-footer-inner b { color: var(--text2); font-weight: 700; }
 
@@ -1004,8 +1177,10 @@ button { font-family: inherit; }
 @media (max-width: 760px) {
   /* 헤더 네비가 좁은 화면에서 잘리지 않고 줄바꿈되도록 — 페이지 전체 가로
      스크롤이 생겨 모바일 브라우저가 레이아웃을 축소 렌더링하는 문제 방지 */
-  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; }
+  .header-inner { flex-wrap: wrap; height: auto; padding: 8px 0; row-gap: 6px; position: relative; }
   .header-nav { flex-wrap: wrap; row-gap: 4px; }
+  /* 로그인/유저메뉴는 로고와 같은 첫 줄 우측 끝에 고정 — 아래로 줄바꿈되는 네비 목록과 분리 */
+  #loginBtn, .user-menu { position: absolute; top: 8px; right: 0; margin-left: 0; }
 
   /* "지금 매수 후보" 카드 그리드가 minmax(420px,...)라서 375px 화면에서 넘쳐
      모바일 브라우저가 페이지 전체를 축소 렌더링하던 문제 — 위와 같은 원인.
@@ -1020,45 +1195,80 @@ button { font-family: inherit; }
   :root { --page-pad: 16px; }
   .header-inner { padding: 8px 0; gap: 10px; }
   .logo-sub { display: none; }
-  .hero-title { font-size: 19px; }
+  .hero-title { font-size: 21px; }
   .issues-grid { grid-template-columns: 1fr; }
   .watchlist-grid { grid-template-columns: 1fr; }
   .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .stat-value { font-size: 18px; }
+  .stat-value { font-size: 20px; }
   .search-box input { width: 120px; }
-  .nav-btn { padding: 6px 9px; font-size: 12px; }
+  .nav-btn { padding: 6px 9px; font-size: 14.5px; }
+
+  /* 모바일 홈은 최신 뉴스 3개만 노출 + "뉴스 더 보기" 버튼으로 news.html 유도
+     (데스크톱은 기존과 동일하게 9개 + 페이지네이션 그대로 노출). #pagination/#newsMoreBtn은
+     인라인 style="display:..."이 있어 !important 없이는 이 규칙이 안 먹힘(인라인 스타일이
+     외부 스타일시트보다 항상 우선) — index.html의 다른 모바일 오버라이드와 동일 패턴. */
+  #issuesContainer .issues-grid > .issue-card:nth-child(n+4) { display: none; }
+  #pagination { display: none !important; }
+  #newsMoreBtn { display: inline-block !important; }
 }
+
+/* ═══ 📊 실시간 랭킹 (토스) ═══ */
+.rk-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; scrollbar-width: none; }
+.rk-controls::-webkit-scrollbar { display: none; }
+.rk-markets { display: inline-flex; gap: 2px; background: var(--bg3); border-radius: 10px; padding: 3px; flex-shrink: 0; }
+.rk-mkt { border: none; background: transparent; color: var(--text2); font-size: 15.5px; font-weight: 700; padding: 7px 18px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.rk-mkt.active { background: var(--blue); color: #fff; }
+.rk-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+.rk-cats { display: flex; gap: 6px; flex-shrink: 0; }
+.rk-cat { border: 1px solid var(--border); background: var(--bg2); color: var(--text2); font-size: 15px; font-weight: 600; padding: 7px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+.rk-cat.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+/* 모바일: "전체"는 두 마켓을 나란히 욱여넣어 한 줄에 다 안 들어오던 원인이라 빼고,
+   카테고리 버튼(인기/거래대금/…)은 첫 줄 밖으로 밀려 잘리던 걸 아랫줄로 내려 한눈에 보이게.
+   데스크톱은 기존 한 줄 가로스크롤 그대로 유지. */
+@media (max-width: 640px) {
+  .rk-mkt[data-mkt="all"] { display: none; }
+  .rk-controls { flex-wrap: wrap; overflow: visible; row-gap: 8px; }
+  .rk-sep { display: none; }
+  .rk-cats { flex-wrap: wrap; width: 100%; }
+}
+.rk-cols { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+.rk-cols.single { grid-template-columns: minmax(0,1fr); }
+.rk-col-head { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--text2); letter-spacing: 0.02em; margin-bottom: 4px; padding: 0 4px 9px; border-bottom: 1px solid var(--border); }
+.rk-list { display: flex; flex-direction: column; }
+.rk-item { display: flex; align-items: center; gap: 12px; padding: 11px 8px; text-decoration: none; color: var(--text); border-bottom: 1px solid var(--border-soft); transition: background var(--t-fast); }
+.rk-item:last-child { border-bottom: none; }
+.rk-item:hover { background: var(--bg2); border-radius: 8px; }
+.rk-rank { width: 22px; text-align: center; font-size: 16px; font-weight: 800; color: var(--text3); font-family: var(--font-mono); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.rk-item:nth-child(-n+3) .rk-rank { color: var(--blue); }
+.rk-main { flex: 1; min-width: 0; }
+.rk-name { font-size: 16px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 5px; }
+.rk-name .nm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.rk-ticker { flex-shrink: 0; font-size: 13px; font-weight: 600; color: var(--text3); font-family: var(--font-mono, monospace); }
+.rk-sub { font-size: 13.5px; color: var(--text3); margin-top: 3px; min-height: 14px; line-height: 1.3; white-space: nowrap; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent); mask-image: linear-gradient(90deg, #000 92%, transparent); }
+.rk-sub.rk-issue { color: var(--text2); }
+.rk-sub-inner { display: inline-block; white-space: nowrap; }
+.rk-sub-inner.marquee { animation-name: rkMarquee; animation-timing-function: linear; animation-iteration-count: infinite; }
+.rk-sub-gap { display: inline-block; width: 36px; }
+@keyframes rkMarquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.rk-price { text-align: right; flex-shrink: 0; }
+.rk-px { font-size: 16px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rk-chg { font-size: 14.5px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.rk-chg.up { color: var(--red); } .rk-chg.dn { color: var(--blue); } .rk-chg.flat { color: var(--text3); }
+.rk-px.flash-up, .rk-chg.flash-up { animation: priceFlashUp .9s ease-out; }
+.rk-px.flash-down, .rk-chg.flash-down { animation: priceFlashDown .9s ease-out; }
+.rk-loading, .rk-empty { text-align: center; color: var(--text3); font-size: 15.5px; padding: 30px 20px; line-height: 1.8; }
+.rk-retry-btn { border: 1px solid var(--border); background: var(--bg2); color: var(--blue); font-size: 15px; font-weight: 700; padding: 6px 14px; border-radius: 999px; cursor: pointer; margin-top: 4px; }
+.rk-retry-btn:hover { border-color: var(--blue); }
+@media (max-width: 640px) { .rk-cols { grid-template-columns: minmax(0,1fr); } }
 
 </style>
 </head>
 <body>
 
-<header class="header">
-  <div class="header-inner">
-    <a href="/" class="logo">
-      <div class="logo-icon">〜</div>
-      <div>
-        <div class="logo-text">StockRipple</div>
-        <div class="logo-sub">파급효과 주식 전망</div>
-      </div>
-    </a>
-    <nav class="header-nav" id="headerNav">
-      <a href="/picks.html" class="nav-btn">🎯 매수 후보</a>
-      <a href="/heatmap.html" class="nav-btn">🔥 히트맵</a>
-      <a href="/kr-market.html" class="nav-btn">📊 시장 현황</a>
-      <a href="/sectors.html" class="nav-btn">🧭 섹터 지도</a>
-      <a href="/portfolio.html" class="nav-btn">📝 페이퍼 트레이딩</a>
-      <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">로그인</button>
-      <div class="user-menu" id="userMenu" style="display:none">
-        <button class="user-avatar-btn" id="userAvatar" onclick="toggleUserDropdown()"></button>
-        <div class="user-dropdown" id="userDropdown" style="display:none">
-          <a href="/account.html" class="dropdown-item">계정 설정</a>
-          <button class="dropdown-item" onclick="doSignOut()">로그아웃</button>
-        </div>
-      </div>
-    </nav>
-  </div>
-</header>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/index.html');</script>
 
 <!-- Indices Ticker Bar -->
 <div class="indices-ticker" id="indicesTicker">
@@ -1081,36 +1291,10 @@ button { font-family: inherit; }
   </div>
 </div>
 
-<div class="hero" id="heroSection">
-  <h1 class="hero-title">
-    오늘의 이슈가 <span>어떤 주식</span>을 움직이나요?
-  </h1>
-  <p class="hero-sub">뉴스 이슈 → 파급 섹터 분석 → 수혜 기업 발굴 → 상승 가능성 시각화</p>
-  <div class="stats-bar" id="statsBar">
-    <div class="stat-item">
-      <span class="stat-label">분석된 이슈</span>
-      <span class="stat-value blue" id="statIssues">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">발굴 기업</span>
-      <span class="stat-value blue" id="statCompanies">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">평균 예상 상승률</span>
-      <span class="stat-value green" id="statUpside">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">AI 1일 정확도</span>
-      <span class="stat-value green" id="statAccuracy">—</span>
-    </div>
-    <div class="stat-sep"></div>
-    <div class="stat-item">
-      <span class="stat-label">최근 업데이트</span>
-      <span class="stat-value" id="statUpdated" style="font-size:15px;color:var(--text2);margin-top:3px">—</span>
-    </div>
+<div class="hero-strip" id="heroSection">
+  <div class="hero-strip-text">
+    <span class="hero-strip-badge">🤖 오늘의 AI 브리핑</span>
+    <span class="hero-strip-headline" id="heroHeadline" onclick="openHeroBriefDetail()" role="button" tabindex="0">오늘의 시장 브리핑을 불러오는 중...</span>
   </div>
 </div>
 
@@ -1119,110 +1303,118 @@ button { font-family: inherit; }
   <!-- 메인 피드 -->
   <div id="mainCol">
 
-    <!-- 📢 피드 상단 배너 광고 -->
-    <div id="feedAdSlot" style="margin-bottom:20px"></div>
+    <!-- 👋 첫 방문자 소개 (한 번 닫으면 localStorage로 다시 안 뜸) -->
+    <div class="intro-strip" id="introStrip" hidden>
+      <div class="intro-strip-body">
+        <div class="intro-strip-title">👋 StockRipple은 이런 곳이에요</div>
+        <p class="intro-strip-text">
+          뉴스 하나가 <b>어떤 회사 주가까지 흔드는지</b> 따라가 보여주는 곳입니다.
+          예를 들어 "반도체 수출이 늘었다"는 뉴스가 나오면, 그게 어떤 업종과 회사에
+          영향을 주는지 AI가 연결해 정리해 줍니다.
+        </p>
+        <p class="intro-strip-text intro-strip-note">
+          아래로 내리면 <b>오늘의 시장 지표</b>, <b>사람들이 많이 보는 종목</b>,
+          <b>뉴스별 분석</b> 순서로 볼 수 있어요. 투자 권유가 아니라 정보 제공 서비스입니다.
+        </p>
+      </div>
+      <button type="button" class="intro-strip-close" onclick="dismissIntro()" aria-label="소개 닫기">알겠어요 ✕</button>
+    </div>
 
-    <!-- 🎯 지금 매수 후보 -->
-    <div id="insightsSection" class="section-block" style="display:none">
+
+    <!-- 📊 시장 지표 대시보드 -->
+    <div id="mktDashSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
           <span class="sh-mark"></span>
-          <span class="sh-title">지금 매수 후보</span>
-          <span class="sh-desc">AI 예측 · 기술 시그널 · 수급 · 펀더멘털 통합 랭킹</span>
-        </div>
-        <div class="section-head-r">
-          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none">
-            <input type="checkbox" id="strictModeToggle" onchange="reloadInsightsForPage()" style="cursor:pointer">
-            <span>🔒 엄격 모드 (신뢰도 ≥80%)</span>
-          </label>
-          <span style="font-size:11px;color:var(--text3)" id="insightsUpdated">—</span>
+          <span class="sh-title">시장 지표</span>
+          <span class="sh-desc">오늘 주요 지수·환율·유가가 오르내린 정도</span>
         </div>
       </div>
-      <div id="insightsPanel"></div>
+      <div class="mkt-status" id="mktStatus"></div>
+      <div class="mkt-hero-row">
+        <a class="mkt-hero mkt-card-link" id="mktHero" href="/market-detail.html?sym=nasdaq">
+          <div class="mkt-hero-top">
+            <div><div class="mkt-hero-name"><span class="mkt-live-dot" id="mktHeroDot"></span><span id="mktHeroName">나스닥</span></div><div class="mkt-hero-tag" id="mktHeroTag">NASDAQ Composite</div></div>
+            <div style="text-align:right">
+              <div class="mkt-hero-val" id="mktHeroVal">—</div>
+              <div class="mkt-hero-chg" id="mktHeroChg">—</div>
+            </div>
+          </div>
+          <div class="mkt-hero-chart" id="mktHeroChart"></div>
+          <div class="mkt-52w" id="mktHero52w" style="display:none">
+            <div class="mkt-52w-label"><span>52주 최저</span><span>52주 최고</span></div>
+            <div class="mkt-52w-track"><div class="mkt-52w-dot" id="mktHero52wDot"></div></div>
+            <div class="mkt-52w-label" style="margin-top:5px"><span id="mktHero52wLo"></span><span id="mktHero52wHi"></span></div>
+          </div>
+        </a>
+        <a class="mkt-hero mkt-hero-sub mkt-card-link" id="mktHeroSub" href="/market-detail.html?sym=kospi">
+          <div class="mkt-hero-top">
+            <div><div class="mkt-hero-name"><span class="mkt-live-dot" id="mktHeroSubDot"></span><span id="mktHeroSubName">코스피</span></div><div class="mkt-hero-tag" id="mktHeroSubTag">KOSPI Composite</div></div>
+            <div style="text-align:right">
+              <div class="mkt-hero-val" id="mktHeroSubVal">—</div>
+              <div class="mkt-hero-chg" id="mktHeroSubChg">—</div>
+            </div>
+          </div>
+          <div class="mkt-hero-chart" id="mktHeroSubChart"></div>
+          <div class="mkt-52w" id="mktHeroSub52w" style="display:none">
+            <div class="mkt-52w-label"><span>52주 최저</span><span>52주 최고</span></div>
+            <div class="mkt-52w-track"><div class="mkt-52w-dot" id="mktHeroSub52wDot"></div></div>
+            <div class="mkt-52w-label" style="margin-top:5px"><span id="mktHeroSub52wLo"></span><span id="mktHeroSub52wHi"></span></div>
+          </div>
+        </a>
+      </div>
+      <button type="button" class="mkt-more-toggle" id="mktMoreToggle" onclick="toggleMktMore()">
+        <span id="mktMoreToggleLabel">더 많은 지표 보기</span><span id="mktMoreToggleIcon">▾</span>
+      </button>
+      <div class="mkt-dash-grid collapsed" id="mktDashGrid">
+        <!-- 나머지 카드 + 코스피200 야간선물 링크는 JS(renderMarketDash)가 채움 -->
+      </div>
     </div>
 
-    <!-- 🔥 마켓 히트맵 -->
-    <div id="heatmapSection" class="section-block">
+    <!-- 📊 실시간 랭킹 (토스 공식) -->
+    <div id="rankingsSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--red)"></span>
-          <span class="sh-title">마켓 히트맵</span>
-          <span id="heatmapUpdatedAt" class="sh-desc">—</span>
-          <span id="heatmapMarketStatus" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px"></span>
+          <span class="sh-mark"></span>
+          <span class="sh-title">실시간 랭킹</span>
+          <span class="sh-desc">지금 사람들이 가장 많이 보고 사고파는 종목 (토스 공식 · 장 마감 시 마지막 정규장 기준)</span>
         </div>
         <div class="section-head-r">
-          <button onclick="loadHeatmap()" title="수동 새로고침" class="icon-btn">🔄</button>
-          <div class="seg">
-            <button class="hm-tab hm-mkt active" data-mkt="us"     onclick="switchHeatmap('us', null)">🇺🇸 미장</button>
-            <button class="hm-tab hm-mkt"        data-mkt="sector" onclick="switchHeatmap('sector', null)">📊 섹터</button>
-            <button class="hm-tab hm-mkt"        data-mkt="etf"    onclick="switchHeatmap('etf', null)">⚡ ETF</button>
-            <button class="hm-tab hm-mkt"        data-mkt="assets" onclick="switchHeatmap('assets', null)">🌍 자산</button>
-            <button class="hm-tab hm-mkt"        data-mkt="kr"     onclick="switchHeatmap('kr', null)">🇰🇷 국장</button>
-          </div>
-          <div class="seg">
-            <button class="hm-tab hm-range active" data-range="1d"  onclick="switchHeatmap(null, '1d')">일간</button>
-            <button class="hm-tab hm-range"        data-range="1mo" onclick="switchHeatmap(null, '1mo')">월간</button>
-          </div>
-          <div class="seg" id="heatmapViewToggle">
-            <button class="hm-tab hm-view active" data-view="sector" onclick="switchHeatmapView('sector')">🧩 섹터별</button>
-            <button class="hm-tab hm-view"        data-view="all"    onclick="switchHeatmapView('all')">📋 개별종목 전체</button>
-          </div>
+          <span style="font-size:13.5px;color:var(--text3)" id="rankingsUpdated">—</span>
         </div>
       </div>
-      <div id="heatmapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;min-height:80px">
-        <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
-      </div>
-      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--text3)">
-        <span>📡 데이터: Yahoo Finance (실시간 ~15분 지연 가능) · 환율·금리·원자재는 지수 기준</span>
-        <span id="heatmapItemCount"></span>
-      </div>
-    </div>
-
-    <div style="text-align:center;margin:-8px 0 8px">
-      <a href="/heatmap.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">🔥 히트맵 전체보기 →</a>
-    </div>
-
-    <!-- 🇰🇷 국장 현황 (거래량 TOP / 상한가 / 하한가 / 수급 TOP) -->
-    <div id="krMarketSection" class="section-block">
-      <div class="section-head">
-        <div class="section-head-l">
-          <span class="sh-mark" style="background:var(--yellow)"></span>
-          <span class="sh-title">국장 현황</span>
-          <span id="krMarketUpdatedAt" class="sh-desc">—</span>
+      <div class="rk-controls">
+        <div class="rk-markets" id="rkMarkets">
+          <button class="rk-mkt active" data-mkt="all" onclick="setRkMarket('all',this)">전체</button>
+          <button class="rk-mkt" data-mkt="kr" onclick="setRkMarket('kr',this)">국장</button>
+          <button class="rk-mkt" data-mkt="us" onclick="setRkMarket('us',this)">해외</button>
         </div>
-        <div class="section-head-r">
-          <button onclick="loadKrMarket()" title="수동 새로고침" class="icon-btn">🔄</button>
-          <div class="seg">
-            <button class="hm-tab km-tab active" data-km="volume" onclick="switchKrMarket('volume')">📊 거래량 TOP</button>
-            <button class="hm-tab km-tab"        data-km="up"     onclick="switchKrMarket('up')">🔴 상한가</button>
-            <button class="hm-tab km-tab"        data-km="down"  onclick="switchKrMarket('down')">🔵 하한가</button>
-            <button class="hm-tab km-tab"        data-km="flow"  onclick="switchKrMarket('flow')">💰 수급 TOP (5일)</button>
-            <button class="hm-tab km-tab"        data-km="surge" onclick="switchKrMarket('surge')">🚀 거래량 급증</button>
-          </div>
+        <div class="rk-sep"></div>
+        <div class="rk-cats" id="rkCats">
+          <button class="rk-cat active" data-cat="popular" onclick="setRkCat('popular',this)">🔥 인기</button>
+          <button class="rk-cat" data-cat="amount" onclick="setRkCat('amount',this)">💰 거래대금</button>
+          <button class="rk-cat" data-cat="volume" onclick="setRkCat('volume',this)">📊 거래량</button>
+          <button class="rk-cat" data-cat="gainers" onclick="setRkCat('gainers',this)">🚀 급상승</button>
+          <button class="rk-cat" data-cat="losers" onclick="setRkCat('losers',this)">📉 급하락</button>
         </div>
       </div>
-      <div id="krMarketPanel" style="min-height:80px">
-        <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">로딩 중...</div>
-      </div>
-      <div style="margin-top:10px;font-size:10px;color:var(--text3)">
-        📡 데이터: 네이버 증권 · 거래량/상한가/하한가는 코스피+코스닥 전체, 수급 TOP은 시가총액 상위 약 150종목(ETF 제외) 기준 5일 누적 순매수
-      </div>
+      <div id="rankingsBody"><div class="rk-loading">불러오는 중...</div></div>
     </div>
 
-    <div style="text-align:center;margin:-8px 0 24px">
-      <a href="/kr-market.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:13px;text-decoration:none">🇰🇷 국장 현황 전체보기 →</a>
-    </div>
+    <!-- 📢 피드 광고 (2026-07 개편: 매수 후보 아래로 이동) -->
+    <div id="feedAdSlot" style="margin:20px 0"></div>
 
-    <!-- 📰 최신 분석 이슈 -->
+    <!-- 📰 최신 분석 이슈 (2026-07 개편: 시장현황 프리뷰보다 위로 — 이 사이트의 핵심 가치인
+         "이슈→수혜주" 흐름을 신규 방문자가 스크롤 없이 바로 보게) -->
     <div id="issuesSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
           <span class="sh-mark" style="background:var(--purple)"></span>
           <span class="sh-title">최신 분석 이슈</span>
-          <span class="sh-desc">뉴스 → 파급 섹터 → 수혜 기업 분석</span>
-          <span id="feedLiveTag" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
+          <span class="sh-desc">뉴스 하나가 어떤 업종과 회사 주가까지 흔드는지 따라가 봅니다</span>
+          <span id="feedLiveTag" style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
         </div>
-        <span style="font-size:11px;color:var(--text3)" id="issuesCount"></span>
+        <span style="font-size:13.5px;color:var(--text3)" id="issuesCount"></span>
       </div>
 
       <!-- 카테고리 + 섹터 필터 + 검색 (이슈 피드 전용 툴바) -->
@@ -1261,7 +1453,7 @@ button { font-family: inherit; }
         </div>
       </div>
 
-      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:12.5px;font-weight:700;text-align:center">
+      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:15px;font-weight:700;text-align:center">
         🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
       </div>
 
@@ -1274,6 +1466,74 @@ button { font-family: inherit; }
 
       <!-- Pagination -->
       <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:24px;padding-bottom:8px"></div>
+
+      <!-- 모바일 전용: 최신 3건만 보여준 뒤 전체 목록은 news.html로 유도 (desktop은 CSS로 숨김) -->
+      <div style="text-align:center;margin-top:14px">
+        <a href="/news.html" id="newsMoreBtn" style="display:none;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">뉴스 더 보기 →</a>
+      </div>
+    </div>
+
+    <!-- 🔥 마켓 히트맵 (시장 현황 프리뷰 — 2026-07 개편으로 이슈 피드 아래로 이동) -->
+    <div id="heatmapSection" class="section-block">
+      <div class="section-head">
+        <div class="section-head-l">
+          <span class="sh-mark" style="background:var(--red)"></span>
+          <span class="sh-title">마켓 히트맵</span>
+          <span class="sh-desc">빨간색은 오른 종목, 파란색은 내린 종목 — 칸이 클수록 큰 회사</span>
+          <span id="heatmapUpdatedAt" class="sh-desc">—</span>
+          <span id="heatmapMarketStatus" style="font-size:13px;font-weight:600;padding:2px 8px;border-radius:999px"></span>
+        </div>
+        <div class="section-head-r">
+          <button onclick="loadHeatmap()" title="수동 새로고침" class="icon-btn">🔄</button>
+          <div class="seg">
+            <button class="hm-tab hm-mkt active" data-mkt="us" onclick="switchHeatmap('us', null)">🇺🇸 미장</button>
+            <button class="hm-tab hm-mkt"        data-mkt="kr" onclick="switchHeatmap('kr', null)">🇰🇷 국장</button>
+          </div>
+        </div>
+      </div>
+      <div id="heatmapGrid" style="min-height:80px">
+        <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>
+      </div>
+      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--text3)">
+        <span>📡 데이터: Yahoo Finance (실시간 ~15분 지연 가능)</span>
+        <span id="heatmapItemCount"></span>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin:-8px 0 8px">
+      <a href="/heatmap.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">🔥 히트맵 전체보기 →</a>
+    </div>
+
+    <!-- 🇰🇷 국장 현황 (거래량 TOP / 상한가 / 하한가 / 수급 TOP) -->
+    <div id="krMarketSection" class="section-block">
+      <div class="section-head">
+        <div class="section-head-l">
+          <span class="sh-mark" style="background:var(--yellow)"></span>
+          <span class="sh-title">국장 현황</span>
+          <span class="sh-desc">한국 주식시장이 오늘 어떻게 움직였는지</span>
+          <span id="krMarketUpdatedAt" class="sh-desc">—</span>
+        </div>
+        <div class="section-head-r">
+          <button onclick="loadKrMarket()" title="수동 새로고침" class="icon-btn">🔄</button>
+          <div class="seg">
+            <button class="hm-tab km-tab active" data-km="volume" onclick="switchKrMarket('volume')">📊 거래량 TOP</button>
+            <button class="hm-tab km-tab"        data-km="up"     onclick="switchKrMarket('up')">🔴 상한가</button>
+            <button class="hm-tab km-tab"        data-km="down"  onclick="switchKrMarket('down')">🔵 하한가</button>
+            <button class="hm-tab km-tab"        data-km="flow"  onclick="switchKrMarket('flow')">💰 수급 TOP (5일)</button>
+            <button class="hm-tab km-tab"        data-km="surge" onclick="switchKrMarket('surge')">🚀 거래량 급증</button>
+          </div>
+        </div>
+      </div>
+      <div id="krMarketPanel" style="min-height:80px">
+        <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>
+      </div>
+      <div style="margin-top:10px;font-size:13px;color:var(--text3)">
+        📡 데이터: 네이버 증권 · 거래량/상한가/하한가는 코스피+코스닥 전체, 수급 TOP은 시가총액 상위 약 150종목(ETF 제외) 기준 5일 누적 순매수
+      </div>
+    </div>
+
+    <div style="text-align:center;margin:-8px 0 24px">
+      <a href="/kr-market.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">🇰🇷 국장 현황 전체보기 →</a>
     </div>
 
     <div class="watchlist-view" id="watchlistView"></div>
@@ -1281,84 +1541,84 @@ button { font-family: inherit; }
 
   <!-- 우측 사이드바 -->
   <aside class="sidebar" id="sidebar">
-    <!-- 🔍 종목 조회 (피드 검색 + 티커 직접 조회) -->
-    <div class="sidebar-card" id="stockLookupCard">
-      <div style="padding:10px 12px">
-        <div class="search-box" style="position:relative;display:flex;align-items:center;gap:6px">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--text3);flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)" style="flex:1;min-width:0"
-                 onkeydown="if(event.key==='Enter') tryDirectLookup(this.value)">
-          <button onclick="tryDirectLookup(document.getElementById('searchInput').value)"
-                  title="티커 직접 조회 (Yahoo Finance에서 자동 등록)" class="icon-btn" style="white-space:nowrap;flex-shrink:0">🔍 종목 조회</button>
-        </div>
-      </div>
-    </div>
-
     <!-- 🤖 AI 시장 종합 -->
     <div class="sidebar-card" id="aiMarketSummaryCard">
       <div class="sidebar-card-header">
         <span class="sidebar-card-title">🤖 AI 시장 종합<span class="dr-dot" id="aiMSDot" style="display:none"></span></span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span onclick="openReportArchive('ai')" style="font-size:11px;color:var(--blue);cursor:pointer">지난 리포트</span>
-          <span style="font-size:11px;color:var(--text3)" id="aiMSCreatedAt">—</span>
-        </div>
+        <button type="button" class="rp-archive-btn" onclick="openReportArchive('ai')">🗂 지난 리포트</button>
       </div>
       <div style="padding:12px 16px" id="aiMarketSummaryBody">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+        <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
       </div>
-    </div>
-
-    <!-- 📌 주간 일정 (토·일 자동 생성) -->
-    <div class="sidebar-card" id="weeklyScheduleCard" style="display:none">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📌 주간 주요 일정</span>
-        <span style="font-size:11px;color:var(--text3)" id="wsWeekLabel">—</span>
-      </div>
-      <div style="padding:12px 16px" id="weeklyScheduleBody"></div>
     </div>
 
     <!-- 📰 데일리 리포트 (국장/미장) -->
     <div class="sidebar-card" id="dailyReportCard">
       <div class="sidebar-card-header">
         <span class="sidebar-card-title">📰 데일리 리포트<span id="drNewPill" class="dr-new-pill" style="display:none">NEW</span></span>
-        <span onclick="openReportArchive(_drTab === 'KR' ? 'dr-kr' : 'dr-us')" style="font-size:11px;color:var(--blue);cursor:pointer">지난 리포트</span>
+        <button type="button" class="rp-archive-btn" onclick="openReportArchive(_drTab === 'KR' ? 'dr-kr' : 'dr-us')">🗂 지난 리포트</button>
       </div>
       <div style="display:flex;gap:6px;padding:10px 16px 0">
         <button class="dr-tab active" id="drTabUS" onclick="switchDrTab('US')">🇺🇸 미장<span class="dr-dot" id="drDotUS" style="display:none"></span></button>
         <button class="dr-tab" id="drTabKR" onclick="switchDrTab('KR')">🇰🇷 국장<span class="dr-dot" id="drDotKR" style="display:none"></span></button>
       </div>
       <div style="padding:10px 16px 12px" id="dailyReportBody">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+        <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
       </div>
     </div>
 
-    <!-- 📊 섹터 모멘텀 -->
+    <!-- 📅 일정 통합 (2026-07 개편: 주간일정·경제지표·실적캘린더·만기일 4개 카드를
+         탭 하나로 — 각 패널 안의 콘텐츠 div id는 그대로 유지해서 app.js 로직은 안 건드림 -->
     <div class="sidebar-card">
       <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📊 섹터 모멘텀</span>
-        <span style="font-size:11px;color:var(--text3)">SPDR 1d</span>
+        <span class="sidebar-card-title">📅 일정</span>
       </div>
-      <div style="padding:12px 16px" id="sectorMomentum">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
+      <div class="sched-tabs">
+        <button class="sched-tab active" data-sched="weekly"   onclick="switchSchedTab('weekly')">주간</button>
+        <button class="sched-tab"        data-sched="econ"     onclick="switchSchedTab('econ')">지표</button>
+        <button class="sched-tab"        data-sched="earnings" onclick="switchSchedTab('earnings')">실적<span id="earnCountPill" class="dr-new-pill" style="display:none"></span></button>
+        <button class="sched-tab"        data-sched="expiry"   onclick="switchSchedTab('expiry')">만기</button>
+      </div>
+
+      <!-- 주간 주요 일정 — display:none 초기값은 그대로 유지(loadWeeklySchedule이 데이터
+           있을 때만 card.style.display=''로 해제, 없으면 탭을 눌러도 빈 화면 대신 계속 숨김) -->
+      <div class="sched-panel active" data-panel="weekly" id="weeklyScheduleCard" style="display:none">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><span style="font-size:13.5px;color:var(--text3)" id="wsWeekLabel">—</span></div>
+        <div id="weeklyScheduleBody"></div>
+      </div>
+
+      <div class="sched-panel" data-panel="econ">
+        <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:4px">
+          <span onclick="openCalendarModal('eco')" style="font-size:13.5px;color:var(--blue);cursor:pointer">전체보기</span>
+          <span class="live-dot" style="background:var(--yellow);animation:pulse 2s infinite"></span>
+        </div>
+        <div id="economicCalendar">
+          <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:16px 0">로딩 중...</div>
+        </div>
+      </div>
+
+      <div class="sched-panel" data-panel="earnings">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+          <span onclick="openCalendarModal('earnings')" style="font-size:13.5px;color:var(--blue);cursor:pointer">전체보기</span>
+        </div>
+        <div id="earningsCalendar">
+          <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:16px 0">로딩 중...</div>
+        </div>
+      </div>
+
+      <div class="sched-panel" data-panel="expiry">
+        <div id="expiryPanel">
+          <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
+        </div>
       </div>
     </div>
 
-    <!-- 🔗 Cross-Asset Correlation -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">🔗 자산 간 상관관계</span>
-        <span style="font-size:11px;color:var(--text3)">30일</span>
-      </div>
-      <div style="padding:10px" id="corrMatrix">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 주요 지수 -->
+    <!-- 주요 지수 + 섹터 모멘텀 (2026-07 개편: 지수는 상단 티커 바와 성격이 겹쳐서
+         모멘텀과 한 카드로 묶어 비중을 줄임) -->
     <div class="sidebar-card">
       <div class="sidebar-card-header">
         <span class="sidebar-card-title"><span class="live-dot"></span> 주요 지수</span>
-        <span style="font-size:11px;color:var(--text3)" id="indicesUpdatedAt">—</span>
+        <span style="font-size:13.5px;color:var(--text3)" id="indicesUpdatedAt">—</span>
       </div>
       <div class="sidebar-card-body" id="sidebarIndices">
         <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('sp500')">S&amp;P 500</span><span class="index-val" id="si-sp500">—</span><span class="index-chg flat" id="si-sp500-chg">—</span></div>
@@ -1372,52 +1632,42 @@ button { font-family: inherit; }
         <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('usdkrw')">USD/KRW</span><span class="index-val" id="si-usdkrw">—</span><span class="index-chg flat" id="si-usdkrw-chg">—</span></div>
         <div class="index-row"><span class="index-name idx-clickable" onclick="openIndexChart('vix')">VIX (공포지수)</span><span class="index-val" id="si-vix">—</span><span class="index-chg flat" id="si-vix-chg">—</span></div>
       </div>
-    </div>
-
-    <!-- 선물/옵션 만기일 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📅 만기일</span>
-        <span style="font-size:11px;color:var(--text3)">선물·옵션</span>
-      </div>
-      <div style="padding:8px 16px 12px" id="expiryPanel">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 경제지표 일정 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📈 경제지표 일정</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span onclick="openCalendarModal('eco')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
-          <span class="live-dot" style="background:var(--yellow);animation:pulse 2s infinite"></span>
+      <div style="border-top:1px solid var(--border-soft);padding:10px 16px 12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:14px;font-weight:700;color:var(--text2)">📊 섹터 모멘텀</span>
+          <span style="font-size:13px;color:var(--text3)">SPDR 1d</span>
+        </div>
+        <div id="sectorMomentum">
+          <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
         </div>
       </div>
-      <div style="padding:12px 16px" id="economicCalendar">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
     </div>
 
-    <!-- 실적발표 캘린더 -->
+    <!-- 🧰 더 많은 도구 (2026-07 개편: 상관관계·투자의견은 파워유저용이라 기본 접힘) -->
     <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">📊 실적발표 캘린더</span>
-        <span onclick="openCalendarModal('earnings')" style="font-size:11px;color:var(--blue);cursor:pointer">전체보기</span>
+      <div class="sidebar-card-header" style="cursor:pointer" onclick="toggleMoreTools()">
+        <span class="sidebar-card-title">🧰 더 많은 도구</span>
+        <span id="moreToolsChevron" style="font-size:13.5px;color:var(--text3);transition:transform .15s">▾</span>
       </div>
-      <div style="padding:12px 16px" id="earningsCalendar">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
-      </div>
-    </div>
-
-    <!-- 투자의견 -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header">
-        <span class="sidebar-card-title">🏦 투자의견</span>
-        <span style="font-size:11px;color:var(--text3)" id="analystUpdatedAt">—</span>
-      </div>
-      <div style="padding:12px 16px" id="analystRatings">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px 0">로딩 중...</div>
+      <div id="moreToolsBody" style="display:none">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border-soft)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:14px;font-weight:700;color:var(--text2)">🔗 자산 간 상관관계</span>
+            <span style="font-size:13px;color:var(--text3)">30일</span>
+          </div>
+          <div id="corrMatrix">
+            <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:8px 0">로딩 중...</div>
+          </div>
+        </div>
+        <div style="padding:12px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:14px;font-weight:700;color:var(--text2)">🏦 투자의견</span>
+            <span style="font-size:13px;color:var(--text3)" id="analystUpdatedAt">—</span>
+          </div>
+          <div id="analystRatings">
+            <div style="color:var(--text3);font-size:14.5px;text-align:center;padding:16px 0">로딩 중...</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1425,14 +1675,8 @@ button { font-family: inherit; }
 </div><!-- layout-with-sidebar end -->
 </main>
 
-<footer class="site-footer">
-  <div class="site-footer-inner">
-    <span><b>StockRipple</b> · 뉴스 파급효과 기반 AI 종목 분석 — 본 서비스의 모든 분석·추천은 투자 참고용이며, 투자 판단과 책임은 이용자 본인에게 있습니다.</span>
-    <span>데이터: Yahoo Finance · 네이버증권 · DART · NewsAPI · Claude AI</span>
-  </div>
-</footer>
-
-<div class="toast" id="toast"></div>
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
 
 <!-- 피드백 챗봇 -->
 <button class="fb-fab" id="fbFab" onclick="openFeedbackChat()" aria-label="의견 주기" title="의견 주기">💬</button>
@@ -1447,77 +1691,7 @@ button { font-family: inherit; }
   </div>
 </div>
 
-<!-- Auth Modal -->
-<div id="authOverlay" class="auth-overlay" style="display:none" onclick="if(event.target===this)closeAuthModal()">
-  <div class="auth-modal">
-    <button class="auth-close" onclick="closeAuthModal()" aria-label="닫기">✕</button>
-    <div class="auth-logo">Stock<span>Ripple</span></div>
-    <h2 class="auth-title" id="authTitle">로그인</h2>
-    <button class="auth-btn-google" onclick="signInWithGoogle()">
-      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-      Google로 계속하기
-    </button>
-    <div class="auth-consent" id="authConsentRow" style="display:none">
-      <label class="auth-consent-label">
-        <input type="checkbox" id="authConsent">
-        <span>이메일 주소 수집·이용에 동의합니다. <button type="button" class="auth-link-inline" onclick="togglePrivacyText(event)">약관 보기</button></span>
-      </label>
-      <div id="authPrivacyText" class="auth-privacy-text" style="display:none">
-        · 수집 항목: 이메일 주소 (Google 로그인 시 Google 계정의 이메일)<br>
-        · 수집 목적: 회원 식별, 로그인, 관심종목·북마크 등 계정 기반 기능 제공<br>
-        · 보유 기간: 회원 탈퇴 시까지 — 탈퇴 즉시 파기<br>
-        · 제3자 제공: 없음<br>
-        · 동의를 거부할 수 있으나, 거부 시 회원가입이 제한됩니다.
-      </div>
-    </div>
-    <div class="auth-divider"><span>이메일로 계속하기</span></div>
-    <form id="authForm" data-mode="signin" onsubmit="submitAuth(event)" autocomplete="on">
-      <div class="auth-field">
-        <label for="authEmail">이메일</label>
-        <input type="email" id="authEmail" name="email" class="auth-input" placeholder="example@email.com" required autocomplete="email">
-      </div>
-      <div class="auth-field">
-        <label for="authPass" id="authPassLabel">비밀번호</label>
-        <input type="password" id="authPass" name="password" class="auth-input" placeholder="6자 이상" required minlength="6" autocomplete="current-password">
-      </div>
-      <div id="authError" class="auth-error"></div>
-      <button type="submit" id="authSubmitBtn" class="auth-submit-btn">로그인</button>
-    </form>
-    <div class="auth-switch" id="authSwitchText">
-      계정이 없나요? <button onclick="switchAuthMode('signup')" class="auth-link">회원가입</button>
-    </div>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/app.js" defer></script>
-
-<style>
-.sp-card {
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 14px 16px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  text-decoration: none; color: var(--text);
-  transition: transform .12s var(--ease), border-color .12s, box-shadow .12s;
-}
-.sp-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--blue);
-  box-shadow: 0 8px 24px rgba(0,102,204,0.10);
-}
-.sp-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.sp-ticker {
-  font-family: var(--font-mono, 'SF Mono', monospace);
-  font-size: 12px; font-weight: 700;
-  padding: 3px 9px; border-radius: 6px; letter-spacing: .3px;
-}
-.sp-market { font-size: 11px; color: var(--text3); font-weight: 500; }
-.sp-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; }
-.sp-name-sub { font-size: 11px; color: var(--text3); font-weight: 400; }
-.sp-arrow { font-size: 11px; color: var(--blue); margin-top: 4px; font-weight: 500; }
-</style>
 
 <!-- 📰 데일리 리포트 모바일 플로팅 버튼 + 바텀시트 -->
 <button class="dr-fab" id="drFab" onclick="openDrSheet()" aria-label="데일리 리포트 열기" title="데일리 리포트">📰<span class="dr-fab-dot"></span></button>
@@ -1525,9 +1699,9 @@ button { font-family: inherit; }
   <div class="dr-sheet-panel">
     <div class="dr-sheet-head">
       <span class="dr-sheet-grip"></span>
-      <span style="font-size:14px;font-weight:800;display:flex;align-items:center;gap:6px" id="drSheetTitle">📰 데일리 리포트</span>
+      <span style="font-size:16px;font-weight:800;display:flex;align-items:center;gap:6px" id="drSheetTitle">📰 데일리 리포트</span>
       <div style="display:flex;align-items:center;gap:12px">
-        <span onclick="closeDrSheet();openReportArchive(_drSheetTab==='KR'?'dr-kr':_drSheetTab==='AI'?'ai':'dr-us')" style="font-size:12px;color:var(--blue);cursor:pointer">지난 리포트</span>
+        <button type="button" class="rp-archive-btn" onclick="closeDrSheet();openReportArchive(_drSheetTab==='KR'?'dr-kr':_drSheetTab==='AI'?'ai':'dr-us')">🗂 지난 리포트</button>
         <button class="cal-close-btn" onclick="closeDrSheet()">✕</button>
       </div>
     </div>
@@ -1537,22 +1711,8 @@ button { font-family: inherit; }
       <button class="dr-tab" id="drSheetTabAI" onclick="switchDrSheetTab('AI')">🤖 AI 종합<span class="dr-dot" id="drSheetDotAI" style="display:none"></span></button>
     </div>
     <div class="dr-sheet-body dr-big" id="drSheetBody">
-      <div style="color:var(--text3);font-size:13px;text-align:center;padding:24px 0">로딩 중...</div>
+      <div style="color:var(--text3);font-size:15.5px;text-align:center;padding:24px 0">로딩 중...</div>
     </div>
-  </div>
-</div>
-
-<!-- 종목 검색 결과 카드 모달 -->
-<div id="searchPickerModal" style="display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px" onclick="closeSearchPicker(event)">
-  <div style="background:var(--bg);border-radius:var(--r-lg,20px);width:min(820px,96vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-pop,0 20px 60px rgba(0,0,0,.18))">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--border);flex-shrink:0">
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
-        <span style="font-weight:700;font-size:17px">🔍 "<span id="searchPickerQuery"></span>" 검색 결과</span>
-        <span id="searchPickerCount" style="font-size:12px;color:var(--text3)"></span>
-      </div>
-      <button onclick="closeSearchPicker({target:{id:'searchPickerModal'}})" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;line-height:1;padding:2px 8px">&times;</button>
-    </div>
-    <div id="searchPickerGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;padding:18px 22px;overflow-y:auto"></div>
   </div>
 </div>
 
@@ -1561,8 +1721,8 @@ button { font-family: inherit; }
   <div style="background:var(--card);border-radius:14px;width:min(860px,96vw);height:min(540px,85vh);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.6)">
     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0">
       <div style="display:flex;align-items:center;gap:10px">
-        <span id="indexChartTitle" style="font-weight:700;font-size:16px"></span>
-        <span id="indexChartSub" style="font-size:11px;color:var(--text3)">TradingView</span>
+        <span id="indexChartTitle" style="font-weight:700;font-size:18px"></span>
+        <span id="indexChartSub" style="font-size:13.5px;color:var(--text3)">TradingView</span>
       </div>
       <button onclick="closeIndexChart()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1;padding:2px 6px">&times;</button>
     </div>
@@ -1576,7 +1736,7 @@ button { font-family: inherit; }
   </div>
 </div>
 <style>
-.ichrt-btn { background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;transition:all .15s; }
+.ichrt-btn { background:var(--bg2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:3px 10px;font-size:14.5px;cursor:pointer;transition:all .15s; }
 .ichrt-btn:hover { border-color:var(--blue);color:var(--blue); }
 .ichrt-btn.active { background:var(--blue);border-color:var(--blue);color:#fff; }
 </style>
@@ -1597,10 +1757,25 @@ button { font-family: inherit; }
   iframe.style.cssText = `border:0;width:${isMobile ? 320 : 728}px;height:${isMobile ? 100 : 90}px;display:block;margin:0 auto;max-width:100%`;
   container.appendChild(iframe);
   const disclosure = document.createElement('div');
-  disclosure.style.cssText = 'text-align:center;font-size:10px;color:var(--text3);margin-top:6px';
+  disclosure.style.cssText = 'text-align:center;font-size:13px;color:var(--text3);margin-top:6px';
   disclosure.textContent = '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.';
   container.appendChild(disclosure);
 })();
+
+// 📅 일정 탭 전환 + 🧰 더 많은 도구 접기/펼치기 (2026-07 사이드바 개편, index.html 전용 —
+// app.js는 각 패널 안의 콘텐츠 div id만 그대로 참조하므로 건드리지 않음)
+function switchSchedTab(name) {
+  document.querySelectorAll('.sched-tab').forEach(b => b.classList.toggle('active', b.dataset.sched === name));
+  document.querySelectorAll('.sched-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
+}
+function toggleMoreTools() {
+  const body = document.getElementById('moreToolsBody');
+  const chevron = document.getElementById('moreToolsChevron');
+  if (!body) return;
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
+}
 
 let _icurIdx = null, _icurInterval = 'D';
 
@@ -1644,6 +1819,273 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && document.getElementById('indexChartModal').style.display === 'flex')
     closeIndexChart();
 });
+
+// ═══ 📊 실시간 랭킹 (토스 공식) — index.html 전용 ═══
+// 인기(TOSS_SECURITIES_거래대금)/거래대금/거래량은 realtime, 급상승/급하락은 1d.
+// 장 마감이어도 마지막 정규장 데이터가 나온다(서버 handleTossRankingsAll에서 처리).
+const RK_CAT_METRIC = { popular:null, amount:'amount', volume:'volume', gainers:'amount', losers:'amount' };
+let _rkMarket = 'all', _rkCat = 'popular';
+const _rkCache = { kr:null, us:null };
+let _rkTimer = null;
+
+function _rkEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _rkPrice(v,cur){ if(v==null) return '—'; return cur==='KRW' ? '₩'+Math.round(v).toLocaleString('ko-KR') : '$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:2}); }
+function _rkAmount(v,cur){ if(v==null) return ''; if(cur==='KRW'){ if(v>=1e12) return (v/1e12).toFixed(1)+'조'; if(v>=1e8) return Math.round(v/1e8).toLocaleString()+'억'; return Math.round(v).toLocaleString(); } if(v>=1e9) return '$'+(v/1e9).toFixed(1)+'B'; if(v>=1e6) return '$'+(v/1e6).toFixed(0)+'M'; return '$'+Math.round(v).toLocaleString(); }
+function _rkVol(v){ if(v==null) return ''; if(v>=1e8) return (v/1e8).toFixed(1)+'억'; if(v>=1e4) return Math.round(v/1e4).toLocaleString()+'만'; return Math.round(v).toLocaleString(); }
+
+function _rkList(items, cat, marketKey){
+  if(!items || !items.length) return '<div class="rk-empty">데이터가 없어요.</div>';
+  const metric = RK_CAT_METRIC[cat];
+  return '<div class="rk-list">' + items.map(it => {
+    const cls = it.changePercent==null ? 'flat' : it.changePercent>0 ? 'up' : it.changePercent<0 ? 'dn' : 'flat';
+    const sign = it.changePercent>0 ? '+' : '';
+    const chg = it.changePercent==null ? '—' : `${sign}${it.changePercent.toFixed(2)}%`;
+    // 종목코드 대신: 그 종목의 현재 이슈 한줄요약(rkHydrateIssues가 채움). 없으면 지표(거래대금/거래량) 폴백.
+    let fb = '';
+    if (metric==='amount') fb = '거래대금 ' + _rkAmount(it.tradingAmount, it.currency);
+    else if (metric==='volume') fb = '거래량 ' + _rkVol(it.tradingVolume);
+    const nameHtml = marketKey === 'us'
+      ? `<span class="nm-text">${_rkEsc(it.name)}</span><span class="rk-ticker">${_rkEsc(it.symbol)}</span>`
+      : _rkEsc(it.name);
+    return `<a class="rk-item" data-ticker="${_rkEsc(it.linkTicker)}" data-category="${_rkEsc(cat)}" data-fb="${_rkEsc(fb)}" data-name="${_rkEsc(it.name||'')}" data-symbol="${_rkEsc(it.symbol||'')}" href="/company.html?ticker=${encodeURIComponent(it.linkTicker)}">
+      <span class="rk-rank">${it.rank}</span>
+      <div class="rk-main"><div class="rk-name">${nameHtml}</div><div class="rk-sub"><span class="rk-sub-inner">${_rkEsc(fb)}</span></div></div>
+      <div class="rk-price"><div class="rk-px" data-val="${it.price ?? ''}" data-cur="${_rkEsc(it.currency)}">${_rkPrice(it.price,it.currency)}</div><div class="rk-chg ${cls}" data-val="${it.changePercent ?? ''}">${chg}</div></div>
+    </a>`;
+  }).join('') + '</div>';
+}
+
+// 랭킹 종목의 서브라인 — 1순위 rank_reasons(랭킹 지표 근거 AI 사유), 2순위 최근 관련뉴스
+// 매칭, 둘 다 없으면 지표 폴백(data-fb). 카테고리별로 사유가 다를 수 있어 ticker|category로 캐싱.
+const _rkIssue = {};  // "ticker|category" -> 표시문구 | null(조회했으나 없음)
+function _rkKey(el){ return el.getAttribute('data-ticker') + '|' + (el.getAttribute('data-category') || ''); }
+function _rkApplyIssues(){
+  document.querySelectorAll('#rankingsBody .rk-item[data-ticker]').forEach(el => {
+    const sub = el.querySelector('.rk-sub');
+    if(!sub) return;
+    const issue = _rkIssue[_rkKey(el)];
+    if(issue){ sub.classList.add('rk-issue'); sub.innerHTML = `<span class="rk-sub-inner">📰 ${_rkEsc(issue)}</span>`; }
+    else { sub.classList.remove('rk-issue'); sub.innerHTML = `<span class="rk-sub-inner">${_rkEsc(el.getAttribute('data-fb') || '')}</span>`; }
+  });
+  _rkApplyMarquee();
+}
+// 문구가 폭보다 길면 ...으로 자르는 대신 좌우로 계속 흘러가는 마퀴 효과를 준다.
+function _rkApplyMarquee(){
+  document.querySelectorAll('#rankingsBody .rk-sub').forEach(sub => {
+    const inner = sub.querySelector('.rk-sub-inner');
+    if(!inner) return;
+    const overflow = inner.scrollWidth - sub.clientWidth;
+    if(overflow > 4){
+      const text = inner.textContent;
+      inner.innerHTML = `<span>${_rkEsc(text)}</span><span class="rk-sub-gap"></span><span>${_rkEsc(text)}</span>`;
+      const loopWidth = inner.scrollWidth / 2;
+      const duration = Math.max(5, loopWidth / 30); // 초당 30px 속도
+      inner.style.animationDuration = duration + 's';
+      inner.classList.add('marquee');
+    }
+  });
+}
+// 유사투자자문업 리스크 대응(2026-07-21) 이후: analysis_companies(AI 매수논리)는 더 이상
+// 공개 조회하지 않는다. 대신 issues(뉴스 제목)만으로 "이 종목이 언급된 최신 기사 제목"을
+// 순수 정보성으로 붙인다 — 투자판단/신뢰도 없이 "최근 이 종목 관련 기사가 있었다"는 사실만.
+async function _rkFillIssues(){
+  _rkApplyIssues();  // 캐시분 즉시 반영
+  const need = [];
+  const nameOf = {};
+  const marketOf = {};
+  document.querySelectorAll('#rankingsBody .rk-item[data-ticker]').forEach(el => {
+    const key = _rkKey(el);
+    const t = el.getAttribute('data-ticker');
+    if(t && !(key in _rkIssue)) {
+      need.push(key);
+      nameOf[key] = { name: el.getAttribute('data-name')||'', symbol: el.getAttribute('data-symbol')||'' };
+      // KR 티커는 .KS/.KQ 접미사가 붙어있음 — rank_reasons.market 값과 맞춰 판별.
+      marketOf[key] = /\.(KS|KQ)$/.test(t) ? 'KR' : 'US';
+    }
+  });
+  const uniq = [...new Set(need)];
+  if(!uniq.length || typeof sb === 'undefined') return;
+  uniq.forEach(key => _rkIssue[key] = null);  // 조회 표시(중복 방지)
+
+  // 1순위: rank_reasons(랭킹 지표+뉴스를 근거로 AI가 작성한 사유, 카테고리별로 다를 수 있음).
+  try{
+    const tickers = [...new Set(uniq.map(key => key.split('|')[0]))];
+    const { data: reasons } = await sb.from('rank_reasons')
+      .select('ticker, category, reason')
+      .in('ticker', tickers);
+    for(const r of (reasons || [])){
+      const key = `${r.ticker}|${r.category}`;
+      if(uniq.includes(key) && r.reason && r.reason.trim()) _rkIssue[key] = r.reason.trim().slice(0, 30);
+    }
+  }catch{}
+
+  // 2순위(rank_reasons에 없는 것만): 최근 관련뉴스 매칭. 실제로 화면에 보여줄 텍스트
+  // (ai_digest 우선, 없으면 title) 자체에 그 종목명이 있어야 매칭 — 원문 제목에만 있고
+  // 요약엔 다른 종목 얘기뿐이면(예: "삼성전자 순매수 1위" 기사에 SK하이닉스도 언급)
+  // 무관한 종목에 엉뚱한 요약이 붙는 걸 방지.
+  const stillNeed = uniq.filter(key => !_rkIssue[key]);
+  if(!stillNeed.length){ _rkApplyIssues(); return; }
+  try{
+    const { data } = await sb.from('issues')
+      .select('title, ai_digest, published_at')
+      .neq('ai_digest', '')
+      .order('published_at', { ascending:false })
+      .limit(300);
+    const rows = data || [];
+    for(const key of stillNeed){
+      const { name, symbol } = nameOf[key];
+      const shortName = (name || '').replace(/\(.*?\)/g, '').trim();
+      const match = rows.find(row => {
+        const shown = (row.ai_digest && row.ai_digest.trim()) || row.title;
+        if(!shown) return false;
+        if(shortName && shortName.length >= 2 && shown.includes(shortName)) return true;
+        if(symbol && symbol.length >= 2 && new RegExp(`\\b${symbol.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(shown)) return true;
+        return false;
+      });
+      // 이쪽은 원문 뉴스 요약(1~3문장)이라 30자로 강제 절삭하면 문장이 중간에 끊겨 보인다 —
+      // 그대로 전체를 넘기고 폭보다 길면 기존 마퀴(_rkApplyMarquee)가 좌우 롤링으로 보여준다.
+      if(match) _rkIssue[key] = (match.ai_digest && match.ai_digest.trim()) || match.title;
+    }
+  }catch{}
+  _rkApplyIssues();
+}
+
+// 캐시가 아직 없으면(로딩/실패) 빈 '데이터 없음' 대신 로딩 표시 — 초기 콜드로드 시
+// 한쪽 시장만 늦게 오는 경우 사용자가 빈 컬럼을 오인하지 않게.
+function _rkColInner(cache, cat, marketKey){
+  if(cache) return _rkList(cache.categories?.[cat] || [], cat, marketKey);
+  if(_rkFailed[marketKey]) return `<div class="rk-empty">데이터를 불러오지 못했어요.<br><button class="rk-retry-btn" onclick="_rkRetryOne('${marketKey}')">다시 시도</button></div>`;
+  return '<div class="rk-loading">불러오는 중...</div>';
+}
+// 리스트 전체를 새로 그리는 방식(순위가 바뀔 수 있어 diff patch 대신 통째로 재렌더)이라,
+// 그냥 innerHTML만 바꾸면 홈 지수 카드처럼 숫자가 굴러가며 반짝이는 효과가 안 생긴다 —
+// 새로 그리기 직전에 티커별 이전 값을 스냅샷해두고, 그린 뒤 같은 티커의 새 엘리먼트에
+// dataset.animVal로 그 이전 값을 "심어" animateNumberText가 이전→신규로 보간하게 만든다.
+function _rkSnapshotVals(body){
+  const snap = {};
+  body.querySelectorAll('.rk-item[data-ticker]').forEach(el => {
+    const t = el.getAttribute('data-ticker');
+    const px = el.querySelector('.rk-px'), chg = el.querySelector('.rk-chg');
+    snap[t] = {
+      price: px?.dataset.animVal ?? px?.dataset.val,
+      chg: chg?.dataset.animVal ?? chg?.dataset.val,
+    };
+  });
+  return snap;
+}
+function _rkAnimateVals(body, prevSnap){
+  body.querySelectorAll('.rk-item[data-ticker]').forEach(el => {
+    const t = el.getAttribute('data-ticker');
+    const prev = prevSnap[t];
+    if(!prev) return; // 새로 등장한 종목(리스트에 없던 티커) — 애니메이션 없이 그대로 표시
+    const px = el.querySelector('.rk-px');
+    if(px && px.dataset.val !== '' && prev.price !== '' && prev.price != null){
+      px.dataset.animVal = prev.price;
+      animateNumberText(px, Number(px.dataset.val), v => _rkPrice(v, px.dataset.cur), ['flash-up','flash-down']);
+    }
+    const chg = el.querySelector('.rk-chg');
+    if(chg && chg.dataset.val !== '' && prev.chg !== '' && prev.chg != null){
+      chg.dataset.animVal = prev.chg;
+      animateNumberText(chg, Number(chg.dataset.val), v => (v>0?'+':'') + v.toFixed(2) + '%', ['flash-up','flash-down']);
+    }
+  });
+}
+function _rkRender(){
+  const body = document.getElementById('rankingsBody');
+  if(!body) return;
+  const prevSnap = _rkSnapshotVals(body);
+  if(_rkMarket==='all'){
+    body.innerHTML = `<div class="rk-cols">
+      <div><div class="rk-col-head">🇰🇷 국장</div>${_rkColInner(_rkCache.kr,_rkCat,'kr')}</div>
+      <div><div class="rk-col-head">🇺🇸 해외</div>${_rkColInner(_rkCache.us,_rkCat,'us')}</div>
+    </div>`;
+  } else {
+    body.innerHTML = `<div class="rk-cols single">${_rkColInner(_rkMarket==='kr'?_rkCache.kr:_rkCache.us,_rkCat,_rkMarket)}</div>`;
+  }
+  _rkAnimateVals(body, prevSnap);
+  const upd = document.getElementById('rankingsUpdated');
+  const ts = _rkCache.kr?.updatedAt || _rkCache.us?.updatedAt;
+  if(upd && ts) upd.textContent = new Date(ts).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit'}) + ' 기준';
+  _rkFillIssues();  // 종목별 현재 이슈 한줄요약 채우기(캐시 즉시 반영 + 신규 조회)
+}
+
+function setRkMarket(m, btn){ _rkMarket=m; document.querySelectorAll('.rk-mkt').forEach(b=>b.classList.toggle('active',b===btn)); _rkEnsure().then(_rkRender); }
+function setRkCat(c, btn){ _rkCat=c; document.querySelectorAll('.rk-cat').forEach(b=>b.classList.toggle('active',b===btn)); _rkRender(); }
+
+const _rkFailed = { kr:false, us:false };  // 재시도까지 다 실패한 시장 — '다시 시도' 버튼 노출용
+async function _rkFetch(market){
+  // 콜드 스타트/프록시 일시 장애에 대비해 백오프를 늘려가며 여러 번 재시도.
+  const delays = [600, 1200, 2400];
+  for(let attempt=0; attempt<=delays.length; attempt++){
+    try { const r = await fetch(`/api/toss?action=rankings-all&market=${market}&count=12`); if(r.ok){ const j = await r.json(); if(j.ok) return j; } }
+    catch {}
+    if(attempt < delays.length) await new Promise(res=>setTimeout(res,delays[attempt]));
+  }
+  return null;
+}
+// 현재 필터에 필요한 시장만 로드. 전체=kr+us, 국장=kr, 해외=us.
+// 시장을 '순차' 로드해 콜드 프록시에 몰리는 동시 Toss 콜을 절반으로 줄이고(12→6),
+// 각 시장이 준비될 때마다 즉시 렌더(점진 표시).
+async function _rkEnsure(force){
+  const need = _rkMarket==='all' ? ['kr','us'] : [_rkMarket];
+  for(const m of need){
+    if(!force && _rkCache[m]) continue;
+    const d = await _rkFetch(m==='kr'?'KR':'US');
+    if(d) { _rkCache[m] = d; _rkFailed[m] = false; _rkRender(); }
+    else if(!_rkCache[m]) { _rkFailed[m] = true; _rkRender(); }
+  }
+}
+// 실패 상태에서 사용자가 직접 누르는 재시도 버튼.
+async function _rkRetryOne(m){
+  _rkFailed[m] = false;
+  _rkRender();  // 즉시 '불러오는 중' 표시로 전환
+  const d = await _rkFetch(m==='kr'?'KR':'US');
+  if(d) { _rkCache[m] = d; _rkFailed[m] = false; } else { _rkFailed[m] = true; }
+  _rkRender();
+}
+async function initRankings(){
+  if(!document.getElementById('rankingsSection')) return;
+  // 모바일은 "전체"(국장+해외 2열) 버튼을 CSS로 숨기므로, 시작 상태가 'all'이면 좁은
+  // 화면에 2열이 욱여넣어진 채로 남는다 — 지금이 국내 장중이면 국장, 아니면 해외로
+  // 기본 스코프를 바꿔준다(heroMarketMeta의 시간대 판정 재사용).
+  if (window.innerWidth <= 640 && _rkMarket === 'all') {
+    // heroMarketMeta()(app.js)를 재사용하려 했으나, app.js는 defer라 문서 파싱이 끝난
+    // 뒤에야 실행되는데 이 인라인 스크립트의 최초 initRankings() 호출은 파싱 도중
+    // 곧바로 실행돼 그보다 먼저 온다 — "heroMarketMeta is not defined"로 조용히
+    // 실패하던 버그(2026-07-28, 콘솔 확인). 동일 판정식을 이 스크립트 안에 직접 넣어
+    // 로드 순서와 무관하게 만든다.
+    const kst = new Date(Date.now() + 9 * 3600000);
+    const day = kst.getUTCDay(), mins = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+    const isKrWindow = day >= 1 && day <= 5 && mins >= 530 && mins < 1080; // 08:50~18:00
+    _rkMarket = isKrWindow ? 'kr' : 'us';
+    const btn = document.querySelector(`.rk-mkt[data-mkt="${_rkMarket}"]`);
+    document.querySelectorAll('.rk-mkt').forEach(b => b.classList.toggle('active', b === btn));
+  }
+  await _rkEnsure();
+  _rkRender();
+  // 콜드 스타트 시 첫 응답의 일부 카테고리가 빌 수 있어(프록시 워밍업) 3초 뒤 한 번 더 강제 갱신.
+  setTimeout(async () => { await _rkEnsure(true); _rkRender(); }, 3000);
+  if(_rkTimer) clearInterval(_rkTimer);
+  // 서버 캐시(handleTossRankingsAll)도 10초로 맞춰뒀음 — 여기만 줄이면 캐시 히트만 반복될 뿐
+  // 실제로 더 신선해지지 않으니 항상 같이 조정할 것.
+  _rkTimer = setInterval(async () => { if(document.hidden) return; await _rkEnsure(true); _rkRender(); }, 10000);
+}
+initRankings();
+
+// 👋 첫 방문자 소개 스트립 — 한 번 닫으면 다시 안 띄운다.
+const INTRO_KEY = 'sr_intro_dismissed';
+function dismissIntro() {
+  const el = document.getElementById('introStrip');
+  if (el) el.hidden = true;
+  try { localStorage.setItem(INTRO_KEY, '1'); } catch {}
+}
+(function initIntro() {
+  let seen = false;
+  try { seen = localStorage.getItem(INTRO_KEY) === '1'; } catch {}
+  if (seen) return;
+  const el = document.getElementById('introStrip');
+  if (el) el.hidden = false;
+})();
 </script>
 </body>
 </html>

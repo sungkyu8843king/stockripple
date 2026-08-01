@@ -13,7 +13,7 @@
     "api/market-data.js":    { "maxDuration": 60 }
   },
   "rewrites": [
-    { "source": "/analysis/:id", "destination": "/analysis.html" },
+    { "source": "/analysis/:id", "destination": "/analysis.html?id=:id" },
 
     { "source": "/api/fetch-news",        "destination": "/api/fetch?type=news" },
     { "source": "/api/fetch-rss",         "destination": "/api/fetch?type=rss" },
@@ -32,8 +32,12 @@
     { "source": "/api/quotes",       "destination": "/api/market-data?source=quotes" },
     { "source": "/api/technicals",   "destination": "/api/market-data?source=technicals" },
     { "source": "/api/earnings",     "destination": "/api/market-data?source=earnings" },
+    { "source": "/api/earnings-calendar", "destination": "/api/market-data?source=earnings-calendar" },
+    { "source": "/api/earnings-detail",   "destination": "/api/market-data?source=earnings-detail" },
     { "source": "/api/market-pulse", "destination": "/api/market-data?source=market-pulse" },
     { "source": "/api/kr-overtime",  "destination": "/api/market-data?source=kr-overtime" },
-    { "source": "/api/us-market",    "destination": "/api/market-data?source=us-market" }
+    { "source": "/api/us-market",    "destination": "/api/market-data?source=us-market" },
+    { "source": "/api/toss",         "destination": "/api/market-data?source=toss" },
+    { "source": "/api/etf",          "destination": "/api/market-data?source=etf" }
   ]
 }

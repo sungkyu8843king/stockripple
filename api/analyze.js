@@ -23,22 +23,35 @@ function detectBreakingNews(title) {
   if (!title) return null;
   return BREAKING_KEYWORDS.find(k => title.includes(k)) || null;
 }
-// 자동 배너 노출 유지 시간 — 서킷브레이커·사이드카 등 이벤트 창을 덮되 하루종일
-// 남지 않도록 2시간 뒤 자동 만료. 만료 처리는 handleGetAnnouncement가 조회 시점에
-// lazily 수행한다(별도 cron 불필요 — 배너는 매 페이지 로드마다 폴링됨).
-const AUTO_ANNOUNCE_TTL_MS = 2 * 3600 * 1000;
+// 자동 배너 노출 유지 시간 — checkFuturesSidecar(api/admin.js)의 사이드카 배너와 동일
+// 규칙(2026-07-28 통일): 최초 감지 시점 값을 그대로 30분 유지 후 자동 종료. 이 함수는
+// 이미 이슈 단위로 한 번만 세팅하고 재호출은 위 40번째 줄에서 걸러지므로(같은 이슈로
+// 중복 트리거 안 됨) 값 드리프트 문제는 원래 없었지만, TTL은 기존 2시간에서 통일했다.
+// 만료 처리는 handleGetAnnouncement가 조회 시점에 lazily 수행(별도 cron 불필요).
+const AUTO_ANNOUNCE_TTL_MS = 30 * 60 * 1000;
 
 async function maybeAutoAnnounce(issue, matchedKeyword) {
   try {
-    const { data: cur } = await supabase.from('site_announcement').select('active, source, source_issue_id').eq('id', 1).maybeSingle();
-    if (cur?.source === 'manual' && cur?.active) return; // 관리자가 수동으로 켠 배너는 보존
+    const { data: cur } = await supabase.from('site_announcement').select('active, source, source_issue_id, auto_expires_at').eq('id', 1).maybeSingle();
+    if (cur?.source === 'manual') {
+      if (cur.active) return; // 관리자가 켠 배너 보존
+      // 관리자가 방금 끈 배너 — checkFuturesSidecar와 동일하게 auto_expires_at을 뮤트
+      // 마감시각으로 존중한다(꺼도 바로 다시 켜지던 버그, 2026-07-15).
+      if (cur.auto_expires_at && new Date(cur.auto_expires_at) > new Date()) return;
+    }
     if (cur?.source === 'auto' && cur?.active && cur?.source_issue_id === issue.id) return; // 같은 이슈로 이미 노출 중
 
     // 다른 배너가 켜져 있었다면 그 이력 종료 처리 후 새 이력 시작
     await supabase.from('announcement_log').update({ ended_at: new Date().toISOString() }).is('ended_at', null);
 
     const now = new Date();
-    const message = `🚨 [속보] ${issue.title}`.slice(0, 500);
+    // 🚨는 announcement-bar.js가 모든 배너 앞에 공통으로 붙이므로 여기서 넣으면 중복 표기된다
+    // (checkFuturesSidecar의 사이드카 배너에서 실제로 겪은 버그, 2026-07-28). 같은 이유로
+    // issue.title 자체가 이미 "[속보]"로 시작하는 경우가 있어(수집기가 붙인 것) 여기서
+    // 또 붙이면 "[속보] [속보] ..."로 중복 표기된다(실제로 발생해 확인, 2026-07-28) — 이미
+    // 있으면 건너뛴다.
+    const titleHasTag = /^\s*\[속보\]/.test(issue.title || '');
+    const message = (titleHasTag ? issue.title : `[속보] ${issue.title}`).slice(0, 500);
     await supabase.from('site_announcement').upsert({
       id: 1, active: true, message, source: 'auto', source_issue_id: issue.id,
       auto_expires_at: new Date(now.getTime() + AUTO_ANNOUNCE_TTL_MS).toISOString(),
@@ -237,6 +250,9 @@ async function enrichCandidates(analysis) {
   const corrections = [];
   const allCompanyTasks = [];
   for (const ripple of analysis.rippleEffects || []) {
+    // 부정(피해 우려) 섹터의 기업은 매수 후보가 아니므로 검증/decide(매수) 대상에서 제외.
+    // 표시는 analysis.ripple_effects JSON에서 직접 읽는다(analysis.html 부정 영향 기업 섹션).
+    if (ripple.impact === 'negative') continue;
     for (const co of ripple.companies || []) {
       allCompanyTasks.push({ ripple, co });
     }
@@ -449,11 +465,19 @@ function triggerNextChain(req, limit, nextChainCount, maxChain) {
 // (live-refresh의 장중 실시간 소량 새로고침은 지연을 감수할 수 없어 기존 동기
 // 경로 그대로 유지 — 이 배치 경로와 별개로 계속 동작)
 // ════════════════════════════════════════════════════════════
-const BATCH_SUBMIT_LIMIT = 30;
+const BATCH_SUBMIT_LIMIT = 40;
 // 안전장치: 배치가 이 시간 안에 안 끝나면 취소하고 그냥 놓아준다 — 이슈는
 // is_analyzed=false로 남아있으므로 다음 hourly 크론의 기존 동기 경로가 자연스럽게
 // 다시 집어가 처리한다 (하루 종일 안 끝나는 걸 무한정 기다리지 않기 위한 상한).
 const BATCH_STUCK_TIMEOUT_MS = 3 * 3600 * 1000;
+// processBatchRow가 행을 submitted→processing으로 선점한 직후 서버리스 함수가
+// 플랫폼에 의해 강제 종료되면(타임아웃 등, JS 예외가 아니므로 catch가 못 잡음)
+// processing 상태로 영원히 고아가 되어 in-flight 체크를 무한정 막는 사고가 실제로
+// 있었음(2026-07-20, 100건 배치가 discover finalize 도중 죽어 14시간 뉴스 갱신 중단).
+// 정상적으로 선점 후 완료까지는 수 초~길어야 1분 내로 끝나야 하므로, 이보다 훨씬
+// 여유 있는 시간이 지나도 여전히 processing이면 고아로 간주해 submitted로 되돌려
+// 다음 폴링이 재시도하게 한다.
+const PROCESSING_STUCK_TIMEOUT_MS = 30 * 60 * 1000;
 
 async function handleBatchSubmit(req, res, opts = {}) {
   const engine = opts.engine === 'agent' ? 'agent' : 'anthropic';
@@ -479,33 +503,70 @@ async function handleBatchSubmit(req, res, opts = {}) {
     .eq('is_analyzed', false)
     .lt('published_at', staleCutoff);
 
-  const { data: issues, error } = await supabase
+  // 최신순으로만 뽑으면 새 뉴스가 계속 밀려들어와 먼저 들어온(아직 안 밀린) 이슈가
+  // 순번을 영영 못 받고 48시간 스킵 규칙에 걸려 사라지는 starvation이 있었음
+  // (2026-07-16 실측: 미분석 백로그 1,400건+가 이틀 전 뉴스까지 고르게 쌓여있었음,
+  // 최신순 배치만 반복돼서 오래된 백로그는 한 번도 선택되지 못했던 것으로 확인).
+  // → 절반은 최신순(속보 반응성 유지), 절반은 오래된순(백로그 소진 + 곧 48h 만료될
+  // 이슈 구제)으로 나눠서 가져오고 겹치면 dedup.
+  const halfLimit = Math.ceil(limit / 2);
+  const { data: recentIssues, error: recentErr } = await supabase
     .from('issues').select('*').eq('is_analyzed', false)
-    .order('published_at', { ascending: false }).limit(limit);
-  if (error) return res.status(500).json({ error: error.message });
-  if (!issues?.length) return res.status(200).json({ ok: true, submitted: 0, staleSkipped: staleSkipped || 0 });
+    .order('published_at', { ascending: false }).limit(halfLimit);
+  if (recentErr) return res.status(500).json({ error: recentErr.message });
+
+  const { data: oldestIssues, error: oldestErr } = await supabase
+    .from('issues').select('*').eq('is_analyzed', false)
+    .order('published_at', { ascending: true }).limit(halfLimit);
+  if (oldestErr) return res.status(500).json({ error: oldestErr.message });
+
+  const seenIds = new Set();
+  const issues = [];
+  for (const issue of [...(recentIssues || []), ...(oldestIssues || [])]) {
+    if (seenIds.has(issue.id)) continue;
+    seenIds.add(issue.id);
+    issues.push(issue);
+  }
+  if (!issues.length) return res.status(200).json({ ok: true, submitted: 0, staleSkipped: staleSkipped || 0 });
 
   if (engine === 'agent') {
     // Anthropic을 전혀 호출하지 않음 — 렌더링된 프롬프트 전문만 큐에 적재하고 끝.
     // 실제 "추론"은 스케줄 Claude Code 에이전트가 이 행을 읽어 response에 답을 써넣는 방식으로 수행.
-    const prompts = [];
-    for (const issue of issues) {
-      const strategicCtx = await buildStrategicCtx(issue);
-      prompts.push({
-        issueId: issue.id,
-        static: ANALYZE_STATIC_PROMPT,
-        dynamic: buildAnalyzeDynamicBlock(issue, strategicCtx),
+    // ⚠️ 한 analyze_batches 행에는 반드시 BATCH_SUBMIT_LIMIT(40)건 이하만 담을 것 — finalizeDiscoverStage가
+    // 한 행의 issueIds를 서버리스 함수 1회 호출 안에서 동기 처리하는데, 100건(월요일 백로그 보정 limit)을
+    // 한 행에 몰아넣으면 Vercel 함수 타임아웃에 걸려 영원히 완료되지 못하고 processing↔submitted를
+    // 무한 반복하며 이후 모든 뉴스분석 제출을 막는 사고가 2026-07-20/2026-07-27 두 차례 재발했음
+    // (상세: PROCESSING_STUCK_TIMEOUT_MS 주석). limit이 40을 넘는 날엔 여러 행으로 쪼개 제출한다 —
+    // 각 행은 여전히 40건 이하라 개별적으로 안전하게 완주하고, 한 행이 타임아웃에 걸려도
+    // 이미 완료된 다른 행들은 그대로 유지되며 다음 폴링이 남은 행만 재시도한다.
+    const chunks = [];
+    for (let i = 0; i < issues.length; i += BATCH_SUBMIT_LIMIT) {
+      chunks.push(issues.slice(i, i + BATCH_SUBMIT_LIMIT));
+    }
+
+    const rows = [];
+    for (const chunk of chunks) {
+      const prompts = [];
+      for (const issue of chunk) {
+        const strategicCtx = await buildStrategicCtx(issue);
+        prompts.push({
+          issueId: issue.id,
+          static: ANALYZE_STATIC_PROMPT,
+          dynamic: buildAnalyzeDynamicBlock(issue, strategicCtx),
+        });
+      }
+      rows.push({
+        engine: 'agent',
+        stage: 'discover',
+        status: 'submitted',
+        payload: { issueIds: chunk.map(i => i.id) },
+        prompts,
       });
     }
-    const { error: insertErr } = await supabase.from('analyze_batches').insert({
-      engine: 'agent',
-      stage: 'discover',
-      status: 'submitted',
-      payload: { issueIds: issues.map(i => i.id) },
-      prompts,
-    });
+
+    const { error: insertErr } = await supabase.from('analyze_batches').insert(rows);
     if (insertErr) return res.status(500).json({ error: 'failed to save agent queue row: ' + insertErr.message });
-    return res.status(200).json({ ok: true, submitted: issues.length, engine: 'agent', staleSkipped: staleSkipped || 0 });
+    return res.status(200).json({ ok: true, submitted: issues.length, engine: 'agent', batches: rows.length, staleSkipped: staleSkipped || 0 });
   }
 
   const requests = [];
@@ -545,6 +606,13 @@ async function handleBatchSubmit(req, res, opts = {}) {
 }
 
 async function handleBatchPoll(req, res) {
+  // 고아 processing 행 회수 — 아래 submitted 조회 전에 먼저 되돌려야 이번 폴링에서 바로 재시도됨
+  const processingStuckCutoff = new Date(Date.now() - PROCESSING_STUCK_TIMEOUT_MS).toISOString();
+  await supabase.from('analyze_batches')
+    .update({ status: 'submitted' })
+    .eq('status', 'processing')
+    .lt('created_at', processingStuckCutoff);
+
   const { data: rows } = await supabase.from('analyze_batches').select('*').eq('status', 'submitted').order('created_at', { ascending: true });
   if (!rows?.length) return res.status(200).json({ ok: true, checked: 0 });
 
@@ -1257,7 +1325,7 @@ const ANALYZE_STATIC_PROMPT = `당신은 글로벌 주식시장 리서치 애널
 - relevance_score < 40이면 rippleEffects는 빈 배열로 반환
 - rippleEffects는 2-4개, 각 섹터당 기업은 2-3개 (relevance_score >= 40인 경우만)
 - 한국 기업(KR)과 미국 기업(US)을 균형있게 포함
-- 하락이 예상되는 종목은 companies에 넣지 말 것 (impact:negative 섹터는 companies를 비워둘 것)
+- impact:negative(피해 우려) 섹터에도 이 뉴스로 하락 압력을 받는 대표 기업 1-2개를 companies에 넣을 것. 단 이들은 "매수 후보"가 아니라 "피해 우려" 종목이므로, rationale에는 왜 손실/하락 압력을 받는지(mechanism)를 명시할 것. (impact:positive 섹터의 기업 = 수혜/매수 후보, impact:negative 섹터의 기업 = 피해 우려. 티커 규칙은 동일하게 적용)
 - rationale에 3차 이상 간접 연결(뉴스→A→B→이 기업)은 금지. 최대 2차 파급까지만.
 
 티커 규칙:
@@ -1293,6 +1361,21 @@ const ANALYZE_STATIC_PROMPT = `당신은 글로벌 주식시장 리서치 애널
   [게임] 엔씨 TL → 아마존 글로벌 퍼블리싱 / 크래프톤 인조이 → 생성형 AI 게임
 - 이런 종목은 rationale에 "OO에 지분 보유 → 선반영" 논리를 한 줄로 명시
 - 위 컨텍스트에 ⭐ 표시된 항목은 가장 강한 연결고리. 우선 검토
+
+⭐ 한국 공급망 매핑 (미국·글로벌 뉴스 → 한국 수혜/피해주) — 매우 중요:
+- 뉴스가 미국/글로벌 기업·제품·테마를 다룰 때, 그 밸류체인에 속한 한국 상장사를 반드시 함께 검토할 것.
+  US 종목만 나열하고 끝내지 말 것 — 아래 연결이 성립하면 한국 종목을 companies에 포함한다.
+  · [반도체·AI칩] NVIDIA/AMD/Broadcom/TSMC/Micron/빅테크 자체칩(ASIC) 뉴스
+      → HBM·D램·낸드: 삼성전자(005930.KS), SK하이닉스(000660.KS)
+      → 파운드리 위탁 경쟁: 삼성전자 / 후공정·소재·장비: 한미반도체(042700.KS), 리노공업(058470.KS), 이오테크닉스(039030.KS)
+  · [메모리 업황·가격] Micron 실적/메모리 가격 뉴스 → 삼성전자·SK하이닉스 직접 연동
+  · [빅테크 CAPEX·데이터센터] MSFT/META/AMZN/GOOGL의 AI 투자·자체칩 → HBM 수요 확대 → 삼성전자·SK하이닉스
+  · [스마트폰·부품] Apple 뉴스 → 삼성전자(패널·파운드리 경쟁), LG이노텍(011070.KS, 카메라모듈)
+  · [전기차·배터리·IRA] Tesla/EV/2차전지 뉴스 → LG에너지솔루션(373220.KS), 삼성SDI(006400.KS), SK이노베이션(096770.KS), 포스코퓨처엠(003670.KS)
+  · [디스플레이] OLED/패널 뉴스 → LG디스플레이(034220.KS), 삼성전자
+  · [조선·방산·원전] 글로벌 수주·지정학 → HD한국조선해양(009540.KS), 한화에어로스페이스(012450.KS), 두산에너빌리티(034020.KS)
+- ⛔ 단, 억지 매크로 연결은 금지: 금값·유가·일반 환율·범용 매크로 뉴스를 "→ 저금리 수혜 → 반도체 대형주" 식으로
+  끌어붙이지 말 것. 뉴스가 해당 밸류체인을 직접 언급하거나 명백히 함의할 때만 매핑한다(최대 2차 파급 규칙 유지).
 
 ⭐ 회사명 정확성 (매우 중요 - 환각 금지):
 - name_en은 회사의 정식 영문 법인명 (예: LRCX → "Lam Research", AVGO → "Broadcom")

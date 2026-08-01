@@ -8,18 +8,18 @@
 <script src="/announcement-bar.js" defer></script>
 <script src="/sr-pulse.js" defer></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
-<title>지금 매수 후보 — StockRipple</title>
-<meta name="description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<title>뉴스 — StockRipple</title>
+<meta name="description" content="뉴스 → 파급 섹터 → 수혜 기업. 분석된 최신 이슈를 한눈에 모아봅니다.">
 <!-- Open Graph / 링크 공유 미리보기 (정적 — 동적 티커 페이지는 일반 설명) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="StockRipple">
-<meta property="og:title" content="지금 매수 후보 — StockRipple">
-<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
-<meta property="og:url" content="https://stockripple.vercel.app/picks.html">
+<meta property="og:title" content="뉴스 — StockRipple">
+<meta property="og:description" content="뉴스 → 파급 섹터 → 수혜 기업. 분석된 최신 이슈를 한눈에 모아봅니다.">
+<meta property="og:url" content="https://stockripple.vercel.app/news.html">
 <meta property="og:locale" content="ko_KR">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="지금 매수 후보 — StockRipple">
-<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 수혜 기업과 상승 가능성을 예측합니다.">
+<meta name="twitter:title" content="뉴스 — StockRipple">
+<meta name="twitter:description" content="뉴스 → 파급 섹터 → 수혜 기업. 분석된 최신 이슈를 한눈에 모아봅니다.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -328,8 +328,6 @@ button { font-family: inherit; }
 .hero-title { font-size: 22px; font-weight: 800; margin-bottom: 4px; letter-spacing: -0.025em; }
 .hero-title span { color: var(--blue); }
 .hero-sub { font-size: 15.5px; color: var(--text3); line-height: 1.6; }
-.hero-disclaimer { font-size: 14px; color: var(--text3); line-height: 1.55; margin-top: 10px; padding: 9px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 9px; }
-.hero-disclaimer b { color: var(--text2); font-weight: 700; }
 
 .stats-bar {
   display: grid;
@@ -474,8 +472,13 @@ button { font-family: inherit; }
 .issue-card {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
   overflow: hidden; transition: all var(--t-med) var(--ease); cursor: pointer;
-  text-decoration: none; display: block; color: var(--text);
+  text-decoration: none; color: var(--text);
   box-shadow: var(--shadow-sm);
+  /* 카드마다 본문 길이가 달라 grid 행 높이에 맞춰 늘어나도(align-items:stretch),
+     display:block이면 분석 보기 줄이 늘어난 높이만큼 위쪽에 붕 뜬 채로 남는다
+     ("분석보기 영역이 고정되어 있지 않다" 피드백) — flex 세로열 + margin-top:auto로
+     항상 카드 맨 아래에 붙게 한다. */
+  display: flex; flex-direction: column;
 }
 .issue-card:hover {
   border-color: var(--border-strong); transform: translateY(-2px);
@@ -489,7 +492,8 @@ button { font-family: inherit; }
 .card-date .abs { color: var(--text3); font-family: var(--font-mono); font-size: 13px; }
 .card-body { padding: 10px 16px 14px; }
 .card-title { font-size: 16.5px; font-weight: 700; line-height: 1.45; margin-bottom: 7px; letter-spacing: -0.01em; }
-.card-summary { font-size: 14.5px; color: var(--text2); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-ai-summary { font-size: 15px; color: var(--text2); line-height: 1.6; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card-flow-label { font-size: 12.5px; font-weight: 700; color: var(--text3); letter-spacing: .03em; margin: 10px 0 4px; }
 .card-sectors { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
 .sector-tag { font-size: 13px; padding: 3px 8px; border-radius: var(--r-xs); font-weight: 600; }
 .tag-semi   { background: var(--blue-dim);   color: var(--blue); }
@@ -501,7 +505,7 @@ button { font-family: inherit; }
 .tag-robot  { background: var(--purple-dim); color: var(--purple); }
 .tag-energy { background: var(--green-dim);  color: var(--green); }
 .tag-default{ background: var(--bg3); color: var(--text2); }
-.card-footer { padding: 11px 16px; border-top: 1px solid var(--border-soft); display: flex; align-items: center; gap: 12px; background: var(--bg3); }
+.card-footer { margin-top: auto; padding: 11px 16px; border-top: 1px solid var(--border-soft); display: flex; align-items: center; gap: 12px; background: var(--bg3); }
 .footer-stat { display: flex; align-items: center; gap: 5px; font-size: 14.5px; color: var(--text2); }
 .footer-stat .val { font-weight: 700; font-variant-numeric: tabular-nums; }
 .footer-stat .val.green { color: var(--green); }
@@ -1062,7 +1066,7 @@ button { font-family: inherit; }
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/site-header.js"></script>
 <div id="site-header-mount"></div>
-<script>renderSiteHeader('/picks.html');</script>
+<script>renderSiteHeader('/news.html');</script>
 
 <!-- Indices Ticker Bar -->
 <div class="indices-ticker" id="indicesTicker">
@@ -1094,27 +1098,77 @@ button { font-family: inherit; }
 
 <div class="hero" id="heroSection">
   <h1 class="hero-title">
-    지금 <span>매수 후보</span>로 뽑힌 종목들
+    📰 <span>뉴스</span>
   </h1>
-  <p class="hero-sub">AI 예측 · 기술 시그널 · 수급 · 펀더멘털을 통합해 점수순으로 정렬했습니다</p>
-  <p class="hero-disclaimer">ℹ️ 여기 표시되는 종목·수치는 AI가 뉴스·데이터로 산출한 <b>참고 정보(가설 시나리오)</b>이며, <b>특정 종목의 매수·매도를 권유하지 않습니다.</b> 투자 판단과 책임은 이용자 본인에게 있습니다.</p>
+  <p class="hero-sub">뉴스 → 파급 섹터 → 수혜 기업. Claude가 분석한 최신 이슈를 모아봅니다</p>
 </div>
 
 
 <main class="main-content">
   <div style="max-width:var(--page-max);margin:0 auto;padding:22px var(--page-pad) 48px">
-    <div id="insightsSection" class="section-block" style="display:none">
+    <div id="issuesSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
-          <span class="sh-mark"></span>
-          <span class="sh-title">지금 매수 후보</span>
-          <span class="sh-desc">AI 예측 · 기술 시그널 · 수급 · 펀더멘털 통합 랭킹</span>
+          <span class="sh-mark" style="background:var(--purple)"></span>
+          <span class="sh-title">전체 뉴스</span>
+          <span class="sh-desc">뉴스 → 파급 섹터 → 수혜 기업 분석</span>
+          <span id="feedLiveTag" style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
         </div>
-        <div class="section-head-r">
-          <span style="font-size:13.5px;color:var(--text3)" id="insightsUpdated">—</span>
+        <span style="font-size:13.5px;color:var(--text3)" id="issuesCount"></span>
+      </div>
+
+      <!-- 카테고리 + 섹터 필터 + 검색 (이슈 피드 전용 툴바) -->
+      <div class="feed-toolbar">
+        <div class="category-tabs" id="categoryTabs">
+          <button class="cat-tab active" data-cat="all">🔥 전체</button>
+          <button class="cat-tab" data-cat="earnings">📊 실적발표</button>
+          <button class="cat-tab" data-cat="politics">🌐 정세·외교</button>
+          <button class="cat-tab" data-cat="economy">📈 경제지표</button>
+          <button class="cat-tab" data-cat="tech">💻 AI·반도체</button>
+          <button class="cat-tab" data-cat="bio">🧬 바이오</button>
+          <button class="cat-tab" data-cat="ev">🔋 전기차·배터리</button>
+          <button class="cat-tab" data-cat="energy">⚡ 에너지</button>
+          <button class="cat-tab" data-cat="defense">🚀 방산·우주</button>
+          <button class="cat-tab" data-cat="game">🎮 게임·엔터</button>
+          <button class="cat-tab" data-cat="crypto">🪙 크립토</button>
+        </div>
+        <div class="filters">
+          <span class="filter-label">섹터</span>
+          <button class="filter-chip active" data-sector="all">전체</button>
+          <button class="filter-chip" data-sector="AI">AI</button>
+          <button class="filter-chip" data-sector="반도체">반도체</button>
+          <button class="filter-chip" data-sector="전기차">전기차</button>
+          <button class="filter-chip" data-sector="배터리">배터리</button>
+          <button class="filter-chip" data-sector="바이오">바이오</button>
+          <button class="filter-chip" data-sector="에너지">에너지</button>
+          <button class="filter-chip" data-sector="핀테크">핀테크</button>
+          <button class="filter-chip" data-sector="금융">금융</button>
+          <button class="filter-chip" data-sector="클라우드">클라우드</button>
+          <button class="filter-chip" data-sector="로봇">로봇</button>
+          <button class="filter-chip" data-sector="방산·우주">방산·우주</button>
+          <button class="filter-chip" data-sector="게임">게임</button>
+          <button class="filter-chip" data-sector="크립토">크립토</button>
+          <button class="filter-chip" data-sector="자동차">자동차</button>
+          <button class="filter-chip" data-sector="물류·운송">물류·운송</button>
         </div>
       </div>
-      <div id="insightsPanel"></div>
+
+      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:15px;font-weight:700;text-align:center">
+        🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
+      </div>
+
+      <!-- 🌡️ 지금 산업 온도 (StockRipple 시그니처 — app.js loadSectorTemp가 채움) -->
+      <div id="sectorTempBoard"></div>
+
+      <div id="issuesContainer">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>이슈 불러오는 중...</p>
+        </div>
+      </div><!-- issuesContainer end -->
+
+      <!-- Pagination -->
+      <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:24px;padding-bottom:8px"></div>
     </div>
   </div>
 </main>
