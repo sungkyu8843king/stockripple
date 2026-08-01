@@ -1,10 +1,13 @@
 // 쿠팡 파트너스 모바일 인터스티셜 배너 — 종목 상세(company.html)/뉴스 상세(analysis.html) 진입 시.
-// 배너 이미지·링크·문구는 주기적으로 바뀔 수 있어 아래 CONFIG 하나만 고치면 된다.
+// 2026-08: 정적 이미지 대신 쿠팡 파트너스 공식 위젯(g.js, id 1005662)을 실은 iframe으로
+// 교체 — g.js는 레거시 document.write() 방식이라 페이지에 직접 동적 주입하면 조용히
+// 무시돼 광고가 안 뜬다(다른 쿠팡 광고 슬롯과 동일한 이유, coupang-ad-*.html 참고).
+// 그래서 실제 정적 페이지(coupang-ad-interstitial-mobile.html)를 iframe src로 물린다.
 (function () {
   var CONFIG = {
-    // 배너 이미지 경로 — /ads/ 폴더에 새 이미지로 교체 후 이 파일명만 바꾸면 됨.
-    imageSrc: '/ads/coupang-interstitial.png',
-    link: 'https://link.coupang.com/a/fJcShK3GW4',
+    adSrc: '/coupang-ad-interstitial-mobile.html',
+    adWidth: 320,
+    adHeight: 480,
     disclosure: '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.',
     cooldownHours: 1,
     mobileMaxWidth: 768,
@@ -34,21 +37,16 @@
     var card = document.createElement('div');
     card.style.cssText = 'position:relative;max-width:360px;width:100%;background:#0d0f14;border-radius:16px;overflow:hidden;box-shadow:0 24px 60px -12px rgba(0,0,0,.7)';
 
-    // target="_blank"(새 탭)로 열면 iOS Safari가 "다른 앱을 열려고 합니다" 확인창을
-    // 띄운다(유니버설 링크를 새 탭에서 열 때만 발생). 현재 탭에서 바로 이동시키면
-    // 확인창 없이 쿠팡 앱으로 바로 넘어가므로 target을 제거한다.
-    var link = document.createElement('a');
-    link.href = CONFIG.link;
-    link.rel = 'noopener noreferrer sponsored';
-    link.style.cssText = 'display:block;cursor:pointer';
-    link.addEventListener('click', close);
-
-    var img = document.createElement('img');
-    img.src = CONFIG.imageSrc;
-    img.alt = '쿠팡 파트너스 광고';
-    img.style.cssText = 'display:block;width:100%;height:auto';
-    link.appendChild(img);
-    card.appendChild(link);
+    // 클릭/이동 처리는 iframe 안(coupang-ad-interstitial-mobile.html)의 쿠팡 공식 위젯이
+    // 전담한다 — 정적 이미지 때와 달리 우리가 <a href>를 따로 씌우지 않는다(이중 이동 방지).
+    // 그 파일 안에 window.open 새탭 우회 방지(iOS "다른 앱을 열려고 합니다" 확인창 방지)도
+    // 이미 들어있음.
+    var iframe = document.createElement('iframe');
+    iframe.src = CONFIG.adSrc;
+    iframe.title = '쿠팡 파트너스 광고';
+    iframe.scrolling = 'no';
+    iframe.style.cssText = 'display:block;width:100%;height:' + CONFIG.adHeight + 'px;max-width:' + CONFIG.adWidth + 'px;margin:0 auto;border:0';
+    card.appendChild(iframe);
 
     var disclosure = document.createElement('div');
     disclosure.textContent = CONFIG.disclosure;
