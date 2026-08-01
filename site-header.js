@@ -476,6 +476,9 @@ function _needsOnboarding(user) {
 }
 async function ensureNickname(user) {
   if (!user) { currentNickname = null; return; }
+  // 팝업으로 로그인 중이면 팝업 쪽이 온보딩(필요하면)까지 전담 — 오프너는 팝업이
+  // 닫힌 뒤 새로고침에서 한 번만 처리한다(_openOAuthPopup 주석 참고).
+  if (typeof _oauthPopupActive !== 'undefined' && _oauthPopupActive) return;
   try {
     const { data } = await sb.from('user_profiles').select('nickname').eq('user_id', user.id).maybeSingle();
     if (data?.nickname) {
@@ -709,16 +712,24 @@ function _checkAuthConsent() {
 // 받아온 뒤 직접 window.open으로 띄운다(팝업 차단 방지를 위해 window.open 자체는
 // 클릭 핸들러 안에서 동기적으로 먼저 열고, URL은 나중에 채워 넣는다 — about:blank로
 // 먼저 열지 않고 await 이후에 열면 대부분 브라우저가 팝업으로 인식하지 않고 막는다).
+// 팝업이 열려 있는 동안, 오프너(원래 창) 쪽에서도 세션 변경을 감지해 각자 따로
+// ensureNickname()을 돌리면 — 팝업이 아직 프로필을 안 만든 시점에 오프너가 먼저
+// "프로필 없음"을 보고 자기만의 온보딩 모달을 띄워버려, 팝업/오프너 양쪽에 서로 다른
+// 임의 닉네임으로 온보딩 창이 두 개 뜨는 사고가 났다(2026-08 실측). 팝업이 열려 있는
+// 동안은 오프너의 ensureNickname을 통째로 건너뛰고, 팝업이 닫힌 뒤 새로고침에서
+// 한 번만(이미 완료된 프로필 기준으로) 처리하게 한다.
+let _oauthPopupActive = false;
 function _openOAuthPopup(startAuth) {
   const popup = window.open('about:blank', 'sr_oauth_popup', 'width=480,height=680,menubar=no,toolbar=no,location=no,status=no');
   startAuth().then(url => {
-    if (!url) { if (popup && !popup.closed) popup.close(); return; }
+    if (!url) { _oauthPopupActive = false; if (popup && !popup.closed) popup.close(); return; }
     if (popup && !popup.closed) popup.location.href = url;
-    else location.href = url; // 팝업이 차단된 경우의 폴백 — 기존처럼 현재 탭에서 이동
+    else { _oauthPopupActive = false; location.href = url; } // 팝업이 차단된 경우의 폴백 — 기존처럼 현재 탭에서 이동
   });
   if (!popup) return;
+  _oauthPopupActive = true;
   const timer = setInterval(() => {
-    if (popup.closed) { clearInterval(timer); location.reload(); }
+    if (popup.closed) { clearInterval(timer); _oauthPopupActive = false; location.reload(); }
   }, 500);
 }
 // queryParams의 prompt=select_account는 브라우저에 이미 로그인된 구글 세션이 있어도
