@@ -1142,6 +1142,23 @@ button { font-family: inherit; }
 }
 .est-warn b { color: var(--yellow); font-weight: 800; }
 .est-warn div { font-size: 13.8px; line-height: 1.6; color: var(--text2); }
+/* 코스피200 야간선물(KIS 실계좌 연동) — 개별 종목 추정과 달리 시장 자체가 지금
+   실제로 거래되고 있는 값이라 더 위(가장 먼저 보이는 자리)에 별도로 보여준다
+   (2026-08-01, 사용자 요청: "가장 많이 고려하는 게 코스피 야간선물일 것 같은데"). */
+.knf-banner {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--purple) 10%, var(--bg2)), var(--bg2));
+  border: 1px solid color-mix(in srgb, var(--purple) 34%, var(--border));
+  border-radius: var(--r-lg, 20px); padding: 15px 18px; margin-bottom: 14px;
+}
+.knf-lbl { display: flex; flex-direction: column; gap: 3px; }
+.knf-lbl-top { font-size: 13.5px; font-weight: 700; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+.knf-lbl-tag { font-size: 11px; font-weight: 800; color: var(--purple); background: color-mix(in srgb, var(--purple) 16%, transparent); padding: 2px 7px; border-radius: 999px; }
+.knf-lbl-sub { font-size: 12px; color: var(--text3); }
+.knf-val { font-size: 25px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; margin-left: auto; }
+.knf-chg { font-size: 15px; font-weight: 700; font-family: var(--font-mono); margin-left: 8px; }
+.knf-note { flex-basis: 100%; font-size: 12px; color: var(--text3); }
+@media (max-width: 560px) { .knf-val { margin-left: 0; } }
 .est-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); gap: 12px; }
 .est-card {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg, 20px);
@@ -1359,6 +1376,8 @@ button { font-family: inherit; }
           <div><b>이건 예상 수치입니다.</b> 해외 상장 한국물(ETF·ADR)과 반도체 지수의 실시간 움직임으로 역산한 <b>추정가</b>일 뿐, 실제 다음 개장가와 다를 수 있습니다. 매매 판단의 근거로 삼지 마세요.
           <br><span style="opacity:.85">삼성전자·SK하이닉스는 바이낸스 시세도 함께 반영하는데, 이건 브라우저(기기)가 직접 접속을 시도해서 <b>기기·네트워크에 따라 접속 성공 여부가 갈립니다</b> — 그래서 같은 시각에도 PC마다 추정가가 다르게 보일 수 있어요. 카드 아래 <b>반영 소스</b>에 "바이낸스"가 있는지로 확인 가능합니다.</span></div>
         </div>
+
+        <div id="knfBanner"></div>
 
         <div class="est-grid" id="estGrid">
           <div style="grid-column:1/-1;color:var(--text3);font-size:14.5px;padding:14px;text-align:center">불러오는 중…</div>
@@ -1828,6 +1847,9 @@ document.addEventListener('keydown', e => {
   }
 
   function renderLive(grid, bar, d) {
+    // 야간선물 배너는 국장 실시간/넥스트장/마감 구간에는 안 쓴다 — 이미 진짜 국장
+    // 시세를 보여주고 있으니 비워서 이전(추정 모드) 잔상이 안 남게 한다.
+    const knfEl = document.getElementById('knfBanner'); if (knfEl) knfEl.innerHTML = '';
     const s = SESS[d.session] || SESS.regular;
     grid.innerHTML = d.items.map(it => {
       if (it.price == null) {
@@ -1854,7 +1876,23 @@ document.addEventListener('keydown', e => {
       <span style="color:var(--text3);margin-left:auto">${esc(nextNote)}</span>`;
   }
 
+  function renderKnfBanner(d) {
+    const el = document.getElementById('knfBanner');
+    if (!el) return;
+    const knf = d.kisNightFuture;
+    if (!knf || knf.price == null) { el.innerHTML = ''; return; }
+    const chg = num(knf.changePercent);
+    el.innerHTML = `
+      <div class="knf-lbl">
+        <div class="knf-lbl-top">🌙 코스피200 야간선물 <span class="knf-lbl-tag">KIS 실시간</span></div>
+        <div class="knf-lbl-sub">CME 연계 근월물(${esc(knf.code || '')}) · 지금 실제로 거래되는 값</div>
+      </div>
+      <div class="knf-val" style="color:${sgnCol(chg)}">${Number(knf.price).toLocaleString(undefined, { maximumFractionDigits: 2 })}<span class="knf-chg">${pct(chg)}</span></div>
+      <div class="knf-note">아래 종목별 추정가에도 신호로 반영돼 있습니다. 선물 자체도 실제 다음 거래일 KOSPI200과는 다를 수 있습니다.</div>`;
+  }
+
   function renderEstimate(grid, bar, d, acc) {
+    renderKnfBanner(d);
     const krwUsd = num(d.krwUsd);
     grid.innerHTML = d.items.map(it => {
       const head = estHead(it);
@@ -1891,6 +1929,7 @@ document.addEventListener('keydown', e => {
     const pills = [];
     const add = (name, val, on, note) => pills.push(
       `<span class="est-pill${on ? '' : ' off'}" title="${esc(note || '')}">${esc(name)} ${on ? `<em style="color:${sgnCol(val)}">${pct(val)}</em>` : `<em style="color:var(--text3)">미연결</em>`}</span>`);
+    add('코스피 야간선물', num(d.kisNightFuture?.changePercent), d.kisNightFuture?.price != null, 'KIS 코스피200 야간선물(CME 연계) 근월물');
     add('EWY', num(O.EWY?.changePercent), O.EWY != null, 'MSCI 한국 ETF');
     add('SOX', num(O['^SOX']?.changePercent), O['^SOX'] != null, '필라델피아 반도체 지수');
     const adrN = Object.values(O).filter(o => o.kind === 'adr').length;
