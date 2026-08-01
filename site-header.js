@@ -94,6 +94,22 @@ const SITE_NAV_ITEMS = [
 
 function _siteChromeInjectStyle() {
   if (document.getElementById('site-chrome-style')) return;
+
+  // 파비콘/앱 아이콘(2026-08) — 페이지마다 <head>에 따로 넣는 대신 헤더가 항상
+  // 로드하는 이 함수에서 한 번에 주입한다. 로고의 물결(〜) 마크를 그대로 벡터화한 것.
+  if (!document.querySelector('link[rel="icon"]')) {
+    [
+      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+      { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32.png' },
+      { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16.png' },
+      { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+    ].forEach(attrs => {
+      const link = document.createElement('link');
+      Object.entries(attrs).forEach(([k, v]) => link.setAttribute(k, v));
+      document.head.appendChild(link);
+    });
+  }
+
   const style = document.createElement('style');
   style.id = 'site-chrome-style';
   style.textContent = `
