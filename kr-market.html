@@ -1067,6 +1067,13 @@ button { font-family: inherit; }
   .stat-value { font-size: 20px; }
   .search-box input { width: 120px; }
   .nav-btn { padding: 6px 9px; font-size: 14.5px; }
+  /* 모바일에서 카드가 답답해 보인다는 피드백(2026-08) — 패딩 10~15%, 카드 높이(줄간격)를
+     조금 늘려 프리미엄한 느낌으로. 데스크톱은 기존 그대로(밀도가 문제라는 지적이 아니었음). */
+  .card-header { padding: 17px 18px 0; }
+  .card-body { padding: 12px 18px 17px; }
+  .card-title { line-height: 1.55; margin-bottom: 9px; }
+  .card-ai-summary { line-height: 1.7; }
+  .issues-grid { gap: 16px; }
 }
 
 /* ═══════════════════════════════════════════════════════════
