@@ -826,10 +826,15 @@ async function debugKisWebSocket(diag = {}) {
     });
     diag.stage = 'ws_open';
 
-    ws.send(JSON.stringify({
-      header: { approval_key: approvalKey, custtype: 'P', tr_type: '1', 'content-type': 'utf-8' },
-      body: { input: { tr_id: 'H0MFASP0', tr_key: code } },
-    }));
+    // CNT(체결=실제 거래가)와 ASP(호가=매수/매도 스프레드)는 서로 다른 피드다 — 처음엔
+    // ASP0만 구독했었는데(호가), 우리가 실제로 원하는 "현재가"에 해당하는 건 체결가인
+    // CNT0라 사용자 지적으로 같이 구독하도록 수정(2026-08).
+    for (const trId of ['H0MFCNT0', 'H0MFASP0']) {
+      ws.send(JSON.stringify({
+        header: { approval_key: approvalKey, custtype: 'P', tr_type: '1', 'content-type': 'utf-8' },
+        body: { input: { tr_id: trId, tr_key: code } },
+      }));
+    }
     diag.stage = 'subscribed';
 
     // 최대 12초 동안 오는 메시지를 전부 모은다 — ACK/PINGPONG만 오고 실제 체결이 없을 수도
