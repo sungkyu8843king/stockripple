@@ -225,6 +225,8 @@ let _fx = 1441;          // USD/KRW (로드 시 실제값으로 교체)
 let _sel = null;         // 선택 종목 { ticker, name, market }
 let _side = 'buy';
 let _findMkt = 'KR', _findCat = 'popular', _findCache = {}, _findBusy = false;
+let _metaCache = {};     // KR 티커 → nxtSupported(bool), 넥스트레이드 애프터마켓(~20:00) 허용 판단용
+let _marketGate = { ok: true }; // orderHtml()이 채우고 updateOrder()/submitOrder()가 참조
 
 const isKrTicker = t => /\.K[SQ]$/i.test(t || '');
 const fmtKRW = v => v == null ? '—' : '₩' + Math.round(v).toLocaleString('ko-KR');
@@ -237,6 +239,52 @@ const nfmt = v => Number(v || 0).toLocaleString('ko-KR');
 /* 로트의 진입 환율 — 매수 시점에 고정 저장(구버전 행은 현재 환율로 폴백) */
 const lotFx = l => l.market === 'KR' ? 1 : (Number(l.entry_fx_rate) || _fx);
 const krwAt = (price, l) => (price == null ? 0 : price * lotFx(l));
+
+/* ══════════════ 장 시간 게이트 ══════════════
+ * 국내(09:00~15:30 KST)·미국(09:30~16:00 ET, DST는 Intl이 자동 반영) 정규장에만
+ * 주문 가능. 국내는 넥스트레이드(NXT) 애프터마켓 지원 종목만 예외로 20:00까지
+ * 연장 — company.html의 loadStockMeta()와 같은 /api/toss?action=meta의
+ * nxtSupported 필드를 그대로 재사용(app.js:anyMarketOpenNow와 같은 Intl 패턴). */
+function marketWindow() {
+  const now = new Date();
+  const parts = tz => {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(now);
+    const g = t => p.find(x => x.type === t)?.value;
+    return { wd: g('weekday'), min: (parseInt(g('hour')) % 24) * 60 + parseInt(g('minute')) };
+  };
+  const wk = w => w !== 'Sat' && w !== 'Sun';
+  const kr = parts('Asia/Seoul'), us = parts('America/New_York');
+  return { krWeekday: wk(kr.wd), krMin: kr.min, usWeekday: wk(us.wd), usMin: us.min };
+}
+
+async function ensureNxtMeta(ticker) {
+  if (ticker in _metaCache) return;
+  try {
+    const r = await fetch('/api/toss?action=meta&symbol=' + encodeURIComponent(ticker));
+    const m = await r.json();
+    _metaCache[ticker] = m?.ok ? !!m.nxtSupported : false;
+  } catch { _metaCache[ticker] = false; }
+  if (_sel && _sel.ticker === ticker) repaintOrder();
+}
+
+function isTradableNow(market, ticker) {
+  const w = marketWindow();
+  if (market === 'KR') {
+    if (!w.krWeekday) return { ok: false, reason: '국내 증시는 주말엔 거래할 수 없습니다.' };
+    const nxt = !!_metaCache[ticker];
+    const closeMin = nxt ? 1200 : 930; // NXT 애프터마켓 지원 종목은 20:00, 아니면 15:30
+    if (w.krMin >= 540 && w.krMin < closeMin) return { ok: true };
+    return { ok: false, reason: nxt
+      ? '지금은 국내 거래 가능 시간이 아닙니다 (09:00~20:00, 넥스트레이드 애프터마켓 포함).'
+      : '지금은 국내 정규장 시간이 아닙니다 (09:00~15:30). 넥스트레이드(NXT) 지원 종목은 20:00까지 거래할 수 있어요.' };
+  }
+  if (market === 'US') {
+    if (!w.usWeekday) return { ok: false, reason: '미국 증시는 주말엔 거래할 수 없습니다.' };
+    if (w.usMin >= 570 && w.usMin < 960) return { ok: true };
+    return { ok: false, reason: '지금은 미국 정규장 시간이 아닙니다 (한국시간 22:30~05:00).' };
+  }
+  return { ok: true };
+}
 
 /* ══════════════ 초기화 ══════════════ */
 async function init() {
@@ -490,10 +538,14 @@ function orderHtml() {
   const maxQty = _side === 'buy'
     ? (unitKrw > 0 ? Math.floor(cash / unitKrw) : 0)
     : heldQty;
+  if (isKr) ensureNxtMeta(_sel.ticker);
+  const gate = isTradableNow(_sel.market, _sel.ticker);
+  _marketGate = gate;
 
   return `
     <div class="panel-h"><h2>🧾 주문</h2></div>
     ${searchBox}
+    ${!gate.ok ? `<div class="order-msg" style="color:var(--yellow);font-weight:600;margin-bottom:11px">⏰ ${escHtml(gate.reason)}</div>` : ''}
     <div class="sel-box">
       <div class="sel-top">
         <span class="tk ${isKr ? 'kr' : 'us'}">${escHtml(_sel.ticker.replace(/\.(KS|KQ)$/i, ''))}</span>
@@ -531,8 +583,8 @@ function orderHtml() {
     <div class="order-msg" id="ordMsg"></div>
     <button class="order-submit" id="ordBtn"
             style="background:${_side === 'buy' ? 'var(--red)' : 'var(--blue)'}"
-            onclick="submitOrder()" ${price == null || maxQty < 1 ? 'disabled' : ''}>
-      ${price == null ? '시세 없음' : _side === 'buy' ? '매수 주문' : '매도 주문'}
+            onclick="submitOrder()" ${price == null || maxQty < 1 || !gate.ok ? 'disabled' : ''}>
+      ${!gate.ok ? '거래 시간이 아닙니다' : price == null ? '시세 없음' : _side === 'buy' ? '매수 주문' : '매도 주문'}
     </button>`;
 }
 
@@ -575,6 +627,8 @@ function updateOrder() {
   const aEl = document.getElementById('ordAfter'); if (aEl) aEl.textContent = fmtKRW(after);
   if (!msgEl || !btn) return;
 
+  if (_marketGate && !_marketGate.ok) { msgEl.textContent = ''; btn.disabled = true; return; }
+
   let err = '';
   if (qty > 0 && _side === 'buy' && total > cash) err = `현금이 ${fmtKRW(total - cash)} 부족합니다.`;
   if (qty > 0 && _side === 'sell') {
@@ -589,6 +643,8 @@ function updateOrder() {
 async function submitOrder() {
   const qty = parseInt(document.getElementById('ordQty')?.value, 10) || 0;
   if (qty < 1 || !_sel) return;
+  const gate = isTradableNow(_sel.market, _sel.ticker);
+  if (!gate.ok) { showToast(gate.reason, 'error'); return; }
   const btn = document.getElementById('ordBtn');
   btn.disabled = true; btn.textContent = '처리 중…';
   try {
