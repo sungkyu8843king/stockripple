@@ -382,8 +382,8 @@ function _cvPromptHtml(issueId) {
   return `<div class="cv-prompt">
     <span class="cv-q">📊 이 뉴스, 시장에 영향 있을까요?</span>
     <div class="cv-btns">
-      <button class="cv-btn" onclick="voteOnIssue(event,${issueId},'yes')">있다</button>
-      <button class="cv-btn" onclick="voteOnIssue(event,${issueId},'no')">글쎄</button>
+      <button class="cv-btn" onclick="voteOnIssue(event,'${issueId}','yes')">있다</button>
+      <button class="cv-btn" onclick="voteOnIssue(event,'${issueId}','no')">글쎄</button>
     </div>
   </div>`;
 }

@@ -3,7 +3,7 @@
 -- voter_key는 sr-pulse.js가 이미 쓰는 localStorage sr_sid(기기당 1개, 로그인 불필요)를 재사용.
 create table if not exists issue_votes (
   id bigint generated always as identity primary key,
-  issue_id bigint not null references issues(id) on delete cascade,
+  issue_id uuid not null references issues(id) on delete cascade,
   voter_key text not null,
   vote text not null check (vote in ('yes', 'no')),
   created_at timestamptz not null default now(),
