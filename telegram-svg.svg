@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19"/>
+      <stop offset="50%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#1e1035"/>
+    </linearGradient>
+
+    <!-- Glassmorphism Card Fill -->
+    <linearGradient id="glass-card" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.02"/>
+    </linearGradient>
+
+    <!-- Neon Glow Border -->
+    <linearGradient id="border-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0088cc" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#a855f7" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#ec4899" stop-opacity="0.7"/>
+    </linearGradient>
+
+    <!-- Button Gradient -->
+    <linearGradient id="btn-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0088cc"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#d946ef"/>
+    </linearGradient>
+
+    <!-- Glow Blur Filter -->
+    <filter id="orb-blur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="50" />
+    </filter>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="800" height="480" fill="url(#bg-grad)"/>
+
+  <!-- Ambient Glowing Orbs -->
+  <circle cx="200" cy="180" r="160" fill="#0088cc" opacity="0.25" filter="url(#orb-blur)"/>
+  <circle cx="620" cy="300" r="180" fill="#a855f7" opacity="0.2" filter="url(#orb-blur)"/>
+
+  <!-- Center Glassmorphism Popup Container -->
+  <g>
+    <!-- Background Card -->
+    <rect x="60" y="40" width="680" height="400" rx="28" fill="url(#glass-card)"/>
+    <!-- Glass Border -->
+    <rect x="60" y="40" width="680" height="400" rx="28" fill="none" stroke="url(#border-grad)" stroke-width="1.5"/>
+  </g>
+
+  <!-- StockRipple Brand & Badge -->
+  <g transform="translate(100, 85)">
+    <rect width="130" height="28" rx="14" fill="#0088cc" fill-opacity="0.15" stroke="#0088cc" stroke-opacity="0.4" stroke-width="1"/>
+    <text x="65" y="18" fill="#38bdf8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" letter-spacing="1" text-anchor="middle">STOCKRIPPLE AI</text>
+  </g>
+
+  <!-- Title -->
+  <text x="100" y="155" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="30" font-weight="800" letter-spacing="-0.5">
+    AI 시장 종합 분석 &amp; 데일리 브리핑
+  </text>
+  <text x="100" y="195" fill="#38bdf8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="700">
+    텔레그램 봇으로 매일 아침 받아보세요!
+  </text>
+
+  <!-- Bullet Point Features -->
+  <g transform="translate(100, 235)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" fill="#cbd5e1">
+    <!-- Point 1 -->
+    <circle cx="8" cy="8" r="4" fill="#0088cc"/>
+    <text x="24" y="12">실시간 AI 기반 <tspan fill="#ffffff" font-weight="600">글로벌 증시 트렌드 및 종합 분석</tspan></text>
+    
+    <!-- Point 2 -->
+    <circle cx="8" cy="38" r="4" fill="#a855f7"/>
+    <text x="24" y="42">매일 장전 제공되는 <tspan fill="#ffffff" font-weight="600">미장 · 국장 데일리 핵심 리포트</tspan></text>
+    
+    <!-- Point 3 -->
+    <circle cx="8" cy="68" r="4" fill="#ec4899"/>
+    <text x="24" y="72">주요 시장 변동성 이슈 및 <tspan fill="#ffffff" font-weight="600">실시간 알림 서비스</tspan></text>
+  </g>
+
+  <!-- Telegram Bot Button -->
+  <g transform="translate(100, 350)">
+    <!-- Button Glow Layer -->
+    <rect width="250" height="52" rx="16" fill="url(#btn-grad)" opacity="0.4" filter="url(#orb-blur)"/>
+    <!-- Main Button -->
+    <rect width="250" height="52" rx="16" fill="url(#btn-grad)"/>
+    
+    <!-- Telegram Icon inside Button -->
+    <path transform="translate(24, 15) scale(0.9)" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .53-1.42.52-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.25.38-.51 1.07-.78 4.18-1.82 6.97-3.02 8.37-3.61 3.99-1.66 4.82-1.95 5.36-1.96.12 0 .38.03.55.17.14.12.18.28.2.45-.02.07-.02.21-.04.38z" fill="#ffffff"/>
+    
+    <text x="135" y="32" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="700" text-anchor="middle">텔레그램 봇 추가하기  →</text>
+  </g>
+
+  <!-- Decorative Right Elements -->
+  <g opacity="0.3">
+    <path d="M 640 120 L 680 160 M 680 120 L 640 160" stroke="#a855f7" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="610" cy="220" r="16" fill="none" stroke="#ec4899" stroke-width="2"/>
+    <circle cx="660" cy="230" r="5" fill="#38bdf8"/>
+  </g>
+</svg>
