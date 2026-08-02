@@ -113,10 +113,9 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webk
 /* ── Mega Cap 기여도 ── */
 .contrib-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
 .contrib-row:last-child{border-bottom:none}
-.contrib-tk{width:64px;flex-shrink:0}
-.contrib-tk a{font-weight:700;font-size:13.5px;color:var(--text);text-decoration:none}
+.contrib-tk{width:110px;flex-shrink:0;overflow:hidden}
+.contrib-tk a{font-weight:700;font-size:13.5px;color:var(--text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
 .contrib-tk a:hover{color:var(--blue)}
-.contrib-name{font-size:11.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .contrib-bar{flex:1;height:7px;background:var(--bg3);border-radius:4px;overflow:hidden}
 .contrib-bar .f{height:100%;border-radius:4px}
 .contrib-pct{width:58px;text-align:right;font-weight:700;font-family:var(--mono);font-size:13.5px;flex-shrink:0}
@@ -565,7 +564,7 @@ function renderContrib(items, isKr){
     const color = it.pct >= 0 ? 'var(--red)' : 'var(--blue)';
     const barPct = Math.abs(it.contrib) / maxAbs * 100;
     return `<div class="contrib-row">
-      <div class="contrib-tk"><a href="/company.html?ticker=${encodeURIComponent(it.ticker)}">${escHtml(it.ticker)}</a><div class="contrib-name">${escHtml(it.name)}</div></div>
+      <div class="contrib-tk"><a href="/company.html?ticker=${encodeURIComponent(it.ticker)}" title="${escHtml(it.name)}">${escHtml(it.name)}</a></div>
       <div class="contrib-bar"><div class="f" style="width:${barPct}%;background:${color}"></div></div>
       <div class="contrib-pct" style="color:${color}">${fmtSignedPct(it.pct)}</div>
     </div>`;
