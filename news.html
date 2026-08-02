@@ -1114,6 +1114,7 @@ button { font-family: inherit; }
 
 <main class="main-content">
   <div style="max-width:var(--page-max);margin:0 auto;padding:22px var(--page-pad) 48px">
+    <div id="feedAdSlot" style="margin-bottom:16px"></div>
     <div id="issuesSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
@@ -1164,8 +1165,6 @@ button { font-family: inherit; }
       <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:15px;font-weight:700;text-align:center">
         🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
       </div>
-
-      <div id="feedAdSlot" style="margin:16px 0"></div>
 
       <!-- 🌡️ 지금 산업 온도 (StockRipple 시그니처 — app.js loadSectorTemp가 채움) -->
       <div id="sectorTempBoard"></div>

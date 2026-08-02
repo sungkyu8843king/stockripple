@@ -289,6 +289,7 @@ async function init(){
       <div class="status-line"><span class="status-item"><span class="d ${open||cfg.mk==='crypto'?'open':''}"></span>${statusLabel(cfg.mk,open)}</span></div>
       <div class="kpi-grid" id="kpiGrid"></div>
     </div>
+    <div id="feedAdSlot" style="margin:0 0 16px"></div>
     <div class="sec">
       <div class="sec-head">
         <span class="tick"></span><h3>📈 차트</h3>
@@ -302,7 +303,6 @@ async function init(){
       </div>
       <div class="chart-card"><div class="chart-box" id="chartBox"><div class="loading">차트 불러오는 중...</div></div></div>
     </div>
-    <div id="feedAdSlot" style="margin:0 0 16px"></div>
     ${isRich ? `
     <div class="sec">
       <div class="sec-head"><span class="tick"></span><h3>🤖 AI 시장 요약</h3><span class="sec-note">${cfg.mk==='kr'?'국내':'미국'} 시장 전체 기준</span></div>
