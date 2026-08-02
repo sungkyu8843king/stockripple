@@ -42,12 +42,21 @@ try {
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// 실시간 접속자 표시용 (관리자 대시보드) — 페이지뷰 집계가 아니라 현재 열려있는 탭 수 근사치
+// 실시간 접속자 표시용 (관리자 대시보드 + 채팅 패널 "현재 접속자") — 페이지뷰 집계가 아니라
+// 현재 열려있는 탭 수 근사치. sync 핸들러는 반드시 subscribe() 호출 전에 등록해야 첫 상태
+// 푸시를 놓치지 않는다. 카운트는 window.__srLiveVisitors에 캐시해두고(다른 스크립트가 늦게
+// 로드돼도 바로 읽을 수 있게) 매 변경마다 'sr-live-visitors' 커스텀 이벤트로도 알린다.
 (function trackPresence() {
   try {
     let sid = sessionStorage.getItem('sr_sid');
     if (!sid) { sid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; sessionStorage.setItem('sr_sid', sid); }
     const ch = sb.channel('site-presence', { config: { presence: { key: sid } } });
+    ch.on('presence', { event: 'sync' }, () => {
+      try {
+        window.__srLiveVisitors = Object.keys(ch.presenceState()).length;
+        window.dispatchEvent(new CustomEvent('sr-live-visitors', { detail: window.__srLiveVisitors }));
+      } catch {}
+    });
     ch.subscribe(status => { if (status === 'SUBSCRIBED') ch.track({ page: location.pathname }); });
   } catch {}
 })();

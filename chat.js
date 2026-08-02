@@ -726,23 +726,17 @@
   updateRailCollapseIcon();
 
   // ── 👥 현재/전체 접속자 (패널 상단, 2026-08) ──────────────────────────
-  // 현재 접속자: site-header.js가 매 페이지에서 이미 열어둔 것과 같은 이름의 Realtime
-  // Presence 채널('site-presence')을 하나 더 구독해서 읽기만 한다(여기선 track() 호출 안 함
-  // — 같은 방문자를 두 번 잡아 카운트가 부풀지 않게). 전체 접속자: 공개 집계 엔드포인트에서
-  // 1회만 받아온다(실시간일 필요 없는 누적 숫자).
+  // 현재 접속자: 별도 채널을 또 구독하지 않고, site-header.js가 이미 track()까지 걸어둔
+  // 'site-presence' 채널의 sync 결과를 window.__srLiveVisitors/'sr-live-visitors' 이벤트로
+  // 받아 쓴다(채널을 하나 더 열면 sync 타이밍이 꼬여 값이 안 뜨는 문제가 있었음). 전체 접속자는
+  // 공개 집계 엔드포인트에서 1회만 받아온다(실시간일 필요 없는 누적 숫자).
   (function initVisitorStats() {
     const liveEl = panel.querySelector('#srVisitorLive');
     const totalEl = panel.querySelector('#srVisitorTotal');
     if (!liveEl || !totalEl) return;
-    try {
-      if (typeof sb !== 'undefined') {
-        const presenceCh = sb.channel('site-presence');
-        presenceCh.on('presence', { event: 'sync' }, () => {
-          try { liveEl.textContent = Object.keys(presenceCh.presenceState()).length.toLocaleString('ko-KR'); } catch {}
-        });
-        presenceCh.subscribe();
-      }
-    } catch {}
+    const applyLive = n => { if (n != null) liveEl.textContent = n.toLocaleString('ko-KR'); };
+    if (window.__srLiveVisitors != null) applyLive(window.__srLiveVisitors);
+    window.addEventListener('sr-live-visitors', e => applyLive(e.detail));
     fetch('/api/admin?action=visitor-count').then(r => r.json()).then(j => {
       if (j.ok && j.total != null) totalEl.textContent = j.total.toLocaleString('ko-KR');
     }).catch(() => {});
