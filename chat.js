@@ -49,6 +49,8 @@
   @keyframes srPulse{0%,100%{opacity:1}50%{opacity:.3}}
   .src-head .me{margin-left:auto;font-size:13.5px;color:var(--text3)}
   .src-close{background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:2px 6px;line-height:1}
+  .src-visitors{display:flex;gap:10px;padding:5px 16px;font-size:11.5px;color:var(--text3);border-bottom:1px solid var(--border);flex-shrink:0}
+  .src-visitors b{color:var(--text2);font-weight:700}
   .src-close:hover{color:var(--text)}
   #srChatList{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:9px}
   .src-msg{max-width:100%}
@@ -169,6 +171,9 @@
   panel.innerHTML = `
     <div class="src-head"><span class="live" id="srHeadLive"></span><b id="srHeadTitle">실시간 채팅</b><span class="me" id="srChatMe"></span>
       <button class="src-close" id="srChatClose" title="숨기기">✕</button></div>
+    <div class="src-visitors" id="srVisitorStats">
+      <span>👥 현재 <b id="srVisitorLive">—</b></span><span>· 전체 <b id="srVisitorTotal">—</b></span>
+    </div>
     <div class="src-tabs" id="srTabs">
       ${chatEnabled ? `<button class="src-tab" data-tab="chat">💬 채팅</button>` : ''}
       <button class="src-tab" data-tab="rank">📊 랭킹</button>
@@ -719,4 +724,27 @@
   // 최초 진입 시 데스크톱 + 사용자가 이전에 명시적으로 숨긴 적 없으면 기본으로 열어둠.
   if (isDesktopWide() && !lsGet(HIDDEN_KEY, false)) openPanel();
   updateRailCollapseIcon();
+
+  // ── 👥 현재/전체 접속자 (패널 상단, 2026-08) ──────────────────────────
+  // 현재 접속자: site-header.js가 매 페이지에서 이미 열어둔 것과 같은 이름의 Realtime
+  // Presence 채널('site-presence')을 하나 더 구독해서 읽기만 한다(여기선 track() 호출 안 함
+  // — 같은 방문자를 두 번 잡아 카운트가 부풀지 않게). 전체 접속자: 공개 집계 엔드포인트에서
+  // 1회만 받아온다(실시간일 필요 없는 누적 숫자).
+  (function initVisitorStats() {
+    const liveEl = panel.querySelector('#srVisitorLive');
+    const totalEl = panel.querySelector('#srVisitorTotal');
+    if (!liveEl || !totalEl) return;
+    try {
+      if (typeof sb !== 'undefined') {
+        const presenceCh = sb.channel('site-presence');
+        presenceCh.on('presence', { event: 'sync' }, () => {
+          try { liveEl.textContent = Object.keys(presenceCh.presenceState()).length.toLocaleString('ko-KR'); } catch {}
+        });
+        presenceCh.subscribe();
+      }
+    } catch {}
+    fetch('/api/admin?action=visitor-count').then(r => r.json()).then(j => {
+      if (j.ok && j.total != null) totalEl.textContent = j.total.toLocaleString('ko-KR');
+    }).catch(() => {});
+  })();
 })();

@@ -91,6 +91,8 @@ export default async function handler(req, res) {
   if (action === 'insights-raw') return handleInsightsRaw(req, res);
   // shares-outstanding: 히트맵 트리맵 시총 계산용 상장주식수 캐시 조회 — 공개(가격만큼 민감하지 않은 정보)
   if (action === 'shares-outstanding') return handleSharesOutstandingGet(req, res);
+  // visitor-count: 채팅 패널 상단 "현재/전체 접속자" 표시용 누적 방문자 수 — 공개(집계 숫자만, PII 없음)
+  if (action === 'visitor-count') return handleVisitorCount(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -279,6 +281,20 @@ async function handleTrack(req, res) {
   } catch (e) {
     console.error('[track:exception]', e?.message || e);
     return res.status(200).json({ ok: false });
+  }
+}
+
+// 채팅 패널 "전체 접속자" — db/visitor-count-rpc.sql의 total_unique_visitors()로 DB에서
+// 바로 distinct count(전체 행을 끌어와 앱에서 세지 않음). RPC 미적용(마이그레이션 전) 시
+// fail-open으로 null 반환 — 위젯 쪽에서 숫자 대신 "—"만 계속 보이고 에러는 안 남.
+async function handleVisitorCount(req, res) {
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+  try {
+    const { data, error } = await supabase.rpc('total_unique_visitors');
+    if (error) return res.status(200).json({ ok: false, total: null });
+    return res.status(200).json({ ok: true, total: Number(data) || 0 });
+  } catch {
+    return res.status(200).json({ ok: false, total: null });
   }
 }
 
