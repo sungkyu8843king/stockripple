@@ -2671,16 +2671,26 @@ async function handleFixBrokenTitles(req, res) {
     return decoded.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
   };
 
+  const toFix = (issues || [])
+    .map(it => ({ it, newTitle: clean(it.title), newSummary: clean(it.summary) }))
+    .filter(({ it, newTitle, newSummary }) => newTitle !== it.title || newSummary !== it.summary);
+
+  // 순차 await는 행이 많으면(1000개↔~100초) maxDuration(60s)을 넘겨 타임아웃 나기 쉬웠다
+  // (실측 — 함수가 죽으면서 JSON이 아닌 에러 페이지를 반환해 클라이언트 r.json()도 깨짐).
+  // 각 행 업데이트는 서로 독립적이라 청크 단위 병렬로 바꿔 전체 시간을 크게 줄인다.
+  const CHUNK = 25;
   const results = [];
-  for (const it of issues || []) {
-    const newTitle = clean(it.title);
-    const newSummary = clean(it.summary);
-    if (newTitle === it.title && newSummary === it.summary) continue;
-    if (!dryRun) {
-      const { error: upErr } = await supabase.from('issues').update({ title: newTitle, summary: newSummary }).eq('id', it.id);
-      if (upErr) { results.push({ id: it.id, ok: false, error: upErr.message }); continue; }
+  if (!dryRun) {
+    for (let i = 0; i < toFix.length; i += CHUNK) {
+      const batch = toFix.slice(i, i + CHUNK);
+      const settled = await Promise.all(batch.map(async ({ it, newTitle, newSummary }) => {
+        const { error: upErr } = await supabase.from('issues').update({ title: newTitle, summary: newSummary }).eq('id', it.id);
+        return upErr ? { id: it.id, ok: false, error: upErr.message } : { id: it.id, ok: true, before: it.title, after: newTitle };
+      }));
+      results.push(...settled);
     }
-    results.push({ id: it.id, ok: true, before: it.title, after: newTitle });
+  } else {
+    for (const { it, newTitle } of toFix) results.push({ id: it.id, ok: true, before: it.title, after: newTitle });
   }
 
   return res.status(200).json({
