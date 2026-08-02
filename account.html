@@ -561,13 +561,7 @@ async function loadSettings() {
   const panel = document.getElementById('tab-content-settings');
   panel.innerHTML = '<div class="loading-state" style="padding:40px"><div class="spinner"></div></div>';
 
-  const [{ data: settings }, { data: profile }] = await Promise.all([
-    sb.from('user_settings').select('*').eq('user_id', currentUser.id).single(),
-    sb.from('user_profiles').select('nickname').eq('user_id', currentUser.id).maybeSingle(),
-  ]);
-
-  const chatId = settings?.telegram_chat_id || '';
-  const notifyNew = settings?.notify_new_analysis ?? true;
+  const { data: profile } = await sb.from('user_profiles').select('nickname').eq('user_id', currentUser.id).maybeSingle();
   const nickname = profile?.nickname || (typeof currentNickname !== 'undefined' ? currentNickname : '') || '';
 
   panel.innerHTML = `
@@ -602,43 +596,16 @@ async function loadSettings() {
     <div class="settings-card">
       <div class="settings-card-title">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        Telegram 알림 설정
+        Telegram 알림
       </div>
-
-      <form id="settingsForm" onsubmit="saveSettings(event)">
-        <div class="form-group">
-          <label class="form-label" for="telegramChatId">Telegram Chat ID</label>
-          <input
-            id="telegramChatId"
-            class="form-input"
-            type="text"
-            placeholder="예: 123456789"
-            value="${escHtml(chatId)}"
-            autocomplete="off"
-          >
-          <div class="form-hint">
-            Telegram에서 <strong>@userinfobot</strong>에게 <code>/start</code>를 보내면 Chat ID를 확인할 수 있습니다.
-          </div>
-        </div>
-
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">새 분석 알림 받기</div>
-            <div class="toggle-desc">새로운 이슈 분석이 등록될 때 알림을 보냅니다.</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="notifyNewAnalysis" ${notifyNew ? 'checked' : ''}>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-
-        <div style="margin-top:20px">
-          <button type="submit" class="save-btn" id="saveBtn">
-            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-            저장
-          </button>
-        </div>
-      </form>
+      <div class="form-hint" style="margin-bottom:16px">
+        AI 시장 종합, 국장·미장 데일리 리포트가 나올 때마다 텔레그램으로 알려드립니다.
+        아래 버튼으로 봇을 추가하고 <code>/start</code>를 보내면 바로 구독됩니다 (해제는 <code>/stop</code>).
+      </div>
+      <a href="https://t.me/stockripple_bot" target="_blank" rel="noopener" class="save-btn" style="text-decoration:none;display:inline-flex">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        텔레그램 봇 추가하기
+      </a>
     </div>`;
 }
 
@@ -674,33 +641,6 @@ async function saveNickname(e) {
   showToast('닉네임을 저장했습니다.');
 }
 
-async function saveSettings(e) {
-  e.preventDefault();
-  const btn = document.getElementById('saveBtn');
-  const chatId = document.getElementById('telegramChatId').value.trim();
-  const notifyChecked = document.getElementById('notifyNewAnalysis').checked;
-
-  btn.disabled = true;
-  btn.textContent = '저장 중...';
-
-  const { error } = await sb.from('user_settings').upsert({
-    user_id: currentUser.id,
-    telegram_chat_id: chatId || null,
-    notify_new_analysis: notifyChecked,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'user_id' });
-
-  btn.disabled = false;
-  btn.innerHTML = `
-    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-    저장`;
-
-  if (error) {
-    showToast('저장 중 오류가 발생했습니다.', 'error');
-  } else {
-    showToast('알림 설정이 저장되었습니다.');
-  }
-}
 
 /* ── Sign out ── */
 async function doSignOut() {
