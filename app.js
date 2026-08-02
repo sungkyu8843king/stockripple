@@ -430,6 +430,7 @@ async function voteOnIssue(event, issueId, choice) {
     const conf = confRaw === '' ? null : Number(confRaw);
     _cvSetCached(issueId, { vote: choice, yes, no, conf });
     wrap.innerHTML = _cvResultHtml(yes, no, choice, conf);
+    if (typeof bumpStreak === 'function') bumpStreak();
   } catch {
     showToast('투표에 실패했어요. 잠시 후 다시 시도해주세요.', 'error');
   }

@@ -169,7 +169,8 @@ function _siteChromeInjectStyle() {
 .user-menu{position:relative;flex-shrink:0}
 .user-avatar-btn{width:32px;height:32px;border-radius:50%;background:var(--blue-dim);color:var(--blue);border:1.5px solid var(--blue);font-size:15.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .user-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:var(--bg2);border:1px solid var(--border);border-radius:16px;min-width:150px;overflow:hidden;z-index:500;box-shadow:0 20px 50px rgba(0,0,0,.6)}
-.dropdown-nick{padding:11px 14px 9px;font-size:14.5px;font-weight:700;color:var(--text);border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dropdown-nick{padding:11px 14px 3px;font-size:14.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dropdown-streak{padding:0 14px 9px;font-size:12.5px;font-weight:600;color:var(--text3);border-bottom:1px solid var(--border)}
 .dropdown-item{display:block;width:100%;padding:10px 14px;font-size:15.5px;color:var(--text2);background:none;border:none;text-align:left;cursor:pointer;text-decoration:none;transition:all .12s}
 .dropdown-item:hover{background:var(--bg3);color:var(--text)}
 @media (max-width:760px){
@@ -307,6 +308,7 @@ function _siteHeaderHtml(activePath) {
             <button class="user-avatar-btn" id="userAvatar" onclick="toggleUserDropdown()"></button>
             <div class="user-dropdown" id="userDropdown" style="display:none">
               <div class="dropdown-nick" id="userDropdownNick"></div>
+              <div class="dropdown-streak" id="userDropdownStreak"></div>
               <a href="/account.html" class="dropdown-item">계정 설정</a>
               <button class="dropdown-item" onclick="doSignOut()">로그아웃</button>
             </div>
@@ -560,6 +562,41 @@ function _syncDropdownNick() {
 }
 window.addEventListener('sr-nickname-change', _syncDropdownNick);
 
+// 🔥 연속 참여 스트릭 — 투표/파급 예측(둘 다 로그인 없이도 되지만, 로그인 상태면 여기로
+// 이어진다) 참여일이 이어지면 연속일수가 오른다. KST 벽시계 기준 "오늘 날짜"로 비교해야
+// 자정 근처에서 하루가 어긋나는 걸 막는다(다른 곳의 KST 계산과 동일한 +9h 트릭).
+function _kstDateStr(offsetDays = 0) {
+  return new Date(Date.now() + 9 * 3600000 + offsetDays * 86400000).toISOString().slice(0, 10);
+}
+async function bumpStreak() {
+  if (!currentUser) return;
+  try {
+    const today = _kstDateStr(0);
+    const { data: prof } = await sb.from('user_profiles')
+      .select('streak_days, longest_streak, streak_last_date').eq('user_id', currentUser.id).maybeSingle();
+    if (!prof || prof.streak_last_date === today) return; // 프로필 없거나 오늘 이미 반영됨
+    const newStreak = prof.streak_last_date === _kstDateStr(-1) ? (prof.streak_days || 0) + 1 : 1;
+    const newLongest = Math.max(newStreak, prof.longest_streak || 0);
+    await sb.from('user_profiles')
+      .update({ streak_days: newStreak, longest_streak: newLongest, streak_last_date: today })
+      .eq('user_id', currentUser.id);
+    window.dispatchEvent(new CustomEvent('sr-streak-change', { detail: { streak: newStreak } }));
+  } catch {}
+}
+async function _syncDropdownStreak() {
+  const el = document.getElementById('userDropdownStreak');
+  if (!el || !currentUser) return;
+  try {
+    const { data } = await sb.from('user_profiles').select('streak_days').eq('user_id', currentUser.id).maybeSingle();
+    const days = data?.streak_days || 0;
+    el.textContent = days > 0 ? `🔥 ${days}일 연속 참여` : '투표·예측하고 연속 기록을 쌓아보세요';
+  } catch {}
+}
+window.addEventListener('sr-streak-change', e => {
+  const el = document.getElementById('userDropdownStreak');
+  if (el && e.detail?.streak) el.textContent = `🔥 ${e.detail.streak}일 연속 참여`;
+});
+
 async function initAuth() {
   const { data: { session } } = await sb.auth.getSession();
   currentUser = session?.user ?? null;
@@ -590,6 +627,7 @@ function toggleUserDropdown() {
   const dd = document.getElementById('userDropdown');
   if (dd) dd.style.display = dd.style.display === 'none' ? '' : 'none';
   _syncDropdownNick();
+  _syncDropdownStreak();
 }
 document.addEventListener('click', e => {
   if (!e.target.closest('#userMenu')) {

@@ -735,6 +735,7 @@ async function submitPrediction(issueId) {
   const card = document.getElementById('predictCard');
   if (card) card.innerHTML = _ppResultHtml(cached, null);
   revealAiContent();
+  if (typeof bumpStreak === 'function') bumpStreak();
 }
 // renderPage에서 호출 — 카드 HTML + 블러 여부를 함께 반환
 function renderPredictCard(issue, analysis, companies) {
