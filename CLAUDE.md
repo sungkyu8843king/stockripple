@@ -236,6 +236,20 @@ RLS 패턴: 전부 `anon`은 SELECT만 허용하는 공개 정책 + `service_rol
 
 ---
 
+## 텔레그램 봇 알림 (2026-08-02)
+
+리포트(AI 시장 종합/국장·미장 데일리) 완성 시 발송되는 알림에 **구독 경로가 두 갈래**:
+1. `account.html` "알림 설정" — 로그인 계정이 Chat ID를 직접 붙여넣음(`@userinfobot`으로 확인) → `user_settings.telegram_chat_id`.
+2. **공개 봇 구독(신규)** — 사이트 가입 없이 봇에 `/start`만 보내면 됨 → `telegram_subscribers`(`db/telegram-subscribers.sql`). 웹훅은 `api/notify.js`의 `?action=webhook`(리라이트: `/api/telegram-webhook`), `X-Telegram-Bot-Api-Secret-Token` 헤더를 `TELEGRAM_WEBHOOK_SECRET`과 비교해 검증. `/stop`으로 해제.
+
+발송 로직(`api/admin.js` `notifyReportSubscribers`)은 두 경로의 chat_id를 합쳐서(Set으로 중복 제거) 보낸다 — 새 알림 대상을 추가할 땐 이 함수 하나만 건드리면 됨.
+
+**필요 환경변수**: `TELEGRAM_BOT_TOKEN`(BotFather 발급), `TELEGRAM_CHAT_ID`(어드민 전용 단일 알림, `api/notify.js` 기본 POST), `TELEGRAM_WEBHOOK_SECRET`(웹훅 검증용 임의 문자열, 사용자가 직접 생성). **셋 다 절대 채팅에 붙여넣지 말 것** — Vercel 환경변수로만 설정. `setWebhook` 등록도 사용자 본인 로컬 터미널에서 토큰을 직접 넣어 실행하도록 안내(다른 시크릿 처리와 동일 원칙).
+
+Vercel Hobby 12개 함수 한도 때문에 새 파일을 만들지 않고 기존 `api/notify.js`에 `action=webhook` 쿼리 라우팅으로 추가함 — 새 텔레그램 관련 기능도 이 파일에 액션만 추가할 것.
+
+---
+
 ## 어드민 패널 (`/admin/`)
 
 `admin/index.html`은 셸만 정적 HTML이고 실제 로직은 `lib/admin-dashboard-logic.txt`를 `/api/admin-logic`(→`api/admin-static.js`)에서 fetch해 실행 — 코드 수정 시 이 `.txt` 파일을 고칠 것(admin/index.html 자체가 아니라). `ADMIN_SECRET`으로 인증(헤더 `x-admin-pw` 또는 Bearer), 화이트리스트 이메일 로그인도 병행.
