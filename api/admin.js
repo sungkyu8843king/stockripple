@@ -2663,8 +2663,10 @@ async function handleFixBrokenTitles(req, res) {
 
   const clean = s => {
     if (!s) return s;
+    // 순서 중요(api/fetch.js cleanText와 동일 이유) — &amp;를 먼저 풀어야 이중 이스케이프된
+    // &amp;nbsp; 같은 잔존 케이스도 잡힌다.
     const decoded = s
-      .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
+      .replace(/&amp;/gi, '&').replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<')
       .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/&apos;/gi, "'");
     return decoded.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
   };

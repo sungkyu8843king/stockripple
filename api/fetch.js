@@ -261,8 +261,12 @@ async function handleRss(res) {
       // 안 잡히므로 디코드를 먼저 한다.
       const cleanText = s => {
         if (!s) return null;
+        // &amp;를 가장 먼저 풀어야 한다 — 구글뉴스 등은 XML 텍스트 노드 안에 <a>/&nbsp; 같은
+        // 마크업을 실어보내려고 그 자체를 다시 XML 이스케이프해서(&nbsp; → &amp;nbsp;) 보낸다.
+        // 정규식 파서(extractTag)는 엔티티 디코드를 안 하므로 원문 그대로 &amp;nbsp;가 들어오는데,
+        // &amp;를 나중에 풀면 그때는 이미 &nbsp; 치환 시도가 끝난 뒤라 &nbsp;가 그대로 남는다.
         const decoded = s
-          .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
+          .replace(/&amp;/gi, '&').replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<')
           .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/&apos;/gi, "'");
         return decoded.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
       };
