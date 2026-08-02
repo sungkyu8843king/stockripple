@@ -5,7 +5,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="/sr-pulse.js" defer></script>
-<script src="/coupang-feed-ad.js" defer></script>
 <title>ETF 탐색 — StockRipple</title>
 <meta name="description" content="국내 상장 ETF 1,100여 종을 카테고리·수익률로 탐색하고, 각 ETF의 구성종목·보수·추적오차·기간수익률을 확인하세요. 내 종목이 담긴 ETF 역조회까지.">
 <!-- Open Graph / 링크 공유 미리보기 (정적 — 동적 티커 페이지는 일반 설명) -->
@@ -406,7 +405,6 @@ function renderList(){
   document.getElementById('content').innerHTML = `
     <h1 class="hero-title">🧺 <span>ETF 탐색</span></h1>
     <p class="hero-sub">국내 상장 ETF <b>${_all.length.toLocaleString()}종</b>을 카테고리·수익률로 살펴보세요. ETF를 누르면 <b>구성종목·보수·추적오차·기간수익률</b>이 보이고, 아래에선 <b>내 종목이 담긴 ETF</b>를 역으로 찾을 수 있어요.</p>
-    <div id="feedAdSlot" style="margin:16px 0"></div>
     ${renderRankingsSection()}
     ${stockFinderHtml()}
     <div class="cat-tabs">${tabs}</div>
@@ -415,7 +413,6 @@ function renderList(){
       <div class="sort-group">${sorts}</div>
     </div>
     <div id="etfList"></div>`;
-  if (typeof loadFeedAd === 'function') loadFeedAd();  // 재렌더마다 새로 생기는 #feedAdSlot을 다시 채움
   renderRows();
   const inp = document.getElementById('etfSearch');
   if(inp && _q){ inp.focus(); inp.setSelectionRange(_q.length,_q.length); }
