@@ -1949,10 +1949,9 @@ async function loadInsights(maxCards = 12, showMoreLink = false) {
             </div>
           </div>
         </a>`;
-      }).join('') + `</div>` + (showMoreLink ? `</div>` : '') +
-      (showMoreLink && filteredPool.length > maxCards
-        ? `<div style="text-align:center;margin-top:14px"><a href="/picks.html" style="display:inline-block;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">전체 매수 후보 ${filteredPool.length}개 보기 →</a></div>`
-        : '');
+      }).join('') + `</div>` + (showMoreLink ? `</div>` : '');
+      // "전체 매수 후보 보기" 링크(→ /picks.html)는 2026-08-02 picks.html 삭제(analyze 파이프라인
+      // 보류 장기화)와 함께 제거 — 지금은 항상 홈 미리보기 4개까지만 보여준다.
 
     // 카드 높이는 사유/경고 문구 길이에 따라 들쭉날쭉하므로, 고정 px 크롭 대신
     // 실제 렌더된 마지막 "정식" 카드의 하단 위치를 측정해 딱 그 지점 + 고정

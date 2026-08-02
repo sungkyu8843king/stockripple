@@ -76,12 +76,10 @@ function showShareToast(msg) { showToast(msg, 'info'); }
 
 /* ══════════════════ 헤더/푸터 ══════════════════ */
 
-// "🎯 매수 후보"는 2026-07-22부로 뺐다 — analyze_batches/company_summary 파이프라인을
-// 유사투자자문업 리스크로 완전히 껐고, picks.html이 계속 빈 화면이라 nav 진입점 자체를 없앤다
-// (페이지는 남아있음, URL로는 접근 가능).
-// "🧭 섹터 지도"(sectors.html)도 같은 날 뺐다 — 이 페이지의 핵심(파급 섹터맵·섹터별 종목
-// 랭킹·매수논리)이 전부 꺼둔 analyze 파이프라인에 의존해서 sector-map API가 빈 맵만 반환한다
-// (handleSectorMapGet의 analyze 플래그 가드). analyze 재활성화 전까지 살릴 수 없으므로 진입점 제거.
+// "🎯 매수 후보"(picks.html)와 "🧭 섹터 지도"(sectors.html)는 2026-07-22부로 nav에서 뺐다 —
+// analyze_batches/company_summary 파이프라인을 유사투자자문업 리스크로 껐고 두 페이지 모두
+// 그 파이프라인 없인 빈 화면이었다. 2026-08-02, analyze 보류가 길어져 페이지 자체를 삭제했다
+// (terminal.html도 같이 삭제 — nav에 없던 고아 페이지). analyze 재활성화하면 필요시 재작성.
 const SITE_NAV_ITEMS = [
   { href: '/news.html', label: '📰 뉴스', flag: 'nav-new' },
   { href: '/heatmap.html', label: '🔥 히트맵' },
@@ -89,7 +87,7 @@ const SITE_NAV_ITEMS = [
   { href: '/etf.html', label: '🧺 ETF', flag: 'nav-new' },
   { href: '/earnings.html', label: '📢 실적발표', flag: 'nav-new' },
   { href: '/talks.html', label: '💬 말말말', flag: 'nav-new' },
-  { href: '/portfolio.html', label: '📝 모의투자' },
+  { href: '/portfolio.html', label: '📝 모의투자', flag: 'nav-new' },
 ];
 
 function _siteChromeInjectStyle() {
