@@ -46,40 +46,40 @@
     <rect x="4" y="4" width="792" height="472" rx="24" fill="url(#glass-card)"/>
   </g>
 
-  <!-- StockRipple Brand & Badge -->
-  <g transform="translate(100, 76)">
+  <!-- StockRipple Brand & Badge (캔버스 정중앙 x=400 기준 가운데 정렬) -->
+  <g transform="translate(316, 66)">
     <rect width="168" height="34" rx="17" fill="#0088cc" fill-opacity="0.15" stroke="#0088cc" stroke-opacity="0.4" stroke-width="1"/>
     <text x="84" y="23" fill="#38bdf8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="700" letter-spacing="1" text-anchor="middle">STOCKRIPPLE AI</text>
   </g>
 
-  <!-- Title (긴 문장을 큰 글씨로 안전하게 넣으려고 두 줄로 나눔) -->
-  <text x="100" y="163" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="42" font-weight="800" letter-spacing="-0.5">
+  <!-- Title (긴 문장을 큰 글씨로 안전하게 넣으려고 두 줄로 나눔, 전부 가운데 정렬) -->
+  <text x="400" y="155" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="42" font-weight="800" letter-spacing="-0.5" text-anchor="middle">
     AI 시장 종합 분석
   </text>
-  <text x="100" y="211" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="42" font-weight="800" letter-spacing="-0.5">
+  <text x="400" y="203" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="42" font-weight="800" letter-spacing="-0.5" text-anchor="middle">
     &amp; 데일리 브리핑
   </text>
-  <text x="100" y="253" fill="#38bdf8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="30" font-weight="700">
+  <text x="400" y="245" fill="#38bdf8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="700" text-anchor="middle">
     텔레그램 봇으로 매일 받아보세요!
   </text>
 
-  <!-- Bullet Point Features — 점을 타이틀/서브타이틀과 같은 왼쪽 기준선(x=100)에 맞춤 -->
-  <g transform="translate(100, 288)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="19" fill="#cbd5e1">
+  <!-- Bullet Point Features — 블록 자체를 가운데 정렬(고정 너비 480, 좌측 시작 x=160) -->
+  <g transform="translate(160, 285)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" fill="#cbd5e1">
     <!-- Point 1 -->
     <circle cx="5" cy="9" r="5" fill="#0088cc"/>
     <text x="24" y="15">실시간 AI 기반 <tspan fill="#ffffff" font-weight="600">글로벌 증시 트렌드 및 종합 분석</tspan></text>
 
     <!-- Point 2 -->
-    <circle cx="5" cy="48" r="5" fill="#a855f7"/>
-    <text x="24" y="54">매일 장전 제공되는 <tspan fill="#ffffff" font-weight="600">미장 · 국장 데일리 핵심 리포트</tspan></text>
+    <circle cx="5" cy="46" r="5" fill="#a855f7"/>
+    <text x="24" y="52">매일 장전 제공되는 <tspan fill="#ffffff" font-weight="600">미장 · 국장 데일리 핵심 리포트</tspan></text>
 
     <!-- Point 3 -->
-    <circle cx="5" cy="87" r="5" fill="#ec4899"/>
-    <text x="24" y="93">주요 시장 변동성 이슈 및 <tspan fill="#ffffff" font-weight="600">실시간 알림 서비스</tspan></text>
+    <circle cx="5" cy="83" r="5" fill="#ec4899"/>
+    <text x="24" y="89">주요 시장 변동성 이슈 및 <tspan fill="#ffffff" font-weight="600">실시간 알림 서비스</tspan></text>
   </g>
 
-  <!-- Telegram Bot Button -->
-  <g transform="translate(100, 402)">
+  <!-- Telegram Bot Button (너비 290 → 가운데 정렬 좌측 시작 x=255) -->
+  <g transform="translate(255, 396)">
     <!-- Button Glow Layer -->
     <rect width="290" height="60" rx="19" fill="url(#btn-grad)" opacity="0.4" filter="url(#orb-blur)"/>
     <!-- Main Button -->
@@ -89,12 +89,5 @@
     <path transform="translate(24, 18) scale(1.1)" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .53-1.42.52-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.25.38-.51 1.07-.78 4.18-1.82 6.97-3.02 8.37-3.61 3.99-1.66 4.82-1.95 5.36-1.96.12 0 .38.03.55.17.14.12.18.28.2.45-.02.07-.02.21-.04.38z" fill="#ffffff"/>
 
     <text x="170" y="37" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="700" text-anchor="middle">텔레그램 봇 추가하기  →</text>
-  </g>
-
-  <!-- Decorative Right Elements — 카드 오른쪽 가장자리에 바짝 붙임 -->
-  <g opacity="0.3">
-    <path d="M 745 90 L 770 115 M 770 90 L 745 115" stroke="#a855f7" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="760" cy="230" r="18" fill="none" stroke="#ec4899" stroke-width="2"/>
-    <circle cx="750" cy="300" r="6" fill="#38bdf8"/>
   </g>
 </svg>
