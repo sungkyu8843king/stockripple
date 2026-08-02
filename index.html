@@ -620,6 +620,22 @@ button { font-family: inherit; }
 .tag-robot  { background: var(--purple-dim); color: var(--purple); }
 .tag-energy { background: var(--green-dim);  color: var(--green); }
 .tag-default{ background: var(--bg3); color: var(--text2); }
+/* 📊 군중 vs AI 투표 */
+.card-vote { padding: 10px 16px; border-top: 1px solid var(--border-soft); }
+.cv-prompt { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.cv-q { font-size: 13.5px; color: var(--text2); font-weight: 600; }
+.cv-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.cv-btn { border: 1px solid var(--border); background: var(--bg3); color: var(--text2); font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 8px; cursor: pointer; transition: all .12s; }
+.cv-btn:hover { border-color: var(--blue); color: var(--blue); }
+.cv-result { display: flex; flex-direction: column; gap: 4px; }
+.cv-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.cv-lbl { width: 32px; flex-shrink: 0; color: var(--text3); }
+.cv-bar { flex: 1; height: 6px; background: var(--bg4); border-radius: 3px; overflow: hidden; }
+.cv-fill { height: 100%; border-radius: 3px; }
+.cv-fill.yes { background: var(--blue); }
+.cv-fill.no { background: var(--text3); }
+.cv-pct { width: 34px; text-align: right; font-weight: 700; font-family: var(--font-mono); flex-shrink: 0; }
+.cv-meta { font-size: 11.5px; color: var(--text3); margin-top: 2px; }
 .card-footer { margin-top: auto; padding: 11px 16px; border-top: 1px solid var(--border-soft); display: flex; align-items: center; gap: 12px; background: var(--bg3); }
 .footer-stat { display: flex; align-items: center; gap: 5px; font-size: 14.5px; color: var(--text2); }
 .footer-stat .val { font-weight: 700; font-variant-numeric: tabular-nums; }

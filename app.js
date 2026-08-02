@@ -277,6 +277,7 @@ function renderIssueCard(issue) {
   const upside = companies.map(c => c.upside_pct).filter(Boolean);
   const avgUpside = upside.length ? (upside.reduce((a, b) => a + b, 0) / upside.length).toFixed(1) : null;
   const confidence = analysis?.confidence_score || 0;
+  const aiConfidence = analysis?.confidence_score ?? null;
 
   // 7일 데이터 우선, 없으면 1일 — 방향+최소수익률 모두 충족한 경우만 "적중"
   const has7d = companies.some(c => c.is_accurate_7d !== null && c.is_accurate_7d !== undefined);
@@ -346,6 +347,7 @@ function renderIssueCard(issue) {
           : (sectors.length ? `<div class="card-flow-label">📡 파급 섹터</div><div class="card-sectors">${sectorTags}</div>` : '')}
       </div>
       ${companies.length ? `<div class="card-companies"><div class="card-flow-label">🎯 관련 기업</div>${companyRows}</div>` : ''}
+      ${cardVoteHtml(issue.id, aiConfidence)}
       <div class="card-footer">
         ${avgUpside != null ? `<div class="footer-stat"><span class="val green">+${avgUpside}%</span> 평균 예상</div>` : ''}
         ${accBadge}
@@ -356,6 +358,81 @@ function renderIssueCard(issue) {
         <button class="share-btn" data-share-title="${escAttr(issue.title)}" data-share-url="${escAttr(`${location.origin}/analysis/${issue.id}`)}" onclick="shareContent(event, this)" title="공유하기">🔗</button>
       </div>
     </a>`;
+}
+
+// ── 📊 군중 vs AI 투표 (2026-08) ─────────────────────────────────
+// "이 뉴스가 실제로 시장/산업에 영향 있을까"를 1탭으로 투표(로그인 불필요, sr_sid 기기 ID로
+// 중복 방지). 종목 매수/매도가 아니라 "뉴스 영향력"을 묻는 여론조사라 유사투자자문 리스크 밖.
+// 비교 대상인 "AI 확신도"는 새로 만들지 않고 이미 분석에 있는 confidence_score를 그대로 씀.
+// 카드가 한 번에 수십 개 그려지므로, 초기 렌더에서 페이지당 수십 번씩 집계를 물어보지 않도록
+// 투표 직후 받은 결과만 localStorage(sr_issue_votes)에 캐시해뒀다가 재방문 시 그걸 그대로
+// 보여준다(약간 stale할 수 있지만 재조회 없이 충분 — 캐주얼한 참여 지표라 정밀도 불필요).
+const CV_CACHE_KEY = 'sr_issue_votes';
+function _cvGetCached(issueId) {
+  try { return JSON.parse(localStorage.getItem(CV_CACHE_KEY) || '{}')[issueId] || null; } catch { return null; }
+}
+function _cvSetCached(issueId, data) {
+  try {
+    const map = JSON.parse(localStorage.getItem(CV_CACHE_KEY) || '{}');
+    map[issueId] = data;
+    localStorage.setItem(CV_CACHE_KEY, JSON.stringify(map));
+  } catch {}
+}
+function _cvPromptHtml(issueId) {
+  return `<div class="cv-prompt">
+    <span class="cv-q">📊 이 뉴스, 시장에 영향 있을까요?</span>
+    <div class="cv-btns">
+      <button class="cv-btn" onclick="voteOnIssue(event,${issueId},'yes')">있다</button>
+      <button class="cv-btn" onclick="voteOnIssue(event,${issueId},'no')">글쎄</button>
+    </div>
+  </div>`;
+}
+function _cvResultHtml(yes, no, myVote, conf) {
+  const total = yes + no;
+  const yesPct = total ? Math.round(yes / total * 100) : 50;
+  const noPct = 100 - yesPct;
+  return `<div class="cv-result">
+    <div class="cv-row"><span class="cv-lbl">있다</span><div class="cv-bar"><div class="cv-fill yes" style="width:${yesPct}%"></div></div><span class="cv-pct">${yesPct}%</span></div>
+    <div class="cv-row"><span class="cv-lbl">글쎄</span><div class="cv-bar"><div class="cv-fill no" style="width:${noPct}%"></div></div><span class="cv-pct">${noPct}%</span></div>
+    <div class="cv-meta">${total.toLocaleString('ko-KR')}명 참여${conf != null ? ` · 🤖 AI 확신도 ${conf}%` : ''} · 내 선택: ${myVote === 'yes' ? '있다' : '글쎄'}</div>
+  </div>`;
+}
+function cardVoteHtml(issueId, aiConfidence) {
+  const cached = _cvGetCached(issueId);
+  const body = cached ? _cvResultHtml(cached.yes, cached.no, cached.vote, cached.conf) : _cvPromptHtml(issueId);
+  // 카드 전체가 <a>라 버튼 클릭이 페이지 이동으로 새는 걸 막는다(★ 관심종목 버튼과 동일 패턴)
+  return `<div class="card-vote" id="cv-${issueId}" data-ai-conf="${aiConfidence ?? ''}" onclick="event.preventDefault();event.stopPropagation()">${body}</div>`;
+}
+async function voteOnIssue(event, issueId, choice) {
+  event.preventDefault(); event.stopPropagation();
+  if (typeof sb === 'undefined') return;
+  const wrap = document.getElementById(`cv-${issueId}`);
+  if (!wrap) return;
+  let voterKey;
+  try {
+    voterKey = localStorage.getItem('sr_sid');
+    if (!voterKey) {
+      voterKey = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+      localStorage.setItem('sr_sid', voterKey);
+    }
+  } catch { voterKey = `${Date.now()}-${Math.random()}`; }
+
+  try {
+    const { error } = await sb.from('issue_votes').upsert(
+      { issue_id: issueId, voter_key: voterKey, vote: choice, updated_at: new Date().toISOString() },
+      { onConflict: 'issue_id,voter_key' }
+    );
+    if (error) throw error;
+    const { data: rows } = await sb.from('issue_votes').select('vote').eq('issue_id', issueId);
+    const yes = (rows || []).filter(r => r.vote === 'yes').length;
+    const no = (rows || []).filter(r => r.vote === 'no').length;
+    const confRaw = wrap.dataset.aiConf;
+    const conf = confRaw === '' ? null : Number(confRaw);
+    _cvSetCached(issueId, { vote: choice, yes, no, conf });
+    wrap.innerHTML = _cvResultHtml(yes, no, choice, conf);
+  } catch {
+    showToast('투표에 실패했어요. 잠시 후 다시 시도해주세요.', 'error');
+  }
 }
 
 // ── 🌡️ 지금 산업 온도 (StockRipple 시그니처) ─────────────────────
