@@ -196,6 +196,33 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .conf-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--blue), var(--purple)); transition: width 1s var(--ease, ease); box-shadow: 0 0 8px rgba(0,102,204,0.25); }
 .conf-pct { font-size: 15.5px; font-weight: 800; color: var(--blue); font-family: var(--font-mono, monospace); }
 
+/* 🔮 파급 예측 (2026-08) */
+.pp-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg, 20px);
+  padding: 22px 24px; margin-bottom: 32px;
+}
+.pp-head { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+.pp-sub { font-size: 14.5px; color: var(--text2); margin-bottom: 16px; }
+.pp-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.pp-chip { border: 1px solid var(--border); background: var(--bg3); color: var(--text2); font-size: 14px; font-weight: 600; padding: 7px 14px; border-radius: 999px; cursor: pointer; transition: all .12s; }
+.pp-chip:hover { border-color: var(--blue); }
+.pp-chip.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.pp-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pp-submit { background: linear-gradient(90deg, var(--blue), var(--purple)); color: #fff; border: none; padding: 10px 22px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; }
+.pp-submit:disabled { opacity: .4; cursor: not-allowed; }
+.pp-skip { background: none; border: none; color: var(--text3); font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: underline; }
+.pp-result .pp-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.pp-pick { background: var(--blue-dim, rgba(0,102,204,.12)); color: var(--blue); font-size: 13.5px; font-weight: 700; padding: 4px 11px; border-radius: 999px; }
+.pp-match { font-size: 14.5px; color: var(--text2); font-weight: 600; }
+.pp-wait { font-size: 13.5px; color: var(--text3); margin-top: 8px; }
+.pp-settle { font-size: 15px; font-weight: 700; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.pp-settle.up { color: var(--red); }
+.pp-settle.dn { color: var(--blue); }
+
+/* AI 분석 블러 — 예측 전엔 정답을 가려서 미리 안 보이게 */
+#aiRevealWrap.pw-blurred { filter: blur(9px); pointer-events: none; user-select: none; }
+@media (prefers-reduced-motion: reduce) { #aiRevealWrap.pw-blurred { filter: blur(6px); } }
+
 /* 투자 포인트 요약 */
 .invest-point { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg, 16px); padding: 16px 18px; margin-bottom: 24px; }
 .ip-title { font-size: 15.5px; font-weight: 700; margin-bottom: 12px; }
@@ -578,11 +605,159 @@ function renderRippleChain(chain) {
     </div>`;
 }
 
+// ── 🔮 파급 예측 (2026-08) ─────────────────────────────────────────────
+// "AI 분석 공개 전, 이 뉴스가 어디까지 퍼질지" 산업 태그로 먼저 예측하게 한 뒤(로그인
+// 불필요, sr_sid 기기 ID), 즉시 AI가 실제로 지목한 산업과 몇 개 겹쳤는지 보여주고,
+// 하루쯤 지나 재방문하면 그중 "AI와도 겹친" 산업의 실제 종목들이 정말 움직였는지
+// 보여준다(check-accuracy가 매일 이미 채점해두는 actual_return_1d를 그대로 읽음 —
+// 새로운 채점 로직/크론 없음). 종목 매수·매도 의견이 아니라 "산업 파급" 게임이라
+// 유사투자자문업 리스크 밖 — sector-map(sectors.html, 현재 미사용)의 SM_TAG_RULES와
+// 같은 방식의 규칙 기반 태깅을 여기 전용으로 축소해 재사용.
+const PREDICT_SECTORS = ['AI','반도체','전기차','배터리','바이오','에너지','핀테크','금융','클라우드','로봇','방산·우주','게임','크립토','자동차','물류·운송'];
+const PREDICT_TAG_RULES = [
+  ['AI', /(?:^|[^a-z])ai(?:[^a-z]|$)|인공지능|생성형|llm|챗gpt|chatgpt|claude|copilot|에이전트/i],
+  ['반도체', /반도체|hbm|파운드리|메모리|d램|dram|낸드|nand|웨이퍼|semiconductor|엔비디아|nvidia|gpu|칩(?:[^가-힣]|$)|chip/i],
+  ['전기차', /전기차|테슬라|tesla|자율주행|(?:^|[^a-z])ev(?:[^a-z]|$)|모빌리티/i],
+  ['배터리', /배터리|이차전지|2차전지|양극재|음극재|전고체|리튬|battery/i],
+  ['바이오', /바이오|제약|신약|임상|fda|헬스케어|의료|glp-?1|비만치료|항암|biotech|pharma/i],
+  ['에너지', /에너지|원전|원자력|smr|태양광|풍력|수소|정유|유가|lng|전력|energy|solar|nuclear/i],
+  ['핀테크', /핀테크|결제|송금|fintech|payment/i],
+  ['금융', /금융|은행|보험|증권|금리|연준|fed(?:[^a-z]|$)|중앙은행|채권/i],
+  ['클라우드', /클라우드|데이터센터|cloud|aws|azure|saas/i],
+  ['로봇', /로봇|휴머노이드|robot/i],
+  ['방산·우주', /방산|국방|미사일|무기|전투기|위성|우주|로켓|발사체|defense|missile|aerospace/i],
+  ['게임', /게임|엔씨소프트|크래프톤|넥슨|넷마블|gaming/i],
+  ['크립토', /암호화폐|비트코인|이더리움|스테이블코인|블록체인|crypto|bitcoin|stablecoin/i],
+  ['자동차', /자동차|현대차|기아|완성차|(?:^|[^a-z])oem(?:[^a-z]|$)/i],
+  ['물류·운송', /물류|해운|운송|항공|운임|공급망|logistics|shipping/i],
+];
+function predictTagsOf(text) {
+  if (!text) return [];
+  const tags = [];
+  for (const [tag, re] of PREDICT_TAG_RULES) if (re.test(text)) tags.push(tag);
+  return tags;
+}
+
+const PP_CACHE_KEY = 'sr_issue_predictions';
+function _ppGetCached(issueId) {
+  try { return JSON.parse(localStorage.getItem(PP_CACHE_KEY) || '{}')[issueId] || null; } catch { return null; }
+}
+function _ppSetCached(issueId, data) {
+  try {
+    const map = JSON.parse(localStorage.getItem(PP_CACHE_KEY) || '{}');
+    map[issueId] = data;
+    localStorage.setItem(PP_CACHE_KEY, JSON.stringify(map));
+  } catch {}
+}
+function _ppVoterKey() {
+  try {
+    let k = localStorage.getItem('sr_sid');
+    if (!k) { k = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; localStorage.setItem('sr_sid', k); }
+    return k;
+  } catch { return `${Date.now()}-${Math.random()}`; }
+}
+
+// 사용자가 고른 산업 중 "AI도 같은 산업을 지목한" 것만 골라, 그 산업에 속한
+// analysis_companies의 실제 1일 수익률(check-accuracy가 이미 채점) 평균을 낸다.
+// 아직 채점 전(entry_date+1일 그레이스 이내)이면 pending 상태로 알린다.
+function computeSettlement(pickedSectors, aiTags, companies) {
+  const hitTags = pickedSectors.filter(s => aiTags.has(s));
+  if (!hitTags.length) return null;
+  const relevant = (companies || []).filter(c => predictTagsOf(c.ripple_sector || '').some(t => hitTags.includes(t)));
+  if (!relevant.length) return null;
+  const graded = relevant.filter(c => c.actual_return_1d != null);
+  if (!graded.length) return { pending: true };
+  const avg = graded.reduce((s, c) => s + Number(c.actual_return_1d), 0) / graded.length;
+  return { pending: false, avg, count: graded.length, hitTags };
+}
+
+function _ppPromptHtml(issueId) {
+  return `<div class="pp-card" id="predictPromptCard">
+    <div class="pp-head">🔮 AI 분석 공개 전, 먼저 예측해보세요</div>
+    <div class="pp-sub">이 뉴스, 어느 산업까지 퍼질까요? 최대 3개 선택</div>
+    <div class="pp-chips" id="ppChips">
+      ${PREDICT_SECTORS.map(s => `<button type="button" class="pp-chip" data-sector="${escHtml(s)}" onclick="togglePredictChip(this)">${escHtml(s)}</button>`).join('')}
+    </div>
+    <div class="pp-actions">
+      <button class="pp-submit" id="ppSubmit" onclick="submitPrediction('${issueId}')" disabled>예측 제출</button>
+      <button class="pp-skip" onclick="skipPredict()">AI 분석 바로 보기 →</button>
+    </div>
+  </div>`;
+}
+function _ppResultHtml(cached, settlement) {
+  const picksHtml = cached.sectors.map(s => `<span class="pp-pick">${escHtml(s)}</span>`).join('');
+  const matchLine = `<div class="pp-match">AI와 ${cached.matchCount}/${cached.sectors.length}개 일치</div>`;
+  let tail = `<div class="pp-wait">📅 결과는 내일 다시 확인해보세요</div>`;
+  if (settlement?.pending) tail = `<div class="pp-wait">📅 정산 대기 중 — 내일 다시 확인해보세요</div>`;
+  else if (settlement && !settlement.pending) {
+    const sign = settlement.avg >= 0 ? '+' : '';
+    const cls = settlement.avg >= 0 ? 'up' : 'dn';
+    tail = `<div class="pp-settle ${cls}">🏁 적중 산업(${settlement.hitTags.join(', ')}) 관련 종목 실제 평균 ${sign}${settlement.avg.toFixed(1)}%</div>`;
+  } else if (!cached.matchCount) {
+    tail = '';
+  }
+  return `<div class="pp-card pp-result">
+    <div class="pp-head">✅ 예측 완료</div>
+    <div class="pp-picks">${picksHtml}</div>
+    ${matchLine}
+    ${tail}
+  </div>`;
+}
+function togglePredictChip(btn) {
+  const active = document.querySelectorAll('#ppChips .pp-chip.active');
+  if (!btn.classList.contains('active') && active.length >= 3) return;
+  btn.classList.toggle('active');
+  const submitBtn = document.getElementById('ppSubmit');
+  if (submitBtn) submitBtn.disabled = document.querySelectorAll('#ppChips .pp-chip.active').length === 0;
+}
+function revealAiContent() {
+  document.getElementById('aiRevealWrap')?.classList.remove('pw-blurred');
+}
+function skipPredict() {
+  document.getElementById('predictCard').innerHTML = '';
+  revealAiContent();
+}
+async function submitPrediction(issueId) {
+  const chips = [...document.querySelectorAll('#ppChips .pp-chip.active')].map(b => b.dataset.sector);
+  if (!chips.length) return;
+  const aiTags = window._ppAiTags || new Set();
+  const matchCount = chips.filter(s => aiTags.has(s)).length;
+  try {
+    if (typeof sb !== 'undefined') {
+      await sb.from('issue_predictions').upsert(
+        { issue_id: issueId, predictor_key: _ppVoterKey(), sectors: chips, ai_match_count: matchCount, ai_total_tags: aiTags.size },
+        { onConflict: 'issue_id,predictor_key' }
+      );
+    }
+  } catch {}
+  const cached = { sectors: chips, matchCount, totalAiTags: aiTags.size, createdAt: Date.now() };
+  _ppSetCached(issueId, cached);
+  const card = document.getElementById('predictCard');
+  if (card) card.innerHTML = _ppResultHtml(cached, null);
+  revealAiContent();
+}
+// renderPage에서 호출 — 카드 HTML + 블러 여부를 함께 반환
+function renderPredictCard(issue, analysis, companies) {
+  if (!analysis) { window._ppAiTags = new Set(); return { html: '', blurred: false }; }
+  const rippleEffects = analysis.ripple_effects || [];
+  const aiSectorText = [...(analysis.direct_sectors || []), ...rippleEffects.map(r => r.sector || '')].join(' ');
+  const aiTags = new Set(predictTagsOf(aiSectorText));
+  window._ppAiTags = aiTags;
+
+  const cached = _ppGetCached(issue.id);
+  if (cached) {
+    const settlement = computeSettlement(cached.sectors, aiTags, companies);
+    return { html: _ppResultHtml(cached, settlement), blurred: false };
+  }
+  return { html: _ppPromptHtml(issue.id), blurred: true };
+}
+
 function renderPage(issue, analysis, companies) {
   const sectors = issue.sectors || [];
   const rippleEffects = analysis?.ripple_effects || [];
   const rippleChain = analysis?.ripple_chain || [];
   const confidence = analysis?.confidence_score || 0;
+  const predict = renderPredictCard(issue, analysis, companies);
 
   const sectorTags = sectors.map(s =>
     `<span class="sector-tag ${sectorColors[s]||'tag-default'}">${s}</span>`
@@ -767,6 +942,8 @@ function renderPage(issue, analysis, companies) {
       <div class="issue-sectors">${sectorTags}</div>
     </div>
 
+    <div id="predictCard">${predict.html}</div>
+    <div id="aiRevealWrap" class="${predict.blurred ? 'pw-blurred' : ''}">
     ${analysis?.ai_summary ? `
     <div class="ai-card">
       <div class="ai-badge"><span class="ai-badge-dot"></span>Claude AI 분석</div>
@@ -860,6 +1037,7 @@ function renderPage(issue, analysis, companies) {
         <div class="chart-wrap"><canvas id="upsideChart"></canvas></div>
       </div>
     </div>` : ''}
+    </div><!-- /#aiRevealWrap -->
 
     <!-- 관련 과거 이슈 타임라인 (같은 섹터) -->
     <div id="relatedIssuesWrap"></div>
