@@ -40,12 +40,12 @@
   <circle cx="200" cy="180" r="160" fill="#0088cc" opacity="0.25" filter="url(#orb-blur)"/>
   <circle cx="620" cy="300" r="180" fill="#a855f7" opacity="0.2" filter="url(#orb-blur)"/>
 
-  <!-- Center Glassmorphism Popup Container -->
+  <!-- Center Glassmorphism Popup Container (배너 캔버스 가득 채움 — 바깥 여백 없앰) -->
   <g>
     <!-- Background Card -->
-    <rect x="60" y="40" width="680" height="400" rx="28" fill="url(#glass-card)"/>
+    <rect x="4" y="4" width="792" height="472" rx="24" fill="url(#glass-card)"/>
     <!-- Glass Border -->
-    <rect x="60" y="40" width="680" height="400" rx="28" fill="none" stroke="url(#border-grad)" stroke-width="1.5"/>
+    <rect x="4" y="4" width="792" height="472" rx="24" fill="none" stroke="url(#border-grad)" stroke-width="1.5"/>
   </g>
 
   <!-- StockRipple Brand & Badge -->
@@ -59,7 +59,7 @@
     AI 시장 종합 분석 &amp; 데일리 브리핑
   </text>
   <text x="100" y="195" fill="#38bdf8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="700">
-    텔레그램 봇으로 매일 아침 받아보세요!
+    텔레그램 봇으로 매일 받아보세요!
   </text>
 
   <!-- Bullet Point Features -->
