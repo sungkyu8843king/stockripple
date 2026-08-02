@@ -91,10 +91,10 @@
     <text x="170" y="37" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="700" text-anchor="middle">텔레그램 봇 추가하기  →</text>
   </g>
 
-  <!-- Decorative Right Elements — 텍스트 블록(왼쪽)과 안 겹치게 완전히 빈 오른쪽 공간에만 배치 -->
+  <!-- Decorative Right Elements — 카드 오른쪽 가장자리에 바짝 붙임 -->
   <g opacity="0.3">
-    <path d="M 715 100 L 745 130 M 745 100 L 715 130" stroke="#a855f7" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="735" cy="230" r="18" fill="none" stroke="#ec4899" stroke-width="2"/>
-    <circle cx="700" cy="300" r="6" fill="#38bdf8"/>
+    <path d="M 745 90 L 770 115 M 770 90 L 745 115" stroke="#a855f7" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="760" cy="230" r="18" fill="none" stroke="#ec4899" stroke-width="2"/>
+    <circle cx="750" cy="300" r="6" fill="#38bdf8"/>
   </g>
 </svg>
