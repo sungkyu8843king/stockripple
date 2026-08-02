@@ -78,7 +78,7 @@ async function handleChartHistory(id, range, res) {
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
   const symbol = SYMBOL_MAP[id];
   if (!symbol) return res.status(400).json({ ok: false, error: 'unknown symbol' });
-  const safeRange = ['1mo', '3mo', '6mo', '1y'].includes(range) ? range : '6mo';
+  const safeRange = ['1mo', '3mo', '6mo', '1y', 'ytd', '5y'].includes(range) ? range : '6mo';
   try {
     const r = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${safeRange}`,
