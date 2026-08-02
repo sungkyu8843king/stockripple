@@ -70,18 +70,26 @@ async function handleWebhook(req, res) {
     if (chatId == null || !text) return res.status(200).json({ ok: true });
 
     if (text === '/start') {
-      await supabase.from('telegram_subscribers').upsert({
+      const { error } = await supabase.from('telegram_subscribers').upsert({
         chat_id: chatId,
         username: msg.from?.username || null,
         active: true,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'chat_id' });
-      await sendText(chatId,
-        '✅ 구독이 시작됐습니다!\n\nAI 시장 종합, 국장·미장 데일리 리포트가 나올 때마다 여기로 알려드릴게요.\n중지하려면 언제든 /stop 을 보내주세요.');
+      if (error) {
+        console.error('telegram_subscribers upsert failed:', error.message);
+        await sendText(chatId, '⚠️ 구독 처리 중 오류가 발생했습니다. 잠시 후 /start 를 다시 보내주세요.');
+      } else {
+        await sendText(chatId,
+          '✅ 구독이 시작됐습니다!\n\nAI 시장 종합, 국장·미장 데일리 리포트가 나올 때마다 여기로 알려드릴게요.\n중지하려면 언제든 /stop 을 보내주세요.');
+      }
     } else if (text === '/stop') {
-      await supabase.from('telegram_subscribers')
+      const { error } = await supabase.from('telegram_subscribers')
         .update({ active: false, updated_at: new Date().toISOString() })
         .eq('chat_id', chatId);
+      if (error) {
+        console.error('telegram_subscribers unsubscribe failed:', error.message);
+      }
       await sendText(chatId, '🔕 구독이 해제됐습니다. 다시 받고 싶으시면 /start 를 보내주세요.');
     } else {
       await sendText(chatId, '이 봇은 StockRipple 리포트 알림 전용입니다.\n구독: /start · 해제: /stop');
