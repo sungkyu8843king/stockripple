@@ -469,6 +469,7 @@ async function initAuth() {
   currentUser = session?.user ?? null;
   if (currentUser) await loadWatchlistCache();
   renderUserMenu(currentUser);
+  loadPaperPortfolioWidget();
   sb.auth.onAuthStateChange(async (event, session) => {
     currentUser = session?.user ?? null;
     if (currentUser) {
@@ -477,8 +478,77 @@ async function initAuth() {
       watchlistCache.clear();
     }
     renderUserMenu(currentUser);
+    loadPaperPortfolioWidget();
     if (event === 'SIGNED_IN') closeAuthModal();
   });
+}
+
+// ── 📝 내 모의투자 (홈 사이드바 위젯, 2026-08) ────────────────────────
+// portfolio.html의 계정당-1계좌 모델(paper_portfolios/paper_positions)을 그대로 읽기만
+// 한다 — 여기서는 요약 한 줄만 필요하므로 portfolio.html의 로트별 진입환율 고정 회계
+// 대신 "현재 환율 일괄 적용" 근사치를 쓴다(오차는 미미, 정확한 숫자는 모의투자 페이지에서).
+async function loadPaperPortfolioWidget() {
+  const body = document.getElementById('paperPortfolioBody');
+  if (!body) return;
+
+  if (!currentUser) {
+    body.innerHTML = `<div style="text-align:center;padding:6px 0">
+      <div style="font-size:14px;color:var(--text2);margin-bottom:10px">가상 자금 1,000만원으로<br>실전처럼 투자를 연습해보세요</div>
+      <a href="/portfolio.html" style="display:inline-block;padding:8px 16px;border-radius:8px;background:var(--blue);color:#fff;font-weight:700;font-size:14px;text-decoration:none">모의투자 시작하기 →</a>
+    </div>`;
+    return;
+  }
+
+  try {
+    const { data: pf } = await sb.from('paper_portfolios').select('*').eq('user_id', currentUser.id).maybeSingle();
+    if (!pf) {
+      body.innerHTML = `<div style="text-align:center;padding:6px 0">
+        <div style="font-size:14px;color:var(--text2);margin-bottom:10px">아직 계좌가 없어요 — 가상 자금<br>1,000만원으로 바로 시작할 수 있어요</div>
+        <a href="/portfolio.html" style="display:inline-block;padding:8px 16px;border-radius:8px;background:var(--blue);color:#fff;font-weight:700;font-size:14px;text-decoration:none">모의투자 시작하기 →</a>
+      </div>`;
+      return;
+    }
+
+    const { data: lots } = await sb.from('paper_positions').select('ticker, quantity, market')
+      .eq('portfolio_id', pf.id).eq('status', 'open');
+    const openLots = lots || [];
+
+    let fx = 1441;
+    try {
+      const fxRes = await fetch('/api/toss?action=fx').then(r => r.json());
+      if (fxRes?.rate) fx = fxRes.rate;
+    } catch {}
+
+    let holdingsValue = 0;
+    if (openLots.length) {
+      const tickers = [...new Set(openLots.map(l => l.ticker))];
+      try {
+        const q = await fetch(`/api/quotes?tickers=${tickers.map(encodeURIComponent).join(',')}`).then(r => r.json());
+        for (const l of openLots) {
+          const price = q?.data?.[l.ticker]?.price;
+          if (price == null) continue;
+          const isKr = l.market === 'KR' || /\.K[SQ]$/i.test(l.ticker || '');
+          holdingsValue += price * Number(l.quantity) * (isKr ? 1 : fx);
+        }
+      } catch {}
+    }
+
+    const totalValue = Number(pf.cash_balance) + holdingsValue;
+    const initialCash = Number(pf.initial_cash) || 10000000;
+    const pnl = totalValue - initialCash;
+    const pnlPct = (pnl / initialCash) * 100;
+    const cls = pnl > 0 ? 'up' : pnl < 0 ? 'dn' : 'flat';
+    const color = pnl > 0 ? 'var(--red)' : pnl < 0 ? 'var(--blue)' : 'var(--text3)';
+    const sign = pnl > 0 ? '+' : '';
+
+    body.innerHTML = `<a href="/portfolio.html" style="display:block;text-decoration:none;color:inherit">
+      <div style="font-size:12.5px;color:var(--text3);margin-bottom:3px">평가금액</div>
+      <div style="font-size:20px;font-weight:800;font-family:var(--font-mono,monospace);letter-spacing:-0.02em">₩${Math.round(totalValue).toLocaleString('ko-KR')}</div>
+      <div style="font-size:14.5px;font-weight:700;color:${color};margin-top:2px">${sign}${Math.round(pnl).toLocaleString('ko-KR')}원 (${sign}${pnlPct.toFixed(2)}%)</div>
+    </a>`;
+  } catch {
+    body.innerHTML = `<div style="color:var(--text3);font-size:13.5px;text-align:center;padding:8px 0">불러오지 못했어요</div>`;
+  }
 }
 
 function renderUserMenu(user) {
