@@ -25,6 +25,8 @@
  *  POST /api/admin?action=feature-flags {key?, keys?, enabled} → 개별/일괄 on/off (key·keys 생략 시 전체)
  *  GET  /api/admin?action=shares-outstanding  → 히트맵 시총 계산용 상장주식수 캐시 조회 (공개)
  *  POST /api/admin?action=crawl-shares-outstanding {start?, force?} → 상장주식수 크롤(7일 신선도가드, resumable)
+ *  POST /api/admin?action=resend-telegram-test&type=ai_market_summary|daily_report_kr|daily_report_us
+ *       → 저장된 최신 리포트를 텔레그램 구독자에게 재발송(디버그용, 새로 생성 안 함)
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
@@ -136,6 +138,7 @@ export default async function handler(req, res) {
   if (action === 'earnings-manual-list')   return handleEarningsManualList(req, res);
   if (action === 'earnings-manual-upsert') return handleEarningsManualUpsert(req, res);
   if (action === 'earnings-manual-delete') return handleEarningsManualDelete(req, res);
+  if (action === 'resend-telegram-test') return handleResendTelegramTest(req, res);
 
   return res.status(400).json({ error: 'Unknown action' });
 }
@@ -4298,6 +4301,37 @@ async function notifyReportSubscribers(req, title, snippet, reportParam) {
     ));
   } catch (e) {
     console.error('notifyReportSubscribers failed:', e.message);
+  }
+}
+
+// 텔레그램 알림이 실제로 오는지 수동 확인용(디버그) — 이미 저장된 최신
+// ai_market_summary 또는 daily_report(KR/US) 행을 다시 발송한다. 새로 생성/분석하지
+// 않고 저장된 결과만 재사용하므로 반복 호출해도 비용/부작용 없음.
+async function handleResendTelegramTest(req, res) {
+  const type = (req.query.type || 'ai_market_summary').toString();
+  try {
+    if (type === 'ai_market_summary') {
+      const { data: row } = await supabase.from('ai_market_summary')
+        .select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!row) return res.status(404).json({ error: 'ai_market_summary 데이터 없음' });
+      const teaser = (row.bullish_drivers?.[0] || row.bearish_drivers?.[0] || row.key_events_today?.[0] || '');
+      await notifyReportSubscribers(req, `🤖 AI 시장 종합: ${row.headline || ''}`, teaser, 'ai');
+      return res.status(200).json({ ok: true, sent: 'ai_market_summary', headline: row.headline });
+    }
+    if (type === 'daily_report_kr' || type === 'daily_report_us') {
+      const market = type === 'daily_report_kr' ? 'KR' : 'US';
+      const { data: row } = await supabase.from('daily_reports')
+        .select('*').eq('market', market).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!row) return res.status(404).json({ error: `daily_reports(${market}) 데이터 없음` });
+      const mktLabel = market === 'KR' ? '🇰🇷 국장' : '🇺🇸 미장';
+      const reportParam = market === 'KR' ? 'dr-kr' : 'dr-us';
+      const teaser = (row.recap?.[0] || row.top_events?.[0] || '');
+      await notifyReportSubscribers(req, `${mktLabel} 데일리 리포트: ${row.headline || ''}`, teaser, reportParam);
+      return res.status(200).json({ ok: true, sent: type, headline: row.headline });
+    }
+    return res.status(400).json({ error: 'type은 ai_market_summary|daily_report_kr|daily_report_us 중 하나' });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
   }
 }
 
