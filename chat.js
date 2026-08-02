@@ -18,6 +18,12 @@
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
   let guestKey = lsGet('sr_chat_gk', null);
   if (!guestKey) { guestKey = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join(''); lsSet('sr_chat_gk', guestKey); }
+  // 게스트 닉네임 — 예전엔 "게스트+키 뒷 4자리"(예: 게스트7ffn)라 무성의해 보인다는 피드백
+  // (2026-08) — 회원 온보딩 때 쓰는 randomNickname()(site-header.js, 전역 함수라 여기서도
+  // 바로 호출 가능)과 같은 형용사+명사+숫자 스타일("불꽃거북이5901")로 통일. guestKey처럼
+  // localStorage에 한 번 저장해두고 계속 재사용(매번 랜덤이면 새로고침마다 딴 사람처럼 보임).
+  let guestNickname = lsGet('sr_chat_gn', null);
+  if (!guestNickname) { guestNickname = (typeof randomNickname === 'function') ? randomNickname() : ('게스트' + guestKey.slice(-4)); lsSet('sr_chat_gn', guestNickname); }
   const blocked = new Set(lsGet('sr_chat_blocked', []));
   const myReports = new Set(lsGet('sr_chat_reported', []));
   const myKey = () => (typeof currentUser !== 'undefined' && currentUser) ? 'u:' + currentUser.id : 'g:' + guestKey;
@@ -241,7 +247,7 @@
     const el = panel.querySelector('#srChatMe');
     el.textContent = (typeof currentUser !== 'undefined' && currentUser)
       ? ((typeof currentNickname !== 'undefined' && currentNickname) || (currentUser.email || '').split('@')[0])
-      : '게스트' + guestKey.slice(-4);
+      : guestNickname;
   }
   window.addEventListener('sr-nickname-change', renderMe);
 
@@ -331,7 +337,9 @@
         if (data?.session?.access_token) headers['Authorization'] = 'Bearer ' + data.session.access_token;
       } catch {}
       const r = await fetch('/api/feedback?action=chat-send', {
-        method: 'POST', headers, body: JSON.stringify({ message: text, guestKey }),
+        // guestNickname은 로그인 사용자에겐 서버가 무시함(회원은 user_profiles 닉네임 우선) —
+        // 게스트일 때만 실제로 쓰인다.
+        method: 'POST', headers, body: JSON.stringify({ message: text, guestKey, guestNickname }),
       });
       const j = await r.json();
       if (j.ok) input.value = '';

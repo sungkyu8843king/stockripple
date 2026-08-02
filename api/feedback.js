@@ -102,7 +102,12 @@ async function handleChatSend(req, res) {
     const gk = String(body.guestKey || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
     if (gk.length < 8) return res.status(400).json({ ok: false, error: 'guestKey required' });
     senderKey = 'g:' + gk;
-    nickname = ('게스트' + gk.slice(-4)).slice(0, 20);
+    // 게스트 닉네임 — 클라이언트(chat.js)가 randomNickname()으로 만들어 localStorage에
+    // 저장해둔 값을 그대로 보내온다("게스트7ffn" 대신 "불꽃거북이5901" 스타일, 2026-08).
+    // 서버가 생성한 값이 아니라 사용자 입력이므로 message와 동일하게 제어문자만 제거하고
+    // 길이 제한 — 비어있거나 이상하면 기존 방식으로 안전하게 폴백.
+    const clientNick = String(body.guestNickname || '').replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20);
+    nickname = clientNick || ('게스트' + gk.slice(-4)).slice(0, 20);
   }
 
   const ip = (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() || 'noip';
