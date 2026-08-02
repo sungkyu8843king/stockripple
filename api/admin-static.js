@@ -715,7 +715,7 @@ const SHELL_HTML = `
       </div>
 
       <div class="card" style="margin-top:14px">
-        <div class="card-title">📅 일자별 접속자 (순 방문 세션 수)</div>
+        <div class="card-title">📅 일자별 접속자 (순 방문자 수 · 기기 기준)</div>
         <div id="anaDaily" style="margin-top:10px">로딩 중...</div>
       </div>
 
