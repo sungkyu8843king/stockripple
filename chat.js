@@ -102,7 +102,12 @@
      경계로 잘려 안 보이는 현상이 있어서(2026-08 실측), 말풍선은 버튼의 형제로 빼고
      별도 래퍼(.srr-collapse-wrap)에 위치 기준(position:relative)을 둔다. */
   .srr-collapse-wrap{position:relative;margin-bottom:8px;flex-shrink:0}
-  .srr-key-hint{position:absolute;top:50%;right:calc(100% + 12px);transform:translateY(-50%);display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:12.5px;font-weight:700;color:#fff;background:var(--blue);padding:6px 13px 6px 7px;border-radius:10px;box-shadow:0 4px 14px rgba(36,87,230,.45);pointer-events:none;animation:srrHintNudge 2.2s ease-in-out infinite}
+  .srr-key-hint{position:absolute;top:50%;right:calc(100% + 12px);transform:translateY(-50%);display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:12.5px;font-weight:700;color:#fff;background:var(--blue);padding:6px 13px 6px 7px;border-radius:10px;box-shadow:0 4px 14px rgba(36,87,230,.45);pointer-events:auto;animation:srrHintNudge 2.2s ease-in-out infinite}
+  /* 마우스 올렸을 때만 ✕가 나타나 닫을 수 있게(2026-08 피드백) — 평소엔 안 보이다가
+     hover 시에만 나타나므로 배지 자체 레이아웃(padding 등)에 영향 없음. */
+  .srr-key-hint-close{display:none;align-items:center;justify-content:center;position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:var(--bg);border:1px solid var(--border-strong);color:var(--text2);font-size:9px;line-height:1;cursor:pointer;padding:0}
+  .srr-key-hint:hover .srr-key-hint-close{display:flex}
+  .srr-key-hint-close:hover{background:var(--bg3);color:var(--text)}
   /* \ 글자를 파란 배경 위에 흰 굵은 글씨로만 두니 잘 안 읽힌다는 피드백(2026-08) —
      실제 키보드 키캡처럼 흰 배경 + 테두리 박스 안에 넣어서 "이게 누르는 키다"가
      한눈에 보이게 함. 폰트는 반드시 Consolas를 앞에 둔다 — 'SF Mono'/Menlo는 macOS
@@ -207,7 +212,10 @@
       <button class="srr-item srr-collapse" id="srRailCollapse" title="접기/펼치기 (\\ 키, 닫기는 Esc)">
         <span id="srRailCollapseIcon">«</span><span class="srr-label">열기·닫기</span>
       </button>
-      <span class="srr-key-hint"><kbd>\\</kbd><span>단축키</span></span>
+      <span class="srr-key-hint" id="srKeyHint" style="${lsGet('sr_key_hint_dismissed', false) ? 'display:none' : ''}">
+        <kbd>\\</kbd><span>단축키</span>
+        <button type="button" class="srr-key-hint-close" id="srKeyHintClose" title="다시 안 보기" aria-label="닫기">✕</button>
+      </span>
     </div>
     ${chatEnabled ? `<button class="srr-item" data-tab="chat"><span>💬</span><span class="srr-label">채팅</span><span class="badge" id="srRailChatBadge"></span></button>` : ''}
     <button class="srr-item" data-tab="rank"><span>📊</span><span class="srr-label">실시간</span></button>
@@ -662,6 +670,15 @@
   // 이미 그 탭이 열려 있으면 패널을 닫는다(같은 아이콘 재클릭 = 닫기).
   railCollapseBtn?.addEventListener('click', () => {
     if (panel.classList.contains('open')) { closePanel(); } else { openPanel(); }
+  });
+  // \ 키 말풍선 힌트 — 마우스 올렸을 때 나오는 ✕로 닫으면 다음 방문부터도 안 보이게
+  // localStorage에 기억(2026-08 피드백). 버튼 클릭이 뒤의 접기/펼치기 버튼까지 겹쳐
+  // 눌리지 않도록 stopPropagation.
+  rail.querySelector('#srKeyHintClose')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    lsSet('sr_key_hint_dismissed', true);
+    const hint = rail.querySelector('#srKeyHint');
+    if (hint) hint.style.display = 'none';
   });
   rail.querySelectorAll('.srr-item[data-tab]').forEach(b => {
     b.addEventListener('click', () => {
