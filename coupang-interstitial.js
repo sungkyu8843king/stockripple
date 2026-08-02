@@ -67,6 +67,13 @@
     function close() {
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     }
+
+    // 배너 이미지를 눌러 쿠팡으로 넘어가는 경우 X를 안 눌러도 됨 — iframe 안(다른 문서)에서
+    // 일어나는 클릭이라 여기서 직접 감지는 못 하지만, "페이지를 떠나는 순간"엔 항상 닫아두면
+    // 된다. 이렇게 해야 브라우저 뒤로가기로 돌아왔을 때(bfcache 복원 — 페이지 스크립트가
+    // 다시 실행되지 않고 떠날 때의 DOM이 그대로 되살아남) 배너가 그대로 남아있지 않는다.
+    document.addEventListener('visibilitychange', function () { if (document.hidden) close(); });
+    window.addEventListener('pagehide', close);
   }
 
   function init() {
