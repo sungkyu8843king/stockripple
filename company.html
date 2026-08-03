@@ -2073,7 +2073,26 @@ function addAiGateOverlay(ticker) {
   card.appendChild(overlay);
   _aiOverlayEl = overlay;
   _aiOverlayTicker = ticker;
-  loadAiPanelAd(overlay.querySelector('#aiPanelAdSlot'));
+  const adSlot = overlay.querySelector('#aiPanelAdSlot');
+  loadAiPanelAd(adSlot);
+
+  // ⚠️ 주 감지 수단: iframe 안에서 aiGateOnAdClicked()를 직접 호출해주는 걸 기대했지만
+  // (같은 출처라 가능해야 함) 실사용에서 계속 안 풀리는 걸로 봐서 광고 위젯(g.js) 내부가
+  // 클릭 이벤트 전파를 막거나(stopPropagation) 실제 크리에이티브를 또 다른(교차 출처일
+  // 수 있는) iframe으로 그리는 구조일 가능성이 크다 — 그러면 iframe 내부 스크립트가
+  // 아예 협조를 안 해도 된다. 그래서 iframe 내부와 무관하게 부모에서 스스로 감지하는
+  // 표준 기법을 기본 수단으로 쓴다: 어떤 iframe이든(교차 출처 포함) 사용자가 그 안을
+  // 클릭/탭하면 브라우저가 포커스를 그 iframe으로 옮기므로, window가 blur되는 순간
+  // document.activeElement가 이 광고 iframe이면 "광고를 클릭했다"로 간주한다.
+  const iframeEl = adSlot.querySelector('iframe');
+  function onWindowBlur() {
+    setTimeout(function () {
+      if (document.activeElement === iframeEl) aiGateOnAdClicked();
+    }, 0);
+  }
+  window.addEventListener('blur', onWindowBlur);
+  const _origRemove = overlay.remove.bind(overlay);
+  overlay.remove = function () { window.removeEventListener('blur', onWindowBlur); _origRemove(); };
 }
 
 function renderAiSummaryContent(displayName, d) {
