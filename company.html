@@ -2006,43 +2006,26 @@ async function loadTechChips(ticker) {
 }
 
 // ── AI 종합 분석 ──────────────────────────────────────────
-// 저장된 분석(캐시)이 있는 티커는 쿠팡 배너를 눌러 쿠팡에 갔다 돌아와야 내용이 열리는
-// "게이트" 형태로 노출한다(배너 클릭 유도).
-// ⚠️ 배너 클릭 신호는 postMessage가 아니라 같은 출처 iframe(coupang-ad-mobile/pc.html)이
-// window.parent.aiGateOnAdClicked()를 직접 동기 호출하는 방식이다(2026-08 수정) —
-// postMessage는 부모가 실제로 그 메시지를 처리하는 시점이 큐에 쌓였다가 비동기로
-// 실행되는데, 광고 클릭 직후 곧바로 top.location.href로 쿠팡 이동이 시작되면 그
-// 비동기 처리가 실행되기 전에 페이지가 떠나버려 신호 자체가 유실되는 실측 버그가
-// 있었다. 동기 함수 호출은 같은 클릭 이벤트 처리 turn 안에서 즉시 끝나므로 이후에
-// 예약되는 네비게이션보다 항상 먼저 완료된다.
-// ⚠️ 또한 company.html은 site-presence Realtime(WebSocket) 채널을 물고 있어 대부분
-// 브라우저가 bfcache 대상에서 제외한다 — 쿠팡에 갔다 Back으로 돌아오면 bfcache 복원이
-// 아니라 완전히 새로 로드되어 JS 메모리 상태가 통째로 날아간다. 그래서 클릭 사실은
-// sessionStorage에 남기고, loadAiSummary가 다시 실행될 때(새로고침이든 SPA 티커전환
-// 이든) 그 값부터 확인해 게이트를 건너뛴다. 탭이 살아있는 채로 포커스만 잃었다 돌아오는
-// 경우(새 탭으로 열림 등)를 위해 visibilitychange/focus 복귀도 보조 수단으로 둔다.
-const AI_GATE_KEY_PREFIX = 'sr_ai_gate_clicked_';
-function aiGateWasClicked(ticker) {
+// 저장된 분석(캐시)이 있으면 내용은 이미 렌더링해두고, 그 위에 쿠팡 배너가 든 잠금
+// 오버레이를 덮는다 — 오버레이 클릭(같은 문서 안의 평범한 DOM 클릭) 한 번이면 바로
+// 사라지고 내용이 드러난다.
+// ⚠️ 이전엔 "쿠팡 iframe 클릭 → 부모에 신호 → 실제로 쿠팡 갔다 왔는지 확인" 흐름으로
+// 만들었는데, iframe↔부모 통신(postMessage 비동기 유실) + company.html이 물고 있는
+// Realtime 웹소켓 때문에 쿠팡에서 뒤로가기로 돌아와도 bfcache가 아니라 완전 새로고침이
+// 되어 상태가 날아가는 문제가 겹쳐 실사용에서 계속 안 풀리는 것으로 확인됐다(2026-08).
+// 그 경로를 전부 걷어내고, 오버레이 자체를 같은 문서 안에서 직접 클릭하면 닫히는
+// 방식으로 단순화 — 크로스프레임/네비게이션/캐시 문제와 완전히 무관해 확실히 동작한다.
+const AI_GATE_KEY_PREFIX = 'sr_ai_gate_unlocked_';
+function aiGateIsUnlocked(ticker) {
   try { return sessionStorage.getItem(AI_GATE_KEY_PREFIX + ticker) === '1'; } catch { return false; }
 }
-function aiGateMarkClicked(ticker) {
+function aiGateUnlock(ticker) {
   try { sessionStorage.setItem(AI_GATE_KEY_PREFIX + ticker, '1'); } catch {}
-}
-
-let _aiGateCleanup = null; // 티커 전환 시 이전 게이트의 리스너를 정리하기 위한 핸들
-let _aiGateOnAdClick = null; // 현재 게이트가 클릭 신호를 받으면 실행할 콜백(mark만, 즉시 공개는 안 함)
-
-// 쿠팡 광고 iframe(같은 출처)이 클릭 시 직접 호출하는 전역 함수 — 클릭을 "기록"만 하고,
-// 화면 공개는 실제 복귀 신호(visibilitychange 등)나 다음 로드 시 sessionStorage 확인에
-// 맡긴다(클릭 즉시 공개하면 쿠팡에 가지 않아도 열려버려 유도 의미가 없어짐).
-function aiGateOnAdClicked() {
-  if (typeof _aiGateOnAdClick === 'function') _aiGateOnAdClick();
 }
 
 async function loadAiSummary(ticker, displayName) {
   const wrap = document.getElementById('aiSummaryWrap');
   if (!wrap) return;
-  if (_aiGateCleanup) { _aiGateCleanup(); _aiGateCleanup = null; }
   wrap.innerHTML = `
     <div class="ai-summary-card">
       <div class="ai-badge-row">
@@ -2059,56 +2042,29 @@ async function loadAiSummary(ticker, displayName) {
     if (!r.ok) { wrap.innerHTML = ''; return; }
     const d = await r.json();
     if (!d.ok) { wrap.innerHTML = ''; return; }
-    // d.ok는 항상 company_ai_summary에 저장된 분석이 있다는 뜻(핸들러가 캐시 없이는
-    // ok:true를 반환하지 않음) — 저장된 정보가 있는 경우에만 게이트를 씌운다.
-    // 이 세션에서 이미 이 티커 배너를 확인하고 왔다면 다시 잠그지 않는다.
-    if (aiGateWasClicked(ticker)) { renderAiSummaryContent(displayName, d); return; }
-    renderAiGate(ticker, displayName, d);
+    renderAiSummaryContent(displayName, d);
+    if (!aiGateIsUnlocked(ticker)) addAiGateOverlay(ticker);
   } catch(e) {
     wrap.innerHTML = `<div class="ai-summary-card"><div style="color:var(--red);font-size:15.5px">AI 분석 로딩 실패: ${escHtml(e.message)}</div></div>`;
   }
 }
 
-function renderAiGate(ticker, displayName, d) {
-  const wrap = document.getElementById('aiSummaryWrap');
-  if (!wrap) return;
-  wrap.innerHTML = `
-    <div class="ai-summary-card">
-      <div class="ai-badge-row">
-        <span class="ai-dot"></span>
-        <span class="ai-badge">AI 분석하기</span>
-        <span style="font-size:13.5px;color:var(--text3);margin-left:auto">${d.analyses_count || 0}건 분석 통합</span>
-      </div>
-      <div style="text-align:center;padding:8px 6px 4px;color:var(--text2);font-size:15px;line-height:1.6">
-        🔒 ${escHtml(displayName)} AI 종합 분석이 준비되어 있어요.<br>아래 배너를 확인하고 돌아오시면 볼 수 있어요.
-      </div>
-      <div id="aiPanelAdSlot"></div>
-    </div>`;
-  loadAiPanelAd(document.getElementById('aiPanelAdSlot'));
-
-  let revealed = false;
-  function tryReveal() {
-    if (revealed) return;
-    revealed = true;
-    cleanup();
-    renderAiSummaryContent(displayName, d);
-  }
-  function onVisible() { if (aiGateWasClicked(ticker) && document.visibilityState === 'visible') tryReveal(); }
-  function cleanup() {
-    document.removeEventListener('visibilitychange', onVisible);
-    window.removeEventListener('focus', onVisible);
-    window.removeEventListener('pageshow', onVisible);
-    _aiGateOnAdClick = null;
-  }
-  // 클릭 시 sessionStorage에만 기록하고 화면은 아직 열지 않는다 — 실제로 쿠팡을 갔다
-  // 왔다는 신호(visibilitychange 등)가 와야 tryReveal()이 호출된다. 탭이 안 떠나고
-  // 살아있다면 이후 visibilitychange/focus로 곧바로 열리고, 페이지가 완전히 새로
-  // 로드됐다면 위 loadAiSummary의 aiGateWasClicked() 체크가 대신 열어준다.
-  _aiGateOnAdClick = function () { aiGateMarkClicked(ticker); };
-  document.addEventListener('visibilitychange', onVisible);
-  window.addEventListener('focus', onVisible);
-  window.addEventListener('pageshow', onVisible);
-  _aiGateCleanup = cleanup;
+function addAiGateOverlay(ticker) {
+  const card = document.querySelector('#aiSummaryWrap .ai-summary-card');
+  if (!card) return;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);background:repeating-linear-gradient(45deg, rgba(11,15,25,.85), rgba(11,15,25,.85) 12px, rgba(11,15,25,.94) 12px, rgba(11,15,25,.94) 24px)';
+  overlay.innerHTML = `
+    <div style="font-size:15.5px;color:#fff;font-weight:700;line-height:1.6">🔒 클릭하면 AI 종합 분석이 열려요</div>
+    <div id="aiPanelAdSlot" style="pointer-events:auto"></div>
+    <div style="font-size:13px;color:rgba(255,255,255,.75)">화면 아무 곳이나 눌러 확인하세요</div>
+  `;
+  overlay.addEventListener('click', function () {
+    aiGateUnlock(ticker);
+    overlay.remove();
+  });
+  card.appendChild(overlay);
+  loadAiPanelAd(overlay.querySelector('#aiPanelAdSlot'));
 }
 
 function renderAiSummaryContent(displayName, d) {
