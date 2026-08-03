@@ -81,17 +81,21 @@
   /* 종목 카드 — 이름이 길면(예: "에스케이하이닉스(주)") 아이콘+이름+티커+가격을 한 줄에
      욱여넣다가 셋 다 제각각 줄바꿈되던 문제(2026-08 실측)를 고쳐, 처음부터 "왼쪽: 이름
      위·티커 아래" / "오른쪽: 가격 위·등락률 아래" 2단 레이아웃으로 고정한다. */
-  .src-mention-stock{display:flex;align-items:center;gap:8px;font-size:11.5px;text-decoration:none;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px 11px;margin-top:2px;max-width:100%}
-  .src-mention-port{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;text-decoration:none;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-top:2px}
+  /* 종목/모의투자 카드 공통 3분할 레이아웃(아이콘 | 이름-위·부가정보-아래 | 값-위·보조값-아래) —
+     모의투자 카드도 처음엔 "📝 모의투자 총자산 ₩9,802,000 · -1.98% · 2종목"을 한 줄
+     텍스트로 이어붙였다가, 부모(.src-body)의 word-break:break-word 때문에 "모의투\n자"
+     처럼 단어 중간이 그대로 잘려나가는 문제가 있었다(2026-08 실측). 종목 카드와 완전히
+     같은 구조를 재사용해 정리한다. */
+  .src-mention-stock,.src-mention-port{display:flex;align-items:center;gap:8px;font-size:11.5px;text-decoration:none;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px 11px;margin-top:2px;max-width:100%}
   .src-mention-stock:hover,.src-mention-port:hover{border-color:var(--blue)}
-  .src-mention-stock .mi-icon{flex-shrink:0}
-  .src-mention-stock .mi-body{display:flex;flex-direction:column;min-width:0;line-height:1.35}
-  .src-mention-stock .mi-name{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .src-mention-stock .tk{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-size:10.5px;color:var(--text3)}
-  .src-mention-stock .px{display:flex;flex-direction:column;align-items:flex-end;line-height:1.35;flex-shrink:0;margin-left:auto;font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-weight:700}
-  .src-mention-stock .px .up{color:var(--red)} .src-mention-stock .px .dn{color:var(--blue)}
-  .src-mention-stock .px .chg{font-size:10.5px;font-weight:700}
-  .src-mention-port .pnl.up{color:var(--red)} .src-mention-port .pnl.dn{color:var(--blue)}
+  .src-mention-stock .mi-icon,.src-mention-port .mi-icon{flex-shrink:0}
+  .src-mention-stock .mi-body,.src-mention-port .mi-body{display:flex;flex-direction:column;min-width:0;line-height:1.35}
+  .src-mention-stock .mi-name,.src-mention-port .mi-name{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .src-mention-stock .tk,.src-mention-port .tk{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-size:10.5px;color:var(--text3);white-space:nowrap}
+  .src-mention-stock .px,.src-mention-port .px{display:flex;flex-direction:column;align-items:flex-end;line-height:1.35;flex-shrink:0;margin-left:auto;font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-weight:700;white-space:nowrap}
+  .src-mention-stock .px .up,.src-mention-port .px .up{color:var(--red)}
+  .src-mention-stock .px .dn,.src-mention-port .px .dn{color:var(--blue)}
+  .src-mention-stock .px .chg,.src-mention-port .px .chg{font-size:10.5px;font-weight:700}
   @media (max-width:640px){ #srChatBtn{bottom:76px;right:12px} }
   @media (min-width:1200px){ #srChatBtn{display:none} } /* 데스크톱은 원형 버튼 대신 레일이 대신함 */
   /* PC 고정 패널(2026-07-28) — 넓은 화면은 기본으로 열어두고 본문이 패널을 피해 여백을
@@ -301,7 +305,7 @@
       const p = Number(pct);
       const cls = p > 0 ? 'up' : p < 0 ? 'dn' : '';
       const sign = p > 0 ? '+' : '';
-      return `<a class="src-mention-port" href="/portfolio.html">📝 <b>모의투자</b> 총자산 ₩${Number(nav).toLocaleString('ko-KR')} · <span class="pnl ${cls}">${sign}${p.toFixed(2)}%</span> · ${esc(pos)}종목</a>`;
+      return `<a class="src-mention-port" href="/portfolio.html"><span class="mi-icon">📝</span><span class="mi-body"><b class="mi-name">모의투자</b><span class="tk">${esc(pos)}종목 보유</span></span><span class="px"><span class="${cls}">₩${Number(nav).toLocaleString('ko-KR')}</span><span class="chg ${cls}">${sign}${p.toFixed(2)}%</span></span></a>`;
     });
     return html;
   }
