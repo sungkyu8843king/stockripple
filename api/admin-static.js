@@ -745,6 +745,14 @@ const SHELL_HTML = `
         <div class="card-title">🧭 최근 이동경로 (세션 샘플 50개)</div>
         <div id="anaPaths" style="margin-top:10px;font-size:12px">로딩 중...</div>
       </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-title">🖱 배너/광고 클릭 (인트로 배너 · 쿠팡 파트너스, 선택 기간 합계)</div>
+        <table style="margin-top:8px">
+          <thead><tr><th>배너</th><th style="text-align:right">클릭수</th></tr></thead>
+          <tbody id="anaBannerClicks"><tr><td colspan="2" style="text-align:center;color:var(--text3)">로딩 중...</td></tr></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- User Feedback -->

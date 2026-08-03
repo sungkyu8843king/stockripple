@@ -21,6 +21,8 @@
  *  POST /api/admin?action=daily-report {market} → 데일리 리포트 생성 (장 마감 후 cron)
  *  POST /api/admin?action=track {event:'enter'|'leave', ...} → 방문자 애널리틱스 수집 (공개)
  *  GET  /api/admin?action=analytics&type=daily|hourly|referrers|paths|dwell|live[&days=N] → 방문자 통계 조회
+ *  POST /api/admin?action=banner-click {slot} → 인트로/쿠팡 배너 클릭 집계 (공개, BANNER_SLOTS 화이트리스트 외 값은 무시)
+ *  GET  /api/admin?action=banner-clicks[&days=N] → 배너 클릭 통계 조회 (슬롯별 합계 + 일자별)
  *  GET  /api/admin?action=feature-flags       → Claude 토큰 사용 기능 on/off 상태 조회
  *  POST /api/admin?action=feature-flags {key?, keys?, enabled} → 개별/일괄 on/off (key·keys 생략 시 전체)
  *  GET  /api/admin?action=shares-outstanding  → 히트맵 시총 계산용 상장주식수 캐시 조회 (공개)
@@ -86,6 +88,9 @@ export default async function handler(req, res) {
   // track: 방문자 애널리틱스 수집 — 모든 방문자가 매 페이지에서 호출하므로 공개.
   // 실패해도 방문 경험에 영향 없도록 내부에서 항상 200을 반환한다.
   if (action === 'track') return handleTrack(req, res);
+  // banner-click: 인트로 배너(텔레그램 구독 팝업)/쿠팡 배너 클릭 집계 — 익명 방문자가
+  // 배너를 누르는 순간(sendBeacon)에 호출하므로 공개. 실패해도 항상 200.
+  if (action === 'banner-click') return handleBannerClick(req, res);
   // issues-feed / insights-raw: 홈 등 6개 페이지가 전부 쓰는 "최신 분석 이슈"/"투자 인사이트"
   // 피드 — 원래 방문자 브라우저가 Supabase를 직접(캐싱 없이) 호출하던 걸 서버+엣지캐시로
   // 옮긴 것(트래픽 급증 시 DB 보호 목적). 공개 조회이므로 인증 불필요.
@@ -127,6 +132,7 @@ export default async function handler(req, res) {
   if (action === 'check-accuracy') return handleCheckAccuracy(req, res);
   if (action === 'view-stats') return handleViewStats(req, res);
   if (action === 'analytics') return handleAnalytics(req, res);
+  if (action === 'banner-clicks') return handleBannerClicksGet(req, res);
   if (action === 'set-announcement') return handleSetAnnouncement(req, res);
   if (action === 'announcement-log') return handleAnnouncementLog(req, res);
   if (action === 'list-users') return handleListUsers(req, res);
@@ -284,6 +290,66 @@ async function handleTrack(req, res) {
   } catch (e) {
     console.error('[track:exception]', e?.message || e);
     return res.status(200).json({ ok: false });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// 배너/광고 클릭 집계 — 수집(banner-click) + 조회(banner-clicks)
+// 인트로 배너(telegram-promo.js)와 쿠팡 파트너스 배너 5슬롯(coupang-ad-*.html에 내장된
+// sendBeacon 클릭 리스너)이 이 액션을 호출한다. 화이트리스트 밖 slot 값은 조용히 무시 —
+// 임의 문자열로 banner_clicks 테이블에 쓰레기 행이 쌓이는 걸 막는다.
+// ════════════════════════════════════════════════════════════
+const BANNER_SLOTS = new Set([
+  'telegram-promo',        // 메인 인트로 배너 — 텔레그램 구독 팝업 (telegram-promo.js)
+  'coupang-feed-mobile',   // 메인 피드 상단 배너, 모바일 (coupang-ad-feed-mobile.html)
+  'coupang-feed-pc',       // 메인 피드 상단 배너, PC (coupang-ad-feed-pc.html)
+  'coupang-interstitial',  // 뉴스/종목 상세 진입 시 모바일 인터스티셜 (coupang-ad-interstitial-mobile.html)
+  'coupang-panel-mobile',  // 종목 상세 AI 분석 영역 배너, 모바일 (coupang-ad-mobile.html)
+  'coupang-panel-pc',      // 종목 상세 AI 분석 영역 배너, PC (coupang-ad-pc.html)
+]);
+
+async function handleBannerClick(req, res) {
+  // 실패해도 방문 경험엔 영향 없도록(sendBeacon 호출부에도 영향 없도록) 전부 200으로 삼킨다.
+  try {
+    if (req.method !== 'POST') return res.status(200).json({ ok: false });
+    const slot = String(req.body?.slot || '').slice(0, 40);
+    if (!BANNER_SLOTS.has(slot)) return res.status(200).json({ ok: false });
+    const { error } = await supabase.rpc('increment_banner_click', { p_slot: slot });
+    if (error) console.error('[banner-click]', error.message);
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error('[banner-click:exception]', e?.message || e);
+    return res.status(200).json({ ok: false });
+  }
+}
+
+async function handleBannerClicksGet(req, res) {
+  const days = Math.min(Math.max(parseInt(req.query.days) || 14, 1), 90);
+  const sinceDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  try {
+    const { data, error } = await supabase
+      .from('banner_clicks')
+      .select('slot, click_date, clicks')
+      .gte('click_date', sinceDate)
+      .order('click_date', { ascending: true });
+    if (error) return res.status(500).json({ ok: false, error: error.message });
+
+    const bySlot = {};
+    const byDay = {};
+    for (const row of data || []) {
+      bySlot[row.slot] = (bySlot[row.slot] || 0) + row.clicks;
+      (byDay[row.click_date] ??= {})[row.slot] = row.clicks;
+    }
+    const totals = Object.entries(bySlot)
+      .map(([slot, clicks]) => ({ slot, clicks }))
+      .sort((a, b) => b.clicks - a.clicks);
+    const daily = Object.entries(byDay)
+      .map(([day, slots]) => ({ day, slots, total: Object.values(slots).reduce((a, b) => a + b, 0) }))
+      .sort((a, b) => a.day.localeCompare(b.day));
+
+    return res.status(200).json({ ok: true, totals, daily });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
   }
 }
 

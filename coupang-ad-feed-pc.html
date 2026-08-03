@@ -17,6 +17,16 @@
 	};
 })();
 </script>
+<script>
+// 배너 클릭 집계 — g.js 위젯이 채워넣는 내용(어떤 태그든) 클릭을 document 레벨에서
+// 위임 감지해 어드민 "배너 클릭" 패널용으로 sendBeacon 기록. 이동을 막거나 늦추지 않음.
+document.addEventListener('click', function () {
+	try {
+		var payload = new Blob([JSON.stringify({slot:'coupang-feed-pc'})], {type:'application/json'});
+		navigator.sendBeacon('/api/admin?action=banner-click', payload);
+	} catch (e) {}
+});
+</script>
 <script src="https://ads-partners.coupang.com/g.js"></script>
 <script>
 	new PartnersCoupang.G({"id":1006666,"template":"carousel","trackingCode":"AF2174378","width":"728","height":"90","tsource":""});

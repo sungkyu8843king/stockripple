@@ -1419,12 +1419,13 @@ async function loadAnalyticsAll() {
   const capNote = document.getElementById('anaCappedNote');
   if (capNote) capNote.textContent = '';
 
-  const [daily, hourly, referrers, dwell, paths] = await Promise.all([
+  const [daily, hourly, referrers, dwell, paths, bannerClicks] = await Promise.all([
     callApi(`/api/admin?action=analytics&type=daily&days=${days}`, {}, null),
     callApi(`/api/admin?action=analytics&type=hourly&days=${days}`, {}, null),
     callApi(`/api/admin?action=analytics&type=referrers&days=${days}`, {}, null),
     callApi(`/api/admin?action=analytics&type=dwell&days=${days}`, {}, null),
     callApi(`/api/admin?action=analytics&type=paths&days=${days}`, {}, null),
+    callApi(`/api/admin?action=banner-clicks&days=${days}`, {}, null),
   ]);
 
   if (capNote && ((daily?.capped) || (hourly?.capped) || (referrers?.capped))) {
@@ -1436,6 +1437,25 @@ async function loadAnalyticsAll() {
   renderAnaReferrers(referrers);
   renderAnaDwell(dwell);
   renderAnaPaths(paths);
+  renderAnaBannerClicks(bannerClicks);
+}
+
+// 서버 slot 키 → 화면 표시용 한국어 라벨 (BANNER_SLOTS, api/admin.js와 동일 목록 유지)
+const BANNER_SLOT_LABELS = {
+  'telegram-promo': '🔵 인트로 배너 (텔레그램 구독 팝업)',
+  'coupang-feed-mobile': '🛒 쿠팡 피드배너 · 모바일',
+  'coupang-feed-pc': '🛒 쿠팡 피드배너 · PC',
+  'coupang-interstitial': '🛒 쿠팡 인터스티셜 (뉴스·종목 진입 시)',
+  'coupang-panel-mobile': '🛒 쿠팡 AI분석영역 배너 · 모바일',
+  'coupang-panel-pc': '🛒 쿠팡 AI분석영역 배너 · PC',
+};
+function renderAnaBannerClicks(data) {
+  const tbody = document.getElementById('anaBannerClicks');
+  if (!tbody) return;
+  if (!data?.ok || !data.totals.length) { tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text3)">데이터 없음</td></tr>'; return; }
+  tbody.innerHTML = data.totals.map(x => `
+    <tr><td>${escHtml(BANNER_SLOT_LABELS[x.slot] || x.slot)}</td><td style="text-align:right;font-weight:600">${x.clicks}</td></tr>
+  `).join('');
 }
 
 function renderAnaDaily(data) {

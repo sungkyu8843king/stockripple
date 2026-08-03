@@ -31,7 +31,13 @@
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.style.cssText = 'display:block;line-height:0';
-    link.addEventListener('click', function () { close(); });
+    link.addEventListener('click', function () {
+      try {
+        var payload = new Blob([JSON.stringify({ slot: 'telegram-promo' })], { type: 'application/json' });
+        navigator.sendBeacon('/api/admin?action=banner-click', payload);
+      } catch (e) {}
+      close();
+    });
 
     var img = document.createElement('img');
     img.src = '/telegram-svg.svg';
