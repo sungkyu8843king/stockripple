@@ -72,7 +72,7 @@
   #srChatInput input:focus{border-color:var(--blue)}
   #srChatInput button{background:var(--blue);border:none;color:#fff;font-weight:700;font-size:15.5px;border-radius:10px;padding:0 16px;cursor:pointer}
   #srChatInput button:disabled{opacity:.5;cursor:default}
-  .src-note{font-size:13px;color:var(--text3);padding:0 16px 10px;flex-shrink:0}
+  .src-note{font-size:9px;color:var(--text3);padding:0 16px 10px;flex-shrink:0}
   /* ── @멘션(종목/모의투자) 자동완성 (2026-08) — .hsug-item 등은 site-header.js가 이미
      전역 주입한 클래스를 그대로 재사용(검색 결과 행 스타일 중복 방지). .hsug 자체는
      아래로 펼쳐지는 포지션이라(top:100%) 입력창이 패널 맨 아래에 있는 이 위젯엔 안
