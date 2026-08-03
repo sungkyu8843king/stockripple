@@ -4647,9 +4647,13 @@ function _rsSentiment(value) {
   return { color, icon, label: s.label };
 }
 
+// 리스트 항목은 다른 곳(사이드바 카드)에 이미 전체 문장이 떠 있으므로 여기서만 잘라
+// "…"로 끝나면 안 된다(2026-08 실측 — 이유가 중간에 끊긴 채 이미지로 퍼짐). 개수만
+// n으로 제한하고 글자수는 자르지 않는다 — 카드는 화면 밖에서 자연 높이로 캡처되니
+// 문장이 길어 줄바꿈되는 건 안전하다.
 function _rsList(items, n) {
   return (Array.isArray(items) ? items : []).slice(0, n).map(x =>
-    `<div style="font-size:27px;line-height:1.55;color:#e4e8f0;margin-bottom:12px;padding-left:24px;position:relative"><span style="position:absolute;left:0;color:#4d8dff;font-weight:800">·</span>${escHtml(_rsClip(x, 60))}</div>`
+    `<div style="font-size:27px;line-height:1.55;color:#e4e8f0;margin-bottom:12px;padding-left:24px;position:relative"><span style="position:absolute;left:0;color:#4d8dff;font-weight:800">·</span>${escHtml(String(x || '').replace(/\s+/g, ' ').trim())}</div>`
   ).join('');
 }
 

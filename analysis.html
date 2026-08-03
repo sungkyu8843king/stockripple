@@ -1421,6 +1421,10 @@ function _clip(s, n) {
   const t = String(s || '').replace(/\s+/g, ' ').trim();
   return t.length > n ? t.slice(0, n - 1) + '…' : t;
 }
+// 글자수는 안 자르고 공백만 정리 — 줄바꿈이 여러 줄이던 텍스트를 한 줄로 눌러 쓸 때 사용.
+function _norm(s) {
+  return String(s || '').replace(/\s+/g, ' ').trim();
+}
 
 // 카드는 라이트/다크 테마와 무관하게 항상 다크로 굽는다 — 커뮤니티에 퍼지는 이미지가
 // 보는 사람 설정에 따라 달라지면 브랜드가 흐려진다. 그래서 var() 대신 값을 박는다.
@@ -1433,7 +1437,11 @@ function _buildShareCardHtml(issue) {
   const na = issue.news_analysis || {};
   const keypoints = (Array.isArray(na.keypoints) ? na.keypoints : []).slice(0, 3);
   const sectors = (Array.isArray(na.sectors) ? na.sectors : []).slice(0, 3);
-  const body = _clip(issue.ai_digest || issue.summary, 170);
+  // 요약 본문과 핵심 포인트는 다른 곳(analysis-detail 화면)에 이미 전체 문장이 떠 있으므로
+  // 여기서만 잘라 "…"로 끝나면 안 된다(2026-08 실측 — 문장 중간이 끊긴 채 이미지로 퍼짐).
+  // 카드는 화면 밖에서 자연 높이로 캡처되니 길어져 줄바꿈되는 건 안전하다. 제목만 한 줄짜리
+  // 헤드라인 성격이라 그대로 클립 유지.
+  const body = _norm(issue.ai_digest || issue.summary);
   const dateStr = issue.published_at
     ? new Date(issue.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
     : '';
@@ -1444,7 +1452,7 @@ function _buildShareCardHtml(issue) {
   }).join('');
 
   const points = keypoints.map(k =>
-    `<div style="font-size:29px;line-height:1.5;color:#e4e8f0;margin-bottom:14px;padding-left:26px;position:relative"><span style="position:absolute;left:0;color:#4d8dff;font-weight:800">·</span>${escHtml(_clip(k, 52))}</div>`
+    `<div style="font-size:29px;line-height:1.5;color:#e4e8f0;margin-bottom:14px;padding-left:26px;position:relative"><span style="position:absolute;left:0;color:#4d8dff;font-weight:800">·</span>${escHtml(_norm(k))}</div>`
   ).join('');
 
   return `<div style="width:1080px;box-sizing:border-box;background:#15171e;padding:66px 64px;font-family:'Inter','Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#f2f4f8">
