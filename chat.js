@@ -82,7 +82,8 @@
   .src-mention-stock:hover,.src-mention-port:hover{border-color:var(--blue)}
   .src-mention-stock .tk{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-size:12px;color:var(--text3)}
   .src-mention-stock .px{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-weight:700}
-  .src-mention-stock .px.up{color:var(--red)} .src-mention-stock .px.dn{color:var(--blue)}
+  .src-mention-stock .px .up{color:var(--red)} .src-mention-stock .px .dn{color:var(--blue)}
+  .src-mention-stock .px .chg{font-weight:700}
   .src-mention-port .pnl.up{color:var(--red)} .src-mention-port .pnl.dn{color:var(--blue)}
   @media (max-width:640px){ #srChatBtn{bottom:76px;right:12px} }
   @media (min-width:1200px){ #srChatBtn{display:none} } /* 데스크톱은 원형 버튼 대신 레일이 대신함 */
@@ -316,8 +317,10 @@
           const q = data[el.dataset.ticker];
           if (!q || q.price == null) { el.textContent = ''; continue; }
           const chg = q.changePercent;
-          el.textContent = (q.currency === 'KRW' ? '₩' + Math.round(q.price).toLocaleString('ko-KR') : '$' + Number(q.price).toLocaleString('en-US', { maximumFractionDigits: 2 }));
-          if (chg != null) el.classList.add(chg > 0 ? 'up' : chg < 0 ? 'dn' : '');
+          const cls = chg > 0 ? 'up' : chg < 0 ? 'dn' : '';
+          const priceStr = q.currency === 'KRW' ? '₩' + Math.round(q.price).toLocaleString('ko-KR') : '$' + Number(q.price).toLocaleString('en-US', { maximumFractionDigits: 2 });
+          const pctStr = chg != null ? `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%` : '';
+          el.innerHTML = `<span class="${cls}">${esc(priceStr)}</span>${pctStr ? ` <span class="chg ${cls}">${esc(pctStr)}</span>` : ''}`;
         }
       } catch { els.forEach(el => { el.textContent = ''; }); }
     }, 200);
