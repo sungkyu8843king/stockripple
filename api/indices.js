@@ -283,7 +283,19 @@ async function patchKrIndicesFromToss(data) {
       if (price != null && prevClose) {
         const change = price - prevClose;
         const changePercent = (change / prevClose) * 100;
-        data[id] = { ...data[id], price, prevClose, change, changePercent };
+        // spark(스파크라인 원본)는 여전히 Yahoo 인트라데이 봉이라 절대 스케일이 위 보정값과
+        // 어긋날 수 있다(Yahoo KR 지수 이상치 봉 문제, 위 주석 참고) — 그 결과 홈 카드의
+        // 등락률 라벨(-3.8%)과 그래프 모양(거의 보합)이 서로 다른 값을 말하는 것처럼 보이는
+        // 버그가 실제로 있었다(2026-08 사용자 리포트). 그래프의 상대적 굴곡(모양)은 그대로
+        // 두되, 마지막 점을 보정된 현재가에 맞춰 전체를 비례 이동시켜 최소한 "그래프 끝 =
+        // 라벨 숫자"는 항상 일치하게 만든다.
+        let spark = data[id]?.spark;
+        const lastRaw = Array.isArray(spark) && spark.length ? spark[spark.length - 1] : null;
+        if (lastRaw) {
+          const ratio = price / lastRaw;
+          spark = spark.map(v => Number((v * ratio).toPrecision(6)));
+        }
+        data[id] = { ...data[id], price, prevClose, change, changePercent, ...(lastRaw ? { spark } : {}) };
       }
     } catch { /* Toss 실패 시 기존 Yahoo 기반 값 그대로 둠(fail-open) */ }
   }));
