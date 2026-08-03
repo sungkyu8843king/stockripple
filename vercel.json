@@ -6,14 +6,24 @@
     }
   ],
   "functions": {
-    "api/admin.js":          { "maxDuration": 60 },
+    "api/admin.js":          { "maxDuration": 60, "includeFiles": "{analysis,company}.html" },
     "api/cron-daily.js":     { "maxDuration": 60 },
     "api/analyze.js":        { "maxDuration": 60 },
     "api/kr-market.js":      { "maxDuration": 60 },
     "api/market-data.js":    { "maxDuration": 60 }
   },
+  "redirects": [
+    { "source": "/company.html",
+      "has": [{ "type": "query", "key": "ticker", "value": "(?<t>.+)" }],
+      "destination": "/stock/:t", "permanent": false },
+    { "source": "/analysis.html",
+      "has": [{ "type": "query", "key": "id", "value": "(?<i>.+)" }],
+      "destination": "/analysis/:i", "permanent": false }
+  ],
   "rewrites": [
-    { "source": "/analysis/:id", "destination": "/analysis.html?id=:id" },
+    { "source": "/analysis/:id",  "destination": "/api/admin?action=render-analysis&id=:id" },
+    { "source": "/stock/:ticker", "destination": "/api/admin?action=render-company&ticker=:ticker" },
+    { "source": "/sitemap.xml",   "destination": "/api/admin?action=sitemap" },
 
     { "source": "/api/fetch-news",        "destination": "/api/fetch?type=news" },
     { "source": "/api/fetch-rss",         "destination": "/api/fetch?type=rss" },

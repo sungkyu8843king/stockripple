@@ -8,20 +8,30 @@
 <script src="/sr-pulse.js" defer></script>
 <script src="/coupang-interstitial.js" defer></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
+<!-- SEO:START -->
+<!-- /analysis/:id 로 들어오면 api/admin.js의 render-analysis가 이 블록을 이슈별 제목·요약으로
+     통째로 갈아끼운다(buildSeoBlock). 마커를 지우거나 이름을 바꾸면 치환이 조용히 실패하고
+     아래 기본 문구가 그대로 검색엔진·공유 미리보기에 노출된다. -->
 <title>이슈 분석 — StockRipple</title>
-<!-- Open Graph / 링크 공유 미리보기 (정적 — 동적 티커 페이지는 일반 설명) -->
+<meta name="description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
+<link rel="canonical" href="https://stockripple.vercel.app/analysis.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="StockRipple">
 <meta property="og:title" content="이슈 분석 — StockRipple">
 <meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
 <meta property="og:url" content="https://stockripple.vercel.app/analysis.html">
+<meta property="og:image" content="https://stockripple.vercel.app/icon-512.png">
 <meta property="og:locale" content="ko_KR">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="이슈 분석 — StockRipple">
 <meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
+<meta name="twitter:image" content="https://stockripple.vercel.app/icon-512.png">
+<!-- SEO:END -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<!-- 공유 이미지 카드 렌더용. defer라 첫 페인트를 막지 않고, 없으면 버튼만 안 뜬다. -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 <style>
 :root {
   --bg: #15171e; --bg-rgb: 21,23,30; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
@@ -154,6 +164,34 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .issue-title { font-size: 24px; font-weight: 700; line-height: 1.4; margin-bottom: 12px; }
 .issue-summary { font-size: 16px; color: var(--text2); line-height: 1.7; margin-bottom: 16px; }
 .issue-sectors { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ── 공유 이미지 카드 (2026-08-03) ─────────────────────────────────────────────
+   주식 커뮤니티·오픈채팅에는 링크보다 이미지 한 장이 훨씬 잘 퍼진다. 실제 페이지를
+   스크린샷하면 광고·네비까지 딸려오므로, 화면 밖 전용 템플릿을 따로 그려서 캡처한다. */
+.share-img-btn {
+  margin-top: 14px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text2);
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; padding: 8px 15px;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+.share-img-btn:hover { color: var(--text); border-color: var(--border-strong); }
+.share-img-btn:disabled { opacity: .55; cursor: default; }
+
+.sharemodal { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.72); padding: 20px; }
+.sharemodal-inner { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 18px; max-width: 460px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: var(--shadow-pop); }
+.sharemodal-inner img { width: 100%; border-radius: var(--r-md); display: block; background: #15171e; }
+.sharemodal-actions { display: flex; gap: 8px; margin-top: 14px; }
+.sharemodal-actions button {
+  flex: 1; min-width: 0; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 650;
+  padding: 11px 12px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--bg3); color: var(--text);
+}
+.sharemodal-actions button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.sharemodal-hint { font-size: 12.5px; color: var(--text3); margin-top: 10px; text-align: center; }
+
+/* 캡처 원본 — 화면 밖에 두되 display:none은 쓸 수 없다(html2canvas가 크기를 못 잰다). */
+#shareCardStage { position: fixed; left: -20000px; top: 0; width: 1080px; z-index: -1; pointer-events: none; }
 .sector-tag { font-size: 13.5px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
 .tag-semi   { background: rgba(0,102,204,0.10); color: #4d8dff; }
 .tag-ev     { background: rgba(0,135,58,0.10);  color: #3ddb7f; }
@@ -552,7 +590,7 @@ async function loadRelatedIssues(issue) {
       const dt = new Date(it.published_at);
       const mmdd = `${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
       const tags = (it.sectors || []).slice(0, 2).map(s => `<span class="sector-tag ${sectorColors[s] || 'tag-default'}" style="font-size:13px;padding:2px 7px">${escHtml(s)}</span>`).join('');
-      return `<a href="/analysis.html?id=${it.id}" class="related-item">
+      return `<a href="/analysis/${encodeURIComponent(it.id)}" class="related-item">
         <span class="related-date">${mmdd}</span>
         <span class="related-title">${escHtml(it.title)}</span>
         <span class="related-sectors">${tags}</span>
@@ -754,6 +792,9 @@ function renderPredictCard(issue, analysis, companies) {
 }
 
 function renderPage(issue, analysis, companies) {
+  // 공유 이미지 카드는 이 issue만 재료로 쓴다(analysis/companies는 공개 차단 데이터라 절대 미사용).
+  // 공유 코드는 아래쪽 별도 <script> 블록에 있어 여기보다 늦게 평가되므로 window에 실어둔다.
+  window._shareIssue = issue;
   const sectors = issue.sectors || [];
   const rippleEffects = analysis?.ripple_effects || [];
   const rippleChain = analysis?.ripple_chain || [];
@@ -941,6 +982,7 @@ function renderPage(issue, analysis, companies) {
       <h1 class="issue-title">${escHtml(issue.title)}</h1>
       ${issue.summary ? `<p class="issue-summary">${escHtml(issue.summary)}</p>` : ''}
       <div class="issue-sectors">${sectorTags}</div>
+      <button class="share-img-btn" onclick="openShareImage()">🖼 이미지로 공유</button>
     </div>
 
     <div id="predictCard">${predict.html}</div>
@@ -1363,7 +1405,141 @@ function selectRange(range) {
   document.querySelectorAll('.range-btn').forEach(b => b.classList.toggle('active', b.dataset.range === range));
   if (_chartTicker) loadChartData(_chartTicker, range);
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChart(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeChart(); closeShareImage(); } });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 공유 이미지 카드 (2026-08-03)
+//
+// 재료는 issue의 공개 필드(title / ai_digest / summary / news_analysis / published_at)뿐이다.
+// ⚠️ analysis·companies 변수(analyses / analysis_companies 유래 = 유사투자자문업 리스크로
+// 공개 차단된 데이터)는 이 아래 코드에서 절대 참조하지 않는다 — 이미지로 저장돼 커뮤니티에
+// 퍼지는 순간 되돌릴 수 없으므로 여기가 가장 위험한 경로다.
+// ─────────────────────────────────────────────────────────────────────────────
+let _shareBlob = null;
+
+function _clip(s, n) {
+  const t = String(s || '').replace(/\s+/g, ' ').trim();
+  return t.length > n ? t.slice(0, n - 1) + '…' : t;
+}
+
+// 카드는 라이트/다크 테마와 무관하게 항상 다크로 굽는다 — 커뮤니티에 퍼지는 이미지가
+// 보는 사람 설정에 따라 달라지면 브랜드가 흐려진다. 그래서 var() 대신 값을 박는다.
+function _buildShareCardHtml(issue) {
+  const TONE = {
+    pos: { l: '우호적',  c: '#ff6b6b', b: 'rgba(255,107,107,.16)' },
+    neg: { l: '비우호적', c: '#4d8dff', b: 'rgba(77,141,255,.16)' },
+    neu: { l: '중립',    c: '#6c7385', b: 'rgba(255,255,255,.07)' },
+  };
+  const na = issue.news_analysis || {};
+  const keypoints = (Array.isArray(na.keypoints) ? na.keypoints : []).slice(0, 3);
+  const sectors = (Array.isArray(na.sectors) ? na.sectors : []).slice(0, 3);
+  const body = _clip(issue.ai_digest || issue.summary, 170);
+  const dateStr = issue.published_at
+    ? new Date(issue.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+    : '';
+
+  const chips = sectors.map(s => {
+    const m = TONE[s.tone] || TONE.neu;
+    return `<span style="display:inline-block;font-size:27px;font-weight:600;padding:11px 24px;border-radius:999px;color:${m.c};background:${m.b};margin:0 10px 12px 0">${escHtml(s.name)} · ${m.l}</span>`;
+  }).join('');
+
+  const points = keypoints.map(k =>
+    `<div style="font-size:29px;line-height:1.5;color:#e4e8f0;margin-bottom:14px;padding-left:26px;position:relative"><span style="position:absolute;left:0;color:#4d8dff;font-weight:800">·</span>${escHtml(_clip(k, 52))}</div>`
+  ).join('');
+
+  return `<div style="width:1080px;box-sizing:border-box;background:#15171e;padding:66px 64px;font-family:'Inter','Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#f2f4f8">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:44px">
+      <div style="font-size:32px;font-weight:800;letter-spacing:-.02em"><span style="color:#4d8dff">Stock</span>Ripple</div>
+      <div style="font-size:25px;color:#6c7385">${escHtml(dateStr)}</div>
+    </div>
+
+    <div style="font-size:56px;font-weight:800;line-height:1.32;letter-spacing:-.025em;margin-bottom:${body ? '34px' : '0'}">${escHtml(_clip(issue.title, 64))}</div>
+
+    ${body ? `<div style="font-size:31px;line-height:1.62;color:#a6adbb">${escHtml(body)}</div>` : ''}
+
+    ${points ? `<div style="margin-top:40px;padding-top:36px;border-top:1px solid rgba(255,255,255,.09)">
+      <div style="font-size:25px;font-weight:700;color:#4d8dff;margin-bottom:22px">🔑 핵심 포인트</div>${points}</div>` : ''}
+
+    ${chips ? `<div style="margin-top:${points ? '34px' : '44px'}">
+      <div style="font-size:25px;font-weight:700;color:#4d8dff;margin-bottom:20px">📡 관련 산업 영향</div>${chips}</div>` : ''}
+
+    <div style="margin-top:52px;padding-top:30px;border-top:1px solid rgba(255,255,255,.09);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:27px;color:#6c7385">뉴스가 어떤 산업에 영향을 주는지 정리합니다</div>
+      <div style="font-size:27px;font-weight:700;color:#4d8dff">stockripple.vercel.app</div>
+    </div>
+  </div>`;
+}
+
+async function openShareImage() {
+  const issue = window._shareIssue;
+  if (!issue) return;
+  const btn = document.querySelector('.share-img-btn');
+  if (typeof html2canvas !== 'function') {
+    if (btn) { btn.textContent = '이미지 기능을 불러오지 못했어요'; btn.disabled = true; }
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '이미지 만드는 중…'; }
+
+  const stage = document.createElement('div');
+  stage.id = 'shareCardStage';
+  stage.innerHTML = _buildShareCardHtml(issue);
+  document.body.appendChild(stage);
+  try {
+    const canvas = await html2canvas(stage.firstElementChild, { backgroundColor: '#15171e', scale: 1, logging: false });
+    _shareBlob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    _showShareModal(canvas.toDataURL('image/png'));
+  } catch {
+    if (btn) btn.textContent = '이미지 생성에 실패했어요';
+  } finally {
+    stage.remove();
+    if (btn && btn.textContent === '이미지 만드는 중…') { btn.disabled = false; btn.textContent = '🖼 이미지로 공유'; }
+  }
+}
+
+function _showShareModal(dataUrl) {
+  closeShareImage();
+  const canCopy = !!(navigator.clipboard && window.ClipboardItem);
+  const el = document.createElement('div');
+  el.className = 'sharemodal';
+  el.id = 'shareModal';
+  el.onclick = e => { if (e.target === el) closeShareImage(); };
+  el.innerHTML = `<div class="sharemodal-inner">
+    <img src="${dataUrl}" alt="공유 이미지 미리보기">
+    <div class="sharemodal-actions">
+      <button class="primary" onclick="saveShareImage()">이미지 저장</button>
+      ${canCopy ? '<button onclick="copyShareImage()">이미지 복사</button>' : ''}
+      <button onclick="closeShareImage()">닫기</button>
+    </div>
+    <div class="sharemodal-hint" id="shareHint">오픈채팅·커뮤니티에 그대로 올릴 수 있어요</div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+function closeShareImage() {
+  document.getElementById('shareModal')?.remove();
+  const btn = document.querySelector('.share-img-btn');
+  if (btn) { btn.disabled = false; btn.textContent = '🖼 이미지로 공유'; }
+}
+
+function saveShareImage() {
+  if (!_shareBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(_shareBlob);
+  a.download = `stockripple-${(window._shareIssue?.id || 'issue').toString().slice(0, 8)}.png`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function copyShareImage() {
+  const hint = document.getElementById('shareHint');
+  try {
+    // Safari는 clipboard.write에서 조용히 거절하는 경우가 있어 실패를 반드시 안내한다.
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': _shareBlob })]);
+    if (hint) hint.textContent = '복사했어요! 붙여넣기로 공유하세요';
+  } catch {
+    if (hint) hint.textContent = '이 브라우저는 이미지 복사를 지원하지 않아요 — 저장을 이용해 주세요';
+  }
+}
 </script>
 
 <div id="site-footer-mount"></div>

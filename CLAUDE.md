@@ -22,6 +22,7 @@
 
 ```
 api/admin.js        — 어드민 전용 + 공개 조회 다수. action= 라우팅으로 40+ 엔드포인트 통합 (아래 참고)
+                       ※ 2026-08-03 추가: render-analysis/render-company(SEO 프리렌더, HTML 반환)·sitemap(XML 반환)·company-news
 api/admin-static.js — admin/index.html의 셸(shell)/로직(logic)을 텍스트 파일로 서빙 (lib/admin-dashboard-logic.txt)
 api/analyze.js       — 뉴스→AI 분석 파이프라인 (Message Batches API, 아래 참고)
 api/cron-daily.js    — Vercel cron(01:00 UTC 1회) 오케스트레이터, fire-and-forget로 여러 작업 트리거
@@ -37,6 +38,26 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 
 ---
 
+## ⚠️ SEO 딥링크 프리렌더 (2026-08-03) — `/analysis/:id`·`/stock/:ticker`는 이제 정적 파일이 아니다
+
+검색 유입이 0에 가까웠던 근본 원인: `robots.txt`/`sitemap.xml`이 아예 없었고, 개별 이슈·종목 페이지의 OG 태그가 전부 `"이슈 분석 — StockRipple"` 고정 문구였다(프레임워크 SSR이 없는 정적 HTML이라 rewrite가 파일을 그대로 서빙). 검색 유저는 "StockRipple"이 아니라 "아마존 실적 수혜주" 같은 키워드로 들어오므로 페이지마다 고유 제목·설명이 필요했다.
+
+- **`api/admin.js`의 `render-analysis`/`render-company` 액션이 정적 HTML을 읽어 `<!-- SEO:START -->…<!-- SEO:END -->` 블록만 갈아끼워 서빙한다.** 나머지 바이트는 원본 그대로라 클라이언트 하이드레이션은 기존과 동일하게 동작. **`analysis.html`/`company.html`의 이 마커를 지우거나 이름을 바꾸면 치환이 조용히 실패하고 기본 문구가 그대로 노출된다.**
+- **`readFileSync` 경로는 반드시 리터럴 문자열로 둘 것** — Vercel 빌드의 `@vercel/nft`가 정적 스캔으로 람다 번들 포함 파일을 정하기 때문에, 경로를 `req.query`로 조립하면 배포본에 파일이 없어 런타임에 터진다. `vercel.json`의 `functions["api/admin.js"].includeFiles`가 안전망.
+- **⚠️ Vercel 라우팅 순서는 `redirects` → 파일시스템 → `rewrites`다.** 즉 `/company.html`처럼 **실제 파일이 있는 경로는 rewrite가 절대 발화하지 않는다.** 레거시 쿼리 URL(`?ticker=`/`?id=`, 사이트 내부에 90곳 있었음)을 예쁜 URL로 모으려고 `redirects`(307)를 쓴 이유. 실측 검증 후 `permanent: true`로 승격 예정 — 301은 브라우저가 영구 캐시해 롤백이 사실상 불가능하니 성급히 바꾸지 말 것.
+- `sitemap.xml`도 `action=sitemap`으로 동적 생성(고정 페이지 + `ai_digest` 있는 최신 이슈 500 + 전체 종목). DB가 죽어도 고정 경로만 담은 유효 XML로 fail-open.
+- **메타태그에 들어가는 데이터는 `issues`/`companies` 공개 필드뿐** — `analyses`/`analysis_companies`(수혜기업·신뢰도·상승여력)는 검색엔진에 노출되면 되돌릴 수 없으므로 절대 금지. 종목 페이지에 JSON-LD를 붙이지 않은 것도 같은 이유(`Product`/`FinancialProduct`는 투자상품 추천으로 읽힐 소지).
+- `seoEsc()`는 HTML 이스케이프 + **공백 정규화**를 같이 한다 — 값에 개행이 하나만 남아도 meta 속성이 그 자리에서 끊겨 `<head>` 전체가 깨진다(실측 확인). DB 제목·종목명에 개행이 없다고 믿지 말 것.
+
+## 공유 이미지 카드 (`analysis.html`, 2026-08-03)
+
+오픈채팅·주식 커뮤니티에서는 링크보다 이미지 한 장이 훨씬 잘 퍼진다. "🖼 이미지로 공유" 버튼이 html2canvas(CDN)로 1080px 카드를 굽고 저장/복사를 제공한다.
+
+- **실제 페이지를 스크린샷하지 않는다** — 광고·네비까지 딸려온다. 화면 밖(`#shareCardStage`) 전용 템플릿을 따로 그려 캡처한다. `display:none`은 못 쓴다(html2canvas가 크기를 못 잼).
+- 카드는 **테마와 무관하게 항상 다크로 굽는다**(var() 대신 색상값을 박음) — 퍼지는 이미지가 보는 사람 설정에 따라 달라지면 브랜드가 흐려진다.
+- **🚫 재료는 `issue`의 공개 필드(title/ai_digest/summary/news_analysis/published_at)뿐.** `analysis`·`companies` 변수는 절대 참조 금지 — 이미지로 저장돼 커뮤니티에 퍼지는 순간 회수가 불가능해 이 코드베이스에서 가장 위험한 노출 경로다.
+- 텍스트 절단은 CSS `-webkit-line-clamp`가 아니라 JS(`_clip`)로 한다 — html2canvas가 line-clamp를 제대로 렌더하지 않는다.
+
 ## 페이지 구조 (2026-07 전면 재구조화)
 
 `index.html`은 원래 3800+줄짜리 단일 페이지였다가, 정보 밀도 완화를 위해 전용 페이지로 분리됨. 홈은 이제 각 섹션의 **미리보기 카드**만 보여주고 "더보기"로 전용 페이지 유도.
@@ -50,7 +71,7 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 | `picks.html` | 매수 후보 — ⚠️ 2026-07-21부터 공개 노출 중단(아래 유사투자자문업 섹션), 데이터는 비공개 유지 |
 | `sectors.html` | 섹터 지도 |
 | `analysis.html` | 이슈 상세 — 2026-07-21 대폭 축소(수혜기업/신뢰도 제거, ai_digest 요약 중심) |
-| `company.html` | 종목 상세 — Toss 공식 API 기반 통합가+정규장/시간외 변동 분해, 호가창, 일별시세표, lightweight-charts 캔들+매물대 차트, AI 종합분석/펀더멘털/DART/투자자동향/옵션체인/애널리스트 컨센서스. 예측 수치(상승여력%·신뢰도%·STRONG BUY 등)는 없음 — 적중률이 낮아(20%대) 신뢰 근거로 못 씀, 대신 "파급효과" 정성적 뉴스 연결만 제공 |
+| `company.html` | 종목 상세(딥링크 `/stock/:ticker`) — "📰 최근 뉴스 언급"은 2026-08-03에 `company-news` API 기반으로 재작성됨(구버전은 anon 차단된 `analysis_companies`를 직접 조회해 늘 빈 섹션이었음). 직접 언급(이름 ilike) 우선, 5건 미만이면 `news_analysis.sectors` 업종 부분일치로 보충. Toss 공식 API 기반 통합가+정규장/시간외 변동 분해, 호가창, 일별시세표, lightweight-charts 캔들+매물대 차트, AI 종합분석/펀더멘털/DART/투자자동향/옵션체인/애널리스트 컨센서스. 예측 수치(상승여력%·신뢰도%·STRONG BUY 등)는 없음 — 적중률이 낮아(20%대) 신뢰 근거로 못 씀, 대신 "파급효과" 정성적 뉴스 연결만 제공 |
 | `market-detail.html` | 시장지표 상세(지수/원자재/환율/암호화폐) — Toss/Yahoo 소스, lightweight-charts 자체 차트(1개월/6개월/1년) + 52주 레인지. `?sym=` 쿼리로 지표 선택(`MKT` 객체가 지원 목록) |
 | `etf.html` | ETF 탐색 — 국내 상장 ETF 전체(~1,150종) 목록(카테고리 탭·수익률/거래대금 정렬·검색) + `?code=`로 상세(총보수·추적오차·괴리율·순자산·기간수익률 D1~Y10·자산/국가/섹터 배분·상위10 구성종목·자금유입). 전부 네이버 무키 소스, 저장 없이 실시간. 상세는 lightweight-charts 없이 순수 데이터. ETF↔종목 링크: 상세의 국내 구성종목은 company.html로, company.html의 "이 종목을 담은 ETF" 역조회는 etf.html로 상호 연결 |
 | `talks.html` | 말말말 — 이슈 주제별(예: 미·이란 전쟁, 코스피 레버리지) 타임라인 페이지. `TOPICS` 배열에 주제 추가하면 끝, 연관 지수·종목 시세 카드 + issues DB 키워드 필터 뉴스 타임라인 |

@@ -214,7 +214,7 @@ async function loadTimeline(topic){
     }
     if(!items.length){ tl.innerHTML = '<div class="empty">아직 이 주제의 뉴스가 없어요.</div>'; return; }
     tl.innerHTML = '<div class="timeline">' + items.map(it=>{
-      const href = it.source_url || `/analysis.html?id=${it.id}`;
+      const href = it.source_url || `/analysis/${encodeURIComponent(it.id)}`;
       const ext = it.source_url ? ' target="_blank" rel="noopener"' : '';
       // Claude가 분석한 한국어 요약(ai_summary, 파급효과 파이프라인은 현재 비활성) → 순수 기사 요약(ai_digest) →
       // 둘 다 없으면 원문 피드 요약을 정제해 대체

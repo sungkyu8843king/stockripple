@@ -29,7 +29,13 @@
  *  POST /api/admin?action=crawl-shares-outstanding {start?, force?} → 상장주식수 크롤(7일 신선도가드, resumable)
  *  POST /api/admin?action=resend-telegram-test&type=ai_market_summary|daily_report_kr|daily_report_us
  *       → 저장된 최신 리포트를 텔레그램 구독자에게 재발송(디버그용, 새로 생성 안 함)
+ *  GET  /api/admin?action=render-analysis&id=X → analysis.html에 이슈별 OG/메타 주입해 서빙 (공개, /analysis/:id rewrite 대상)
+ *  GET  /api/admin?action=render-company&ticker=X → company.html에 종목별 OG/메타 주입해 서빙 (공개, /stock/:ticker rewrite 대상)
+ *  GET  /api/admin?action=sitemap → sitemap.xml 동적 생성 (공개)
+ *  GET  /api/admin?action=company-news&ticker=X → 종목 관련 뉴스 타임라인 (공개, 게이트 테이블 미사용)
  */
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAdmin, verifyUser } from '../lib/auth.js';
@@ -100,6 +106,13 @@ export default async function handler(req, res) {
   if (action === 'shares-outstanding') return handleSharesOutstandingGet(req, res);
   // visitor-count: 채팅 패널 상단 "현재/전체 접속자" 표시용 누적 방문자 수 — 공개(집계 숫자만, PII 없음)
   if (action === 'visitor-count') return handleVisitorCount(req, res);
+  // render-analysis / render-company / sitemap: 검색엔진·SNS 봇이 인증 헤더 없이 때리는 경로라 반드시 공개.
+  // 정적 HTML을 읽어 <!-- SEO:START -->…<!-- SEO:END --> 블록만 갈아끼워 서빙한다(나머지는 원본 그대로).
+  if (action === 'render-analysis') return handleRenderAnalysis(req, res);
+  if (action === 'render-company')  return handleRenderCompany(req, res);
+  if (action === 'sitemap')         return handleSitemap(req, res);
+  // company-news: 종목 상세의 "이 종목이 나온 뉴스" 타임라인 — issues의 공개 필드만 쓴다(공개)
+  if (action === 'company-news')    return handleCompanyNews(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -4483,4 +4496,249 @@ async function handleAgentPoll(req, res) {
     }
   }
   return res.status(200).json({ ok: true, checked: rows.length, outcomes });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEO: 딥링크 프리렌더 + sitemap (2026-08-03)
+//
+// 이 사이트는 프레임워크 SSR이 없는 정적 HTML이라 /analysis/:id·/stock/:ticker로 들어와도
+// OG 태그가 항상 같은 고정 문구였다 — 카톡/텔레그램 공유 미리보기도, 검색엔진 스니펫도
+// 전부 "이슈 분석 — StockRipple". 여기서는 정적 파일을 읽어 SEO 마커 블록만 갈아끼우고
+// 나머지 바이트는 그대로 흘려보낸다(클라이언트 하이드레이션은 기존과 100% 동일하게 동작).
+//
+// ⚠️ 여기 들어가는 데이터는 issues/companies의 공개 필드뿐이다. analyses/analysis_companies
+// (수혜기업·신뢰도·상승여력)는 유사투자자문업 리스크로 공개가 차단된 데이터라, 검색엔진에
+// 노출되는 메타태그에는 절대 넣지 않는다.
+// ─────────────────────────────────────────────────────────────────────────────
+const SITE_ORIGIN = 'https://stockripple.vercel.app';
+const SEO_BLOCK_RE = /<!-- SEO:START -->[\s\S]*?<!-- SEO:END -->/;
+
+// 공백 정규화까지 여기서 한다 — 메타태그 값에 개행이 하나라도 남으면 속성이 그 자리에서
+// 끊겨 <head> 전체가 깨진다. DB의 제목·종목명은 개행이 없다고 믿을 수 없으므로
+// 이스케이프 단일 지점에서 막는다(URL·sitemap <loc>는 공백이 없어 영향 없음).
+function seoEsc(s) {
+  return String(s == null ? '' : s).replace(/\s+/g, ' ').trim()
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// 메타 설명은 검색결과 스니펫 길이(대략 150자)에 맞춰 자른다. 줄바꿈이 남으면
+// 메타태그 속성 안에서 깨져 보이므로 공백으로 눌러준다.
+function seoDesc(text, fallback) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return fallback;
+  return clean.length > 150 ? clean.slice(0, 149) + '…' : clean;
+}
+
+function buildSeoBlock({ title, desc, url, type = 'website', jsonLd = null }) {
+  const t = seoEsc(title), d = seoEsc(desc), u = seoEsc(url);
+  const img = SITE_ORIGIN + '/icon-512.png';
+  const ld = jsonLd
+    ? '\n<script type="application/ld+json">' + JSON.stringify(jsonLd).replace(/</g, '\\u003c') + '</script>'
+    : '';
+  return [
+    '<!-- SEO:START -->',
+    `<title>${t}</title>`,
+    `<meta name="description" content="${d}">`,
+    `<link rel="canonical" href="${u}">`,
+    '<meta property="og:type" content="' + type + '">',
+    '<meta property="og:site_name" content="StockRipple">',
+    `<meta property="og:title" content="${t}">`,
+    `<meta property="og:description" content="${d}">`,
+    `<meta property="og:url" content="${u}">`,
+    `<meta property="og:image" content="${img}">`,
+    '<meta property="og:locale" content="ko_KR">',
+    '<meta name="twitter:card" content="summary">',
+    `<meta name="twitter:title" content="${t}">`,
+    `<meta name="twitter:description" content="${d}">`,
+    `<meta name="twitter:image" content="${img}">` + ld,
+    '<!-- SEO:END -->',
+  ].join('\n');
+}
+
+// ⚠️ readFileSync 경로는 반드시 리터럴로 둘 것 — Vercel 빌드의 @vercel/nft가 정적 스캔으로
+// 람다 번들에 포함할 파일을 정하기 때문에, 경로를 동적으로 조립하면 배포본에 파일이 아예
+// 없어서 런타임에 터진다. vercel.json의 includeFiles도 같은 이유의 안전망.
+function readSiteFile(which) {
+  if (which === 'analysis') return readFileSync(join(process.cwd(), 'analysis.html'), 'utf8');
+  return readFileSync(join(process.cwd(), 'company.html'), 'utf8');
+}
+
+function sendPrerendered(res, html) {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+  return res.status(200).send(html);
+}
+
+async function handleRenderAnalysis(req, res) {
+  const id = (req.query.id || '').toString().trim();
+  let html;
+  try {
+    html = readSiteFile('analysis');
+  } catch {
+    // 번들에 파일이 없는 최악의 경우에도 방문자는 페이지를 봐야 한다 → 정적 경로로 넘김
+    return res.redirect(302, '/analysis.html' + (id ? `?id=${encodeURIComponent(id)}` : ''));
+  }
+
+  try {
+    if (id) {
+      const { data: issue } = await supabase.from('issues')
+        .select('id, title, ai_digest, summary, published_at')
+        .eq('id', id).maybeSingle();
+      if (issue && issue.title) {
+        const desc = seoDesc(issue.ai_digest || issue.summary,
+          '뉴스 이슈가 어떤 산업에 영향을 주는지 정리했습니다.');
+        html = html.replace(SEO_BLOCK_RE, buildSeoBlock({
+          title: `${issue.title} — StockRipple`,
+          desc,
+          url: `${SITE_ORIGIN}/analysis/${encodeURIComponent(issue.id)}`,
+          type: 'article',
+          jsonLd: {
+            '@context': 'https://schema.org',
+            '@type': 'NewsArticle',
+            headline: issue.title.slice(0, 110),
+            description: desc,
+            datePublished: issue.published_at || undefined,
+            publisher: { '@type': 'Organization', name: 'StockRipple' },
+          },
+        }));
+      }
+    }
+  } catch { /* DB 실패/이슈 없음 → 원본 그대로(fail-open). 500을 내면 페이지 자체가 죽는다. */ }
+  return sendPrerendered(res, html);
+}
+
+async function handleRenderCompany(req, res) {
+  const ticker = (req.query.ticker || '').toString().toUpperCase().trim();
+  let html;
+  try {
+    html = readSiteFile('company');
+  } catch {
+    return res.redirect(302, '/company.html' + (ticker ? `?ticker=${encodeURIComponent(ticker)}` : ''));
+  }
+
+  try {
+    if (ticker) {
+      const { data: company } = await supabase.from('companies')
+        .select('ticker, name_ko, name_en, sector, market')
+        .eq('ticker', ticker).maybeSingle();
+      if (company && company.ticker) {
+        const name = company.name_ko || company.name_en || company.ticker;
+        const sectorPart = company.sector ? `${company.sector} 업종. ` : '';
+        // JSON-LD를 붙이지 않는다 — 종목 페이지에 Product/FinancialProduct 구조화 데이터를
+        // 달면 "투자상품 추천"으로 읽힐 소지가 있어 유사투자자문업 리스크와 충돌한다.
+        html = html.replace(SEO_BLOCK_RE, buildSeoBlock({
+          title: `${name} (${company.ticker}) 주가·관련 뉴스 — StockRipple`,
+          desc: `${sectorPart}${name}의 실시간 시세와 이 종목이 언급된 최근 뉴스를 한눈에 봅니다.`,
+          url: `${SITE_ORIGIN}/stock/${encodeURIComponent(company.ticker)}`,
+        }));
+      }
+    }
+  } catch { /* fail-open */ }
+  return sendPrerendered(res, html);
+}
+
+async function handleSitemap(req, res) {
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+
+  const STATIC_PATHS = ['/', '/news.html', '/heatmap.html', '/kr-market.html', '/sectors.html',
+    '/etf.html', '/earnings.html', '/market-detail.html', '/portfolio.html', '/talks.html'];
+  const urlTag = (loc, lastmod) =>
+    `<url><loc>${seoEsc(SITE_ORIGIN + loc)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>`;
+
+  const parts = STATIC_PATHS.map(p => urlTag(p));
+  try {
+    const [issuesRes, companiesRes] = await Promise.all([
+      supabase.from('issues').select('id, published_at')
+        .neq('ai_digest', '').order('published_at', { ascending: false }).limit(500),
+      supabase.from('companies').select('ticker').not('ticker', 'is', null).limit(2000),
+    ]);
+    for (const i of issuesRes.data || []) {
+      const lm = i.published_at ? new Date(i.published_at).toISOString().slice(0, 10) : '';
+      parts.push(urlTag(`/analysis/${encodeURIComponent(i.id)}`, lm));
+    }
+    for (const c of companiesRes.data || []) {
+      if (c.ticker) parts.push(urlTag(`/stock/${encodeURIComponent(c.ticker)}`));
+    }
+  } catch { /* fail-open: 정적 경로만이라도 유효한 사이트맵으로 내려보낸다 */ }
+
+  return res.status(200).send(
+    '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    + parts.join('\n') + '\n</urlset>');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 종목 중심 뉴스 타임라인 (2026-08-03)
+//
+// 구버전(company.html loadNewsHistory)은 analysis_companies를 브라우저에서 직접 조회했는데,
+// 그 테이블의 anon SELECT 정책은 2026-07-21에 DROP돼서 실제로는 늘 빈 결과였다(catch가
+// 삼켜 섹션이 영구히 숨겨져 있었음). 여기서는 게이트 대상이 아닌 issues 공개 필드
+// (ai_digest / news_analysis)만으로 같은 UI를 다시 채운다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// PostgREST 필터 값에 그대로 들어가면 문법을 깨뜨리는 문자들을 털어낸다.
+// (.or() 조립은 아예 쓰지 않지만, ilike 값에 %가 섞이면 매칭이 엉뚱해진다.)
+function sanitizeFilterTerm(s) {
+  return String(s || '').replace(/[%_,()*\\]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function handleCompanyNews(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const ticker = (req.query.ticker || '').toString().toUpperCase().trim();
+  if (!ticker) return res.status(200).json({ ok: false, error: 'ticker required', data: [] });
+
+  const COLS = 'id, title, ai_digest, news_analysis, source_name, published_at';
+  try {
+    const { data: company } = await supabase.from('companies')
+      .select('ticker, name_ko, name_en, sector').eq('ticker', ticker).maybeSingle();
+    if (!company) return res.status(200).json({ ok: true, data: [] });
+
+    // 이름에서 괄호 주석("삼성전자(우)")을 떼고 필터 위험문자를 제거. 1글자 이름은
+    // 오탐이 너무 심해서 제외한다.
+    const names = [company.name_ko, company.name_en]
+      .map(n => sanitizeFilterTerm(String(n || '').replace(/\(.*?\)/g, '')))
+      .filter(n => n.length >= 2);
+
+    // 직접 언급: .or() 문자열 조립 대신 컬럼별 ilike를 따로 던지고 JS에서 병합한다
+    // (사용자 입력이 필터 문법에 섞여 들어가는 경로를 아예 만들지 않기 위함).
+    const direct = new Map();
+    for (const name of names) {
+      const queries = ['title', 'ai_digest'].map(col => supabase.from('issues').select(COLS)
+        .ilike(col, `%${name}%`).order('published_at', { ascending: false }).limit(20));
+      for (const qr of await Promise.all(queries)) {
+        for (const row of qr.data || []) {
+          if (!direct.has(row.id)) direct.set(row.id, { ...row, matchType: 'direct' });
+        }
+      }
+    }
+
+    const merged = [...direct.values()];
+
+    // 업종 폴백: 직접 언급이 적은 종목(대부분의 중소형주)은 화면이 비어버리므로,
+    // 같은 산업 톤이 붙은 최근 뉴스로 채운다. 산업명은 AI가 자유 생성해서 정확일치가
+    // 거의 안 맞기 때문에 kr-market.html의 SEC_MAP과 같은 양방향 부분일치를 쓴다.
+    if (merged.length < 5 && company.sector) {
+      const sec = company.sector.toLowerCase().trim();
+      const { data: pool } = await supabase.from('issues').select(COLS)
+        .neq('ai_digest', '').order('published_at', { ascending: false }).limit(300);
+      for (const row of pool || []) {
+        if (direct.has(row.id)) continue;
+        const secs = Array.isArray(row.news_analysis && row.news_analysis.sectors)
+          ? row.news_analysis.sectors : [];
+        const hit = secs.some(s => {
+          const n = String((s && s.name) || '').toLowerCase().trim();
+          return n && (n.includes(sec) || sec.includes(n));
+        });
+        if (hit) merged.push({ ...row, matchType: 'sector' });
+      }
+    }
+
+    merged.sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0));
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=1800');
+    return res.status(200).json({ ok: true, data: merged.slice(0, 15) });
+  } catch (e) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ ok: false, error: e.message, data: [] });
+  }
 }

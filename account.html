@@ -512,7 +512,7 @@ async function loadBookmarks() {
       <div class="bookmark-item" id="bm-${escHtml(item.issue_id)}">
         <div class="bookmark-info">
           <div class="bookmark-title">
-            <a href="/analysis.html?id=${encodeURIComponent(issue.id)}">${escHtml(issue.title)}</a>
+            <a href="/analysis/${encodeURIComponent(issue.id)}">${escHtml(issue.title)}</a>
           </div>
           <div class="bookmark-meta">
             <span class="bookmark-date">${fmtDate(issue.published_at)}</span>

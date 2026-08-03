@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin/
+Disallow: /api/
+Disallow: /account.html
+
+Sitemap: https://stockripple.vercel.app/sitemap.xml

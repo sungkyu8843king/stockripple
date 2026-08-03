@@ -8,17 +8,24 @@
 <script src="/sr-pulse.js" defer></script>
 <script src="/coupang-interstitial.js" defer></script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
+<!-- SEO:START -->
+<!-- /stock/:ticker 로 들어오면 api/admin.js의 render-company가 이 블록을 종목별 제목·설명으로
+     통째로 갈아끼운다(buildSeoBlock). 마커를 지우거나 이름을 바꾸면 치환이 조용히 실패한다. -->
 <title>종목 상세 — StockRipple</title>
-<!-- Open Graph / 링크 공유 미리보기 (정적 — 동적 티커 페이지는 일반 설명) -->
+<meta name="description" content="종목의 실시간 시세와 관련 뉴스를 한눈에 봅니다.">
+<link rel="canonical" href="https://stockripple.vercel.app/company.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="StockRipple">
 <meta property="og:title" content="종목 상세 — StockRipple">
-<meta property="og:description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
+<meta property="og:description" content="종목의 실시간 시세와 관련 뉴스를 한눈에 봅니다.">
 <meta property="og:url" content="https://stockripple.vercel.app/company.html">
+<meta property="og:image" content="https://stockripple.vercel.app/icon-512.png">
 <meta property="og:locale" content="ko_KR">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="종목 상세 — StockRipple">
-<meta name="twitter:description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
+<meta name="twitter:description" content="종목의 실시간 시세와 관련 뉴스를 한눈에 봅니다.">
+<meta name="twitter:image" content="https://stockripple.vercel.app/icon-512.png">
+<!-- SEO:END -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -616,9 +623,11 @@ body {
 .hist-card:hover { border-color: var(--border-strong); }
 .hist-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .hist-date { font-size: 14.5px; font-family: var(--mono); color: var(--text3); font-variant-numeric: tabular-nums; }
-.hist-upside { font-size: 13.5px; font-weight: 700; font-family: var(--mono); padding: 2px 8px; border-radius: 6px; }
-.hist-upside.pos { color: var(--red); background: var(--red-dim); }
-.hist-upside.neg { color: var(--blue); background: var(--blue-dim); }
+/* 매칭 근거 뱃지 — 상승/하락 방향성 신호가 아니므로 의도적으로 --red/--blue를 쓰지 않는다
+   (이 색은 이 프로젝트에서 등락률 전용). 직접 언급만 살짝 강조. */
+.hist-badge { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; color: var(--text3); background: var(--bg3); }
+.hist-badge.direct { color: var(--blue); background: var(--blue-dim); }
+.hist-src { font-size: 12.5px; color: var(--text3); margin-left: auto; }
 .hist-title { font-size: 16.5px; font-weight: 650; line-height: 1.45; letter-spacing: -0.01em; margin-bottom: 6px; }
 .hist-reason { font-size: 15.5px; color: var(--text2); line-height: 1.65; }
 /* "왜?" 체크리스트 — analysis.html의 같은 클래스와 동일 톤(2026-08). 등급/평점(별점 등)
@@ -1500,7 +1509,7 @@ function renderPage(company, records, priceData) {
   // 사실 지표 · 펀더멘털 · AI 종합 분석
   loadTechChips(ticker);
   loadFundamentals(ticker);
-  loadNewsHistory(company.id);
+  loadNewsHistory(ticker);
   loadAiSummary(ticker, name);
 
   // Toss 공식: 종목마스터(시총·경고 뱃지) · 호가 · 일별 시세
@@ -1769,46 +1778,41 @@ function renderTradeBox(records) {
   `;
 }
 
-// ── 📰 최근 뉴스 언급 — 등급/평점이 아니라 "최근 어떤 뉴스에 몇 번 언급됐는지"만
-// 사실대로 보여주는 순수 이력(유사투자자문업 리스크 검토 후 이 형태로 확정, 2026-08).
-// analysis_companies는 긍정 파급 후보만 저장하므로(부정은 ripple_effects JSON에만 있음)
-// "긍정 N%" 같은 비율은 계산하지 않는다 — 그냥 "최근 언급 뉴스 목록 + 이유"로만 구성.
-function _parseReasonsFromRationale(rationale) {
-  if (!rationale) return null;
-  const idx = rationale.indexOf('[REASONS]');
-  if (idx < 0) return null;
-  try {
-    const after = rationale.slice(idx + 9);
-    const nextMarker = after.search(/\[(TRADE|FUND)\]/);
-    const json = (nextMarker >= 0 ? after.slice(0, nextMarker) : after).trim();
-    const arr = JSON.parse(json);
-    return Array.isArray(arr) && arr.length ? arr : null;
-  } catch { return null; }
-}
-async function loadNewsHistory(companyId) {
+// ── 📰 최근 뉴스 언급 — 등급/평점이 아니라 "최근 어떤 뉴스에 언급됐는지"만 사실대로
+// 보여주는 순수 이력(유사투자자문업 리스크 검토 후 이 형태로 확정, 2026-08).
+//
+// 이 종목이 언급된 뉴스 타임라인.
+//
+// 구버전은 analysis_companies를 브라우저에서 직접 조회했는데, 그 테이블의 anon SELECT
+// 정책은 2026-07-21에 DROP됐다(유사투자자문업 리스크 대응) — 그래서 이 섹션은 실제로는
+// 늘 빈 결과였고 catch가 삼켜 영구히 숨겨져 있었다. 지금은 게이트 대상이 아닌 issues
+// 공개 필드(ai_digest / news_analysis)만 쓰는 서버 API를 경유한다.
+async function loadNewsHistory(ticker) {
   const sec = document.getElementById('newsHistorySec');
   const wrap = document.getElementById('newsHistoryWrap');
   const note = document.getElementById('newsHistoryNote');
-  if (!sec || !wrap || !companyId) return;
+  if (!sec || !wrap || !ticker) return;
   try {
-    const { data } = await sb
-      .from('analysis_companies')
-      .select('rationale, entry_date, analyses(issues(id, title, published_at))')
-      .eq('company_id', companyId)
-      .order('entry_date', { ascending: false })
-      .limit(5);
-    const rows = (data || []).filter(r => r.analyses?.issues?.title);
+    const r = await fetch(`/api/admin?action=company-news&ticker=${encodeURIComponent(ticker)}`);
+    const j = await r.json();
+    const rows = (j && j.ok && Array.isArray(j.data)) ? j.data : [];
     if (!rows.length) return; // 섹션 자체를 숨긴 채로 둠(display:none 유지) — 언급 없으면 안 보여줌
 
-    if (note) note.textContent = `최근 ${rows.length}건`;
-    wrap.innerHTML = `<div class="hist-list">${rows.map(r => {
-      const issue = r.analyses.issues;
-      const reasons = _parseReasonsFromRationale(r.rationale);
-      const dateStr = issue.published_at ? new Date(issue.published_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '';
-      return `<a class="hist-card" href="/analysis.html?id=${encodeURIComponent(issue.id)}">
-        <div class="hist-card-top"><span class="hist-date">${escHtml(dateStr)}</span></div>
-        <div class="hist-title">${escHtml(issue.title)}</div>
-        ${reasons ? `<div class="reasons-why">왜?</div><ul class="reasons-list">${reasons.slice(0, 3).map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>` : ''}
+    const directCount = rows.filter(x => x.matchType === 'direct').length;
+    if (note) note.textContent = directCount ? `직접 언급 ${directCount}건` : `업종 관련 ${rows.length}건`;
+    wrap.innerHTML = `<div class="hist-list">${rows.map(row => {
+      const keypoints = Array.isArray(row.news_analysis?.keypoints) ? row.news_analysis.keypoints.slice(0, 3) : [];
+      const dateStr = row.published_at ? new Date(row.published_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '';
+      const isDirect = row.matchType === 'direct';
+      return `<a class="hist-card" href="/analysis/${encodeURIComponent(row.id)}">
+        <div class="hist-card-top">
+          <span class="hist-date">${escHtml(dateStr)}</span>
+          <span class="hist-badge${isDirect ? ' direct' : ''}">${isDirect ? '직접 언급' : '업종 관련'}</span>
+          ${row.source_name ? `<span class="hist-src">${escHtml(row.source_name)}</span>` : ''}
+        </div>
+        <div class="hist-title">${escHtml(row.title)}</div>
+        ${row.ai_digest ? `<div class="hist-reason">${escHtml(row.ai_digest)}</div>` : ''}
+        ${keypoints.length ? `<div class="reasons-why" style="margin-top:10px">핵심 포인트</div><ul class="reasons-list">${keypoints.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>` : ''}
       </a>`;
     }).join('')}</div>`;
     sec.style.display = '';
@@ -2469,8 +2473,13 @@ async function autoRegisterCompany(ticker) {
 }
 
 async function init() {
+  // 공유·검색 유입은 /stock/{ticker} 형태로 들어온다. 서버 rewrite라 브라우저 주소는
+  // 그대로 /stock/{ticker}로 남아 location.search가 비어 있으므로, 쿼리(?ticker=)를 먼저
+  // 보고 없으면 경로에서 파싱한다(analysis.html이 /analysis/{id}에 쓰는 것과 같은 방식).
   const params = new URLSearchParams(location.search);
-  const ticker = (params.get('ticker') || '').toUpperCase().trim();
+  const rawTicker = params.get('ticker')
+    || (location.pathname.match(/^\/stock\/([^/?#]+)/)?.[1] ?? '');
+  const ticker = decodeURIComponent(rawTicker).toUpperCase().trim();
   if (!ticker) { location.href = '/'; return; }
 
   _currentTicker = ticker;

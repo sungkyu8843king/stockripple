@@ -331,7 +331,7 @@ function renderIssueCard(issue) {
   }).join('');
 
   return `
-    <a href="/analysis.html?id=${issue.id}" class="issue-card">
+    <a href="/analysis/${encodeURIComponent(issue.id)}" class="issue-card">
       <div class="card-header">
         <span class="card-source">
           <span class="source-dot"></span>${escHtml(issue.source_name || '뉴스')}
@@ -2773,7 +2773,7 @@ async function loadBreakingNews() {
       return `
         <div class="breaking-item">
           ${categoryBadge(issue.sectors)}
-          <a href="/analysis.html?id=${issue.id}" style="text-decoration:none;color:inherit">
+          <a href="/analysis/${encodeURIComponent(issue.id)}" style="text-decoration:none;color:inherit">
             <div class="breaking-title">${escHtml(issue.title.slice(0, 55))}${issue.title.length > 55 ? '…' : ''}</div>
           </a>
           <div class="breaking-time">${dateStr} ${timeStr}</div>
