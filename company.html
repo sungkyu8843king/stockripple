@@ -1449,6 +1449,14 @@ function renderPage(company, records, priceData) {
       </div>
     </section>
 
+    <!-- 🤖 AI 종합 분석 (company_summary 파이프라인 — company_ai_summary 캐시, 파급효과/매수후보
+         테이블과 무관해 유사투자자문업 리스크 대응(2026-07-22)과 별개로 계속 운영 중.
+         2026-07-22 죽은 파급효과 섹션 정리(706ac8d) 때 컨테이너가 같이 삭제돼 오랫동안
+         화면에 안 나오고 있었음 — 2026-08-03 복구) -->
+    <section class="cmp-sec">
+      <div id="aiSummaryWrap"></div>
+    </section>
+
     <!-- 📊 호가 -->
     <section class="cmp-sec">
       <div class="ck-sec-head"><span class="tick"></span><h3>📊 호가</h3><span class="note">토스 공식</span></div>
@@ -1489,10 +1497,11 @@ function renderPage(company, records, priceData) {
   _chipData = {};
   renderCmpChips();
 
-  // 사실 지표 · 펀더멘털 (AI 종합분석은 company_summary 비활성화로 제거됨)
+  // 사실 지표 · 펀더멘털 · AI 종합 분석
   loadTechChips(ticker);
   loadFundamentals(ticker);
   loadNewsHistory(company.id);
+  loadAiSummary(ticker, name);
 
   // Toss 공식: 종목마스터(시총·경고 뱃지) · 호가 · 일별 시세
   loadStockMeta(ticker);
@@ -1997,7 +2006,50 @@ async function loadTechChips(ticker) {
 }
 
 // ── AI 종합 분석 ──────────────────────────────────────────
+// 저장된 분석(캐시)이 있는 티커는 쿠팡 배너를 눌러 쿠팡에 갔다 돌아와야 내용이 열리는
+// "게이트" 형태로 노출한다(배너 클릭 유도). 배너 클릭 자체는 coupang-ad-mobile/pc.html이
+// postMessage로 이 창에 알려주고, 실제 이동은 top.location.href라 페이지 전체가 떠났다가
+// bfcache로 복원되므로 신호를 여러 개(visibilitychange/pageshow/focus) 걸어 안전망을 둔다.
+let _aiGateCleanup = null; // 티커 전환 시 이전 게이트의 리스너를 정리하기 위한 핸들
+
+function onCoupangPanelAdClick() {
+  if (typeof _aiGateOnAdClick === 'function') _aiGateOnAdClick();
+}
+window.addEventListener('message', function (e) {
+  if (e.origin !== location.origin) return;
+  if (e.data && e.data.type === 'coupang-panel-ad-click') onCoupangPanelAdClick();
+});
+let _aiGateOnAdClick = null;
+
 async function loadAiSummary(ticker, displayName) {
+  const wrap = document.getElementById('aiSummaryWrap');
+  if (!wrap) return;
+  if (_aiGateCleanup) { _aiGateCleanup(); _aiGateCleanup = null; }
+  wrap.innerHTML = `
+    <div class="ai-summary-card">
+      <div class="ai-badge-row">
+        <span class="ai-dot"></span>
+        <span class="ai-badge">AI 분석하기</span>
+        <span style="font-size:13.5px;color:var(--text3);margin-left:auto">확인 중...</span>
+      </div>
+      <div style="text-align:center;padding:20px;color:var(--text3);font-size:15.5px">
+        🤖 ${escHtml(displayName)} 종합 분석 확인 중...
+      </div>
+    </div>`;
+  try {
+    const r = await fetch(`/api/company-summary?ticker=${encodeURIComponent(ticker)}`);
+    if (!r.ok) { wrap.innerHTML = ''; return; }
+    const d = await r.json();
+    if (!d.ok) { wrap.innerHTML = ''; return; }
+    // d.ok는 항상 company_ai_summary에 저장된 분석이 있다는 뜻(핸들러가 캐시 없이는
+    // ok:true를 반환하지 않음) — 저장된 정보가 있는 경우에만 게이트를 씌운다.
+    renderAiGate(ticker, displayName, d);
+  } catch(e) {
+    wrap.innerHTML = `<div class="ai-summary-card"><div style="color:var(--red);font-size:15.5px">AI 분석 로딩 실패: ${escHtml(e.message)}</div></div>`;
+  }
+}
+
+function renderAiGate(ticker, displayName, d) {
   const wrap = document.getElementById('aiSummaryWrap');
   if (!wrap) return;
   wrap.innerHTML = `
@@ -2005,90 +2057,104 @@ async function loadAiSummary(ticker, displayName) {
       <div class="ai-badge-row">
         <span class="ai-dot"></span>
         <span class="ai-badge">AI 분석하기</span>
-        <span style="font-size:13.5px;color:var(--text3);margin-left:auto">로딩 중...</span>
+        <span style="font-size:13.5px;color:var(--text3);margin-left:auto">${d.analyses_count || 0}건 분석 통합</span>
       </div>
-      <div style="text-align:center;padding:20px;color:var(--text3);font-size:15.5px">
-        🤖 ${escHtml(displayName)} 종합 분석 생성 중... (약 10초)
+      <div style="text-align:center;padding:8px 6px 4px;color:var(--text2);font-size:15px;line-height:1.6">
+        🔒 ${escHtml(displayName)} AI 종합 분석이 준비되어 있어요.<br>아래 배너를 확인하고 돌아오시면 볼 수 있어요.
       </div>
       <div id="aiPanelAdSlot"></div>
     </div>`;
   loadAiPanelAd(document.getElementById('aiPanelAdSlot'));
-  // 캐시 히트로 응답이 순식간에 와도 광고 노출 시간을 최소 4초는 확보
-  const minAdDelay = new Promise(resolve => setTimeout(resolve, 4000));
-  try {
-    const r = await fetch(`/api/company-summary?ticker=${encodeURIComponent(ticker)}`);
-    await minAdDelay;
-    if (!r.ok) { wrap.innerHTML = ''; return; }
-    const d = await r.json();
-    if (!d.ok) { wrap.innerHTML = ''; return; }
 
-    // stale: 오늘 재생성(Claude 호출)에 실패했지만 DB에 예전 분석이 남아있어
-    // 그걸 그대로 보여주는 경우 — 완전히 안 나오는 것보다 낫다. 언제 생성된
-    // 내용인지 알 수 있게 하단에 명시.
-    const staleNote = d.stale && d.generated_at
-      ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:13.5px;color:var(--text3);text-align:right">
-          ⏱ Last update: ${new Date(d.generated_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })}
-        </div>`
-      : '';
-
-    wrap.innerHTML = `
-      <div class="ai-summary-card">
-        <div class="ai-badge-row">
-          <span class="ai-dot"></span>
-          <span class="ai-badge">AI 분석하기</span>
-          <span style="font-size:13.5px;color:var(--text3);margin-left:auto">${d.analyses_count || 0}건 분석 통합</span>
-        </div>
-
-        ${d.overview ? `
-        <div class="ai-block">
-          <div class="ai-block-label">📋 회사 개요</div>
-          <div class="ai-block-text">${escHtml(d.overview)}</div>
-        </div>` : ''}
-
-        ${d.thesis ? `
-        <div class="ai-block">
-          <div class="ai-block-label">💡 매수 후보 종합 근거</div>
-          <div class="ai-block-text">${escHtml(d.thesis)}</div>
-        </div>` : ''}
-
-        ${d.strategic_exposure && d.strategic_exposure.trim() ? `
-        <div class="ai-block" style="background:var(--purple-dim);border:1px solid rgba(139,139,255,0.28);border-radius:14px;padding:14px 16px;margin-top:4px">
-          <div class="ai-block-label" style="color:var(--purple);display:flex;align-items:center;gap:6px">
-            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--purple)"></span>
-            🌟 전략적 노출 · 선반영 논리
-          </div>
-          <div class="ai-block-text" style="margin-top:6px">${escHtml(d.strategic_exposure)}</div>
-        </div>` : ''}
-
-        ${d.competitive_position ? `
-        <div class="ai-block">
-          <div class="ai-block-label">🎯 시장 포지션</div>
-          <div class="ai-block-text">${escHtml(d.competitive_position)}</div>
-        </div>` : ''}
-
-        ${Array.isArray(d.key_risks) && d.key_risks.length ? `
-        <div class="ai-block">
-          <div class="ai-block-label">⚠️ 핵심 리스크</div>
-          <div class="ai-risks">
-            ${d.key_risks.map(x => `<div class="ai-risk-item">${escHtml(x)}</div>`).join('')}
-          </div>
-        </div>` : ''}
-
-        ${Array.isArray(d.watch_points) && d.watch_points.length ? `
-        <div class="ai-block">
-          <div class="ai-block-label">👁 주시 포인트</div>
-          <div class="ai-risks">
-            ${d.watch_points.map(x => `<div class="ai-watch-item">${escHtml(x)}</div>`).join('')}
-          </div>
-        </div>` : ''}
-        ${staleNote}
-        <div class="ai-disclaimer">ℹ️ 위 분석은 AI가 뉴스·공개데이터로 생성한 <b>참고 정보</b>이며, <b>특정 종목의 매수·매도를 권유하지 않습니다.</b> 투자 판단과 책임은 이용자 본인에게 있습니다.</div>
-      </div>
-    `;
-  } catch(e) {
-    await minAdDelay;
-    wrap.innerHTML = `<div class="ai-summary-card"><div style="color:var(--red);font-size:15.5px">AI 분석 로딩 실패: ${escHtml(e.message)}</div></div>`;
+  let clicked = false;
+  let revealed = false;
+  function tryReveal() {
+    if (!clicked || revealed) return;
+    revealed = true;
+    cleanup();
+    renderAiSummaryContent(displayName, d);
   }
+  function onVisible() { if (document.visibilityState === 'visible') tryReveal(); }
+  function onPageShow() { tryReveal(); } // bfcache 복원(pageshow) 포함
+  function cleanup() {
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('focus', onVisible);
+    window.removeEventListener('pageshow', onPageShow);
+    _aiGateOnAdClick = null;
+  }
+  _aiGateOnAdClick = function () { clicked = true; };
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('focus', onVisible);
+  window.addEventListener('pageshow', onPageShow);
+  _aiGateCleanup = cleanup;
+}
+
+function renderAiSummaryContent(displayName, d) {
+  const wrap = document.getElementById('aiSummaryWrap');
+  if (!wrap) return;
+  // stale: 오늘 재생성(Claude 호출)에 실패했지만 DB에 예전 분석이 남아있어
+  // 그걸 그대로 보여주는 경우 — 완전히 안 나오는 것보다 낫다. 언제 생성된
+  // 내용인지 알 수 있게 하단에 명시.
+  const staleNote = d.stale && d.generated_at
+    ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:13.5px;color:var(--text3);text-align:right">
+        ⏱ Last update: ${new Date(d.generated_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })}
+      </div>`
+    : '';
+
+  wrap.innerHTML = `
+    <div class="ai-summary-card">
+      <div class="ai-badge-row">
+        <span class="ai-dot"></span>
+        <span class="ai-badge">AI 분석하기</span>
+        <span style="font-size:13.5px;color:var(--text3);margin-left:auto">${d.analyses_count || 0}건 분석 통합</span>
+      </div>
+
+      ${d.overview ? `
+      <div class="ai-block">
+        <div class="ai-block-label">📋 회사 개요</div>
+        <div class="ai-block-text">${escHtml(d.overview)}</div>
+      </div>` : ''}
+
+      ${d.thesis ? `
+      <div class="ai-block">
+        <div class="ai-block-label">💡 매수 후보 종합 근거</div>
+        <div class="ai-block-text">${escHtml(d.thesis)}</div>
+      </div>` : ''}
+
+      ${d.strategic_exposure && d.strategic_exposure.trim() ? `
+      <div class="ai-block" style="background:var(--purple-dim);border:1px solid rgba(139,139,255,0.28);border-radius:14px;padding:14px 16px;margin-top:4px">
+        <div class="ai-block-label" style="color:var(--purple);display:flex;align-items:center;gap:6px">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--purple)"></span>
+          🌟 전략적 노출 · 선반영 논리
+        </div>
+        <div class="ai-block-text" style="margin-top:6px">${escHtml(d.strategic_exposure)}</div>
+      </div>` : ''}
+
+      ${d.competitive_position ? `
+      <div class="ai-block">
+        <div class="ai-block-label">🎯 시장 포지션</div>
+        <div class="ai-block-text">${escHtml(d.competitive_position)}</div>
+      </div>` : ''}
+
+      ${Array.isArray(d.key_risks) && d.key_risks.length ? `
+      <div class="ai-block">
+        <div class="ai-block-label">⚠️ 핵심 리스크</div>
+        <div class="ai-risks">
+          ${d.key_risks.map(x => `<div class="ai-risk-item">${escHtml(x)}</div>`).join('')}
+        </div>
+      </div>` : ''}
+
+      ${Array.isArray(d.watch_points) && d.watch_points.length ? `
+      <div class="ai-block">
+        <div class="ai-block-label">👁 주시 포인트</div>
+        <div class="ai-risks">
+          ${d.watch_points.map(x => `<div class="ai-watch-item">${escHtml(x)}</div>`).join('')}
+        </div>
+      </div>` : ''}
+      ${staleNote}
+      <div class="ai-disclaimer">ℹ️ 위 분석은 AI가 뉴스·공개데이터로 생성한 <b>참고 정보</b>이며, <b>특정 종목의 매수·매도를 권유하지 않습니다.</b> 투자 판단과 책임은 이용자 본인에게 있습니다.</div>
+    </div>
+  `;
 }
 
 // ── 펀더멘털 표시 ────────────────────────────────────────

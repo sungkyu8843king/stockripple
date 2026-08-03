@@ -621,8 +621,11 @@ button { font-family: inherit; }
 .tag-robot  { background: var(--purple-dim); color: var(--purple); }
 .tag-energy { background: var(--green-dim);  color: var(--green); }
 .tag-default{ background: var(--bg3); color: var(--text2); }
-/* 📊 군중 vs AI 투표 */
-.card-vote { padding: 10px 16px; border-top: 1px solid var(--border-soft); }
+/* 📊 군중 vs AI 투표 — margin-top:auto로 카드 맨 아래 그룹(투표+분석보기)을 고정한다.
+   전에는 card-footer만 auto라 투표 박스가 본문 길이에 따라 카드마다 다른 높이에 떠
+   보이는 문제가 있었음(2026-08 피드백) — 투표 박스부터 밀어내리면 그 아래 footer는
+   자연히 바로 붙어 따라오므로 footer 쪽 auto는 뺀다. */
+.card-vote { padding: 10px 16px; border-top: 1px solid var(--border-soft); margin-top: auto; }
 .cv-prompt { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .cv-q { font-size: 13.5px; color: var(--text2); font-weight: 600; }
 .cv-btns { display: flex; gap: 6px; flex-shrink: 0; }
@@ -637,7 +640,7 @@ button { font-family: inherit; }
 .cv-fill.no { background: var(--text3); }
 .cv-pct { width: 34px; text-align: right; font-weight: 700; font-family: var(--font-mono); flex-shrink: 0; }
 .cv-meta { font-size: 11.5px; color: var(--text3); margin-top: 2px; }
-.card-footer { margin-top: auto; padding: 11px 16px; border-top: 1px solid var(--border-soft); display: flex; align-items: center; gap: 12px; background: var(--bg3); }
+.card-footer { padding: 11px 16px; border-top: 1px solid var(--border-soft); display: flex; align-items: center; gap: 12px; background: var(--bg3); }
 .footer-stat { display: flex; align-items: center; gap: 5px; font-size: 14.5px; color: var(--text2); }
 .footer-stat .val { font-weight: 700; font-variant-numeric: tabular-nums; }
 .footer-stat .val.green { color: var(--green); }
