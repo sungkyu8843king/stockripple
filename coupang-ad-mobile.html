@@ -24,10 +24,18 @@
 <script>
 // 배너 클릭 집계 — g.js 위젯이 채워넣는 내용(어떤 태그든) 클릭을 document 레벨에서
 // 위임 감지해 어드민 "배너 클릭" 패널용으로 sendBeacon 기록. 이동을 막거나 늦추지 않음.
+// 이 슬롯(AI 종합분석 영역)은 부모 창(company.html)이 "배너를 직접 눌러야 열리는"
+// 게이트를 걸어두므로, 같은 출처 동기 함수 호출로 클릭 사실을 즉시 알려준다(postMessage는
+// 부모가 처리하는 시점이 비동기라 그 사이 광고 이동이 시작되면 신호가 유실될 수 있음).
 document.addEventListener('click', function () {
 	try {
 		var payload = new Blob([JSON.stringify({slot:'coupang-panel-mobile'})], {type:'application/json'});
 		navigator.sendBeacon('/api/admin?action=banner-click', payload);
+	} catch (e) {}
+	try {
+		if (window.parent && window.parent !== window && typeof window.parent.aiGateOnAdClicked === 'function') {
+			window.parent.aiGateOnAdClicked();
+		}
 	} catch (e) {}
 });
 </script>
