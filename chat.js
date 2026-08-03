@@ -78,12 +78,19 @@
      아래로 펼쳐지는 포지션이라(top:100%) 입력창이 패널 맨 아래에 있는 이 위젯엔 안
      맞아서, 위로 펼쳐지는 별도 래퍼(.src-mention)만 새로 둔다. */
   .src-mention{position:absolute;left:14px;right:14px;bottom:calc(100% + 8px);background:var(--bg2);border:1px solid var(--border-strong);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.42);z-index:9200;max-height:260px;overflow-y:auto}
-  .src-mention-stock,.src-mention-port{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;text-decoration:none;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-top:2px}
+  /* 종목 카드 — 이름이 길면(예: "에스케이하이닉스(주)") 아이콘+이름+티커+가격을 한 줄에
+     욱여넣다가 셋 다 제각각 줄바꿈되던 문제(2026-08 실측)를 고쳐, 처음부터 "왼쪽: 이름
+     위·티커 아래" / "오른쪽: 가격 위·등락률 아래" 2단 레이아웃으로 고정한다. */
+  .src-mention-stock{display:flex;align-items:center;gap:8px;font-size:11.5px;text-decoration:none;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px 11px;margin-top:2px;max-width:100%}
+  .src-mention-port{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;text-decoration:none;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-top:2px}
   .src-mention-stock:hover,.src-mention-port:hover{border-color:var(--blue)}
-  .src-mention-stock .tk{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-size:12px;color:var(--text3)}
-  .src-mention-stock .px{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-weight:700}
+  .src-mention-stock .mi-icon{flex-shrink:0}
+  .src-mention-stock .mi-body{display:flex;flex-direction:column;min-width:0;line-height:1.35}
+  .src-mention-stock .mi-name{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .src-mention-stock .tk{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-size:10.5px;color:var(--text3)}
+  .src-mention-stock .px{display:flex;flex-direction:column;align-items:flex-end;line-height:1.35;flex-shrink:0;margin-left:auto;font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-weight:700}
   .src-mention-stock .px .up{color:var(--red)} .src-mention-stock .px .dn{color:var(--blue)}
-  .src-mention-stock .px .chg{font-weight:700}
+  .src-mention-stock .px .chg{font-size:10.5px;font-weight:700}
   .src-mention-port .pnl.up{color:var(--red)} .src-mention-port .pnl.dn{color:var(--blue)}
   @media (max-width:640px){ #srChatBtn{bottom:76px;right:12px} }
   @media (min-width:1200px){ #srChatBtn{display:none} } /* 데스크톱은 원형 버튼 대신 레일이 대신함 */
@@ -288,7 +295,7 @@
     html = html.replace(/\[\[stock:([A-Za-z0-9.]+):([^\]:]*)\]\]/g, (_, ticker, name) => {
       const label = name || ticker;
       const pxId = 'srmpx-' + Math.random().toString(36).slice(2, 9);
-      return `<a class="src-mention-stock" href="/stock/${encodeURIComponent(ticker)}" target="_blank" rel="noopener">📈 <b>${label}</b><span class="tk">${esc(ticker.replace(/\.(KS|KQ)$/i, ''))}</span><span class="px" id="${pxId}" data-ticker="${esc(ticker)}">…</span></a>`;
+      return `<a class="src-mention-stock" href="/stock/${encodeURIComponent(ticker)}" target="_blank" rel="noopener"><span class="mi-icon">📈</span><span class="mi-body"><b class="mi-name">${label}</b><span class="tk">${esc(ticker.replace(/\.(KS|KQ)$/i, ''))}</span></span><span class="px" id="${pxId}" data-ticker="${esc(ticker)}">…</span></a>`;
     });
     html = html.replace(/\[\[port:(-?\d+):(-?\d+(?:\.\d+)?):(\d+)\]\]/g, (_, nav, pct, pos) => {
       const p = Number(pct);
@@ -320,7 +327,7 @@
           const cls = chg > 0 ? 'up' : chg < 0 ? 'dn' : '';
           const priceStr = q.currency === 'KRW' ? '₩' + Math.round(q.price).toLocaleString('ko-KR') : '$' + Number(q.price).toLocaleString('en-US', { maximumFractionDigits: 2 });
           const pctStr = chg != null ? `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%` : '';
-          el.innerHTML = `<span class="${cls}">${esc(priceStr)}</span>${pctStr ? ` <span class="chg ${cls}">${esc(pctStr)}</span>` : ''}`;
+          el.innerHTML = `<span class="${cls}">${esc(priceStr)}</span>${pctStr ? `<span class="chg ${cls}">${esc(pctStr)}</span>` : ''}`;
         }
       } catch { els.forEach(el => { el.textContent = ''; }); }
     }, 200);
