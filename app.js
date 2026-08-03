@@ -4673,6 +4673,7 @@ function _buildReportShareCardHtml(kind, d) {
     ['▼ 약세 요인', d.bearish_drivers],
     ['👁 내일 주시', d.watch_tomorrow],
   ] : [
+    ['📌 다가오는 핵심 이벤트', d.catalysts],
     ['📋 오늘 시장 흐름', d.recap],
     ['⚡ 주요 이벤트', d.top_events],
     ['👁 다음 거래일 관전 포인트', d.tomorrow],
@@ -4686,6 +4687,18 @@ function _buildReportShareCardHtml(kind, d) {
        <div>${d.sectors_winning.slice(0, 4).map(s => `<span style="display:inline-block;font-size:26px;font-weight:600;padding:10px 22px;border-radius:999px;color:#ff6b6b;background:rgba(255,107,107,.16);margin:0 10px 10px 0">${escHtml(s)}</span>`).join('')}</div></div>`
     : '';
 
+  // 데일리 리포트(!isAi)만 지수 칩이 있다 — 화면(dailyReportHTML)에 이미 있는 idxChips와
+  // 같은 재료(d.indices: {name, price, changePercent}[])를 카드용 큰 글씨로 다시 그린다.
+  const idxChipsHtml = !isAi && Array.isArray(d.indices) && d.indices.length
+    ? `<div style="margin-top:28px;display:flex;flex-wrap:wrap;gap:10px">${d.indices.map(x => {
+        const c = x.changePercent == null ? '#8b93a7' : x.changePercent >= 0 ? '#ff6b6b' : '#4d8dff';
+        const sign = x.changePercent != null && x.changePercent >= 0 ? '+' : '';
+        return `<span style="font-size:24px;padding:9px 18px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)">
+          <b>${escHtml(x.name)}</b> <span style="font-family:monospace;color:#cfd4de">${Number(x.price).toLocaleString()}</span>${x.changePercent != null ? ` <span style="color:${c};font-weight:800">${sign}${x.changePercent}%</span>` : ''}
+        </span>`;
+      }).join('')}</div>`
+    : '';
+
   return `<div style="width:1080px;box-sizing:border-box;background:#15171e;padding:66px 64px;font-family:'Inter','Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#f2f4f8">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:40px">
       <div style="font-size:27px;font-weight:700;color:#a6adbb">${escHtml(label)}</div>
@@ -4696,6 +4709,7 @@ function _buildReportShareCardHtml(kind, d) {
 
     <div style="font-size:50px;font-weight:800;line-height:1.35;letter-spacing:-.02em">${escHtml(_rsClip(d.headline, 60))}</div>
 
+    ${idxChipsHtml}
     ${sectionsHtml}
     ${sectorChips}
 
