@@ -177,7 +177,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .share-img-btn:hover { color: var(--text); border-color: var(--border-strong); }
 .share-img-btn:disabled { opacity: .55; cursor: default; }
 
-.sharemodal { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center;
+/* z-index: 이 페이지의 다른 오버레이(.chart-overlay=1000, .auth-overlay=2000)보다 높아야
+   그 위에 뜬다 — app.js 쪽 리포트 아카이브 모달(.cal-overlay=9999)에서 같은 종류의
+   버그가 실측됐다(2026-08). */
+.sharemodal { position: fixed; inset: 0; z-index: 2500; display: flex; align-items: center; justify-content: center;
   background: rgba(0,0,0,.72); padding: 20px; }
 .sharemodal-inner { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
   padding: 18px; max-width: 460px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: var(--shadow-pop); }

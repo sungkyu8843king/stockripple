@@ -4735,7 +4735,10 @@ async function openReportShareImage(shareId, btn) {
 }
 
 const REPORT_SHARE_CSS = `
-.rs-modal-overlay { position:fixed; inset:0; z-index:500; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.72); padding:20px; }
+/* z-index: 아카이브 모달(.cal-overlay=9999)·모바일 바텀시트(.dr-sheet=9300) 양쪽에서
+   다 열릴 수 있으므로 둘보다 높아야 한다 — 500이었을 때 아카이브 모달 뒤에 깔리는
+   버그가 있었다(2026-08 실측). */
+.rs-modal-overlay { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.72); padding:20px; }
 .rs-modal-inner { background:var(--bg2); border:1px solid var(--border); border-radius:20px; padding:18px; max-width:460px; width:100%; max-height:92vh; overflow-y:auto; box-shadow:var(--shadow-pop); }
 .rs-modal-inner img { width:100%; border-radius:14px; display:block; background:#15171e; }
 .rs-modal-actions { display:flex; gap:8px; margin-top:14px; }
