@@ -859,6 +859,42 @@ async function debugKisWebSocket(diag = {}) {
   }
 }
 
+// 코스피200 야간선물 프리징 감지(2026-08 실측 사고 대응, db/kis-night-future-freeze.sql).
+// 서버리스라 인메모리로 "직전 값"을 기억할 수 없으니 kis_token_cache 단일 행에
+// "마지막으로 값이 바뀐 시점"을 적어두고, 그 시점과 지금의 차이로 정체 시간을 잰다.
+// kr-market.html의 자동 새로고침 주기(3분, setInterval 180000ms)보다 넉넉히 잡아야
+// 정상적인 새로고침 타이밍에 오탐이 안 나므로 임계값은 2배 이상인 7분으로 둔다.
+const KIS_FREEZE_THRESHOLD_MS = 7 * 60 * 1000;
+async function isKisNightFutureFrozen(price, chg) {
+  try {
+    const { data, error } = await supabase.from('kis_token_cache')
+      .select('night_future_last_price, night_future_last_change, night_future_last_seen_at')
+      .eq('id', 1).maybeSingle();
+    // 마이그레이션 전(컬럼 없음) — 감지 기능만 건너뛴다, 시세 자체는 그대로 흘려보냄(fail-open).
+    if (error && /night_future_last/.test(error.message || '')) return false;
+
+    const now = Date.now();
+    const samePrice = data?.night_future_last_price != null && Math.abs(Number(data.night_future_last_price) - price) < 1e-9;
+    const sameChg = (chg == null && data?.night_future_last_change == null) ||
+      (chg != null && data?.night_future_last_change != null && Math.abs(Number(data.night_future_last_change) - chg) < 1e-9);
+    const unchanged = samePrice && sameChg;
+    const seenAt = data?.night_future_last_seen_at ? new Date(data.night_future_last_seen_at).getTime() : null;
+    const frozen = unchanged && seenAt != null && (now - seenAt) > KIS_FREEZE_THRESHOLD_MS;
+
+    // 값이 바뀌었으면(또는 이번이 처음이면) "마지막으로 바뀐 시각"을 지금으로 갱신한다 —
+    // 같은 값이 계속 오는 동안은 이 시각을 건드리지 않아야 정체 시간을 정확히 잴 수 있다.
+    if (!unchanged) {
+      await supabase.from('kis_token_cache').upsert({
+        id: 1, night_future_last_price: price, night_future_last_change: chg,
+        night_future_last_seen_at: new Date(now).toISOString(), updated_at: new Date(now).toISOString(),
+      });
+    }
+    return frozen;
+  } catch {
+    return false; // 감지 로직 자체의 실패가 원본 시세 흐름을 막으면 안 된다(fail-open).
+  }
+}
+
 // raw:true면 파싱 없이 KIS 원본 응답을 그대로 반환(?source=kis-test 디버그용) —
 // 실전 거래 API라 필드명을 감으로 짜지 않고 실제 응답을 먼저 눈으로 확인하기 위함.
 // diag: 어느 단계까지 갔는지 밖(워치독)에서도 볼 수 있게 공유 객체에 계속 적어둔다
@@ -910,6 +946,13 @@ export async function fetchKisNightFuture(raw = false, diag = {}) {
     // fail-open 처리하고 있어 여기서 막으면 두 곳 다 자동으로 안전해진다.
     if (isFinite(chg) && Math.abs(chg) > 10) {
       console.error(`[kis] night future changePercent implausible (${chg}%) — treating as unavailable`);
+      return null;
+    }
+    // 위 ±10%p 체크는 두 번째 실측 사고(2026-08, 등락률 -3.72%로 몇 분 넘게 고정되며
+    // 실제로는 -5.4%대까지 하락 — 폭이 10%를 안 넘어 위 체크를 그냥 통과)를 못 잡는다.
+    // 값 자체가 오래 안 바뀌면 피드가 멈춘 것으로 보고 별도로 무효 처리한다.
+    if (await isKisNightFutureFrozen(price, isFinite(chg) ? chg : null)) {
+      console.error(`[kis] night future quote frozen (price=${price}, chg=${chg}%) for too long — treating as unavailable`);
       return null;
     }
     return { code, price, changePercent: isFinite(chg) ? chg : null };

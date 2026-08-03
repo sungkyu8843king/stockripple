@@ -152,6 +152,7 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 - 실측 확인된 필드(`/uapi/domestic-futureoption/v1/quotations/inquire-price`, `tr_id: FHMIF10000000`, `FID_COND_MRKT_DIV_CODE=F`): `output1.futs_prpr`(현재가)·`output1.futs_prdy_ctrt`(전일대비율%)·`output1.futs_prdy_clpr`(전일종가). `output2`/`output3`은 참고용 코스피 종합/코스피200 현물 지수라 안 씀.
 - 실패해도(계좌 문제·네트워크·만기 롤오버 실패 등) 다른 소스처럼 fail-open — `fetchKisNightFuture()`가 null 반환, 모델은 남은 소스로 재정규화.
 - `?source=kis-test`(어드민 인증) — 디버그 전용, 원본 KIS 응답을 그대로 반환. 문제 생기면 여기부터 확인. `diag` 필드로 토큰발급/코드조회/시세조회 중 어느 단계까지 갔는지 알 수 있다.
+- **⚠️ 프리징(값이 안 바뀐 채 실제 시세와 어긋남) 사고가 두 번 있었다 — `|등락률|>10%p` 체크만으로는 못 잡는다.** 1차(등락률 +18.79%로 몇 시간 고정, 실제 -4.78%)는 위 임계값 체크로 막았지만, 2차(2026-08-03, 값이 -3.72%로 고정, 실제는 -5.4%대까지 하락 — 사용자가 실측으로 발견)는 폭이 10%를 안 넘어 그 체크를 통과했다. `isKisNightFutureFrozen()`(`api/market-data.js`)이 별도로 감지 — 서버리스라 인메모리로 직전 값을 못 들고 있으니 `kis_token_cache`에 "값이 마지막으로 바뀐 시각"을 저장해두고(`db/kis-night-future-freeze.sql` 마이그레이션 필요, 실행 전엔 컬럼 없이 감지 기능만 fail-open으로 건너뜀), 같은 값이 **7분**(kr-market.html의 3분 자동새로고침 주기보다 넉넉히) 넘게 유지되면 무효 처리한다. **원인 자체(왜 KIS REST 스냅샷이 가끔 얼어붙는지)는 여전히 불명** — 이 감지는 증상 완화용 안전장치이지 근본 수정이 아니다.
 
 ## 모의투자 (`portfolio.html`) — 2026-08-01 전면 재작성
 
