@@ -4437,6 +4437,7 @@ function aiSummaryHTML(d) {
   const when = d.created_at
     ? new Date(d.created_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
     : '';
+  const shareId = _stashReportForShare('ai', d);
   return `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       ${sentimentBadge(d.regime)}
@@ -4453,6 +4454,7 @@ function aiSummaryHTML(d) {
     <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.sectors_losing||[]).map(s => `<span style="font-size:13.5px;padding:2px 8px;border-radius:999px;background:var(--blue-dim);color:var(--blue)">${escHtml(s)}</span>`).join('')}</div>
     <div class="rp-label" style="color:var(--blue);${REPORT_LABEL};margin-top:8px">👁 내일 주시</div>
     ${reportList(d.watch_tomorrow)}
+    <button type="button" class="rp-archive-btn" style="margin-top:12px" onclick="openReportShareImage('${shareId}', this)">🖼 이미지로 공유</button>
   `;
 }
 
@@ -4588,6 +4590,9 @@ function dailyReportHTML(d, compact) {
     ? new Date(d.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
     : '';
   const drDateShort = d.report_date ? d.report_date.slice(5).replace('-', '/') : '';
+  // compact(사이드바 미니 프리뷰)에서는 공유 버튼을 안 보여준다 — 요약만 보이는 카드에서
+  // 공유할 "전체 리포트"가 아직 다 안 보이므로 눌러도 어색하다. 전체 뷰(바텀시트/아카이브)에서만.
+  const shareId = compact ? null : _stashReportForShare(d.market === 'KR' ? 'dr-kr' : 'dr-us', d);
   return `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       ${sentimentBadge(d.mood)}
@@ -4607,7 +4612,179 @@ function dailyReportHTML(d, compact) {
     ${reportList(d.sector_notes)}` : ''}
     <div class="rp-label" style="color:var(--blue);${REPORT_LABEL};margin-top:8px">👁 다음 거래일 관전 포인트</div>
     ${reportList(d.tomorrow)}
+    ${shareId ? `<button type="button" class="rp-archive-btn" style="margin-top:12px" onclick="openReportShareImage('${shareId}', this)">🖼 이미지로 공유</button>` : ''}
   `;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 리포트(AI 시장 종합 / 국장·미장 데일리) 공유 이미지 카드 (2026-08)
+//
+// analysis.html 이슈 상세의 "이미지로 공유"와 같은 패턴(html2canvas로 화면 밖 1080px
+// 카드를 굽고 저장/복사)을 여기서도 쓴다 — 단 이 리포트는 sentimentBadge/reportList로
+// 이미 렌더된 결과물(HTML 문자열)이 아니라 원본 데이터 d를 그대로 넘겨받아야 다시 그릴
+// 수 있으므로, aiSummaryHTML/dailyReportHTML이 호출될 때마다 { kind, d }를 스토어에
+// 스탬프해두고 버튼은 그 키만 들고 있는다 — 사이드바 미니위젯 · 모바일 바텀시트 · 지난
+// 리포트 아카이브(과거 회차)가 동시에 DOM에 떠 있을 수 있어 전역 변수 하나로는 부족하다.
+const _reportShareStore = new Map();
+let _reportShareSeq = 0;
+function _stashReportForShare(kind, d) {
+  const id = 'rs' + (++_reportShareSeq);
+  _reportShareStore.set(id, { kind, d });
+  return id;
+}
+
+function _rsClip(s, n) {
+  const t = String(s || '').replace(/\s+/g, ' ').trim();
+  return t.length > n ? t.slice(0, n - 1) + '…' : t;
+}
+
+// sentimentBadge와 같은 색 규칙(pos=red/neg=blue/neu=yellow)을 카드에서도 그대로 쓴다 —
+// 화면에서 보던 배지와 공유 이미지의 배지 색이 다르면 안 된다.
+function _rsSentiment(value) {
+  const s = SENTIMENT_MAP[value] || { dir: 'neu', label: value || '혼조' };
+  const color = s.dir === 'pos' ? '#ff6b6b' : s.dir === 'neg' ? '#4d8dff' : '#f0b45e';
+  const icon  = s.dir === 'pos' ? '▲' : s.dir === 'neg' ? '▼' : '◆';
+  return { color, icon, label: s.label };
+}
+
+function _rsList(items, n) {
+  return (Array.isArray(items) ? items : []).slice(0, n).map(x =>
+    `<div style="font-size:27px;line-height:1.55;color:#e4e8f0;margin-bottom:12px;padding-left:24px;position:relative"><span style="position:absolute;left:0;color:#4d8dff;font-weight:800">·</span>${escHtml(_rsClip(x, 60))}</div>`
+  ).join('');
+}
+
+// 카드는 항상 다크로 굽는다(테마 무관) — 커뮤니티에 퍼지는 이미지가 보는 사람 설정에 따라
+// 달라지면 브랜드가 흐려진다. ⚠️ 재료는 kind별로 정해진 필드만 쓴다 — analyses/
+// analysis_companies류(파급효과 수혜기업·신뢰도)는 이 리포트들과 무관해 애초에 안 들어온다.
+function _buildReportShareCardHtml(kind, d) {
+  const isAi = kind === 'ai';
+  const badge = _rsSentiment(isAi ? d.regime : d.mood);
+  const label = isAi ? 'StockRipple · AI 시장 종합' : `StockRipple · ${kind === 'dr-kr' ? '국장' : '미장'} 데일리 리포트`;
+  const dateStr = isAi
+    ? (d.created_at ? new Date(d.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '')
+    : (d.report_date || '');
+
+  const sections = isAi ? [
+    ['▲ 강세 요인', d.bullish_drivers],
+    ['▼ 약세 요인', d.bearish_drivers],
+    ['👁 내일 주시', d.watch_tomorrow],
+  ] : [
+    ['📋 오늘 시장 흐름', d.recap],
+    ['⚡ 주요 이벤트', d.top_events],
+    ['👁 다음 거래일 관전 포인트', d.tomorrow],
+  ];
+  const sectionsHtml = sections.filter(([, items]) => Array.isArray(items) && items.length).map(([title, items]) =>
+    `<div style="margin-top:32px"><div style="font-size:25px;font-weight:700;color:#4d8dff;margin-bottom:18px">${escHtml(title)}</div>${_rsList(items, 3)}</div>`
+  ).join('');
+
+  const sectorChips = isAi && Array.isArray(d.sectors_winning) && d.sectors_winning.length
+    ? `<div style="margin-top:32px"><div style="font-size:25px;font-weight:700;color:#4d8dff;margin-bottom:18px">🏆 수혜 섹터</div>
+       <div>${d.sectors_winning.slice(0, 4).map(s => `<span style="display:inline-block;font-size:26px;font-weight:600;padding:10px 22px;border-radius:999px;color:#ff6b6b;background:rgba(255,107,107,.16);margin:0 10px 10px 0">${escHtml(s)}</span>`).join('')}</div></div>`
+    : '';
+
+  return `<div style="width:1080px;box-sizing:border-box;background:#15171e;padding:66px 64px;font-family:'Inter','Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#f2f4f8">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:40px">
+      <div style="font-size:27px;font-weight:700;color:#a6adbb">${escHtml(label)}</div>
+      <div style="font-size:25px;color:#6c7385">${escHtml(dateStr)}</div>
+    </div>
+
+    <div style="display:inline-flex;align-items:center;gap:8px;font-size:26px;font-weight:800;color:#fff;background:${badge.color};padding:8px 20px;border-radius:999px;margin-bottom:28px">${badge.icon} ${escHtml(badge.label)}</div>
+
+    <div style="font-size:50px;font-weight:800;line-height:1.35;letter-spacing:-.02em">${escHtml(_rsClip(d.headline, 60))}</div>
+
+    ${sectionsHtml}
+    ${sectorChips}
+
+    <div style="margin-top:48px;padding-top:28px;border-top:1px solid rgba(255,255,255,.09);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:27px;color:#6c7385">뉴스가 어떤 산업에 영향을 주는지 정리합니다</div>
+      <div style="font-size:27px;font-weight:700;color:#4d8dff">stockripple.vercel.app</div>
+    </div>
+  </div>`;
+}
+
+let _reportShareBlob = null;
+
+async function openReportShareImage(shareId, btn) {
+  const entry = _reportShareStore.get(shareId);
+  if (!entry) return;
+  if (typeof html2canvas !== 'function') {
+    if (btn) { btn.textContent = '이미지 기능을 불러오지 못했어요'; btn.disabled = true; }
+    return;
+  }
+  const prevText = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = '이미지 만드는 중…'; }
+
+  const stage = document.createElement('div');
+  stage.style.cssText = 'position:fixed;left:-20000px;top:0;width:1080px;z-index:-1;pointer-events:none';
+  stage.innerHTML = _buildReportShareCardHtml(entry.kind, entry.d);
+  document.body.appendChild(stage);
+  try {
+    const canvas = await html2canvas(stage.firstElementChild, { backgroundColor: '#15171e', scale: 1, logging: false });
+    _reportShareBlob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    _showReportShareModal(canvas.toDataURL('image/png'));
+  } catch {
+    if (btn) btn.textContent = '이미지 생성에 실패했어요';
+  } finally {
+    stage.remove();
+    if (btn && btn.textContent === '이미지 만드는 중…') { btn.disabled = false; btn.textContent = prevText; }
+  }
+}
+
+const REPORT_SHARE_CSS = `
+.rs-modal-overlay { position:fixed; inset:0; z-index:500; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.72); padding:20px; }
+.rs-modal-inner { background:var(--bg2); border:1px solid var(--border); border-radius:20px; padding:18px; max-width:460px; width:100%; max-height:92vh; overflow-y:auto; box-shadow:var(--shadow-pop); }
+.rs-modal-inner img { width:100%; border-radius:14px; display:block; background:#15171e; }
+.rs-modal-actions { display:flex; gap:8px; margin-top:14px; }
+.rs-modal-actions button { flex:1; min-width:0; cursor:pointer; font-family:inherit; font-size:14.5px; font-weight:650; padding:11px 12px; border-radius:10px; border:1px solid var(--border); background:var(--bg3); color:var(--text); }
+.rs-modal-actions button.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
+.rs-modal-hint { font-size:12.5px; color:var(--text3); margin-top:10px; text-align:center; }`;
+
+function _showReportShareModal(dataUrl) {
+  closeReportShareImage();
+  if (!document.getElementById('rsShareCss')) {
+    const st = document.createElement('style');
+    st.id = 'rsShareCss';
+    st.textContent = REPORT_SHARE_CSS;
+    document.head.appendChild(st);
+  }
+  const canCopy = !!(navigator.clipboard && window.ClipboardItem);
+  const el = document.createElement('div');
+  el.className = 'rs-modal-overlay';
+  el.id = 'reportShareModal';
+  el.onclick = e => { if (e.target === el) closeReportShareImage(); };
+  el.innerHTML = `<div class="rs-modal-inner">
+    <img src="${dataUrl}" alt="공유 이미지 미리보기">
+    <div class="rs-modal-actions">
+      <button class="primary" onclick="saveReportShareImage()">이미지 저장</button>
+      ${canCopy ? '<button onclick="copyReportShareImage()">이미지 복사</button>' : ''}
+      <button onclick="closeReportShareImage()">닫기</button>
+    </div>
+    <div class="rs-modal-hint" id="reportShareHint">오픈채팅·커뮤니티에 그대로 올릴 수 있어요</div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+function closeReportShareImage() {
+  document.getElementById('reportShareModal')?.remove();
+}
+
+function saveReportShareImage() {
+  if (!_reportShareBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(_reportShareBlob);
+  a.download = `stockripple-report-${Date.now()}.png`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function copyReportShareImage() {
+  const hint = document.getElementById('reportShareHint');
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': _reportShareBlob })]);
+    if (hint) hint.textContent = '복사했어요! 붙여넣기로 공유하세요';
+  } catch {
+    if (hint) hint.textContent = '이 브라우저는 이미지 복사를 지원하지 않아요 — 저장을 이용해 주세요';
+  }
 }
 
 let _drSheetTab = 'US';
