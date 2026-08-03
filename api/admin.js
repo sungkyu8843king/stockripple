@@ -317,8 +317,8 @@ const BANNER_SLOTS = new Set([
   'coupang-feed-mobile',   // 메인 피드 상단 배너, 모바일 (coupang-ad-feed-mobile.html)
   'coupang-feed-pc',       // 메인 피드 상단 배너, PC (coupang-ad-feed-pc.html)
   'coupang-interstitial',  // 뉴스/종목 상세 진입 시 모바일 인터스티셜 (coupang-ad-interstitial-mobile.html)
-  'coupang-panel-mobile',  // 종목 상세 AI 분석 영역 배너, 모바일 (coupang-ad-mobile.html)
-  'coupang-panel-pc',      // 종목 상세 AI 분석 영역 배너, PC (coupang-ad-pc.html)
+  'coupang-panel-mobile',  // 종목 상세 AI 분석 영역 배너, 모바일 전용 (coupang-ad-mobile.html) —
+                           // PC는 2026-08-03부터 이 게이트 자체를 없앰(AI 분석 바로 노출)
 ]);
 
 async function handleBannerClick(req, res) {

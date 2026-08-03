@@ -2013,9 +2013,11 @@ async function loadTechChips(ticker) {
 // 저장된 분석(캐시)이 있으면 내용은 이미 렌더링해두고, 그 위에 쿠팡 배너가 든 잠금
 // 오버레이를 덮는다 — 반드시 "배너 자체"를 클릭해야 열린다(오버레이의 빈 공간을
 // 눌러서는 안 열림). 배너는 iframe(다른 문서)이라 부모 쪽 클릭 리스너로는 그 안의
-// 클릭을 직접 잡을 수 없으므로, coupang-ad-mobile/pc.html이 자기 클릭 이벤트에서
+// 클릭을 직접 잡을 수 없으므로, coupang-ad-mobile.html이 자기 클릭 이벤트에서
 // window.parent.aiGateOnAdClicked()를 동기 직접 호출해 알려준다(같은 출처라 가능,
 // postMessage 같은 비동기 큐를 안 거치므로 이후 광고 네비게이션보다 항상 먼저 끝난다).
+// ⚠️ 2026-08-03: PC에서는 이 게이트 자체를 없앴다(요청) — 데스크톱은 AI 분석이 바로
+// 노출되고, 아래 오버레이/광고 로직은 모바일(loadAiSummary의 innerWidth<=768 체크)에서만 탄다.
 const AI_GATE_KEY_PREFIX = 'sr_ai_gate_unlocked_';
 function aiGateIsUnlocked(ticker) {
   try { return sessionStorage.getItem(AI_GATE_KEY_PREFIX + ticker) === '1'; } catch { return false; }
@@ -2059,7 +2061,8 @@ async function loadAiSummary(ticker, displayName) {
     const d = await r.json();
     if (!d.ok) { wrap.innerHTML = ''; return; }
     renderAiSummaryContent(displayName, d);
-    if (!aiGateIsUnlocked(ticker)) addAiGateOverlay(ticker);
+    // PC에서는 게이트(잠금+쿠팡 배너) 자체를 없앤다 — 요청에 따라 모바일에서만 유지.
+    if (window.innerWidth <= 768 && !aiGateIsUnlocked(ticker)) addAiGateOverlay(ticker);
   } catch(e) {
     wrap.innerHTML = `<div class="ai-summary-card"><div style="color:var(--red);font-size:15.5px">AI 분석 로딩 실패: ${escHtml(e.message)}</div></div>`;
   }
