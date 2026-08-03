@@ -60,7 +60,7 @@
   .src-mb{font-size:12px;background:var(--blue-dim);color:var(--blue);padding:1px 5px;border-radius:4px;font-weight:700}
   .src-more{background:none;border:none;color:var(--text3);cursor:pointer;font-size:15.5px;padding:0 4px;opacity:0;transition:opacity .1s}
   .src-msg:hover .src-more{opacity:1}
-  .src-body{font-size:13.5px;line-height:1.5;word-break:break-word;background:var(--bg3);border-radius:4px 12px 12px 12px;padding:7px 11px;display:inline-block}
+  .src-body{font-size:11.5px;line-height:1.5;word-break:break-word;background:var(--bg3);border-radius:4px 12px 12px 12px;padding:7px 11px;display:inline-block}
   .src-msg.mine .src-body{background:var(--blue-dim)}
   .src-msg.ghost .src-body{color:var(--text3);font-style:italic;background:var(--bg3)}
   .src-menu{position:absolute;background:var(--bg3);border:1px solid var(--border-strong);border-radius:10px;overflow:hidden;z-index:9100;box-shadow:0 8px 24px rgba(0,0,0,.5)}
@@ -68,7 +68,7 @@
   .src-menu button:hover{background:var(--bg4)}
   .src-menu button.danger{color:var(--red)}
   #srChatInput{position:relative;display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
-  #srChatInput input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:13.5px;outline:none;font-family:inherit}
+  #srChatInput input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:11.5px;outline:none;font-family:inherit}
   #srChatInput input:focus{border-color:var(--blue)}
   #srChatInput button{background:var(--blue);border:none;color:#fff;font-weight:700;font-size:15.5px;border-radius:10px;padding:0 16px;cursor:pointer}
   #srChatInput button:disabled{opacity:.5;cursor:default}
@@ -78,7 +78,7 @@
      아래로 펼쳐지는 포지션이라(top:100%) 입력창이 패널 맨 아래에 있는 이 위젯엔 안
      맞아서, 위로 펼쳐지는 별도 래퍼(.src-mention)만 새로 둔다. */
   .src-mention{position:absolute;left:14px;right:14px;bottom:calc(100% + 8px);background:var(--bg2);border:1px solid var(--border-strong);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.42);z-index:9200;max-height:260px;overflow-y:auto}
-  .src-mention-stock,.src-mention-port{display:inline-flex;align-items:center;gap:5px;font-size:13.5px;text-decoration:none;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-top:2px}
+  .src-mention-stock,.src-mention-port{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;text-decoration:none;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-top:2px}
   .src-mention-stock:hover,.src-mention-port:hover{border-color:var(--blue)}
   .src-mention-stock .tk{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-size:12px;color:var(--text3)}
   .src-mention-stock .px{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-weight:700}
@@ -468,13 +468,31 @@
       mentionBox.innerHTML = `<div class="hsug-empty">불러오기 실패</div>`;
     }
   }
+  // ⚠️ 첫 배포 직후 실측(2026-08): "@모투"를 치고 바로 Enter를 누르면 드롭다운에서
+  // 아무것도 선택되지 않은 채 "@모투"라는 원문 텍스트 그대로 전송돼버렸다 — 클릭으로만
+  // 항목을 선택할 수 있었고 Enter는 무조건 send()로 직행했기 때문. 다른 멘션 UI들처럼
+  // 드롭다운이 떠 있을 때는 Enter가 "메시지 전송"이 아니라 "강조된 항목 선택"이 되도록
+  // 고쳐야 한다 — 그래서 하이라이트 인덱스를 추적하고, 클릭/Enter가 같은 함수를 타게 한다.
+  let _mentionHighlight = 0;
+  function activateMentionItem(el) {
+    if (!el) return;
+    if (el.dataset.kind === 'port') selectMentionPortfolio();
+    else if (el.dataset.kind === 'stock') insertMention(`[[stock:${el.dataset.ticker}:${sanitizeMentionPart(el.dataset.name)}]]`);
+  }
+  function paintMentionHighlight() {
+    const items = [...mentionBox.querySelectorAll('.hsug-item')];
+    if (!items.length) return;
+    if (_mentionHighlight >= items.length) _mentionHighlight = items.length - 1;
+    if (_mentionHighlight < 0) _mentionHighlight = 0;
+    items.forEach((el, i) => el.classList.toggle('on', i === _mentionHighlight));
+  }
   function wireMentionClicks() {
-    mentionBox.querySelectorAll('.hsug-item').forEach(el => {
-      el.addEventListener('click', () => {
-        if (el.dataset.kind === 'port') selectMentionPortfolio();
-        else if (el.dataset.kind === 'stock') insertMention(`[[stock:${el.dataset.ticker}:${sanitizeMentionPart(el.dataset.name)}]]`);
-      });
+    mentionBox.querySelectorAll('.hsug-item').forEach((el, i) => {
+      el.addEventListener('mouseenter', () => { _mentionHighlight = i; paintMentionHighlight(); });
+      el.addEventListener('click', () => activateMentionItem(el));
     });
+    _mentionHighlight = 0;
+    paintMentionHighlight();
   }
   async function renderMentionBox(query) {
     if (_mentionStart < 0) return;
@@ -515,8 +533,16 @@
     clearTimeout(_mentionTimer);
     _mentionTimer = setTimeout(() => renderMentionBox(query), 200);
   });
+  // ⚠️ 이 리스너가 아래 "Enter → send()" 리스너보다 먼저 등록돼(이 파일 아래쪽에서 추가)
+  // keydown 처리 순서상 먼저 실행된다 — 드롭다운이 열려있을 때 Enter/화살표를 여기서
+  // 가로채 stopImmediatePropagation()하면 뒤의 send() 리스너가 아예 안 불린다.
   input.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && mentionBox.style.display !== 'none') { e.stopPropagation(); closeMention(); }
+    const openItems = mentionBox.style.display !== 'none' ? [...mentionBox.querySelectorAll('.hsug-item')] : [];
+    if (e.key === 'Escape' && mentionBox.style.display !== 'none') { e.stopPropagation(); closeMention(); return; }
+    if (!openItems.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); _mentionHighlight = (_mentionHighlight + 1) % openItems.length; paintMentionHighlight(); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); _mentionHighlight = (_mentionHighlight - 1 + openItems.length) % openItems.length; paintMentionHighlight(); return; }
+    if (e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); activateMentionItem(openItems[_mentionHighlight]); return; }
   });
   document.addEventListener('click', e => { if (!e.target.closest('#srChatInput')) closeMention(); });
 
