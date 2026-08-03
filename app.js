@@ -5575,6 +5575,18 @@ document.addEventListener('click', e => {
   }
 });
 
+// 뉴스 카드(.issue-card)는 카드 전체가 <a>라, 그 안에 중첩된 투표/관심종목/공유 버튼은
+// 각자 onclick에서 stopPropagation을 부르는 것만으론 모바일 실기기 탭에서 가끔 아예
+// 씹히는 사례가 실측됐다(2026-08 사용자 리포트, 자동화 클릭 테스트로 재현 — click()
+// 프로그램 호출은 항상 성공하는데 실제 탭 좌표 클릭은 핸들러가 아예 안 불림). 원인은
+// 확정 못 했지만(이 환경에서 스크린샷이 막혀 있어 클릭 시점 실제 좌표를 육안 확인 불가),
+// "링크 안에 중첩된 인터랙티브 엘리먼트"는 브라우저마다 히트테스트/제스처 해석이 갈리는
+// 게 업계에 잘 알려진 문제라, click보다 훨씬 먼저 발생하는 pointerdown 단계에서 앵커로의
+// 전파를 원천 차단해 클릭 핸들러가 뭐가 됐든 안전하게 도달하도록 이중으로 방어한다.
+document.addEventListener('pointerdown', e => {
+  if (e.target.closest('.card-vote, .star-btn, .share-btn')) e.stopPropagation();
+}, { capture: true });
+
 // ── ⭐ 관심종목 뉴스 모아보기 (index.html 전용, 2026-08) ──────────────────
 // analysis_companies를 직접 조회하지 않는다 — expose_ripple_effects 플래그가 꺼져
 // 있으면(기본값, 유사투자자문업 대응) 그 조인 데이터는 공개 노출 금지 대상이라
