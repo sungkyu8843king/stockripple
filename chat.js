@@ -60,19 +60,30 @@
   .src-mb{font-size:12px;background:var(--blue-dim);color:var(--blue);padding:1px 5px;border-radius:4px;font-weight:700}
   .src-more{background:none;border:none;color:var(--text3);cursor:pointer;font-size:15.5px;padding:0 4px;opacity:0;transition:opacity .1s}
   .src-msg:hover .src-more{opacity:1}
-  .src-body{font-size:15.5px;line-height:1.5;word-break:break-word;background:var(--bg3);border-radius:4px 12px 12px 12px;padding:7px 11px;display:inline-block}
+  .src-body{font-size:13.5px;line-height:1.5;word-break:break-word;background:var(--bg3);border-radius:4px 12px 12px 12px;padding:7px 11px;display:inline-block}
   .src-msg.mine .src-body{background:var(--blue-dim)}
   .src-msg.ghost .src-body{color:var(--text3);font-style:italic;background:var(--bg3)}
   .src-menu{position:absolute;background:var(--bg3);border:1px solid var(--border-strong);border-radius:10px;overflow:hidden;z-index:9100;box-shadow:0 8px 24px rgba(0,0,0,.5)}
   .src-menu button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);font-size:15px;padding:9px 14px;cursor:pointer;white-space:nowrap}
   .src-menu button:hover{background:var(--bg4)}
   .src-menu button.danger{color:var(--red)}
-  #srChatInput{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
-  #srChatInput input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:15.5px;outline:none;font-family:inherit}
+  #srChatInput{position:relative;display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
+  #srChatInput input{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:13.5px;outline:none;font-family:inherit}
   #srChatInput input:focus{border-color:var(--blue)}
   #srChatInput button{background:var(--blue);border:none;color:#fff;font-weight:700;font-size:15.5px;border-radius:10px;padding:0 16px;cursor:pointer}
   #srChatInput button:disabled{opacity:.5;cursor:default}
   .src-note{font-size:13px;color:var(--text3);padding:0 16px 10px;flex-shrink:0}
+  /* ── @멘션(종목/모의투자) 자동완성 (2026-08) — .hsug-item 등은 site-header.js가 이미
+     전역 주입한 클래스를 그대로 재사용(검색 결과 행 스타일 중복 방지). .hsug 자체는
+     아래로 펼쳐지는 포지션이라(top:100%) 입력창이 패널 맨 아래에 있는 이 위젯엔 안
+     맞아서, 위로 펼쳐지는 별도 래퍼(.src-mention)만 새로 둔다. */
+  .src-mention{position:absolute;left:14px;right:14px;bottom:calc(100% + 8px);background:var(--bg2);border:1px solid var(--border-strong);border-radius:14px;box-shadow:0 18px 44px rgba(0,0,0,.42);z-index:9200;max-height:260px;overflow-y:auto}
+  .src-mention-stock,.src-mention-port{display:inline-flex;align-items:center;gap:5px;font-size:13.5px;text-decoration:none;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-top:2px}
+  .src-mention-stock:hover,.src-mention-port:hover{border-color:var(--blue)}
+  .src-mention-stock .tk{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-size:12px;color:var(--text3)}
+  .src-mention-stock .px{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-weight:700}
+  .src-mention-stock .px.up{color:var(--red)} .src-mention-stock .px.dn{color:var(--blue)}
+  .src-mention-port .pnl.up{color:var(--red)} .src-mention-port .pnl.dn{color:var(--blue)}
   @media (max-width:640px){ #srChatBtn{bottom:76px;right:12px} }
   @media (min-width:1200px){ #srChatBtn{display:none} } /* 데스크톱은 원형 버튼 대신 레일이 대신함 */
   /* PC 고정 패널(2026-07-28) — 넓은 화면은 기본으로 열어두고 본문이 패널을 피해 여백을
@@ -182,8 +193,8 @@
     </div>
     <div id="srChatTabBody">
       <div id="srChatList"></div>
-      <div id="srChatInput"><input id="srChatText" maxlength="300" placeholder="메시지 입력 (최대 300자)"><button id="srChatSend">전송</button></div>
-      <div class="src-note">신고 3회 누적 시 임시 숨김 · 매매 권유/비방은 제재될 수 있어요</div>
+      <div id="srChatInput"><input id="srChatText" maxlength="300" placeholder="메시지 입력 (최대 300자, @로 종목·모의투자 첨부)" autocomplete="off"><div id="srMentionBox" class="src-mention" style="display:none"></div><button id="srChatSend">전송</button></div>
+      <div class="src-note">신고 3회 누적 시 임시 숨김 · 매매 권유/비방은 제재될 수 있어요<br>💡 <b>@종목명</b>으로 종목을, <b>@모투</b>로 내 모의투자 현황을 채팅에 붙여넣을 수 있어요</div>
     </div>
     <div id="srRankTabBody" class="srk-tab-body" style="display:none">
       <div class="srk-search"><input id="srkSearchInput" placeholder="종목명, 티커 검색" autocomplete="off"><div id="srkSugBox"></div></div>
@@ -266,18 +277,65 @@
 
   // ── 메시지 렌더 ────────────────────────────────────────────
   const seen = new Set(); // 중복 방지(초기 로드 + realtime 겹침)
+
+  // @멘션 마커를 카드로 치환한다. 마커는 자동완성으로만 삽입되므로(사용자가 직접 대괄호를
+  // 타이핑해 넣는 경로가 없음) esc()로 먼저 이스케이프한 뒤 치환해도 안전하다.
+  //  - [[stock:TICKER:이름]] → 종목 카드(가격은 렌더 직후 배치로 채움, 아래 _srPriceFillPending)
+  //  - [[port:총자산:수익률%:종목수]] → 모의투자 스냅샷 카드(작성 시점 값 그대로, 실시간 아님)
+  function renderChatBody(raw) {
+    let html = esc(raw);
+    html = html.replace(/\[\[stock:([A-Za-z0-9.]+):([^\]:]*)\]\]/g, (_, ticker, name) => {
+      const label = name || ticker;
+      const pxId = 'srmpx-' + Math.random().toString(36).slice(2, 9);
+      return `<a class="src-mention-stock" href="/stock/${encodeURIComponent(ticker)}" target="_blank" rel="noopener">📈 <b>${label}</b><span class="tk">${esc(ticker.replace(/\.(KS|KQ)$/i, ''))}</span><span class="px" id="${pxId}" data-ticker="${esc(ticker)}">…</span></a>`;
+    });
+    html = html.replace(/\[\[port:(-?\d+):(-?\d+(?:\.\d+)?):(\d+)\]\]/g, (_, nav, pct, pos) => {
+      const p = Number(pct);
+      const cls = p > 0 ? 'up' : p < 0 ? 'dn' : '';
+      const sign = p > 0 ? '+' : '';
+      return `<a class="src-mention-port" href="/portfolio.html">📝 <b>모의투자</b> 총자산 ₩${Number(nav).toLocaleString('ko-KR')} · <span class="pnl ${cls}">${sign}${p.toFixed(2)}%</span> · ${esc(pos)}종목</a>`;
+    });
+    return html;
+  }
+
+  // 종목 카드의 실시간가는 렌더 즉시(동기) 채우지 않고 배치로 모아 한 번에 조회한다 —
+  // 초기 로드 50건이 전부 종목 멘션이면 50번 호출하는 걸 막기 위함(디바운스 200ms).
+  let _pxFillTimer = null;
+  function schedulePriceFill() {
+    clearTimeout(_pxFillTimer);
+    _pxFillTimer = setTimeout(async () => {
+      const els = [...list.querySelectorAll('.src-mention-stock .px[data-ticker]:not([data-filled])')];
+      if (!els.length) return;
+      els.forEach(el => el.setAttribute('data-filled', '1')); // 중복 조회 방지(실패해도 재시도 안 함 — 다음 메시지 렌더 시 새 요소만 대상)
+      const tickers = [...new Set(els.map(el => el.dataset.ticker))];
+      try {
+        const r = await fetch('/api/quotes?tickers=' + tickers.map(encodeURIComponent).join(','));
+        const j = await r.json();
+        const data = j?.data || {};
+        for (const el of els) {
+          const q = data[el.dataset.ticker];
+          if (!q || q.price == null) { el.textContent = ''; continue; }
+          const chg = q.changePercent;
+          el.textContent = (q.currency === 'KRW' ? '₩' + Math.round(q.price).toLocaleString('ko-KR') : '$' + Number(q.price).toLocaleString('en-US', { maximumFractionDigits: 2 }));
+          if (chg != null) el.classList.add(chg > 0 ? 'up' : chg < 0 ? 'dn' : '');
+        }
+      } catch { els.forEach(el => { el.textContent = ''; }); }
+    }, 200);
+  }
+
   function msgHtml(m) {
     if (m.hidden) return `<div class="src-msg ghost" data-id="${m.id}"><div class="src-body">🚫 신고 누적으로 숨김 처리된 메시지입니다</div></div>`;
     if (blocked.has(m.sender_key)) return `<div class="src-msg ghost" data-id="${m.id}" data-sender="${esc(m.sender_key)}"><div class="src-body">차단한 사용자의 메시지 <button class="src-more" style="opacity:1" onclick="srChatUnblock('${esc(m.sender_key)}')">차단해제</button></div></div>`;
     const mine = m.sender_key === myKey();
     return `<div class="src-msg${mine ? ' mine' : ''}" data-id="${m.id}" data-sender="${esc(m.sender_key)}">
       <div class="src-meta"><span class="src-nick${m.is_member ? ' member' : ''}">${esc(m.nickname)}</span>${m.is_member ? '<span class="src-mb">회원</span>' : ''}<span>${fmtTime(m.created_at)}</span>${mine ? '' : `<button class="src-more" onclick="srChatMenu(event,${m.id},'${esc(m.sender_key)}')">⋯</button>`}</div>
-      <div class="src-body">${esc(m.message)}</div></div>`;
+      <div class="src-body">${renderChatBody(m.message)}</div></div>`;
   }
   function appendMsg(m, scroll = true) {
     if (seen.has(m.id)) return; seen.add(m.id);
     list.insertAdjacentHTML('beforeend', msgHtml(m));
     if (scroll) list.scrollTop = list.scrollHeight;
+    schedulePriceFill();
     if (!panel.classList.contains('open') && !m.hidden) {
       unread++;
       const txt = unread > 9 ? '9+' : unread;
@@ -337,6 +395,130 @@
     blocked.delete(senderKey); lsSet('sr_chat_blocked', [...blocked]);
     seen.clear(); list.innerHTML = ''; loadInitial(); // 간단히 전체 리로드
   };
+
+  // ── @멘션(종목/모의투자) 자동완성 ────────────────────────────
+  // "@종목명"은 hFindMatches(site-header.js 전역, 헤더검색·랭킹탭검색과 동일 로직)로 찾은
+  // 종목을 [[stock:TICKER:이름]]으로, "@모투"는 지금 이 사용자의 모의투자 계좌를 그
+  // 자리에서 스냅샷해 [[port:총자산:수익률:종목수]]로 메시지에 삽입한다. 다른 사용자는
+  // paper_portfolios/paper_positions를 RLS로 못 읽으므로, 보내는 시점 숫자를 메시지
+  // 자체에 찍어 넣는 방식만 가능하다(공유 이미지 카드와 같은 "지금 스냅샷" 원칙).
+  const mentionBox = panel.querySelector('#srMentionBox');
+  let _mentionStart = -1;
+  let _mentionTimer = null;
+
+  function sanitizeMentionPart(s) {
+    // 마커 구분자(: [ ])가 이름에 섞이면 렌더 정규식이 깨지므로 제거 — 자동완성으로만
+    // 채워지는 값이라 실제로 걸릴 일은 거의 없지만 방어적으로 처리.
+    return String(s || '').replace(/[[\]:]/g, '').trim();
+  }
+  function closeMention() {
+    mentionBox.style.display = 'none';
+    mentionBox.innerHTML = '';
+    _mentionStart = -1;
+  }
+  function insertMention(token) {
+    if (_mentionStart < 0) return;
+    const caret = input.selectionStart ?? input.value.length;
+    const before = input.value.slice(0, _mentionStart);
+    const after = input.value.slice(caret);
+    // DB CHECK(message 1~300자)와 input의 maxlength=300은 프로그램 방식 대입(.value=)엔
+    // 적용 안 되므로 여기서 직접 자른다 — 드물게 마커가 잘려도 렌더 정규식이 그냥
+    // 안 매칭될 뿐 깨지지 않는다(그레이스풀 디그레이드).
+    input.value = (before + token + ' ' + after).slice(0, 300);
+    const pos = Math.min((before + token + ' ').length, input.value.length);
+    input.setSelectionRange(pos, pos);
+    input.focus();
+    closeMention();
+  }
+  async function selectMentionPortfolio() {
+    if (typeof currentUser === 'undefined' || !currentUser) {
+      if (typeof showToast === 'function') showToast('로그인 후 이용할 수 있어요', 'info');
+      closeMention();
+      return;
+    }
+    mentionBox.innerHTML = `<div class="hsug-loading">내 모의투자 불러오는 중…</div>`;
+    try {
+      const { data: pf } = await sb.from('paper_portfolios').select('id, cash_balance, initial_cash').eq('user_id', currentUser.id).maybeSingle();
+      if (!pf) { mentionBox.innerHTML = `<div class="hsug-empty">아직 모의투자를 시작하지 않았어요</div>`; return; }
+      const { data: positions } = await sb.from('paper_positions').select('ticker, market, quantity, entry_price, entry_fx_rate')
+        .eq('portfolio_id', pf.id).eq('status', 'open');
+      const lots = positions || [];
+      let posVal = 0;
+      if (lots.length) {
+        const tickers = [...new Set(lots.map(l => l.ticker))];
+        let quotes = {}, fxRate = null;
+        try {
+          const [qr, fr] = await Promise.all([
+            fetch('/api/quotes?tickers=' + tickers.map(encodeURIComponent).join(',')).then(r => r.json()).catch(() => null),
+            lots.some(l => l.market !== 'KR' && !l.entry_fx_rate) ? fetch('/api/toss?action=fx').then(r => r.json()).catch(() => null) : null,
+          ]);
+          quotes = qr?.data || {};
+          fxRate = fr?.rate || null;
+        } catch {}
+        for (const l of lots) {
+          const cur = quotes[l.ticker]?.price ?? Number(l.entry_price);
+          const fx = l.market === 'KR' ? 1 : (Number(l.entry_fx_rate) || fxRate || 1);
+          posVal += cur * fx * Number(l.quantity);
+        }
+      }
+      const total = Number(pf.cash_balance) + posVal;
+      const pnlPct = Number(pf.initial_cash) > 0 ? ((total - Number(pf.initial_cash)) / Number(pf.initial_cash)) * 100 : 0;
+      insertMention(`[[port:${Math.round(total)}:${pnlPct.toFixed(2)}:${lots.length}]]`);
+    } catch {
+      mentionBox.innerHTML = `<div class="hsug-empty">불러오기 실패</div>`;
+    }
+  }
+  function wireMentionClicks() {
+    mentionBox.querySelectorAll('.hsug-item').forEach(el => {
+      el.addEventListener('click', () => {
+        if (el.dataset.kind === 'port') selectMentionPortfolio();
+        else if (el.dataset.kind === 'stock') insertMention(`[[stock:${el.dataset.ticker}:${sanitizeMentionPart(el.dataset.name)}]]`);
+      });
+    });
+  }
+  async function renderMentionBox(query) {
+    if (_mentionStart < 0) return;
+    const q = query.trim();
+    const portRow = (!q || '모의투자'.startsWith(q) || '모투'.startsWith(q) || 'portfolio'.startsWith(q.toLowerCase()))
+      ? `<div class="hsug-item" data-kind="port">📝 <span class="hsug-nm">모의투자</span><span class="hsug-mkt">내 계좌 스냅샷 첨부</span></div>` : '';
+    if (!q) {
+      mentionBox.innerHTML = portRow || `<div class="hsug-empty">종목명이나 "모투"를 입력해 보세요</div>`;
+      mentionBox.style.display = 'block';
+      wireMentionClicks();
+      return;
+    }
+    mentionBox.innerHTML = portRow + `<div class="hsug-loading">검색 중…</div>`;
+    mentionBox.style.display = 'block';
+    if (typeof hFindMatches !== 'function') { mentionBox.innerHTML = portRow || `<div class="hsug-empty">검색 기능을 불러오지 못했어요</div>`; return; }
+    const items = await hFindMatches(q);
+    if (_mentionStart < 0 || input.value.slice(_mentionStart + 1, (input.selectionStart ?? input.value.length)).trim() !== q) return; // 그 사이 입력이 바뀌었으면 버림
+    const stockRows = items.slice(0, 6).map(m => {
+      const isKr = m.market === 'KR' || /\.K[SQ]$/i.test(m.ticker);
+      const name = m.name_ko || m.name_en || m.ticker;
+      return `<div class="hsug-item" data-kind="stock" data-ticker="${esc(m.ticker)}" data-name="${esc(name)}">
+        <span class="hsug-tk ${isKr ? 'kr' : 'us'}">${esc(m.ticker.replace(/\.(KS|KQ)$/i, ''))}</span>
+        <span class="hsug-nm">${esc(name)}</span><span class="hsug-mkt">${isKr ? '국내' : '미국'}</span></div>`;
+    }).join('');
+    mentionBox.innerHTML = portRow + (stockRows || (portRow ? '' : `<div class="hsug-empty">"${esc(q)}" 검색 결과가 없습니다</div>`));
+    wireMentionClicks();
+  }
+  input.addEventListener('input', () => {
+    const val = input.value;
+    const caret = input.selectionStart ?? val.length;
+    const before = val.slice(0, caret);
+    const at = before.lastIndexOf('@');
+    // '@' 바로 앞이 공백이거나 문장 시작일 때만 트리거(단어 중간 @는 무시).
+    if (at < 0 || (at > 0 && !/\s/.test(before[at - 1]))) { closeMention(); return; }
+    const query = before.slice(at + 1);
+    if (/\s/.test(query)) { closeMention(); return; }
+    _mentionStart = at;
+    clearTimeout(_mentionTimer);
+    _mentionTimer = setTimeout(() => renderMentionBox(query), 200);
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && mentionBox.style.display !== 'none') { e.stopPropagation(); closeMention(); }
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('#srChatInput')) closeMention(); });
 
   // ── 전송 ───────────────────────────────────────────────────
   async function send() {
