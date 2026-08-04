@@ -1176,7 +1176,7 @@ async function fetchSameTimeVolumes(tickers, concurrency = 6) {
         const k = new Date((ts[i] + off) * 1000);
         const day = k.toISOString().slice(0, 10);
         if (!days.has(day)) days.set(day, []);
-        days.get(day).push({ min: k.getUTCHours() * 60 + k.getUTCMinutes(), v: Number(v) });
+        days.get(day).push({ min: k.getUTCHours() * 60 + k.getUTCMinutes(), v: Number(v), ts: ts[i] });
       }
       const keys = [...days.keys()].sort();
       if (keys.length < 2) return [t, null];              // 비교 대상(전일)이 없으면 표시 안 함
@@ -1192,7 +1192,11 @@ async function fetchSameTimeVolumes(tickers, concurrency = 6) {
       return [t, {
         volToday, volPrevSame,
         ratioPct: ((volToday / volPrevSame) - 1) * 100,
+        // cutoffMin은 '거래소 현지' 분(分)이라 화면에 그대로 쓰면 미장이 한국 사용자에게
+        // ET 시각(10:51 등)으로 보인다 — 어느 시간대로든 환산할 수 있게 UTC 타임스탬프도
+        // 같이 준다(클라이언트가 KST로 그린다).
         cutoffMin: cutoff,
+        cutoffTs: today.reduce((m, b) => (b.min === cutoff ? Math.max(m, b.ts) : m), 0),
       }];
     } catch { return [t, null]; }
   });
@@ -1229,7 +1233,7 @@ async function handleMarketVolume(req, res) {
       const V = await fetchSameTimeVolumes(defs.map(d => d.t), 4).catch(() => ({}));
       const parts = defs.map(d => {
         const v = V[d.t];
-        return v ? { name: d.name, ratioPct: v.ratioPct, volToday: v.volToday, volPrevSame: v.volPrevSame, cutoffMin: v.cutoffMin } : null;
+        return v ? { name: d.name, ratioPct: v.ratioPct, volToday: v.volToday, volPrevSame: v.volPrevSame, cutoffMin: v.cutoffMin, cutoffTs: v.cutoffTs } : null;
       }).filter(Boolean);
       if (!parts.length) { out[mk] = null; continue; }
       // 시장 전체 = 지수별 원시 합계로 한 번 더 비율을 낸다. ⚠️ 지수별 ratioPct의 단순
@@ -1242,6 +1246,7 @@ async function handleMarketVolume(req, res) {
       out[mk] = {
         ratioPct: sumPrev > 0 ? ((sumToday / sumPrev) - 1) * 100 : null,
         cutoffMin: Math.max(...parts.map(p => p.cutoffMin)),
+        cutoffTs: Math.max(...parts.map(p => p.cutoffTs || 0)),
         parts: parts.map(p => ({ name: p.name, ratioPct: p.ratioPct })),
       };
     }

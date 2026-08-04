@@ -4203,8 +4203,21 @@ async function loadMarketVolume() {
   } catch {}
 }
 
-// 홈 우측 사이드바 카드 — 국장/미장 한 줄씩. 시장별로 기준 시각이 다르므로(국장은 KST,
-// 미장은 현지 ET) 각 줄에 그 시장의 기준 시각을 따로 붙인다.
+// 기준 시각 라벨 — 반드시 KST로 그린다. cutoffMin은 '거래소 현지' 시각이라 그대로 쓰면
+// 미장이 한국 사용자에게 ET(10:51 등)로 보여 헷갈린다(2026-08-04 피드백). 서버가 같이 주는
+// cutoffTs(UTC epoch)를 +9h 해서 환산하며, 브라우저 로컬 시계에 의존하지 않는다
+// (이 프로젝트는 로컬 시계가 어긋난 전례가 있어 kstNow()도 같은 방식을 쓴다).
+function volCutoffLabel(d) {
+  if (d?.cutoffTs) {
+    const k = new Date((d.cutoffTs + 9 * 3600) * 1000);
+    return String(k.getUTCHours()).padStart(2, '0') + ':' + String(k.getUTCMinutes()).padStart(2, '0');
+  }
+  // cutoffTs가 없는 구버전 응답 폴백 — 국장은 현지=KST라 그대로 맞고, 미장만 ET로 보인다.
+  if (d?.cutoffMin == null) return '';
+  return String(Math.floor(d.cutoffMin / 60)).padStart(2, '0') + ':' + String(d.cutoffMin % 60).padStart(2, '0');
+}
+
+// 홈 우측 사이드바 카드 — 국장/미장 한 줄씩(둘 다 KST 기준 시각으로 표기).
 function renderVolumeSidebar(j) {
   const card = document.getElementById('volumeCard');
   const body = document.getElementById('volumeCardBody');
@@ -4213,11 +4226,9 @@ function renderVolumeSidebar(j) {
     if (!d || d.ratioPct == null) return '';
     const p = d.ratioPct;
     const c = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
-    const hh = String(Math.floor(d.cutoffMin / 60)).padStart(2, '0');
-    const mm = String(d.cutoffMin % 60).padStart(2, '0');
     return `<div style="display:flex;align-items:baseline;gap:8px;padding:6px 0">
       <span style="font-weight:700;font-size:14.5px;min-width:34px">${label}</span>
-      <span style="font-size:12.5px;color:var(--text3);flex:1;min-width:0">${hh}:${mm} 기준 · 전일 동시간 대비</span>
+      <span style="font-size:12.5px;color:var(--text3);flex:1;min-width:0">${volCutoffLabel(d)} KST 기준 · 전일 동시간 대비</span>
       <span style="font-family:var(--font-mono,monospace);font-weight:800;font-size:15px;color:${c};white-space:nowrap">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>
     </div>`;
   };
@@ -4230,15 +4241,14 @@ function renderTotalVol(el, d, scope) {
   if (!d || d.ratioPct == null) { el.style.display = 'none'; return; }
   const p = d.ratioPct;
   const c = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
-  const hh = String(Math.floor(d.cutoffMin / 60)).padStart(2, '0');
-  const mm = String(d.cutoffMin % 60).padStart(2, '0');
+  const cutoffLabel = volCutoffLabel(d);
   const parts = (d.parts || []).map(x => {
     const pc = x.ratioPct > 0 ? 'var(--red)' : x.ratioPct < 0 ? 'var(--blue)' : 'var(--text2)';
     return `<span class="tv-part">${escHtml(x.name)} <b style="color:${pc}">${x.ratioPct > 0 ? '+' : ''}${x.ratioPct.toFixed(1)}%</b></span>`;
   }).join('');
   el.innerHTML = `<span class="tv-lbl">📊 시장 전체 거래량</span>
     <span class="tv-main" style="color:${c}">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>
-    <span class="tv-sub">전일 같은 시각(${hh}:${mm})까지 누적 대비 · ${escHtml(scope)}</span>
+    <span class="tv-sub">전일 같은 시각(${cutoffLabel} KST)까지 누적 대비 · ${escHtml(scope)}</span>
     ${parts}`;
   el.style.display = 'flex';
 }
