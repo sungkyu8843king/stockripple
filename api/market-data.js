@@ -1219,8 +1219,8 @@ const MARKET_VOL_INDICES = {
   US: [{ t: '^GSPC', name: 'S&P 500' }, { t: '^IXIC', name: '나스닥' }],
 };
 
-// 시간대별 누적 거래량 시계열 — 카드/스트립을 눌렀을 때 띄우는 차트용.
-// (?source=market-volume&detail=KR|US)
+// 시간대별 누적 거래량 시계열 — 카드/스트립/종목 카드를 눌렀을 때 띄우는 차트용.
+// (?source=market-volume&detail=KR|US  또는  &ticker=005930.KS)
 //
 // ⚠️ x축을 'KST 절대 시각'으로 잡으면 미장이 깨진다 — 미국 정규장은 KST로 22:30에 시작해
 // 자정을 넘겨 05:00에 끝나므로 분(分) 값이 1350 → 30으로 되감긴다(실측 확인). 그래서 x축은
@@ -1228,15 +1228,16 @@ const MARKET_VOL_INDICES = {
 //
 // y축은 '전일 최종 누적 = 100%' 기준의 백분율이다. 지수 거래량의 절대 단위가 시장마다
 // 달라(코스피=천주, S&P500=주) 원시 숫자를 그대로 보여주면 자릿수를 오해할 수 있어서,
-// 단위가 상쇄되는 비율로만 그린다.
-async function handleMarketVolumeSeries(res, market) {
-  const defs = MARKET_VOL_INDICES[market];
-  // 같은 시장의 지수들을 봉 단위로 합산한다(세션 시간이 같아 타임스탬프가 정렬된다).
+// 단위가 상쇄되는 비율로만 그린다(개별 종목은 주 단위가 맞지만, 지수와 같은 코드로
+// 그리기 위해 동일하게 비율로 통일한다).
+async function handleMarketVolumeSeries(res, tickers, market) {
+  // 여러 지수를 넘기면 봉 단위로 합산한다(같은 시장이면 세션 시간이 같아 정렬된다).
+  // 개별 종목은 배열 원소가 하나뿐이라 합산이 항등이 된다.
   const merged = new Map();   // ts(초) → 합산 거래량
   let off = 0;
-  await mapWithConcurrency(defs, 2, async (d) => {
+  await mapWithConcurrency(tickers, 2, async (sym) => {
     try {
-      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(d.t)}?interval=5m&range=5d`,
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=5m&range=5d`,
         { headers: SHARED_HEADERS, signal: AbortSignal.timeout(6000) });
       if (!r.ok) return;
       const j = (await r.json())?.chart?.result?.[0];
@@ -1283,17 +1284,35 @@ async function handleMarketVolumeSeries(res, market) {
       t: tb ? +(ct / prevTotal * 100).toFixed(2) : null,           // 오늘 누적 %(아직 안 온 구간은 null)
     };
   });
+  // 요약치도 같이 준다 — 클라이언트가 마지막 유효 포인트로 또 계산하지 않게. 기준은
+  // fetchSameTimeVolumes와 동일하다(오늘 마지막 봉까지의 누적 vs 전일 같은 지점까지의 누적).
+  const lastIdx = Math.min(today.length, prev.length) - 1;
+  let ratioPct = null, cutoffTs = null;
+  if (lastIdx >= 0) {
+    const tSum = today.slice(0, lastIdx + 1).reduce((s, b) => s + b.v, 0);
+    const pSum = prev.slice(0, lastIdx + 1).reduce((s, b) => s + b.v, 0);
+    if (pSum > 0 && tSum > 0) ratioPct = ((tSum / pSum) - 1) * 100;
+    cutoffTs = today[lastIdx].ts;
+  }
   res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
-  return res.status(200).json({ ok: true, market, points, prevTotal });
+  return res.status(200).json({ ok: true, market, points, prevTotal, ratioPct, cutoffTs });
 }
 
 async function handleMarketVolume(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
 
+  // 개별 종목 차트 — company.html의 '오늘의 시세' 카드에서 호출.
+  const ticker = (req.query.ticker || '').toString().trim().slice(0, 20);
+  if (ticker) {
+    if (!/^[A-Za-z0-9.\-^]+$/.test(ticker)) return res.status(400).json({ ok: false, error: 'bad ticker' });
+    try { return await handleMarketVolumeSeries(res, [ticker], ticker); }
+    catch (err) { return res.status(500).json({ ok: false, error: err.message }); }
+  }
+
   const detail = (req.query.detail || '').toString().toUpperCase();
   if (detail === 'KR' || detail === 'US') {
-    try { return await handleMarketVolumeSeries(res, detail); }
+    try { return await handleMarketVolumeSeries(res, MARKET_VOL_INDICES[detail].map(d => d.t), detail); }
     catch (err) { return res.status(500).json({ ok: false, error: err.message }); }
   }
 

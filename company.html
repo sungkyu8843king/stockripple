@@ -1119,6 +1119,10 @@ function buildQuoteCard(priceData) {
       ${yearRange}
       <div class="quote-stat-grid">
         <div class="quote-stat"><div class="quote-stat-label">당일 거래량</div><div class="quote-stat-val">${fmtVol(priceData.volume)}${isKrw ? '주' : ''}</div></div>
+        <div class="quote-stat" id="volCmpStat" style="display:none;cursor:pointer" title="시간대별 누적 거래량 차트 보기">
+          <div class="quote-stat-label">전일 동시간 대비</div>
+          <div class="quote-stat-val" id="volCmpVal">—</div>
+        </div>
         <div class="quote-stat"><div class="quote-stat-label">당일 거래대금 (추정)</div><div class="quote-stat-val">${fmtMoneyShort(tradingValue, isKrw)}</div></div>
         <div class="quote-stat"><div class="quote-stat-label">상장일</div><div class="quote-stat-val" style="font-size:15px">${priceData.firstTradeDate ? fmtDate(priceData.firstTradeDate) : '—'}</div></div>
         <div class="quote-stat"><div class="quote-stat-label">거래소</div><div class="quote-stat-val" style="font-size:15px">${escHtml(priceData.exchangeName || '—')}</div></div>
@@ -1511,6 +1515,7 @@ function renderPage(company, records, priceData) {
   loadFundamentals(ticker);
   loadNewsHistory(ticker);
   loadAiSummary(ticker, name);
+  loadVolumeCompare(ticker);
 
   // Toss 공식: 종목마스터(시총·경고 뱃지) · 호가 · 일별 시세
   loadStockMeta(ticker);
@@ -1787,6 +1792,107 @@ function renderTradeBox(records) {
 // 정책은 2026-07-21에 DROP됐다(유사투자자문업 리스크 대응) — 그래서 이 섹션은 실제로는
 // 늘 빈 결과였고 catch가 삼켜 영구히 숨겨져 있었다. 지금은 게이트 대상이 아닌 issues
 // 공개 필드(ai_digest / news_analysis)만 쓰는 서버 API를 경유한다.
+// ── 📊 전일 동시간 대비 거래량 (2026-08-05) ────────────────────────────
+// '오늘의 시세' 카드에 한 칸 추가하고, 누르면 시간대별 누적 차트를 띄운다.
+// ⚠️ 전일 '하루 전체'가 아니라 '같은 시각까지'와 비교한다 — 장중에 전일 총량과 비교하면
+// 개장 직후엔 늘 -80%대로 찍혀 거래가 죽은 것처럼 보인다(실측). 서버가 그 기준으로 계산해준다.
+// company.html은 app.js를 안 쓰는 독립 페이지라, 홈/시장현황의 차트 코드를 여기 복제해
+// 뒀다(이 파일의 다른 복제 함수들과 같은 사정 — 로직 수정 시 app.js 쪽도 같이 볼 것).
+let _volSeries = null;
+async function loadVolumeCompare(ticker) {
+  const stat = document.getElementById('volCmpStat');
+  const val = document.getElementById('volCmpVal');
+  if (!stat || !val || !ticker) return;
+  try {
+    const r = await fetch(`/api/market-data?source=market-volume&ticker=${encodeURIComponent(ticker)}`);
+    const d = await r.json();
+    if (!d?.ok || d.ratioPct == null) return;      // 데이터 없으면 칸 자체를 숨긴 채 둔다
+    _volSeries = d;
+    const p = d.ratioPct;
+    val.textContent = `${p > 0 ? '+' : ''}${p.toFixed(1)}%`;
+    val.style.color = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
+    stat.onclick = () => openVolumeChart(ticker);
+    stat.style.display = '';
+  } catch {}
+}
+
+function openVolumeChart(ticker) {
+  if (!_volSeries?.points?.length) return;
+  let el = document.getElementById('volChartModal');
+  if (!el) {
+    const st = document.createElement('style');
+    st.textContent = `
+      #volChartModal{position:fixed;inset:0;z-index:2600;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.66);padding:18px}
+      #volChartModal .vc-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-pop);width:min(680px,96vw);max-height:92vh;overflow:auto;padding:18px}
+      #volChartModal .vc-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+      #volChartModal .vc-title{font-size:17px;font-weight:800;flex:1;min-width:0}
+      #volChartModal .vc-x{background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:10px;width:34px;height:34px;font-size:16px;cursor:pointer;flex-shrink:0}
+      #volChartModal .vc-sub{font-size:12.5px;color:var(--text3);margin-bottom:12px;line-height:1.5}
+      #volChartModal .vc-legend{display:flex;gap:14px;font-size:12.5px;color:var(--text2);margin-top:8px;flex-wrap:wrap}
+      #volChartModal .vc-legend i{display:inline-block;width:16px;height:0;border-top-width:3px;margin-right:5px;vertical-align:middle}
+      #volChartModal .vc-wrap{overflow-x:auto}`;
+    document.head.appendChild(st);
+    el = document.createElement('div');
+    el.id = 'volChartModal';
+    el.addEventListener('click', e => { if (e.target === el) closeVolumeChart(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeVolumeChart(); });
+    document.body.appendChild(el);
+  }
+  const isKrTk = /\.(KS|KQ)$/i.test(ticker);
+  el.innerHTML = `<div class="vc-box">
+    <div class="vc-head"><div class="vc-title">📊 시간대별 누적 거래량</div>
+      <button class="vc-x" onclick="closeVolumeChart()" aria-label="닫기">✕</button></div>
+    <div class="vc-sub">개장 후 쌓인 거래량입니다. <b>전일 최종 누적을 100%</b>로 놓고 비교해요 —
+      오늘 선이 전일 선보다 위면 그 시점까지 거래가 더 많았다는 뜻입니다.
+      ${isKrTk ? '' : '<br>미국 정규장은 한국 시간으로 밤 22:30~05:00(서머타임 기준)입니다.'}</div>
+    <div class="vc-wrap">${volChartSvg(_volSeries.points)}</div>
+    <div class="vc-legend">
+      <span><i style="border-top:3px solid var(--blue)"></i>오늘</span>
+      <span><i style="border-top:3px dashed var(--text3)"></i>전일</span>
+    </div></div>`;
+  el.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeVolumeChart() {
+  const el = document.getElementById('volChartModal');
+  if (el) el.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function volChartSvg(points) {
+  const W = 620, H = 260, PL = 44, PR = 12, PT = 12, PB = 30;
+  const iw = W - PL - PR, ih = H - PT - PB;
+  const maxE = Math.max(...points.map(p => p.e), 1);
+  const maxY = Math.max(100, ...points.map(p => Math.max(p.p, p.t ?? 0))) * 1.06;
+  const X = e => PL + (e / maxE) * iw;
+  const Y = v => PT + ih - (v / maxY) * ih;
+  const path = key => {
+    const seg = points.filter(p => p[key] != null);
+    if (!seg.length) return '';
+    return seg.map((p, i) => `${i ? 'L' : 'M'}${X(p.e).toFixed(1)},${Y(p[key]).toFixed(1)}`).join(' ');
+  };
+  const grid = [0, 25, 50, 75, 100].filter(v => v <= maxY).map(v => `
+    <line x1="${PL}" y1="${Y(v)}" x2="${W - PR}" y2="${Y(v)}" stroke="var(--border)" stroke-width="${v === 100 ? 1.4 : 1}" ${v === 100 ? '' : 'stroke-dasharray="3 3"'}/>
+    <text x="${PL - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--text3)">${v}%</text>`).join('');
+  // 마지막 라벨이 직전 것과 40px 안쪽이면 직전 것을 버린다(겹침 방지).
+  const step = Math.max(1, Math.floor(points.length / 5));
+  const picked = points.filter((_, i) => i % step === 0);
+  const lastP = points[points.length - 1];
+  if (lastP && picked[picked.length - 1] !== lastP) {
+    if (X(lastP.e) - X(picked[picked.length - 1].e) < 40) picked.pop();
+    picked.push(lastP);
+  }
+  const xlab = picked.map(p =>
+    `<text x="${X(p.e)}" y="${H - 10}" text-anchor="middle" font-size="10.5" fill="var(--text3)">${p.kst}</text>`).join('');
+  const last = [...points].reverse().find(p => p.t != null);
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:520px;height:auto;display:block">
+    ${grid}${xlab}
+    <path d="${path('p')}" fill="none" stroke="var(--text3)" stroke-width="2" stroke-dasharray="5 4"/>
+    <path d="${path('t')}" fill="none" stroke="var(--blue)" stroke-width="2.6"/>
+    ${last ? `<circle cx="${X(last.e)}" cy="${Y(last.t)}" r="4" fill="var(--blue)"/>` : ''}
+  </svg>`;
+}
+
 async function loadNewsHistory(ticker) {
   const sec = document.getElementById('newsHistorySec');
   const wrap = document.getElementById('newsHistoryWrap');
