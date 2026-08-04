@@ -1887,7 +1887,10 @@ document.addEventListener('keydown', e => {
     const nextNote = d.session === 'regular' ? '15:30 이후 넥스트장 시세로 이어집니다'
       : d.session === 'nxt' ? '20:00에 거래가 끝나고, 22:30 미국장 개장 후 추정가로 전환됩니다'
         : '22:30 미국장이 열리면 해외 신호 기반 추정가로 전환됩니다';
-    bar.innerHTML = `<b>${esc(s.badge)}</b><span class="est-pill">${esc(s.desc)}</span>
+    // s.desc(예: "거래 없음 · 22:30 미국장 개장 후 추정가로 전환")는 바로 위 섹션 헤더
+    // (#estDesc)에 이미 떠 있다 — 여기서 또 pill로 반복하면 같은 문장이 화면에 두 번
+    // 찍힌다(2026-08 피드백). badge + nextNote만 남긴다.
+    bar.innerHTML = `<b>${esc(s.badge)}</b>
       <span style="color:var(--text3);margin-left:auto">${esc(nextNote)}</span>`;
   }
 
