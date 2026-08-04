@@ -1215,6 +1215,17 @@ button { font-family: inherit; }
   border-top: 1px solid var(--border-soft); font-size: 12.8px;
 }
 .est-srcbar b { font-weight: 700; color: var(--text2); }
+/* 시장 전체 거래량(전일 동시간 대비) 스트립 — 랭킹 표 바로 위 */
+.totvol {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 10px; padding: 10px 14px; border-radius: var(--r-sm);
+  background: var(--bg3); border: 1px solid var(--border); font-size: 13.5px;
+}
+.totvol .tv-lbl { font-weight: 700; color: var(--text2); }
+.totvol .tv-main { font-size: 17px; font-weight: 800; font-family: var(--font-mono); }
+.totvol .tv-sub { color: var(--text3); }
+.totvol .tv-part { display: inline-flex; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--bg2); border: 1px solid var(--border); white-space: nowrap; }
+.totvol .tv-part b { font-family: var(--font-mono); font-weight: 700; }
 .est-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 999px; background: var(--bg3); border: 1px solid var(--border); white-space: nowrap; }
 .est-pill.off { opacity: .55; }
 .est-pill em { font-style: normal; font-family: var(--font-mono); font-weight: 700; }
@@ -1536,6 +1547,7 @@ button { font-family: inherit; }
             </div>
           </div>
         </div>
+        <div id="krTotalVol" class="totvol" style="display:none"></div>
         <div class="mk-panel mk-panel-scroll" style="padding:14px 16px">
           <div id="krMarketPanel" style="min-height:80px">
             <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>
@@ -1605,6 +1617,7 @@ button { font-family: inherit; }
             </div>
           </div>
         </div>
+        <div id="usTotalVol" class="totvol" style="display:none"></div>
         <div class="mk-panel mk-panel-scroll" style="padding:14px 16px">
           <div id="usMarketPanel" style="min-height:80px">
             <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:20px">로딩 중...</div>

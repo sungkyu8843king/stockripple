@@ -4183,6 +4183,41 @@ function usNameCell(item) {
     <span style="color:var(--text3);font-size:13px;font-family:monospace;margin-left:4px">${escHtml(item.ticker)}</span>`;
 }
 
+// ─── 시장 전체 거래량(전일 동시간 대비) ─────────────────────────────
+// 개별 종목이 아니라 지수(코스피+코스닥 / S&P500+나스닥) 거래량 기준 — 서버가
+// 거래량 가중으로 합산해 보낸다(지수별 %의 단순 평균이 아님. 실측 예: S&P +15.5%,
+// 나스닥 -2.5%일 때 전체는 +1.9% — 거래량이 4배 큰 나스닥이 지배).
+let _totVolLoaded = false;
+async function loadMarketVolume() {
+  const krEl = document.getElementById('krTotalVol');
+  const usEl = document.getElementById('usTotalVol');
+  if (!krEl && !usEl) return;
+  try {
+    const r = await fetch('/api/market-data?source=market-volume');
+    const j = await r.json();
+    if (!j.ok) return;
+    _totVolLoaded = true;
+    if (krEl) renderTotalVol(krEl, j.KR, '코스피+코스닥');
+    if (usEl) renderTotalVol(usEl, j.US, 'S&P500+나스닥');
+  } catch {}
+}
+function renderTotalVol(el, d, scope) {
+  if (!d || d.ratioPct == null) { el.style.display = 'none'; return; }
+  const p = d.ratioPct;
+  const c = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
+  const hh = String(Math.floor(d.cutoffMin / 60)).padStart(2, '0');
+  const mm = String(d.cutoffMin % 60).padStart(2, '0');
+  const parts = (d.parts || []).map(x => {
+    const pc = x.ratioPct > 0 ? 'var(--red)' : x.ratioPct < 0 ? 'var(--blue)' : 'var(--text2)';
+    return `<span class="tv-part">${escHtml(x.name)} <b style="color:${pc}">${x.ratioPct > 0 ? '+' : ''}${x.ratioPct.toFixed(1)}%</b></span>`;
+  }).join('');
+  el.innerHTML = `<span class="tv-lbl">📊 시장 전체 거래량</span>
+    <span class="tv-main" style="color:${c}">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>
+    <span class="tv-sub">전일 같은 시각(${hh}:${mm})까지 누적 대비 · ${escHtml(scope)}</span>
+    ${parts}`;
+  el.style.display = 'flex';
+}
+
 // 거래량 셀 — 오늘 누적 아래에 "전일 같은 시각까지 누적" 대비 증감을 붙인다.
 // ⚠️ 전일 '하루 전체'와 비교하면 안 된다: 실측(AAPL, 개장 26분 시점)에서 총량대비
 // -81.4%(거래 폭락처럼 보임) vs 동시간대비 +9.0%(실제로는 평소보다 활발)로 정반대
@@ -4202,7 +4237,9 @@ function renderUsMarket(tab, d) {
     { label: '종목', render: usNameCell },
     { label: '현재가', right: true, render: r => r.price != null ? `$${Number(r.price).toFixed(2)}` : '—' },
     { label: '등락률', right: true, render: r => krChgChip(r.changePercent) },
-    { label: '거래량', right: true, render: usVolCell },
+    // 툴팁으로만 설명하면 마우스를 올려야 알 수 있어 비교 기준이 안 보인다는 피드백(2026-08).
+    // 헤더에 기준을 두 줄로 명시한다.
+    { label: '거래량<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:none;letter-spacing:0;margin-top:1px">전일 동시간 대비</div>', right: true, render: usVolCell },
   ]);
 }
 
@@ -4236,6 +4273,8 @@ function switchMarketSection(sec) {
     document.title = `${meta.title} — StockRipple`;
   }
   if (sec === 'us' && !_usmCache[_usmTab]) { loadUsSummary(); loadUsMarket(); }
+  // 국장/미장 스트립을 한 번에 채운다(응답에 둘 다 들어있음) — 탭을 바꿔도 재조회 불필요.
+  if (!_totVolLoaded) loadMarketVolume();
 }
 
 function renderKrPopularSearch(items) {
@@ -5653,6 +5692,9 @@ function computeMarketStatus(market) {
   setInterval(() => { if (document.hidden) return; try { triggerLiveCollect(); } catch {} }, 300000);
   // 5분마다 국장 현황 새로고침
   setInterval(() => { if (document.hidden) return; try { delete _kmCache[_kmTab]; loadKrMarket(); } catch {} }, 300000);
+  // 시장 전체 거래량 스트립 — 최초 1회 + 5분마다(엔드포인트도 2분 캐시라 부담 없음)
+  try { loadMarketVolume(); } catch {}
+  setInterval(() => { if (document.hidden) return; try { loadMarketVolume(); } catch {} }, 300000);
   // 1분마다 국장 요약(지수 카드 + 인기검색 + 수급차트) 새로고침
   setInterval(() => { if (document.hidden) return; try { loadKrSummary(); } catch {} }, 60000);
   // 미장현황 탭이 보일 때만 새로고침 (숨겨져 있으면 불필요한 호출 방지)

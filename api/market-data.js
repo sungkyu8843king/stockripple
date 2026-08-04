@@ -29,6 +29,7 @@ export default async function handler(req, res) {
     case 'quotes':       return handleQuotes(req, res);
     case 'kr-proxy':     return handleKrProxy(req, res);
     case 'kr-estimate':  return handleKrEstimate(req, res);
+    case 'market-volume': return handleMarketVolume(req, res);
     case 'kis-test': {
       // 디버그 전용 — KIS 실전 API 원본 응답을 그대로 확인(필드명을 감으로 짜지 않기 위함).
       // 어드민 인증 필요(발급 제한 있는 실전 API라 공개하면 남용될 수 있음). 브라우저 주소창에
@@ -1196,6 +1197,58 @@ async function fetchSameTimeVolumes(tickers, concurrency = 6) {
     } catch { return [t, null]; }
   });
   return Object.fromEntries(pairs.filter(([, v]) => v));
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// market-volume — 시장 '전체' 거래량의 전일 동시간 대비 (2026-08-04)
+//
+// 개별 종목이 아니라 지수 자체의 거래량을 쓴다(^KS11/^KQ11 = 코스피/코스닥,
+// ^GSPC/^IXIC = S&P500/나스닥). 랭킹 상위 30종목을 더하는 방식도 생각했지만 그건
+// '거래량 많은 종목만 고른 표본'이라 시장 전체를 대표하지 못한다.
+//
+// ⚠️ Yahoo의 지수 거래량은 시장마다 단위가 다르다 — 코스피는 천주 단위로 보이고
+// (일 27만~46만 ≈ 2.7억~4.6억주), S&P500은 주 단위(일 48억~58억)다. 절대값을 그대로
+// '주식 수'라고 표시하면 틀린다. 우리는 오늘/전일 비율만 쓰므로 단위가 상쇄돼 안전하고,
+// 그래서 응답에도 비율(ratioPct)만 담고 원시 합계는 참고용으로만 둔다.
+const MARKET_VOL_INDICES = {
+  KR: [{ t: '^KS11', name: '코스피' }, { t: '^KQ11', name: '코스닥' }],
+  US: [{ t: '^GSPC', name: 'S&P 500' }, { t: '^IXIC', name: '나스닥' }],
+};
+
+async function handleMarketVolume(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
+
+  const want = (req.query.market || '').toString().toUpperCase();
+  const markets = (want === 'KR' || want === 'US') ? [want] : ['KR', 'US'];
+
+  try {
+    const out = {};
+    for (const mk of markets) {
+      const defs = MARKET_VOL_INDICES[mk];
+      const V = await fetchSameTimeVolumes(defs.map(d => d.t), 4).catch(() => ({}));
+      const parts = defs.map(d => {
+        const v = V[d.t];
+        return v ? { name: d.name, ratioPct: v.ratioPct, volToday: v.volToday, volPrevSame: v.volPrevSame, cutoffMin: v.cutoffMin } : null;
+      }).filter(Boolean);
+      if (!parts.length) { out[mk] = null; continue; }
+      // 시장 전체 = 지수별 원시 합계로 한 번 더 비율을 낸다. ⚠️ 지수별 ratioPct의 단순
+      // 평균이 아니다 — 거래 규모가 다른 두 지수를 평균 내면 작은 쪽이 과대 반영된다.
+      // 원시값 합산은 같은 시장 안에서만 한다(위 단위 문제). 같은 시장 내 단위 일치는
+      // 실측 확인: 코스피 27만~46만 / 코스닥 43만~64만(둘 다 수십만 단위),
+      // S&P500 5.7억~58억 / 나스닥 23억~119억(둘 다 십억 단위).
+      const sumToday = parts.reduce((s, p) => s + p.volToday, 0);
+      const sumPrev = parts.reduce((s, p) => s + p.volPrevSame, 0);
+      out[mk] = {
+        ratioPct: sumPrev > 0 ? ((sumToday / sumPrev) - 1) * 100 : null,
+        cutoffMin: Math.max(...parts.map(p => p.cutoffMin)),
+        parts: parts.map(p => ({ name: p.name, ratioPct: p.ratioPct })),
+      };
+    }
+    return res.status(200).json({ ok: true, ts: Date.now(), ...out });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
 }
 
 // 특정 개장일의 실제 시가 — 정산용. Yahoo 일봉의 timestamp는 KRX 세션 시작(00:00 UTC)이라
