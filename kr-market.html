@@ -1382,6 +1382,27 @@ button { font-family: inherit; }
         <span class="now-count" id="nowCount"></span>
       </div>
 
+      <!-- 국장 요약(지수 카드) — 미장 탭이 '미장 요약'을 맨 위에 두는 것과 맞춰 2026-08-04에
+           맨 위로 올렸다. '인기 검색 종목'은 아래 국장 현황 랭킹과 겹쳐서 같이 제거했다. -->
+      <div id="krSummarySection" class="section-block">
+        <div class="section-head">
+          <div class="section-head-l">
+            <span class="sh-mark" style="background:var(--blue)"></span>
+            <span class="sh-title">국장 요약</span>
+            <span id="krSummaryUpdatedAt" class="sh-desc">—</span>
+          </div>
+          <div class="section-head-r">
+            <button onclick="loadKrSummary()" title="수동 새로고침" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="mk-panel">
+          <div id="krIndexCards" class="mkt-dash-grid">
+            <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div>
+          </div>
+        </div>
+      </div>
+
       <!-- ⓪ 해외 실시간 추정가 -->
       <div class="section-block">
         <div class="section-head">
@@ -1500,31 +1521,6 @@ button { font-family: inherit; }
           <div id="nvRows"><div style="color:var(--text3);font-size:14.5px;padding:18px;text-align:center">불러오는 중…</div></div>
           <div style="margin-top:12px;font-size:13px;color:var(--text3);line-height:1.55">
             📡 뉴스 톤은 최근 기사 120건의 산업 영향 방향을 집계한 편집성 분류이며, 주가는 각 산업 대표 종목의 평균 등락률입니다. 특정 종목의 매수·매도 의견이 아닙니다.
-          </div>
-        </div>
-      </div>
-
-      <!-- 지수 카드 + 인기 검색 -->
-      <div id="krSummarySection" class="section-block">
-        <div class="section-head">
-          <div class="section-head-l">
-            <span class="sh-mark" style="background:var(--blue)"></span>
-            <span class="sh-title">국장 요약</span>
-            <span id="krSummaryUpdatedAt" class="sh-desc">—</span>
-          </div>
-          <div class="section-head-r">
-            <button onclick="loadKrSummary()" title="수동 새로고침" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
-          </div>
-        </div>
-
-        <div class="mk-panel">
-          <div id="krIndexCards" class="mkt-dash-grid" style="margin-bottom:18px">
-            <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div>
-          </div>
-
-          <div style="min-width:0;border-top:1px solid var(--border-soft);padding-top:15px">
-            <div class="mk-panel-t" style="font-size:15px;margin-bottom:10px">🔍 인기 검색 종목</div>
-            <div id="krPopularSearch"><div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div></div>
           </div>
         </div>
       </div>

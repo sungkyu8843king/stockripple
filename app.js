@@ -4083,18 +4083,15 @@ async function loadKrSummary() {
   try {
     // /api/indices는 필터링 파라미터를 받지 않고 항상 전체 지표를 반환한다 —
     // 필요한 id만 골라 쓴다(홈 대시보드와 같은 엔드포인트를 공유해 엣지 캐시 히트율도 좋다).
-    const [idxRes, searchRes] = await Promise.all([
-      fetch('/api/indices').then(r => r.json()),
-      fetch('/api/kr-market?type=popular-search').then(r => r.json()),
-    ]);
+    // '인기 검색 종목'은 아래 국장 현황 랭킹과 내용이 겹쳐 2026-08-04에 화면에서 제거했다 —
+    // 그에 맞춰 popular-search 조회도 같이 뺀다(안 그리는 데이터를 계속 받아올 이유가 없음).
+    const idxRes = await fetch('/api/indices').then(r => r.json());
     const q = idxRes?.data || {};
 
     cardsEl.innerHTML = KR_INDEX_DEFS.map(def => {
       const d = q[def.id];
       return d ? mktSummaryCard(def, d) : '';
     }).join('');
-
-    renderKrPopularSearch(searchRes?.items || []);
 
     const upd = document.getElementById('krSummaryUpdatedAt');
     if (upd) upd.textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) + ' 기준';
@@ -4191,7 +4188,10 @@ let _totVolLoaded = false;
 async function loadMarketVolume() {
   const krEl = document.getElementById('krTotalVol');
   const usEl = document.getElementById('usTotalVol');
-  if (!krEl && !usEl) return;
+  // ⚠️ 소비처가 셋이다 — kr-market.html의 국장/미장 스트립 두 개와 index.html 사이드바 카드.
+  // 스트립 두 개만 보고 early-return 하면 홈(스트립이 없는 페이지)에서 카드가 안 채워진다.
+  const sideEl = document.getElementById('volumeCard');
+  if (!krEl && !usEl && !sideEl) return;
   try {
     const r = await fetch('/api/market-data?source=market-volume');
     const j = await r.json();
@@ -4199,7 +4199,32 @@ async function loadMarketVolume() {
     _totVolLoaded = true;
     if (krEl) renderTotalVol(krEl, j.KR, '코스피+코스닥');
     if (usEl) renderTotalVol(usEl, j.US, 'S&P500+나스닥');
+    renderVolumeSidebar(j);
   } catch {}
+}
+
+// 홈 우측 사이드바 카드 — 국장/미장 한 줄씩. 시장별로 기준 시각이 다르므로(국장은 KST,
+// 미장은 현지 ET) 각 줄에 그 시장의 기준 시각을 따로 붙인다.
+function renderVolumeSidebar(j) {
+  const card = document.getElementById('volumeCard');
+  const body = document.getElementById('volumeCardBody');
+  if (!card || !body) return;
+  const row = (d, label) => {
+    if (!d || d.ratioPct == null) return '';
+    const p = d.ratioPct;
+    const c = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
+    const hh = String(Math.floor(d.cutoffMin / 60)).padStart(2, '0');
+    const mm = String(d.cutoffMin % 60).padStart(2, '0');
+    return `<div style="display:flex;align-items:baseline;gap:8px;padding:6px 0">
+      <span style="font-weight:700;font-size:14.5px;min-width:34px">${label}</span>
+      <span style="font-size:12.5px;color:var(--text3);flex:1;min-width:0">${hh}:${mm} 기준 · 전일 동시간 대비</span>
+      <span style="font-family:var(--font-mono,monospace);font-weight:800;font-size:15px;color:${c};white-space:nowrap">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>
+    </div>`;
+  };
+  const html = row(j.KR, '국장') + row(j.US, '미장');
+  if (!html) { card.style.display = 'none'; return; }
+  body.innerHTML = html;
+  card.style.display = '';
 }
 function renderTotalVol(el, d, scope) {
   if (!d || d.ratioPct == null) { el.style.display = 'none'; return; }
@@ -4277,18 +4302,8 @@ function switchMarketSection(sec) {
   if (!_totVolLoaded) loadMarketVolume();
 }
 
-function renderKrPopularSearch(items) {
-  const el = document.getElementById('krPopularSearch');
-  if (!el) return;
-  if (!items?.length) { el.innerHTML = '<div style="color:var(--text3);font-size:14.5px;text-align:center;padding:12px">데이터 없음</div>'; return; }
-  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:2px">` + items.map((it, i) => `
-    <a href="/company.html?ticker=${encodeURIComponent(it.ticker)}" style="display:flex;align-items:center;gap:10px;padding:7px 4px;text-decoration:none;color:inherit;border-radius:6px" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-      ${krRankCell(i)}
-      <span style="flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(it.name)}</span>
-      <span class="t-num" style="font-size:14.5px;font-weight:600;text-align:right;white-space:nowrap">${krFmtNum(it.price)}</span>
-      ${krChgChip(it.changePercent)}
-    </a>`).join('') + `</div>`;
-}
+// renderKrPopularSearch()는 '인기 검색 종목' 섹션과 함께 제거(2026-08-04) — 아래 국장
+// 현황 랭킹과 내용이 겹쳤다. 서버 라우트(/api/kr-market?type=popular-search)는 남아있다.
 
 // ─── 🇰🇷 국장 현황 (거래량 TOP / 상한가 / 하한가 / 5일 수급 TOP) ──────────
 let _kmTab = 'volume';
