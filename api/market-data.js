@@ -1151,10 +1151,13 @@ async function estFetchQuotes(tickers) {
 // 부르는 estFetchQuotes 것을 쓸 것 — 거래량 얻겠다고 그쪽 range를 넓히면 전 종목 등락률이
 // 조용히 틀어진다.
 //
-// 5분봉은 정규장(09:00~15:00)만 담기므로 일봉 총거래량(종가단일가·NXT 포함)보다 작다.
-// 우리는 5분봉 합계끼리만 비교하므로 기준은 일관된다.
-async function estFetchVolumes(tickers) {
-  const pairs = await mapWithConcurrency(tickers, 6, async (t) => {
+// 5분봉은 정규장만 담기므로(국장 09:00~15:00, 미장 09:30~15:55 현지) 일봉 총거래량
+// (종가단일가·NXT·프리/애프터 포함)보다 작다. 5분봉 합계끼리만 비교하므로 기준은 일관된다.
+//
+// 국장·미장 공용이다 — 거래소 현지 시각으로 하루를 나눠야 하는데, 오프셋을 +9h로 박아두면
+// 미국(서머타임으로 -4h/-5h가 바뀜)에서 날짜 경계가 어긋난다. meta.gmtoffset을 그대로 쓴다.
+async function fetchSameTimeVolumes(tickers, concurrency = 6) {
+  const pairs = await mapWithConcurrency(tickers, concurrency, async (t) => {
     try {
       const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?interval=5m&range=5d`,
         { headers: SHARED_HEADERS, signal: AbortSignal.timeout(6000) });
@@ -1162,13 +1165,14 @@ async function estFetchVolumes(tickers) {
       const res = (await r.json())?.chart?.result?.[0];
       const ts = res?.timestamp || [], vol = res?.indicators?.quote?.[0]?.volume || [];
       if (!ts.length) return [t, null];
+      const off = Number(res?.meta?.gmtoffset) || 0;
 
-      // KST 기준 날짜/시각으로 묶는다(+9h 후 UTC 게터를 쓰면 KST 벽시계와 같아진다).
+      // 거래소 현지 날짜/시각으로 묶는다(오프셋을 더한 뒤 UTC 게터를 쓰면 현지 벽시계와 같아진다).
       const days = new Map();
       for (let i = 0; i < ts.length; i++) {
         const v = vol[i];
         if (v == null) continue;
-        const k = new Date((ts[i] + 9 * 3600) * 1000);
+        const k = new Date((ts[i] + off) * 1000);
         const day = k.toISOString().slice(0, 10);
         if (!days.has(day)) days.set(day, []);
         days.get(day).push({ min: k.getUTCHours() * 60 + k.getUTCMinutes(), v: Number(v) });
@@ -1336,7 +1340,7 @@ async function handleKrEstimate(req, res) {
         ? callTossProxy(`/prices?symbols=${encodeURIComponent(codes.join(','))}`).catch(() => null)
         : Promise.resolve(null),
       estFetchQuotes(tickers),
-      estFetchVolumes(tickers).catch(() => ({})),   // 거래량은 부가정보 — 실패해도 시세는 그대로 보여준다
+      fetchSameTimeVolumes(tickers).catch(() => ({})),   // 거래량은 부가정보 — 실패해도 시세는 그대로 보여준다
     ]);
     const tossBy = {};
     for (const r of (toss?.result || [])) {
@@ -2577,6 +2581,12 @@ async function handleUsMarket(req, res) {
       volume: q.regularMarketVolume ?? null,
       marketCap: q.marketCap ?? null,
     })).filter(it => it.ticker);
+
+    // 전일 동시간 대비 거래량 — 국장 카드와 같은 기준(fetchSameTimeVolumes). 30종목이라
+    // 동시성을 10으로 올렸고(실측 641ms, 6이면 1.5s), 이 엔드포인트는 s-maxage=120이라
+    // 원본 조회는 최대 2분에 한 번만 발생한다. 실패해도 랭킹 자체는 그대로 나간다.
+    const V = await fetchSameTimeVolumes(items.map(it => it.ticker), 10).catch(() => ({}));
+    for (const it of items) it.vol = V[it.ticker] || null;
 
     return res.status(200).json({ ok: true, items, ts: Date.now() });
   } catch (err) {

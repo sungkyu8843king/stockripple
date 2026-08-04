@@ -4183,6 +4183,18 @@ function usNameCell(item) {
     <span style="color:var(--text3);font-size:13px;font-family:monospace;margin-left:4px">${escHtml(item.ticker)}</span>`;
 }
 
+// 거래량 셀 — 오늘 누적 아래에 "전일 같은 시각까지 누적" 대비 증감을 붙인다.
+// ⚠️ 전일 '하루 전체'와 비교하면 안 된다: 실측(AAPL, 개장 26분 시점)에서 총량대비
+// -81.4%(거래 폭락처럼 보임) vs 동시간대비 +9.0%(실제로는 평소보다 활발)로 정반대
+// 인상을 준다. 서버(fetchSameTimeVolumes)가 이미 동시간 기준으로 계산해 보낸다.
+function usVolCell(r) {
+  const base = krFmtNum(r.volume);
+  const p = r.vol?.ratioPct;
+  if (p == null || !isFinite(p)) return base;
+  const c = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text3)';
+  return `${base}<div style="font-size:12px;font-weight:700;color:${c}" title="전일 같은 시각까지 누적 대비 (정규장 5분봉 기준)">${p > 0 ? '+' : ''}${p.toFixed(1)}%</div>`;
+}
+
 function renderUsMarket(tab, d) {
   const panel = document.getElementById('usMarketPanel');
   panel.innerHTML = krRowsTable(d.items, [
@@ -4190,7 +4202,7 @@ function renderUsMarket(tab, d) {
     { label: '종목', render: usNameCell },
     { label: '현재가', right: true, render: r => r.price != null ? `$${Number(r.price).toFixed(2)}` : '—' },
     { label: '등락률', right: true, render: r => krChgChip(r.changePercent) },
-    { label: '거래량', right: true, render: r => krFmtNum(r.volume) },
+    { label: '거래량', right: true, render: usVolCell },
   ]);
 }
 
