@@ -4208,13 +4208,17 @@ async function loadMarketVolume() {
 // cutoffTs(UTC epoch)를 +9h 해서 환산하며, 브라우저 로컬 시계에 의존하지 않는다
 // (이 프로젝트는 로컬 시계가 어긋난 전례가 있어 kstNow()도 같은 방식을 쓴다).
 function volCutoffLabel(d) {
+  // 장이 끝났으면 시각 대신 '장 마감'. Yahoo 5분봉이 국장은 15:00까지만 줘서(종가
+  // 단일가·넥스트장 제외) 마감일인데도 '15:00 기준'으로 찍혀 데이터가 밀린 것처럼
+  // 보였다(2026-08-05 피드백). 비교 자체는 양쪽 날을 같은 범위로 자르므로 유효하다.
+  if (d?.complete) return '장 마감';
   if (d?.cutoffTs) {
     const k = new Date((d.cutoffTs + 9 * 3600) * 1000);
-    return String(k.getUTCHours()).padStart(2, '0') + ':' + String(k.getUTCMinutes()).padStart(2, '0');
+    return String(k.getUTCHours()).padStart(2, '0') + ':' + String(k.getUTCMinutes()).padStart(2, '0') + ' KST';
   }
   // cutoffTs가 없는 구버전 응답 폴백 — 국장은 현지=KST라 그대로 맞고, 미장만 ET로 보인다.
   if (d?.cutoffMin == null) return '';
-  return String(Math.floor(d.cutoffMin / 60)).padStart(2, '0') + ':' + String(d.cutoffMin % 60).padStart(2, '0');
+  return String(Math.floor(d.cutoffMin / 60)).padStart(2, '0') + ':' + String(d.cutoffMin % 60).padStart(2, '0') + ' KST';
 }
 
 // 홈 우측 사이드바 카드 — 국장/미장 한 줄씩(둘 다 KST 기준 시각으로 표기).
@@ -4232,7 +4236,7 @@ function renderVolumeSidebar(j) {
       onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
       title="시간대별 누적 거래량 차트 보기">
       <span style="font-weight:700;font-size:14.5px;min-width:34px">${label}</span>
-      <span style="font-size:12.5px;color:var(--text3);flex:1;min-width:0">${volCutoffLabel(d)} KST 기준 · 전일 동시간 대비</span>
+      <span style="font-size:12.5px;color:var(--text3);flex:1;min-width:0">${volCutoffLabel(d)} 기준 · 전일 동시간 대비</span>
       <span style="font-family:var(--font-mono,monospace);font-weight:800;font-size:15px;color:${c};white-space:nowrap">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>
       <span style="color:var(--text3);font-size:12px">›</span>
     </div>`;
@@ -4357,7 +4361,7 @@ function renderTotalVol(el, d, scope, mk) {
   }).join('');
   el.innerHTML = `<span class="tv-lbl">📊 시장 전체 거래량</span>
     <span class="tv-main" style="color:${c}">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>
-    <span class="tv-sub">전일 같은 시각(${cutoffLabel} KST)까지 누적 대비 · ${escHtml(scope)}</span>
+    <span class="tv-sub">전일 같은 시점(${cutoffLabel})까지 누적 대비 · ${escHtml(scope)}</span>
     ${parts}
     <span style="margin-left:auto;color:var(--text3);font-size:12.5px;white-space:nowrap">차트 보기 ›</span>`;
   el.style.display = 'flex';

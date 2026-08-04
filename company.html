@@ -646,10 +646,12 @@ body {
 .meta-badges { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 24px; margin: -4px 0 4px; }
 .meta-badges:empty { display: none; }
 /* #metaBadges(로더가 통째로 갈아끼움)와 전일 동시간 배지를 한 줄에 나란히 놓는 래퍼.
-   안쪽 .meta-badges가 좌우 24px 패딩을 이미 갖고 있어 래퍼에는 패딩을 주지 않는다. */
+   안쪽 .meta-badges가 좌우 24px 패딩을 이미 갖고 있어 래퍼에는 패딩을 주지 않는다.
+   전일 동시간 배지는 margin-left:auto로 우측 끝에 붙인다 — 미국 종목은 상한/하한 칩이
+   없어(가격제한폭 제도 없음) 좌측에 홀로 떠 있으면 허전하다(2026-08-05 피드백). */
 .meta-badges-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .meta-badges-row > .meta-badges { margin: -4px 0 4px; }
-.meta-badges-row > .meta-badges:empty + .mbadge { margin-left: 24px; }
+.meta-badges-row > .mbadge { margin-left: auto; margin-right: 24px; margin-bottom: 4px; }
 .mbadge { font-size: 13.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
 .mbadge.danger { background: var(--red-dim); color: var(--red); border-color: rgba(220,47,62,0.35); }
 .mbadge.warn { background: var(--yellow-dim); color: var(--yellow); border-color: rgba(217,164,6,0.35); }
@@ -1821,9 +1823,17 @@ async function loadVolumeCompare(ticker) {
     _volSeries = d;
     const p = d.ratioPct;
     const col = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
-    el.textContent = `전일 동시간 ${p > 0 ? '+' : ''}${p.toFixed(1)}%`;
+    // 기준 시점을 툴팁에 명시 — 장중이면 KST 시각, 끝났으면 '장 마감'.
+    let basis = '';
+    if (d.complete) basis = '장 마감';
+    else if (d.cutoffTs) {
+      const k = new Date((d.cutoffTs + 9 * 3600) * 1000);
+      basis = String(k.getUTCHours()).padStart(2, '0') + ':' + String(k.getUTCMinutes()).padStart(2, '0') + ' KST';
+    }
+    el.textContent = `거래량 전일 동시간 ${p > 0 ? '+' : ''}${p.toFixed(1)}%`;
     el.style.color = col;
     el.style.borderColor = 'currentColor';
+    el.title = `${basis ? basis + ' 기준 · ' : ''}전일 같은 시점까지 누적 거래량 대비 (정규장 5분봉 기준) · 눌러서 차트 보기`;
     el.onclick = () => openVolumeChart(ticker);
     el.style.display = '';
   } catch {}

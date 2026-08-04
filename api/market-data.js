@@ -1197,6 +1197,12 @@ async function fetchSameTimeVolumes(tickers, concurrency = 6) {
         // 같이 준다(클라이언트가 KST로 그린다).
         cutoffMin: cutoff,
         cutoffTs: today.reduce((m, b) => (b.min === cutoff ? Math.max(m, b.ts) : m), 0),
+        // 오늘 세션이 끝났는지 — 전일만큼 봉이 다 찼으면 완료로 본다. 완료면 화면에 시각
+        // 대신 '장 마감 기준'이라고 쓴다. ⚠️ Yahoo 5분봉은 국장 09:00~15:00까지만 주고
+        // 종가 단일가(15:20~15:30)와 넥스트장(15:30~20:00)은 빠져 있어(실측: 삼성전자
+        // 5분봉 합 25.8M vs 당일 실제 31.4M) 마감 시각을 그대로 찍으면 '15:00'이 돼
+        // 데이터가 밀린 것처럼 보인다. 비율 자체는 양쪽 날을 같은 범위로 자르므로 유효.
+        complete: today.length >= prev.length,
       }];
     } catch { return [t, null]; }
   });
@@ -1295,7 +1301,7 @@ async function handleMarketVolumeSeries(res, tickers, market) {
     cutoffTs = today[lastIdx].ts;
   }
   res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
-  return res.status(200).json({ ok: true, market, points, prevTotal, ratioPct, cutoffTs });
+  return res.status(200).json({ ok: true, market, points, prevTotal, ratioPct, cutoffTs, complete: today.length >= prev.length });
 }
 
 async function handleMarketVolume(req, res) {
@@ -1326,7 +1332,7 @@ async function handleMarketVolume(req, res) {
       const V = await fetchSameTimeVolumes(defs.map(d => d.t), 4).catch(() => ({}));
       const parts = defs.map(d => {
         const v = V[d.t];
-        return v ? { name: d.name, ratioPct: v.ratioPct, volToday: v.volToday, volPrevSame: v.volPrevSame, cutoffMin: v.cutoffMin, cutoffTs: v.cutoffTs } : null;
+        return v ? { name: d.name, ratioPct: v.ratioPct, volToday: v.volToday, volPrevSame: v.volPrevSame, cutoffMin: v.cutoffMin, cutoffTs: v.cutoffTs, complete: v.complete } : null;
       }).filter(Boolean);
       if (!parts.length) { out[mk] = null; continue; }
       // 시장 전체 = 지수별 원시 합계로 한 번 더 비율을 낸다. ⚠️ 지수별 ratioPct의 단순
@@ -1340,6 +1346,8 @@ async function handleMarketVolume(req, res) {
         ratioPct: sumPrev > 0 ? ((sumToday / sumPrev) - 1) * 100 : null,
         cutoffMin: Math.max(...parts.map(p => p.cutoffMin)),
         cutoffTs: Math.max(...parts.map(p => p.cutoffTs || 0)),
+        // 구성 지수가 모두 끝나야 '장 마감'으로 본다(하나라도 진행 중이면 시각 표기 유지).
+        complete: parts.every(p => p.complete),
         parts: parts.map(p => ({ name: p.name, ratioPct: p.ratioPct })),
       };
     }
