@@ -1475,6 +1475,47 @@ function cleanKeypoints(arr) {
 // 있어(제목만 있는 이슈에서 특히), 저장 전에 걸러낸다 — 이런 문구는 독자에게 무의미하다.
 const DIGEST_META_JUNK_RE = /(제공되지\s*않|본문[^.]{0,12}(없|제공)|내용[이은]?\s*(없|제공되지)|제목만|요약할\s*수\s*없|요약할\s*내용|확인할\s*수\s*없|확인되지\s*않|정보가?\s*(부족|없))/;
 
+// 기사 원문 페이지의 og:description(없으면 <meta name="description">)을 긁어온다 — RSS
+// description이 항상 비어있는 소스(SeekingAlpha·Investing.com 등, 2026-08 실측 확인:
+// SeekingAlpha feed.xml은 <description>이 30건 전부 빈 값)를 위한 보강용. 이게 없으면
+// AI에게 제목 한 줄만 주어지고, 그러면 "본문 요약" 규칙("제목만 주어졌으면 제목을 매끄러운
+// 문장으로")이 그대로 적용돼 "4가지 관전포인트가 제시됐다"처럼 정작 그 4가지가 뭔지는
+// 하나도 못 채우는 알맹이 없는 요약만 나온다(사용자 리포트로 발견) — AI가 게으른 게
+// 아니라 애초에 줄 재료가 없었던 것. <head> 앞부분만 보면 되므로 응답 전체를 다 읽지
+// 않고(대형 페이지 대비) 8초 타임아웃 안에서만 시도, 실패해도 fail-open(제목만으로 진행).
+async function fetchOgDescription(url) {
+  try {
+    const r = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return null;
+    // 첫 80KB로 자른다 — <head>는 거의 항상 여기 다 들어온다(실측: SeekingAlpha 본문까지 합쳐
+    // 560KB인 페이지도 og:description은 첫 10KB 안에 있었음). 본문까지 다 받지 않아 시간 절약.
+    const reader = r.body?.getReader?.();
+    let html;
+    if (reader) {
+      const chunks = []; let total = 0;
+      while (total < 80000) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value); total += value.length;
+      }
+      try { await reader.cancel(); } catch {}
+      html = Buffer.concat(chunks.map(c => Buffer.from(c))).toString('utf8');
+    } else {
+      html = (await r.text()).slice(0, 80000);
+    }
+    const m = html.match(/<meta[^>]+property=["']og:description["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:description["']/i)
+      || html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*name=["']description["']/i);
+    const desc = (m?.[1] || '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+    return desc || null;
+  } catch { return null; }
+}
+
 async function handleArticleDigestBackfill(req, res) {
   if (!(await isFeatureEnabled(supabase, 'article_digest'))) {
     return res.status(200).json({ ok: true, scanned: 0, submitted: 0, disabled: true });
@@ -1486,18 +1527,41 @@ async function handleArticleDigestBackfill(req, res) {
   // is_analyzed 여부와 무관 — analyze 파이프라인과 별개로 채운다.
   let { data: issues, error } = await supabase
     .from('issues')
-    .select('id, title, summary, sectors')
+    .select('id, title, summary, sectors, source_url')
     .is('news_analysis', null)
     .order('published_at', { ascending: false })
     .limit(limit);
   // news_analysis 컬럼 마이그레이션 전이면(에러 메시지에 컬럼명 포함) 구버전 선정(ai_digest 기준)으로 폴백.
   if (error && /news_analysis/.test(error.message || '')) {
     ({ data: issues, error } = await supabase
-      .from('issues').select('id, title, summary, sectors')
+      .from('issues').select('id, title, summary, sectors, source_url')
       .is('ai_digest', null).order('published_at', { ascending: false }).limit(limit));
   }
   if (error) return res.status(500).json({ error: error.message });
   if (!issues?.length) return res.status(200).json({ ok: true, scanned: 0, submitted: 0 });
+
+  // 요약이 비어있는 이슈만 og:description으로 보강 시도(있는 요약은 그대로 존중 — RSS
+  // description이 실제 기사 요약인 소스도 많다). concurrency+시간예산 패턴은
+  // handleCrawlSharesOutstanding과 동일 — admin.js 전체 한도(60초) 중 35초만 쓰고
+  // submitAgentJob 등 나머지 작업에 여유를 남긴다.
+  const needEnrich = issues.filter(i => !i.summary?.trim() && i.source_url);
+  if (needEnrich.length) {
+    const t0 = Date.now(), TIME_BUDGET_MS = 35000, CONC = 4;
+    let qi = 0;
+    const worker = async () => {
+      while (qi < needEnrich.length && Date.now() - t0 < TIME_BUDGET_MS) {
+        const issue = needEnrich[qi++];
+        const desc = await fetchOgDescription(issue.source_url);
+        if (desc) {
+          issue.summary = desc.slice(0, 800);
+          // 영구 저장 — 다음에 이 이슈를 또 긁지 않고, 다른 소비처(company-news 등)도
+          // 혜택을 본다. 실패해도 프롬프트에는 이미 반영됐으니 이 파이프라인은 안 막는다.
+          supabase.from('issues').update({ summary: issue.summary }).eq('id', issue.id).then(() => {}, () => {});
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: CONC }, worker));
+  }
 
   const items = issues.map(issue => ({
     itemId: issue.id,
@@ -1509,7 +1573,7 @@ async function handleArticleDigestBackfill(req, res) {
     items,
     payload: { issueIds: issues.map(i => i.id) },
   });
-  return res.status(200).json({ ok: true, scanned: issues.length, ...result });
+  return res.status(200).json({ ok: true, scanned: issues.length, enriched: needEnrich.filter(i => i.summary?.trim()).length, ...result });
 }
 
 async function finalizeArticleDigest(row) {
