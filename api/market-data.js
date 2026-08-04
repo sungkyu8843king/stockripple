@@ -1138,6 +1138,62 @@ async function estFetchQuotes(tickers) {
   return Object.fromEntries(pairs.filter(([, v]) => v));
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// 전일 "동시간" 대비 거래량 (2026-08-04)
+//
+// ⚠️ 오늘 누적 거래량을 전일 '하루 전체' 거래량과 비교하면 장중 내내 거짓말이 된다 —
+// 오전 10시엔 정상적인 날도 20%로 찍혀 거래가 죽은 것처럼 보인다. 그래서 전일 같은
+// 시각까지의 누적과 비교한다. 5분봉 5일치를 한 번 받으면 오늘 누적·전일 동시간 누적을
+// 모두 계산할 수 있어 종목당 호출은 1회로 끝난다.
+//
+// ⚠️ 이 호출(range=5d)의 meta.chartPreviousClose는 '5일 전 종가'라서 전일종가가 아니다
+// (실측: 삼성전자 220,000 vs 실제 전일종가 239,500). 가격·전일종가는 반드시 range=1d로
+// 부르는 estFetchQuotes 것을 쓸 것 — 거래량 얻겠다고 그쪽 range를 넓히면 전 종목 등락률이
+// 조용히 틀어진다.
+//
+// 5분봉은 정규장(09:00~15:00)만 담기므로 일봉 총거래량(종가단일가·NXT 포함)보다 작다.
+// 우리는 5분봉 합계끼리만 비교하므로 기준은 일관된다.
+async function estFetchVolumes(tickers) {
+  const pairs = await mapWithConcurrency(tickers, 6, async (t) => {
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?interval=5m&range=5d`,
+        { headers: SHARED_HEADERS, signal: AbortSignal.timeout(6000) });
+      if (!r.ok) return [t, null];
+      const res = (await r.json())?.chart?.result?.[0];
+      const ts = res?.timestamp || [], vol = res?.indicators?.quote?.[0]?.volume || [];
+      if (!ts.length) return [t, null];
+
+      // KST 기준 날짜/시각으로 묶는다(+9h 후 UTC 게터를 쓰면 KST 벽시계와 같아진다).
+      const days = new Map();
+      for (let i = 0; i < ts.length; i++) {
+        const v = vol[i];
+        if (v == null) continue;
+        const k = new Date((ts[i] + 9 * 3600) * 1000);
+        const day = k.toISOString().slice(0, 10);
+        if (!days.has(day)) days.set(day, []);
+        days.get(day).push({ min: k.getUTCHours() * 60 + k.getUTCMinutes(), v: Number(v) });
+      }
+      const keys = [...days.keys()].sort();
+      if (keys.length < 2) return [t, null];              // 비교 대상(전일)이 없으면 표시 안 함
+      const today = days.get(keys[keys.length - 1]);
+      const prev = days.get(keys[keys.length - 2]);
+
+      // 오늘 마지막 봉 시각까지만 전일과 맞춰 자른다. 장 마감 후엔 이 값이 종료 시각이 되어
+      // 자연히 '하루 전체 vs 하루 전체' 비교가 된다(별도 분기 불필요).
+      const cutoff = today.reduce((m, b) => Math.max(m, b.min), 0);
+      const volToday = today.reduce((s, b) => s + b.v, 0);
+      const volPrevSame = prev.filter(b => b.min <= cutoff).reduce((s, b) => s + b.v, 0);
+      if (!volToday || !volPrevSame) return [t, null];
+      return [t, {
+        volToday, volPrevSame,
+        ratioPct: ((volToday / volPrevSame) - 1) * 100,
+        cutoffMin: cutoff,
+      }];
+    } catch { return [t, null]; }
+  });
+  return Object.fromEntries(pairs.filter(([, v]) => v));
+}
+
 // 특정 개장일의 실제 시가 — 정산용. Yahoo 일봉의 timestamp는 KRX 세션 시작(00:00 UTC)이라
 // UTC 날짜 문자열이 그대로 KST 개장일과 일치한다.
 async function estFetchOpen(ticker, sessionDate) {
@@ -1275,11 +1331,12 @@ async function handleKrEstimate(req, res) {
   if (live) {
     // 국장 시세: 토스 통합가(넥스트장 포함) 우선, 기준 종가는 야후에서.
     const codes = tickers.map(t => t.replace(/\.(KS|KQ)$/i, ''));
-    const [toss, Q] = await Promise.all([
+    const [toss, Q, V] = await Promise.all([
       tossProxyConfigured()
         ? callTossProxy(`/prices?symbols=${encodeURIComponent(codes.join(','))}`).catch(() => null)
         : Promise.resolve(null),
       estFetchQuotes(tickers),
+      estFetchVolumes(tickers).catch(() => ({})),   // 거래량은 부가정보 — 실패해도 시세는 그대로 보여준다
     ]);
     const tossBy = {};
     for (const r of (toss?.result || [])) {
@@ -1291,7 +1348,7 @@ async function handleKrEstimate(req, res) {
       const price = tossBy[code] ?? (typeof y.price === 'number' ? y.price : null);
       const prev = (typeof y.prevClose === 'number') ? y.prevClose : null;
       const chg = (price != null && prev) ? ((price - prev) / prev) * 100 : null;
-      return { ...tg, price, prevClose: prev, changePct: chg, priceFrom: tossBy[code] != null ? 'toss' : 'yahoo' };
+      return { ...tg, price, prevClose: prev, changePct: chg, priceFrom: tossBy[code] != null ? 'toss' : 'yahoo', vol: V[tg.t] || null };
     });
     return res.status(200).json({ ok: true, ts: Date.now(), modelVersion: EST_MODEL.version, live: true, session, items });
   }

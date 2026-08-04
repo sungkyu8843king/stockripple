@@ -1861,6 +1861,27 @@ document.addEventListener('keydown', e => {
       </div>`;
   }
 
+  /* 거래량 표시 — 서버(estFetchVolumes)가 '전일 같은 시각까지의 누적'과 비교해 보낸 값을
+     그대로 그린다. ⚠️ 전일 '하루 전체'와 비교하면 안 된다: 실측 시뮬레이션에서 09:30
+     기준 총량대비 -70.7%(거래 폭락처럼 보임) vs 동시간대비 +11.1%(실제로는 더 활발)로
+     정반대 인상을 준다. 장 마감 후에는 서버 로직상 자연히 하루 전체끼리 비교가 된다. */
+  function volFmt(n) {
+    if (n == null || !isFinite(n)) return '—';
+    if (n >= 1e8) return (n / 1e8).toFixed(1) + '억주';
+    if (n >= 1e4) return Math.round(n / 1e4).toLocaleString() + '만주';
+    return Math.round(n).toLocaleString() + '주';
+  }
+  function volRow(v) {
+    if (!v || v.volToday == null) return '';        // 거래량은 부가정보 — 없으면 행 자체를 뺀다
+    const r = num(v.ratioPct);
+    const hh = String(Math.floor(v.cutoffMin / 60)).padStart(2, '0');
+    const mm = String(v.cutoffMin % 60).padStart(2, '0');
+    return `<div class="est-mrow" title="오늘 ${hh}:${mm}까지 누적 ${volFmt(v.volToday)} vs 전일 같은 시각까지 ${volFmt(v.volPrevSame)} (정규장 5분봉 기준)">
+      <span>거래량</span>
+      <span style="font-family:var(--font-mono);color:var(--text2)">${volFmt(v.volToday)}${r != null ? ` <b style="color:${sgnCol(r)}">${r > 0 ? '+' : ''}${r.toFixed(1)}%</b>` : ''}</span>
+    </div>`;
+  }
+
   function renderLive(grid, bar, d) {
     // 야간선물 배너는 국장 실시간/넥스트장/마감 구간에는 안 쓴다 — 이미 진짜 국장
     // 시세를 보여주고 있으니 비워서 이전(추정 모드) 잔상이 안 남게 한다.
@@ -1880,6 +1901,7 @@ document.addEventListener('keydown', e => {
         </div>
         <div class="est-meta">
           <div class="est-mrow"><span>전일 종가</span><span style="font-family:var(--font-mono);color:var(--text2)">${it.prevClose != null ? '₩' + Math.round(it.prevClose).toLocaleString() : '—'}</span></div>
+          ${volRow(it.vol)}
           <div class="est-mrow"><span>시세 출처</span><span style="color:var(--text2)">${it.priceFrom === 'toss' ? '토스증권 통합가' : 'Yahoo Finance'}</span></div>
         </div>
       </div>`;
