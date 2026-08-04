@@ -1219,9 +1219,83 @@ const MARKET_VOL_INDICES = {
   US: [{ t: '^GSPC', name: 'S&P 500' }, { t: '^IXIC', name: '나스닥' }],
 };
 
+// 시간대별 누적 거래량 시계열 — 카드/스트립을 눌렀을 때 띄우는 차트용.
+// (?source=market-volume&detail=KR|US)
+//
+// ⚠️ x축을 'KST 절대 시각'으로 잡으면 미장이 깨진다 — 미국 정규장은 KST로 22:30에 시작해
+// 자정을 넘겨 05:00에 끝나므로 분(分) 값이 1350 → 30으로 되감긴다(실측 확인). 그래서 x축은
+// '개장 후 경과분'으로 두고 라벨만 KST로 붙인다.
+//
+// y축은 '전일 최종 누적 = 100%' 기준의 백분율이다. 지수 거래량의 절대 단위가 시장마다
+// 달라(코스피=천주, S&P500=주) 원시 숫자를 그대로 보여주면 자릿수를 오해할 수 있어서,
+// 단위가 상쇄되는 비율로만 그린다.
+async function handleMarketVolumeSeries(res, market) {
+  const defs = MARKET_VOL_INDICES[market];
+  // 같은 시장의 지수들을 봉 단위로 합산한다(세션 시간이 같아 타임스탬프가 정렬된다).
+  const merged = new Map();   // ts(초) → 합산 거래량
+  let off = 0;
+  await mapWithConcurrency(defs, 2, async (d) => {
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(d.t)}?interval=5m&range=5d`,
+        { headers: SHARED_HEADERS, signal: AbortSignal.timeout(6000) });
+      if (!r.ok) return;
+      const j = (await r.json())?.chart?.result?.[0];
+      const ts = j?.timestamp || [], vol = j?.indicators?.quote?.[0]?.volume || [];
+      off = Number(j?.meta?.gmtoffset) || off;
+      for (let i = 0; i < ts.length; i++) {
+        if (vol[i] == null) continue;
+        merged.set(ts[i], (merged.get(ts[i]) || 0) + Number(vol[i]));
+      }
+    } catch {}
+  });
+  if (!merged.size) return res.status(200).json({ ok: true, market, points: [] });
+
+  // 거래소 현지 날짜로 하루를 가른다(위 fetchSameTimeVolumes와 동일 기준).
+  const days = new Map();
+  for (const [ts, v] of [...merged.entries()].sort((a, b) => a[0] - b[0])) {
+    const day = new Date((ts + off) * 1000).toISOString().slice(0, 10);
+    if (!days.has(day)) days.set(day, []);
+    days.get(day).push({ ts, v });
+  }
+  const keys = [...days.keys()].sort();
+  if (keys.length < 2) return res.status(200).json({ ok: true, market, points: [] });
+  const today = days.get(keys[keys.length - 1]), prev = days.get(keys[keys.length - 2]);
+
+  const prevTotal = prev.reduce((s, b) => s + b.v, 0);
+  if (!prevTotal) return res.status(200).json({ ok: true, market, points: [] });
+
+  const kstLabel = (ts) => {
+    const k = new Date((ts + 9 * 3600) * 1000);
+    return String(k.getUTCHours()).padStart(2, '0') + ':' + String(k.getUTCMinutes()).padStart(2, '0');
+  };
+  // 두 날의 i번째 봉끼리 짝지어 '개장 후 같은 경과시간'을 비교한다 — 세션 길이가 같아
+  // 인덱스 정렬이 곧 경과시간 정렬이고, 서머타임/자정 넘김의 영향을 받지 않는다.
+  const prevOpen = prev[0].ts;
+  let ct = 0, cp = 0;
+  const points = prev.map((pb, i) => {
+    cp += pb.v;
+    const tb = today[i];
+    if (tb) ct += tb.v;
+    return {
+      e: Math.round((pb.ts - prevOpen) / 60),                      // 개장 후 경과(분)
+      kst: kstLabel(tb ? tb.ts : pb.ts),                           // 라벨은 오늘 기준(없으면 전일 시각)
+      p: +(cp / prevTotal * 100).toFixed(2),                       // 전일 누적 %
+      t: tb ? +(ct / prevTotal * 100).toFixed(2) : null,           // 오늘 누적 %(아직 안 온 구간은 null)
+    };
+  });
+  res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
+  return res.status(200).json({ ok: true, market, points, prevTotal });
+}
+
 async function handleMarketVolume(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
+
+  const detail = (req.query.detail || '').toString().toUpperCase();
+  if (detail === 'KR' || detail === 'US') {
+    try { return await handleMarketVolumeSeries(res, detail); }
+    catch (err) { return res.status(500).json({ ok: false, error: err.message }); }
+  }
 
   const want = (req.query.market || '').toString().toUpperCase();
   const markets = (want === 'KR' || want === 'US') ? [want] : ['KR', 'US'];

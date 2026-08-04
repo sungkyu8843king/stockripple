@@ -4197,8 +4197,8 @@ async function loadMarketVolume() {
     const j = await r.json();
     if (!j.ok) return;
     _totVolLoaded = true;
-    if (krEl) renderTotalVol(krEl, j.KR, '코스피+코스닥');
-    if (usEl) renderTotalVol(usEl, j.US, 'S&P500+나스닥');
+    if (krEl) renderTotalVol(krEl, j.KR, '코스피+코스닥', 'KR');
+    if (usEl) renderTotalVol(usEl, j.US, 'S&P500+나스닥', 'US');
     renderVolumeSidebar(j);
   } catch {}
 }
@@ -4218,27 +4218,136 @@ function volCutoffLabel(d) {
 }
 
 // 홈 우측 사이드바 카드 — 국장/미장 한 줄씩(둘 다 KST 기준 시각으로 표기).
+// 각 줄을 누르면 시간대별 누적 거래량 차트를 띄운다.
 function renderVolumeSidebar(j) {
   const card = document.getElementById('volumeCard');
   const body = document.getElementById('volumeCardBody');
   if (!card || !body) return;
-  const row = (d, label) => {
+  const row = (d, label, mk) => {
     if (!d || d.ratioPct == null) return '';
     const p = d.ratioPct;
     const c = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
-    return `<div style="display:flex;align-items:baseline;gap:8px;padding:6px 0">
+    return `<div role="button" tabindex="0" onclick="openVolumeChart('${mk}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openVolumeChart('${mk}')}"
+      style="display:flex;align-items:baseline;gap:8px;padding:6px 4px;cursor:pointer;border-radius:8px"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''"
+      title="시간대별 누적 거래량 차트 보기">
       <span style="font-weight:700;font-size:14.5px;min-width:34px">${label}</span>
       <span style="font-size:12.5px;color:var(--text3);flex:1;min-width:0">${volCutoffLabel(d)} KST 기준 · 전일 동시간 대비</span>
       <span style="font-family:var(--font-mono,monospace);font-weight:800;font-size:15px;color:${c};white-space:nowrap">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>
+      <span style="color:var(--text3);font-size:12px">›</span>
     </div>`;
   };
-  const html = row(j.KR, '국장') + row(j.US, '미장');
+  const html = row(j.KR, '국장', 'KR') + row(j.US, '미장', 'US');
   if (!html) { card.style.display = 'none'; return; }
   body.innerHTML = html;
   card.style.display = '';
 }
-function renderTotalVol(el, d, scope) {
+
+// ─── 시간대별 누적 거래량 차트 (모달) ────────────────────────────────
+// 차트 라이브러리를 새로 싣지 않고 SVG로 직접 그린다 — index.html은 차트 lib을 안 불러오고
+// (kr-market.html의 투자자 수급 차트도 같은 이유로 자체 SVG다), 선 2개짜리라 충분하다.
+const VOL_CHART_CSS = `
+#volChartModal{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.66);padding:18px}
+#volChartModal .vc-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-pop);width:min(680px,96vw);max-height:92vh;overflow:auto;padding:18px 18px 14px}
+#volChartModal .vc-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+#volChartModal .vc-title{font-size:17px;font-weight:800;flex:1;min-width:0}
+#volChartModal .vc-x{background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:10px;width:34px;height:34px;font-size:16px;cursor:pointer;flex-shrink:0}
+#volChartModal .vc-sub{font-size:12.5px;color:var(--text3);margin-bottom:12px;line-height:1.5}
+#volChartModal .vc-legend{display:flex;gap:14px;font-size:12.5px;color:var(--text2);margin-top:8px;flex-wrap:wrap}
+#volChartModal .vc-legend i{display:inline-block;width:16px;height:0;border-top-width:3px;margin-right:5px;vertical-align:middle}
+#volChartModal .vc-wrap{overflow-x:auto}`;
+
+async function openVolumeChart(mk) {
+  if (!document.getElementById('volChartCss')) {
+    const st = document.createElement('style');
+    st.id = 'volChartCss'; st.textContent = VOL_CHART_CSS;
+    document.head.appendChild(st);
+  }
+  let el = document.getElementById('volChartModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'volChartModal';
+    el.addEventListener('click', e => { if (e.target === el) closeVolumeChart(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeVolumeChart(); });
+    document.body.appendChild(el);
+  }
+  const title = mk === 'KR' ? '🇰🇷 국장 시간대별 누적 거래량' : '🇺🇸 미장 시간대별 누적 거래량';
+  el.innerHTML = `<div class="vc-box"><div class="vc-head"><div class="vc-title">${title}</div>
+    <button class="vc-x" onclick="closeVolumeChart()" aria-label="닫기">✕</button></div>
+    <div class="vc-sub">불러오는 중…</div></div>`;
+  el.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  let d = null;
+  try {
+    const r = await fetch(`/api/market-data?source=market-volume&detail=${mk}`);
+    d = await r.json();
+  } catch {}
+  const box = el.querySelector('.vc-box');
+  if (!d?.ok || !d.points?.length) {
+    box.innerHTML = `<div class="vc-head"><div class="vc-title">${title}</div>
+      <button class="vc-x" onclick="closeVolumeChart()" aria-label="닫기">✕</button></div>
+      <div class="vc-sub">데이터를 불러오지 못했어요.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="vc-head"><div class="vc-title">${title}</div>
+    <button class="vc-x" onclick="closeVolumeChart()" aria-label="닫기">✕</button></div>
+    <div class="vc-sub">개장 후 시간이 지남에 따라 쌓인 거래량입니다. <b>전일 최종 누적을 100%</b>로 놓고 비교합니다 —
+      오늘 선이 전일 선보다 위에 있으면 그 시점까지 거래가 더 많았다는 뜻이에요.
+      ${mk === 'US' ? '<br>미국 정규장은 한국 시간으로 밤 22:30~05:00(서머타임 기준)입니다.' : ''}</div>
+    <div class="vc-wrap">${volChartSvg(d.points)}</div>
+    <div class="vc-legend">
+      <span><i style="border-top:3px solid var(--blue)"></i>오늘</span>
+      <span><i style="border-top:3px dashed var(--text3)"></i>전일</span>
+    </div>`;
+}
+
+function closeVolumeChart() {
+  const el = document.getElementById('volChartModal');
+  if (el) el.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function volChartSvg(points) {
+  const W = 620, H = 260, PL = 44, PR = 12, PT = 12, PB = 30;
+  const iw = W - PL - PR, ih = H - PT - PB;
+  const maxE = Math.max(...points.map(p => p.e), 1);
+  const maxY = Math.max(100, ...points.map(p => Math.max(p.p, p.t ?? 0))) * 1.06;
+  const X = e => PL + (e / maxE) * iw;
+  const Y = v => PT + ih - (v / maxY) * ih;
+  const path = key => {
+    const seg = points.filter(p => p[key] != null);
+    if (!seg.length) return '';
+    return seg.map((p, i) => `${i ? 'L' : 'M'}${X(p.e).toFixed(1)},${Y(p[key]).toFixed(1)}`).join(' ');
+  };
+  // y축 격자 — 100%(전일 최종) 선을 강조해 기준선이 눈에 띄게 한다.
+  const grid = [0, 25, 50, 75, 100].filter(v => v <= maxY).map(v => `
+    <line x1="${PL}" y1="${Y(v)}" x2="${W - PR}" y2="${Y(v)}" stroke="var(--border)" stroke-width="${v === 100 ? 1.4 : 1}" ${v === 100 ? '' : 'stroke-dasharray="3 3"'}/>
+    <text x="${PL - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--text3)">${v}%</text>`).join('');
+  // x축 라벨 — 6개 정도만(촘촘하면 겹친다). 마지막 라벨은 항상 넣되, 직전 라벨과 40px
+  // 안쪽으로 붙으면 글자가 겹치므로 그 직전 것을 버린다(실측: 04:45와 04:55가 15px 간격으로 충돌).
+  const step = Math.max(1, Math.floor(points.length / 5));
+  const picked = points.filter((_, i) => i % step === 0);
+  const lastP = points[points.length - 1];
+  if (lastP && picked[picked.length - 1] !== lastP) {
+    if (X(lastP.e) - X(picked[picked.length - 1].e) < 40) picked.pop();
+    picked.push(lastP);
+  }
+  const xlab = picked.map(p =>
+    `<text x="${X(p.e)}" y="${H - 10}" text-anchor="middle" font-size="10.5" fill="var(--text3)">${p.kst}</text>`).join('');
+  const last = [...points].reverse().find(p => p.t != null);
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:520px;height:auto;display:block">
+    ${grid}${xlab}
+    <path d="${path('p')}" fill="none" stroke="var(--text3)" stroke-width="2" stroke-dasharray="5 4"/>
+    <path d="${path('t')}" fill="none" stroke="var(--blue)" stroke-width="2.6"/>
+    ${last ? `<circle cx="${X(last.e)}" cy="${Y(last.t)}" r="4" fill="var(--blue)"/>` : ''}
+  </svg>`;
+}
+function renderTotalVol(el, d, scope, mk) {
   if (!d || d.ratioPct == null) { el.style.display = 'none'; return; }
+  el.style.cursor = 'pointer';
+  el.title = '시간대별 누적 거래량 차트 보기';
+  el.onclick = () => openVolumeChart(mk);
   const p = d.ratioPct;
   const c = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
   const cutoffLabel = volCutoffLabel(d);
@@ -4249,7 +4358,8 @@ function renderTotalVol(el, d, scope) {
   el.innerHTML = `<span class="tv-lbl">📊 시장 전체 거래량</span>
     <span class="tv-main" style="color:${c}">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>
     <span class="tv-sub">전일 같은 시각(${cutoffLabel} KST)까지 누적 대비 · ${escHtml(scope)}</span>
-    ${parts}`;
+    ${parts}
+    <span style="margin-left:auto;color:var(--text3);font-size:12.5px;white-space:nowrap">차트 보기 ›</span>`;
   el.style.display = 'flex';
 }
 
