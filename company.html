@@ -1119,10 +1119,6 @@ function buildQuoteCard(priceData) {
       ${yearRange}
       <div class="quote-stat-grid">
         <div class="quote-stat"><div class="quote-stat-label">당일 거래량</div><div class="quote-stat-val">${fmtVol(priceData.volume)}${isKrw ? '주' : ''}</div></div>
-        <div class="quote-stat" id="volCmpStat" style="display:none;cursor:pointer" title="시간대별 누적 거래량 차트 보기">
-          <div class="quote-stat-label">전일 동시간 대비</div>
-          <div class="quote-stat-val" id="volCmpVal">—</div>
-        </div>
         <div class="quote-stat"><div class="quote-stat-label">당일 거래대금 (추정)</div><div class="quote-stat-val">${fmtMoneyShort(tradingValue, isKrw)}</div></div>
         <div class="quote-stat"><div class="quote-stat-label">상장일</div><div class="quote-stat-val" style="font-size:15px">${priceData.firstTradeDate ? fmtDate(priceData.firstTradeDate) : '—'}</div></div>
         <div class="quote-stat"><div class="quote-stat-label">거래소</div><div class="quote-stat-val" style="font-size:15px">${escHtml(priceData.exchangeName || '—')}</div></div>
@@ -1162,6 +1158,8 @@ function buildStatBar(priceData) {
     // 거래량·시가·고저)로 곧바로 덮어씀 — 국내 종목은 NXT 프리/애프터장에 Yahoo가 0을 주는 경우가
     // 많아(2026-07 실측) Toss가 사실상 항상 최종값이 된다. Toss 실패 시엔 Yahoo 값이 그대로 남음.
     ['거래량', `<span id="statVolume">${volFallback}</span>`],
+    // 전일 동시간 대비 거래량 — loadVolumeCompare()가 값을 채우기 전까진 셀 자체를 숨긴다.
+    ['전일 동시간', `<span id="statVolCmp" style="display:none;cursor:pointer" title="시간대별 누적 거래량 차트 보기">—</span><span id="statVolCmpDash">—</span>`],
     ['거래대금', `<span id="statAmount">${amtFallback}</span>`],
     ['시가', '<span id="statOpen">—</span>'],
     ['1일 최저', `<span id="statLow">${lowFallback}</span>`],
@@ -1800,19 +1798,24 @@ function renderTradeBox(records) {
 // 뒀다(이 파일의 다른 복제 함수들과 같은 사정 — 로직 수정 시 app.js 쪽도 같이 볼 것).
 let _volSeries = null;
 async function loadVolumeCompare(ticker) {
-  const stat = document.getElementById('volCmpStat');
-  const val = document.getElementById('volCmpVal');
-  if (!stat || !val || !ticker) return;
+  // ⚠️ 상단 스탯바(buildStatBar)에 붙인다. '📊 오늘의 시세'(buildQuoteCard) 카드에 먼저
+  // 넣었다가 화면에 아무것도 안 뜨는 걸로 발견했는데, 그 카드는 #quoteCardWrap을 찾는
+  // setInterval에서만 그려지고 정작 그 컨테이너가 DOM에 없어서 실제로는 렌더링되지
+  // 않는 죽은 코드였다(2026-08-05 확인).
+  const el = document.getElementById('statVolCmp');
+  const dash = document.getElementById('statVolCmpDash');
+  if (!el || !ticker) return;
   try {
     const r = await fetch(`/api/market-data?source=market-volume&ticker=${encodeURIComponent(ticker)}`);
     const d = await r.json();
-    if (!d?.ok || d.ratioPct == null) return;      // 데이터 없으면 칸 자체를 숨긴 채 둔다
+    if (!d?.ok || d.ratioPct == null) return;      // 데이터 없으면 '—' 그대로 둔다
     _volSeries = d;
     const p = d.ratioPct;
-    val.textContent = `${p > 0 ? '+' : ''}${p.toFixed(1)}%`;
-    val.style.color = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
-    stat.onclick = () => openVolumeChart(ticker);
-    stat.style.display = '';
+    el.textContent = `${p > 0 ? '+' : ''}${p.toFixed(1)}%`;
+    el.style.color = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
+    el.onclick = () => openVolumeChart(ticker);
+    el.style.display = '';
+    if (dash) dash.style.display = 'none';
   } catch {}
 }
 
