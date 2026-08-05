@@ -3934,6 +3934,17 @@ async function handleCatalystsPost(req, res) {
     .update({ status: 'passed', updated_at: new Date().toISOString() })
     .eq('status', 'upcoming').not('event_date', 'is', null).lt('event_date', today);
 
+  // (b1) 날짜 없는(event_date=null, "시점 미확정") catalyst는 위 (b)로도, 아래 (b2) 뉴스
+  // 키워드 매칭으로도 못 잡히면 영원히 upcoming으로 남아 매 리포트마다 계속 "다가오는
+  // 이벤트"로 재노출된다 — 2026-08 실측: 2026-07-14 이후 갱신이 없던 catalyst 2건이
+  // 3주 넘게 그대로 방치돼 있었다(딥시크 IPO/삼성전자 ADR). 날짜 없이 30일 넘게 갱신이
+  // 없으면 안전망으로 자동 만료 — 진짜로 아직 안 끝난 장기 건이면 새 뉴스가 나올 때
+  // (b2)가 다시 갱신하거나 AI 추출이 새 row를 만드므로 정보 유실 없음.
+  await supabase.from('catalysts')
+    .update({ status: 'passed', updated_at: new Date().toISOString() })
+    .eq('status', 'upcoming').is('event_date', null)
+    .lt('updated_at', new Date(Date.now() - 30 * 86400000).toISOString());
+
   const { data: news } = await supabase.from('issues')
     .select('title, published_at')
     .gte('published_at', new Date(Date.now() - 14 * 86400000).toISOString())
