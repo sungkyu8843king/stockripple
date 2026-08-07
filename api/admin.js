@@ -124,6 +124,7 @@ export default async function handler(req, res) {
   if (action === 'extract-investments') return handleExtractInvestments(req, res);
   if (action === 'company-summary-backfill') return handleCompanySummaryBackfill(req, res);
   if (action === 'article-digest-backfill') return handleArticleDigestBackfill(req, res);
+  if (action === 'article-digest-direct-write') return handleArticleDigestDirectWrite(req, res);
   if (action === 'rank-reason-backfill') return handleRankReasonBackfill(req, res);
   if (action === 'list-investments')    return handleListInvestments(req, res);
   if (action === 'update-investment')   return handleUpdateInvestment(req, res);
@@ -1606,6 +1607,43 @@ async function finalizeArticleDigest(row) {
     }
   }
   return results;
+}
+
+// article_digest를 agent_jobs 큐/스케줄 에이전트 없이 직접 저장한다 (2026-08-08, 주말이라
+// 스케줄 에이전트가 도는 PC가 꺼져 있어 임시로 추가). 내용 생성 자체는 이 요청을 처리하는
+// Claude Code 세션이 프롬프트 규칙(ARTICLE_DIGEST_STATIC_PROMPT)을 그대로 따라 직접 하고,
+// 여기서는 finalizeArticleDigest와 완전히 동일한 검증/정제(cleanKeypoints/cleanNewsSectors/
+// junk 필터)만 거쳐 저장한다 — 결과물이 정상 파이프라인 산출물과 구분 안 되게 하려는 것.
+// body: { items: [{ id, summary, keypoints, sectors }, ...] }
+async function handleArticleDigestDirectWrite(req, res) {
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!items.length) return res.status(400).json({ error: 'items required' });
+  if (items.length > 60) return res.status(400).json({ error: 'max 60 items per call' });
+
+  const results = { updated: 0, skipped: 0, errors: [] };
+  for (const it of items) {
+    const issueId = it?.id;
+    if (!issueId) { results.errors.push({ error: 'missing id' }); continue; }
+    try {
+      const summary = (it.summary || '').toString().trim();
+      const isJunk = !summary || DIGEST_META_JUNK_RE.test(summary);
+      const clean = isJunk ? '' : summary.slice(0, 500);
+      const news_analysis = { keypoints: cleanKeypoints(it.keypoints), sectors: cleanNewsSectors(it.sectors) };
+      let { error: upErr } = await supabase.from('issues')
+        .update({ ai_digest: clean, ai_digest_at: new Date().toISOString(), news_analysis })
+        .eq('id', issueId);
+      if (upErr && /news_analysis/.test(upErr.message || '')) {
+        ({ error: upErr } = await supabase.from('issues')
+          .update({ ai_digest: clean, ai_digest_at: new Date().toISOString() })
+          .eq('id', issueId));
+      }
+      if (upErr) { results.errors.push({ issue_id: issueId, error: upErr.message }); continue; }
+      if (clean || news_analysis.keypoints.length || news_analysis.sectors.length) results.updated++; else results.skipped++;
+    } catch (e) {
+      results.errors.push({ issue_id: issueId, error: e.message?.slice(0, 200) });
+    }
+  }
+  return res.status(200).json({ ok: true, ...results });
 }
 
 // 홈 실시간 랭킹 종목별 "왜 이 랭킹에 있는지" 짧은 사유 — db/rank-reasons.sql 참조.
