@@ -125,6 +125,7 @@ export default async function handler(req, res) {
   if (action === 'company-summary-backfill') return handleCompanySummaryBackfill(req, res);
   if (action === 'article-digest-backfill') return handleArticleDigestBackfill(req, res);
   if (action === 'article-digest-direct-write') return handleArticleDigestDirectWrite(req, res);
+  if (action === 'agent-jobs-status') return handleAgentJobsStatus(req, res);
   if (action === 'rank-reason-backfill') return handleRankReasonBackfill(req, res);
   if (action === 'list-investments')    return handleListInvestments(req, res);
   if (action === 'update-investment')   return handleUpdateInvestment(req, res);
@@ -1644,6 +1645,48 @@ async function handleArticleDigestDirectWrite(req, res) {
     }
   }
   return res.status(200).json({ ok: true, ...results });
+}
+
+// agent_jobs 진단(읽기 전용, 2026-08-08) — 22,846건 백로그가 "처리 속도 부족"이 아니라
+// "submitAgentJob의 in-flight 락이 오래 안 풀려 새 배치 자체가 큐에 못 들어가는" 문제일
+// 가능성을 확인하기 위해 추가. submitAgentJob은 pipeline+stage당 status가 submitted/
+// processing인 행이 하나라도 있으면 새 제출을 통째로 스킵한다(lib/agent-jobs.js) — 그 행이
+// 스케줄 에이전트(다른 PC)가 며칠째 못 돌아 오래 안 풀렸다면, 그 사이의 모든 backfill
+// 호출이 조용히 아무것도 큐에 못 넣고 있었다는 뜻이라 백로그가 기하급수로 쌓인다.
+async function handleAgentJobsStatus(req, res) {
+  const { data, error } = await supabase.from('agent_jobs')
+    .select('id, pipeline, stage, status, created_at, response')
+    .in('status', ['submitted', 'processing'])
+    .order('created_at', { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+
+  const now = Date.now();
+  const jobs = (data || []).map(r => {
+    const ageMs = now - new Date(r.created_at).getTime();
+    return {
+      id: r.id, pipeline: r.pipeline, stage: r.stage, status: r.status,
+      created_at: r.created_at,
+      ageHours: +(ageMs / 3600000).toFixed(1),
+      hasResponse: !!r.response,
+      // JOB_STUCK_TIMEOUT_MS(3시간) 넘도록 response가 없거나, PROCESSING_STUCK_TIMEOUT_MS
+      // (10분) 넘도록 processing에 머물러 있으면 handleAgentPoll이 정상적으로는 이미
+      // timeout/재시도 처리했어야 할 행 — 그런데도 여전히 submitted/processing이면
+      // agent-poll 자체가 안 불리고 있다는 신호(다른 PC의 스케줄 에이전트가 멈췄다는 뜻).
+      stuck: (!r.response && ageMs > JOB_STUCK_TIMEOUT_MS) || (r.status === 'processing' && ageMs > PROCESSING_STUCK_TIMEOUT_MS),
+    };
+  });
+  const byPipeline = {};
+  for (const j of jobs) {
+    const k = `${j.pipeline}/${j.stage}`;
+    (byPipeline[k] = byPipeline[k] || []).push(j);
+  }
+  return res.status(200).json({
+    ok: true,
+    totalInFlight: jobs.length,
+    oldestAgeHours: jobs.length ? Math.max(...jobs.map(j => j.ageHours)) : 0,
+    byPipeline,
+    jobs,
+  });
 }
 
 // 홈 실시간 랭킹 종목별 "왜 이 랭킹에 있는지" 짧은 사유 — db/rank-reasons.sql 참조.
