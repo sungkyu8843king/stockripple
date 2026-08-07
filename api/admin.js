@@ -1522,7 +1522,9 @@ async function handleArticleDigestBackfill(req, res) {
   if (!(await isFeatureEnabled(supabase, 'article_digest'))) {
     return res.status(200).json({ ok: true, scanned: 0, submitted: 0, disabled: true });
   }
-  const limit = Math.min(parseInt(req.body?.limit || req.query?.limit, 10) || 60, 100);
+  // 60/100이었던 상한을 2026-08-08에 올렸다 — 하루 596건씩 새로 쌓이는데(실측) 회당 100건
+  // 제출로는 셀프힐 락 수정(submitAgentJob) 이후에도 스케줄 주기 안에 못 따라잡는다.
+  const limit = Math.min(parseInt(req.body?.limit || req.query?.limit, 10) || 150, 300);
 
   // news_analysis(요약+키포인트+섹터톤)가 아직 없는 최신 이슈들. news_analysis 기준으로 잡으면
   // 신규 이슈(ai_digest도 없음)와 구 이슈(ai_digest만 있고 키포인트/섹터톤 없음)를 함께 커버.
