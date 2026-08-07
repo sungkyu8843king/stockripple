@@ -294,7 +294,7 @@ function _siteHeaderHtml(activePath) {
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input type="text" id="searchInput" placeholder="기업명/키워드 또는 티커 (예: AAPL)" autocomplete="off"
                  oninput="onHeaderSearchInput(this.value)" onfocus="onHeaderSearchInput(this.value)"
-                 onkeydown="if(event.key==='Enter') hSearchEnter(this.value); if(event.key==='Escape') this.blur()">
+                 onkeydown="if(event.key==='Enter'){hSearchEnter(this.value);} else if(event.key==='Escape'){this.blur();} else if(event.key==='ArrowDown'){event.preventDefault();hSugMove(1);} else if(event.key==='ArrowUp'){event.preventDefault();hSugMove(-1);}">
           <div id="hSugBox"></div>
         </div>
         <nav class="header-nav" id="headerNav">
@@ -823,13 +823,28 @@ async function tryDirectLookup(input) {
    — 매칭 알고리즘(정확일치→접두사→부분, KR 상장 우선)은 tryDirectLookup과 동일하게
    맞춰 검색 결과가 Enter로 바로 이동했을 때와 어긋나지 않게 한다. */
 let _hSugTimer = null;
+let _hSugIndex = -1; // 키보드 방향키로 선택 중인 .hsug-item 인덱스, -1이면 미선택
 function onHeaderSearchInput(v) {
   clearTimeout(_hSugTimer);
+  _hSugIndex = -1;
   const q = (v || '').trim();
   const box = document.getElementById('hSugBox');
   if (!box) return;
   if (q.length < 1) { box.innerHTML = ''; return; }
   _hSugTimer = setTimeout(() => runHeaderSearch(q), 220);
+}
+
+// 검색 드롭다운에서 방향키로 항목 이동(위/아래 순환) — 선택된 항목은 .on 클래스로 표시.
+function hSugMove(delta) {
+  const items = Array.from(document.querySelectorAll('#hSugBox .hsug-item'));
+  if (!items.length) return;
+  items.forEach(it => it.classList.remove('on'));
+  _hSugIndex += delta;
+  if (_hSugIndex < 0) _hSugIndex = items.length - 1;
+  if (_hSugIndex >= items.length) _hSugIndex = 0;
+  const sel = items[_hSugIndex];
+  sel.classList.add('on');
+  sel.scrollIntoView({ block: 'nearest' });
 }
 
 async function hFindMatches(raw) {
@@ -889,6 +904,7 @@ async function runHeaderSearch(q) {
   // 입력값이 그 사이 바뀌었으면(빠르게 이어 타이핑) 이 결과는 버린다
   const cur = (document.getElementById('searchInput')?.value || '').trim();
   if (cur !== q) return;
+  _hSugIndex = -1; // 새 목록이 그려지므로 이전 방향키 선택은 무효화
   box.innerHTML = items.length
     ? `<div class="hsug">${items.map(m => {
         const isKr = m.market === 'KR' || /\.K[SQ]$/i.test(m.ticker);
@@ -905,8 +921,10 @@ async function hSearchEnter(v) {
   const raw = (v || '').trim();
   if (!raw) return;
   const box = document.getElementById('hSugBox');
-  const first = box?.querySelector('.hsug-item');
-  if (first) { location.href = first.getAttribute('href'); return; }
+  const rows = box ? Array.from(box.querySelectorAll('.hsug-item')) : [];
+  // 방향키로 선택해둔 항목이 있으면 그걸, 없으면(_hSugIndex=-1) 기존처럼 첫 번째 항목으로.
+  const picked = rows[_hSugIndex] || rows[0];
+  if (picked) { location.href = picked.getAttribute('href'); return; }
   // 아직 드롭다운이 안 뜬 상태에서 바로 Enter를 친 경우(디바운스 대기 중 등) — 즉시 조회.
   const items = await hFindMatches(raw);
   if (items.length) { location.href = `/company.html?ticker=${encodeURIComponent(items[0].ticker)}`; return; }
@@ -917,6 +935,7 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#headerSearch')) {
     const box = document.getElementById('hSugBox');
     if (box) box.innerHTML = '';
+    _hSugIndex = -1;
   }
 });
 
