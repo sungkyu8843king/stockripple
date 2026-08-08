@@ -1808,6 +1808,27 @@ function renderTradeBox(records) {
 // company.html은 app.js를 안 쓰는 독립 페이지라, 홈/시장현황의 차트 코드를 여기 복제해
 // 뒀다(이 파일의 다른 복제 함수들과 같은 사정 — 로직 수정 시 app.js 쪽도 같이 볼 것).
 let _volSeries = null;
+let _dailyRows = null;
+// Yahoo 5분봉 합산은 장중 진행률을 보여주기엔 충분하지만, 마감 후 최종 비율에는 폐장
+// 단일가/블록딜 등이 빠져 있어 실제 거래소 공식 거래량과 어긋난다(실측: 샌디스크 -27.2%
+// 실제 vs -28.0% Yahoo봉합산). loadDailyTable()이 이미 Toss 공식 일별 거래량을 받아오므로,
+// 두 날 다 마감 완료(_volSeries.complete)일 땐 그 실측치로 배지를 다시 계산해 덮어쓴다.
+// loadVolumeCompare/loadDailyTable은 각자 독립 fetch라 어느 쪽이 먼저 끝날지 모르므로
+// 양쪽 끝에서 이 함수를 다 호출해 순서 무관하게 정정되도록 한다.
+function refineVolBadge() {
+  if (!_volSeries?.complete || !_dailyRows || _dailyRows.length < 2) return;
+  const a = _dailyRows[0], b = _dailyRows[1];
+  if (a?.volume == null || b?.volume == null) return;
+  const p = (a.volume / b.volume - 1) * 100;
+  _volSeries.ratioPct = p; _volSeries.volToday = a.volume; _volSeries.volPrevSame = b.volume;
+  const el = document.getElementById('volCmpBadge');
+  if (!el || el.style.display === 'none') return;
+  const col = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text2)';
+  el.textContent = `거래량 전일 동시간 ${p > 0 ? '+' : ''}${p.toFixed(1)}%`;
+  el.style.color = col;
+  el.style.borderColor = 'currentColor';
+  el.title = `장 마감 · 실측 일별 거래량 기준(${(a.date || '').slice(5)} vs ${(b.date || '').slice(5)}) · 눌러서 차트 보기`;
+}
 async function loadVolumeCompare(ticker) {
   // ⚠️ 자리 선정 이력(둘 다 실측으로 걸러냄):
   //  1) '📊 오늘의 시세'(buildQuoteCard) 카드 → 그 카드는 #quoteCardWrap을 찾는 setInterval
@@ -1836,6 +1857,7 @@ async function loadVolumeCompare(ticker) {
     el.title = `${basis ? basis + ' 기준 · ' : ''}전일 같은 시점까지 누적 거래량 대비 (정규장 5분봉 기준) · 눌러서 차트 보기`;
     el.onclick = () => openVolumeChart(ticker);
     el.style.display = '';
+    refineVolBadge();
   } catch {}
 }
 
@@ -2064,6 +2086,8 @@ async function loadDailyTable(ticker) {
     setStat('statLow', today.low != null ? cur + fmtP(today.low) : null);
     setStat('statHigh', today.high != null ? cur + fmtP(today.high) : null);
     wrap.innerHTML = renderDailyTable(d);
+    _dailyRows = d.rows;
+    refineVolBadge();
   } catch { wrap.innerHTML = '<div class="cmp-empty">일별 시세를 불러올 수 없어요.</div>'; }
 }
 function renderDailyTable(d) {
