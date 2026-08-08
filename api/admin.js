@@ -1692,7 +1692,7 @@ async function handleDailyReportDirectWrite(req, res) {
     recap: arr(b.recap),
     top_events: arr(b.top_events),
     sector_notes: arr(b.sector_notes),
-    catalysts: arr(b.catalysts),
+    catalysts: arr(b.upcoming_catalysts || b.catalysts),
     tomorrow: arr(b.tomorrow),
     based_on_issues: Number(b.based_on_issues) || 0,
     created_at: b.created_at || new Date().toISOString(),
