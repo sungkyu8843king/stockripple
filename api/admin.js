@@ -125,6 +125,8 @@ export default async function handler(req, res) {
   if (action === 'company-summary-backfill') return handleCompanySummaryBackfill(req, res);
   if (action === 'article-digest-backfill') return handleArticleDigestBackfill(req, res);
   if (action === 'article-digest-direct-write') return handleArticleDigestDirectWrite(req, res);
+  if (action === 'ai-market-summary-direct-write') return handleAiMarketSummaryDirectWrite(req, res);
+  if (action === 'daily-report-direct-write') return handleDailyReportDirectWrite(req, res);
   if (action === 'agent-jobs-status') return handleAgentJobsStatus(req, res);
   if (action === 'rank-reason-backfill') return handleRankReasonBackfill(req, res);
   if (action === 'list-investments')    return handleListInvestments(req, res);
@@ -1647,6 +1649,61 @@ async function handleArticleDigestDirectWrite(req, res) {
     }
   }
   return res.status(200).json({ ok: true, ...results });
+}
+
+// ai_market_summary/daily_report용 direct-write(2026-08-08) — article-digest-direct-write와
+// 같은 이유(스케줄 에이전트 PC가 꺼져있는 주말 동안 agent_jobs 큐가 안 돌 때의 우회로).
+// 이 둘은 건당 1개 행만 쓰는 단발 작업이라 finalizeAiMarketSummary/finalizeDailyReport와
+// 동일한 검증·컬럼 규칙만 그대로 복제하면 된다(agent_jobs를 거치지 않을 뿐).
+async function handleAiMarketSummaryDirectWrite(req, res) {
+  const b = req.body || {};
+  if (!b.headline) return res.status(400).json({ error: 'headline required' });
+  const arr = (v, n = 6) => Array.isArray(v) ? v.slice(0, n).map(x => (x || '').toString().slice(0, 200)) : [];
+  const dbRow = {
+    headline: (b.headline || '').toString().slice(0, 200),
+    regime: ['RISK-ON', 'RISK-OFF', 'MIXED'].includes(b.regime) ? b.regime : 'MIXED',
+    bullish_drivers: arr(b.bullish_drivers),
+    bearish_drivers: arr(b.bearish_drivers),
+    sectors_winning: arr(b.sectors_winning),
+    sectors_losing: arr(b.sectors_losing),
+    key_events_today: arr(b.key_events_today),
+    watch_tomorrow: arr(b.watch_tomorrow),
+    based_on_issues: Number(b.based_on_issues) || 0,
+    created_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from('ai_market_summary').insert(dbRow);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, ...dbRow });
+}
+
+async function handleDailyReportDirectWrite(req, res) {
+  const b = req.body || {};
+  const market = (b.market || '').toString().toUpperCase();
+  if (market !== 'KR' && market !== 'US') return res.status(400).json({ error: 'market must be KR or US' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.report_date || '')) return res.status(400).json({ error: 'report_date required (YYYY-MM-DD)' });
+  if (!b.headline) return res.status(400).json({ error: 'headline required' });
+  const arr = (v, n = 6) => Array.isArray(v) ? v.slice(0, n).map(x => (x || '').toString().slice(0, 200)) : [];
+  const dbRow = {
+    market,
+    report_date: b.report_date,
+    headline: (b.headline || '').toString().slice(0, 300),
+    mood: ['상승', '하락', '혼조'].includes(b.mood) ? b.mood : '혼조',
+    indices: Array.isArray(b.indices) ? b.indices : [],
+    recap: arr(b.recap),
+    top_events: arr(b.top_events),
+    sector_notes: arr(b.sector_notes),
+    catalysts: arr(b.catalysts),
+    tomorrow: arr(b.tomorrow),
+    based_on_issues: Number(b.based_on_issues) || 0,
+    created_at: b.created_at || new Date().toISOString(),
+  };
+  let { error } = await supabase.from('daily_reports').upsert(dbRow, { onConflict: 'market,report_date' });
+  if (error && /catalysts/i.test(error.message || '')) {
+    const { catalysts, ...rowNoCat } = dbRow;
+    ({ error } = await supabase.from('daily_reports').upsert(rowNoCat, { onConflict: 'market,report_date' }));
+  }
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, ...dbRow });
 }
 
 // agent_jobs 진단(읽기 전용, 2026-08-08) — 22,846건 백로그가 "처리 속도 부족"이 아니라
