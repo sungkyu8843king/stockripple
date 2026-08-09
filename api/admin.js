@@ -132,6 +132,7 @@ export default async function handler(req, res) {
   if (action === 'article-digest-direct-write') return handleArticleDigestDirectWrite(req, res);
   if (action === 'morning-brief') return handleMorningBrief(req, res);
   if (action === 'predict-score') return handlePredictScore(req, res);
+  if (action === 'telegram-diag') return handleTelegramDiag(req, res);
   if (action === 'ai-market-summary-direct-write') return handleAiMarketSummaryDirectWrite(req, res);
   if (action === 'daily-report-direct-write') return handleDailyReportDirectWrite(req, res);
   if (action === 'agent-jobs-status') return handleAgentJobsStatus(req, res);
@@ -4603,6 +4604,57 @@ async function notifyReportSubscribers(req, title, snippet, reportParam) {
   } catch (e) {
     console.error('notifyReportSubscribers failed:', e.message);
   }
+}
+
+// 텔레그램 배선 진단(2026-08-09) — "구독자가 왜 없나"를 밖에서는 확인할 수 없어서 추가.
+// telegram_subscribers/user_settings 둘 다 anon 정책이 없어(의도된 설계) 브라우저나 외부에서
+// 조회하면 RLS가 행을 숨겨 항상 빈 결과가 나온다 — 그걸 "0명"으로 오독하기 쉽다.
+// 여기서는 service_role로 실제 건수를 세고, 봇 웹훅이 실제로 등록돼 있는지까지 확인한다.
+// ⚠️ TELEGRAM_BOT_TOKEN은 절대 응답에 담지 않는다(존재 여부만 boolean으로).
+async function handleTelegramDiag(req, res) {
+  const out = { ok: true };
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  out.botTokenConfigured = !!token;
+  out.webhookSecretConfigured = !!process.env.TELEGRAM_WEBHOOK_SECRET;
+
+  const [subs, linked] = await Promise.all([
+    supabase.from('telegram_subscribers').select('chat_id, active'),
+    supabase.from('user_settings').select('telegram_chat_id, notify_new_analysis').not('telegram_chat_id', 'is', null),
+  ]);
+  out.botSubscribers = subs.error
+    ? { error: subs.error.message }
+    : { total: subs.data.length, active: subs.data.filter(s => s.active).length };
+  out.linkedAccounts = linked.error
+    ? { error: linked.error.message }
+    : {
+        total: linked.data.length,
+        // 발송 대상이 되려면 notify_new_analysis가 켜져 있어야 한다(notifyReportSubscribers와
+        // handleMorningBrief가 같은 조건을 쓴다) — 등록만 하고 꺼둔 경우를 구분해서 보여준다.
+        notifyOn: linked.data.filter(s => s.notify_new_analysis === true).length,
+      };
+  const a = out.botSubscribers.active || 0, b = out.linkedAccounts.notifyOn || 0;
+  out.totalRecipients = a + b;   // 실제 중복 제거는 발송 시점에 chat_id Set으로 처리
+
+  // 웹훅이 텔레그램 쪽에 실제로 등록돼 있는지 — 등록이 안 돼 있으면 사용자가 /start를 보내도
+  // 우리 서버가 호출되지 않아 아무 기록도 남지 않는다(구독자 0의 가장 흔한 원인).
+  if (token) {
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`, { signal: AbortSignal.timeout(8000) });
+      const j = await r.json();
+      const w = j?.result || {};
+      out.webhook = {
+        registered: !!w.url,
+        // URL은 우리 도메인이라 그대로 보여줘도 되지만, 혹시 모를 쿼리스트링은 잘라낸다.
+        url: w.url ? String(w.url).split('?')[0] : null,
+        hasSecretToken: !!w.has_custom_certificate || w.secret_token_set !== false,
+        pendingUpdates: w.pending_update_count ?? null,
+        lastError: w.last_error_message || null,
+        lastErrorAt: w.last_error_date ? new Date(w.last_error_date * 1000).toISOString() : null,
+      };
+    } catch (e) { out.webhook = { error: e.message }; }
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(200).json(out);
 }
 
 // ════════════════════════════════════════════════════════════
