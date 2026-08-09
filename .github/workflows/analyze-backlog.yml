@@ -168,3 +168,13 @@ jobs:
           curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=morning-brief" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             | jq -c '{ok,sent,reason,recipients,kstDate,stateTableReady}' 2>/dev/null || echo "  (non-JSON)"
+
+      # 🎯 예측 게임 채점 — 코스피 종가가 나온 거래일의 미채점 예측을 정산한다.
+      # 아직 종가가 없는 날짜는 그냥 건너뛰고 다음 실행에서 다시 시도하므로(멱등),
+      # 마감 시각을 여기서 따로 계산하지 않고 매시간 불러도 된다.
+      - name: 예측 게임 채점
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=predict-score" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            | jq -c '{ok,scored,pending,reason}' 2>/dev/null || echo "  (non-JSON)"

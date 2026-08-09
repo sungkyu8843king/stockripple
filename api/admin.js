@@ -113,6 +113,11 @@ export default async function handler(req, res) {
   if (action === 'sitemap')         return handleSitemap(req, res);
   // company-news: 종목 상세의 "이 종목이 나온 뉴스" 타임라인 — issues의 공개 필드만 쓴다(공개)
   if (action === 'company-news')    return handleCompanyNews(req, res);
+  // 🎯 예측 게임 — ADMIN_SECRET이 아니라 "사용자 JWT"로 본인을 확인하는 경로라 이 위에 둔다
+  // (verifyAdmin 아래에 두면 일반 로그인 사용자가 401로 막힌다). 제출은 본인만, 리더보드는
+  // 서버가 집계한 순위·닉네임만 내려주므로 공개해도 남의 예측이 새지 않는다.
+  if (action === 'predict' && req.method === 'POST') return handlePredictSubmit(req, res);
+  if (action === 'predict-status')  return handlePredictStatus(req, res);
 
   // 나머지는 admin 인증 필요
   const _a = await verifyAdmin(req.headers.authorization);
@@ -126,6 +131,7 @@ export default async function handler(req, res) {
   if (action === 'article-digest-backfill') return handleArticleDigestBackfill(req, res);
   if (action === 'article-digest-direct-write') return handleArticleDigestDirectWrite(req, res);
   if (action === 'morning-brief') return handleMorningBrief(req, res);
+  if (action === 'predict-score') return handlePredictScore(req, res);
   if (action === 'ai-market-summary-direct-write') return handleAiMarketSummaryDirectWrite(req, res);
   if (action === 'daily-report-direct-write') return handleDailyReportDirectWrite(req, res);
   if (action === 'agent-jobs-status') return handleAgentJobsStatus(req, res);
@@ -4597,6 +4603,194 @@ async function notifyReportSubscribers(req, title, snippet, reportParam) {
   } catch (e) {
     console.error('notifyReportSubscribers failed:', e.message);
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// 🎯 "AI 이겨보기" — 개장 전 코스피 방향 맞히기 (2026-08-09)
+//
+// 리텐션은 "돌아올 이유"보다 "돌아올 시각"에서 나온다. 아침에 찍고 다음날 결과를 보러
+// 오는 구조라 하루 두 번 방문할 이유가 생긴다. 아침 브리핑 텔레그램과 한 루프를 이룬다.
+//
+// ⚠️ 규제: 대상은 개별 종목이 아니라 코스피 지수 방향이다(db/predictions.sql 주석 참고).
+// 우리가 종목을 권하는 게 아니라 사용자가 자기 예측을 기록하는 게임이라는 성격을 유지할 것.
+// AI 추정 방향도 "예상"임을 화면에 명시한다.
+// ════════════════════════════════════════════════════════════
+
+// KST 기준 오늘 날짜(거래일 라벨로 쓴다).
+function predKstDate(d = new Date()) {
+  return new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 10);
+}
+
+// 제출 시점의 AI 추정 방향 — 추정 대상 8종목의 평균 등락률을 코스피 방향의 대리값으로 쓴다.
+// (코스피 지수 자체의 추정 모델은 없다. 야간선물이 있으면 그게 더 직접적인 신호라 우선한다.)
+async function predAiView(req) {
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req?.headers?.host || 'stockripple-sungkyu.vercel.app'}`;
+  try {
+    const r = await fetch(`${base}/api/market-data?source=kr-estimate`, { signal: AbortSignal.timeout(12000) });
+    if (!r.ok) return { pick: null, pct: null, basis: null };
+    const j = await r.json();
+    if (!j?.ok) return { pick: null, pct: null, basis: null };
+    const knf = j.kisNightFuture?.changePercent;
+    if (knf != null && isFinite(knf)) {
+      return { pick: knf >= 0 ? 'up' : 'down', pct: knf, basis: '코스피200 야간선물' };
+    }
+    const vals = (j.items || []).map(x => x.estChangePct).filter(v => v != null && isFinite(v));
+    if (!vals.length) return { pick: null, pct: null, basis: null };
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return { pick: avg >= 0 ? 'up' : 'down', pct: avg, basis: `해외 신호 기반 ${vals.length}종목 평균 추정` };
+  } catch { return { pick: null, pct: null, basis: null }; }
+}
+
+// 예측 제출 (로그인 필요 — 사용자 JWT로 본인 확인).
+async function handlePredictSubmit(req, res) {
+  const pick = (req.body?.pick || '').toString();
+  if (pick !== 'up' && pick !== 'down') return res.status(400).json({ error: "pick은 'up' 또는 'down'" });
+
+  const jwt = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!jwt) return res.status(401).json({ error: '로그인이 필요합니다' });
+  const { data: userRes, error: uErr } = await supabase.auth.getUser(jwt);
+  const userId = userRes?.user?.id;
+  if (uErr || !userId) return res.status(401).json({ error: '로그인이 필요합니다' });
+
+  const sessionDate = predKstDate();
+  const k = new Date(Date.now() + 9 * 3600000);
+  const dow = k.getUTCDay();
+  if (dow === 0 || dow === 6) return res.status(400).json({ error: '주말에는 예측을 받지 않아요' });
+  // 장이 이미 끝난 뒤에 찍는 건 게임이 아니다. 마감(15:30) 전까지만 받는다.
+  if (k.getUTCHours() * 60 + k.getUTCMinutes() >= 930) {
+    return res.status(400).json({ error: '오늘 장은 이미 마감됐어요. 내일 아침에 다시 만나요' });
+  }
+
+  const ai = await predAiView(req);
+  const { error } = await supabase.from('predictions').insert({
+    user_id: userId, session_date: sessionDate, pick,
+    ai_pick: ai.pick, ai_est_pct: ai.pct,
+  });
+  if (error) {
+    if (/duplicate|unique/i.test(error.message)) {
+      return res.status(409).json({ error: '오늘은 이미 예측했어요' });
+    }
+    if (/relation .* does not exist/i.test(error.message)) {
+      return res.status(503).json({ error: '예측 기능 준비 중이에요 (db/predictions.sql 실행 필요)' });
+    }
+    return res.status(500).json({ error: error.message });
+  }
+  return res.status(200).json({ ok: true, sessionDate, pick, ai });
+}
+
+// 내 예측 현황 + 전체 리더보드(공개 집계). 로그인 안 했어도 리더보드는 볼 수 있다.
+async function handlePredictStatus(req, res) {
+  const sessionDate = predKstDate();
+  const out = { ok: true, sessionDate, me: null, ai: null, leaderboard: [], aiRecord: null };
+
+  const jwt = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  let userId = null;
+  if (jwt) {
+    const { data: u } = await supabase.auth.getUser(jwt);
+    userId = u?.user?.id || null;
+  }
+
+  const { data: all, error } = await supabase.from('predictions')
+    .select('user_id, session_date, pick, ai_pick, actual_pct, correct, ai_correct')
+    .order('session_date', { ascending: false })
+    .limit(4000);
+  if (error) {
+    // 마이그레이션 전이면 화면이 "준비 중"으로 뜨게만 하고 죽지 않는다.
+    return res.status(200).json({ ...out, available: false, reason: error.message });
+  }
+  out.available = true;
+
+  if (userId) {
+    const mine = (all || []).filter(r => r.user_id === userId);
+    out.me = {
+      today: mine.find(r => r.session_date === sessionDate) || null,
+      total: mine.filter(r => r.correct != null).length,
+      wins: mine.filter(r => r.correct === true).length,
+      // 연승: 채점된 것만 최신순으로 훑는다.
+      streak: (() => {
+        let s = 0;
+        for (const r of mine.filter(x => x.correct != null)) { if (r.correct) s++; else break; }
+        return s;
+      })(),
+      beatAi: mine.filter(r => r.correct === true && r.ai_correct === false).length,
+    };
+  }
+
+  // AI 전적(전체 사용자 공통이므로 날짜별로 한 번씩만 센다)
+  const byDate = new Map();
+  for (const r of all || []) if (r.ai_correct != null && !byDate.has(r.session_date)) byDate.set(r.session_date, r.ai_correct);
+  const aiTotal = byDate.size, aiWins = [...byDate.values()].filter(Boolean).length;
+  out.aiRecord = { total: aiTotal, wins: aiWins, rate: aiTotal ? Math.round((aiWins / aiTotal) * 100) : null };
+
+  // 리더보드 — 3회 이상 참여자만(1승 0패가 1등이 되는 걸 막는다).
+  const agg = new Map();
+  for (const r of all || []) {
+    if (r.correct == null) continue;
+    const a = agg.get(r.user_id) || { n: 0, w: 0 };
+    a.n++; if (r.correct) a.w++;
+    agg.set(r.user_id, a);
+  }
+  const ranked = [...agg.entries()].filter(([, a]) => a.n >= 3)
+    .map(([uid, a]) => ({ uid, n: a.n, w: a.w, rate: a.w / a.n }))
+    .sort((x, y) => y.rate - x.rate || y.n - x.n).slice(0, 10);
+
+  if (ranked.length) {
+    const { data: profs } = await supabase.from('user_profiles')
+      .select('user_id, nickname').in('user_id', ranked.map(r => r.uid));
+    const nickOf = new Map((profs || []).map(p => [p.user_id, p.nickname]));
+    out.leaderboard = ranked.map((r, i) => ({
+      rank: i + 1,
+      nickname: nickOf.get(r.uid) || '익명',
+      total: r.n, wins: r.w, rate: Math.round(r.rate * 100),
+      me: !!userId && r.uid === userId,
+    }));
+  }
+  res.setHeader('Cache-Control', 'no-store');   // 개인화 응답이라 캐시 금지
+  return res.status(200).json(out);
+}
+
+// 채점 (ADMIN/CRON) — 장 마감 후 실제 코스피 등락률로 미채점 건을 정산한다. 멱등.
+async function handlePredictScore(req, res) {
+  const { data: pending, error } = await supabase.from('predictions')
+    .select('id, session_date, pick, ai_pick')
+    .is('correct', null).order('session_date', { ascending: true }).limit(500);
+  if (error) return res.status(200).json({ ok: true, scored: 0, reason: error.message });
+  if (!pending?.length) return res.status(200).json({ ok: true, scored: 0, reason: '채점할 예측 없음' });
+
+  // 거래일별 코스피 종가 등락률을 한 번만 받아 캐시
+  const dates = [...new Set(pending.map(p => p.session_date))];
+  const pctByDate = new Map();
+  try {
+    const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5EKS11?interval=1d&range=1mo',
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) });
+    const j = (await r.json())?.chart?.result?.[0];
+    const ts = j?.timestamp || [], cl = (j?.indicators?.quote?.[0]?.close) || [];
+    for (let i = 1; i < ts.length; i++) {
+      if (cl[i] == null || cl[i - 1] == null) continue;
+      // 거래소 현지(KST) 날짜로 라벨링
+      const day = new Date((ts[i] + 9 * 3600) * 1000).toISOString().slice(0, 10);
+      pctByDate.set(day, ((cl[i] - cl[i - 1]) / cl[i - 1]) * 100);
+    }
+  } catch (e) {
+    return res.status(200).json({ ok: true, scored: 0, reason: 'KOSPI 시세 조회 실패: ' + e.message });
+  }
+
+  let scored = 0;
+  for (const p of pending) {
+    const pct = pctByDate.get(p.session_date);
+    if (pct == null) continue;                       // 아직 마감 안 됨/휴장 → 다음 실행에서 재시도
+    const actualDir = pct >= 0 ? 'up' : 'down';
+    const { error: uErr } = await supabase.from('predictions').update({
+      actual_pct: pct,
+      correct: p.pick === actualDir,
+      ai_correct: p.ai_pick ? p.ai_pick === actualDir : null,
+      scored_at: new Date().toISOString(),
+    }).eq('id', p.id).is('correct', null);           // 낙관적 동시성(이 레포 공통 패턴)
+    if (!uErr) scored++;
+  }
+  return res.status(200).json({ ok: true, scored, pending: pending.length, dates });
 }
 
 // ════════════════════════════════════════════════════════════
