@@ -391,6 +391,51 @@ button { font-family: inherit; }
 .section-head-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .section-block { margin-bottom: 28px; }
 
+/* 🌙 지금 브리핑 — 홈 최상단 스트립.
+   ⚠️ 그리드/플렉스 아이템 기본값이 min-width:auto라, 줄바꿈 지점 없는 숫자(₩1,406,000 등)가
+   트랙을 콘텐츠 너비만큼 강제로 넓혀 모바일에서 가로스크롤이 생긴 전례가 여러 번 있다.
+   그래서 아래 min-width:0 들은 장식이 아니라 필수다(CLAUDE.md의 반복 버그 항목). */
+.nowbrief {
+  display: block; text-decoration: none; color: inherit;
+  background: linear-gradient(180deg, var(--bg2), var(--bg2) 55%, rgba(77,141,255,0.05));
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 13px 15px; margin-bottom: 18px; min-width: 0;
+  transition: border-color .16s ease;
+}
+.nowbrief:hover { border-color: var(--border-strong); }
+.nowbrief:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.nb-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; min-width: 0; }
+.nb-mode {
+  font-size: 12.5px; font-weight: 800; letter-spacing: 0.02em;
+  padding: 3px 9px; border-radius: var(--r-pill);
+  background: var(--blue-dim); color: var(--blue); flex-shrink: 0;
+}
+.nb-head-line {
+  font-size: 15.5px; font-weight: 700; letter-spacing: -0.01em;
+  min-width: 0; overflow-wrap: break-word; flex: 1;
+}
+.nb-more { font-size: 13px; color: var(--text3); font-weight: 650; flex-shrink: 0; }
+.nb-chips {
+  display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; min-width: 0;
+}
+.nb-chip {
+  display: inline-flex; align-items: baseline; gap: 5px; min-width: 0;
+  background: var(--bg3); border: 1px solid var(--border-soft);
+  border-radius: var(--r-pill); padding: 4px 10px;
+  font-size: 13px; font-weight: 650;
+}
+.nb-chip .k { color: var(--text2); font-weight: 600; }
+.nb-chip .v { font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
+.nb-chip.up   .v { color: var(--red); }   /* 한국 관례: 상승=빨강 */
+.nb-chip.down .v { color: var(--blue); }  /* 하락=파랑 */
+.nb-chip.flat .v { color: var(--text2); }
+.nb-note { margin-top: 9px; font-size: 12.5px; color: var(--text3); line-height: 1.5; }
+@media (max-width: 768px) {
+  .nowbrief { padding: 12px 13px; }
+  .nb-head-line { font-size: 14.5px; flex-basis: 100%; }
+  .nb-more { display: none; }   /* 카드 전체가 링크라 모바일에선 문구를 뺀다 */
+}
+
 /* 👋 첫 방문자 소개 스트립 */
 .intro-strip {
   display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;
@@ -1380,6 +1425,23 @@ button { font-family: inherit; }
       <button type="button" class="intro-strip-close" onclick="dismissIntro()" aria-label="소개 닫기">알겠어요 ✕</button>
     </div>
 
+    <!-- 🌙 지금 브리핑 (2026-08-09) — 홈 최상단. "밤사이 미국에서 무슨 일이 있었고 그게
+         오늘 국장에 뭘 의미하는지"에만 답하는 한 줄짜리 스트립.
+         이 자리에 둔 이유: 뉴스 피드로 시작하면 네이버 뉴스와 구분이 안 되는데, 밤사이
+         해외신호→국장 연결은 네이버·토스에 아예 없는 이 사이트만의 데이터라서 첫 화면에서
+         바로 보여야 한다. 데이터는 기존 /api/market-data?source=kr-estimate 하나만 쓴다
+         (서버가 이미 해외신호·추정가·야간선물·장세모드를 다 계산해 준다 — 새 API 없음).
+         ⚠️ 이 스크립트는 index.html 전용이다. app.js는 5개 페이지 공유라 여기 넣지 말 것. -->
+    <a class="nowbrief" id="nowBrief" href="/kr-market.html" hidden>
+      <div class="nb-head">
+        <span class="nb-mode" id="nbMode">—</span>
+        <span class="nb-head-line" id="nbHeadline"></span>
+        <span class="nb-more">시장 현황 →</span>
+      </div>
+      <div class="nb-chips" id="nbChips"></div>
+      <div class="nb-note" id="nbNote" hidden></div>
+    </a>
+
     <!-- 📰 오늘 핵심 뉴스 (2026-08 개편: 최상단으로 — 카드 하나하나가 이미 뉴스→파급 섹터
          →관련 기업 흐름을 담고 있어서, 이 섹션 하나로 이 사이트가 뭘 하는 곳인지 바로 보여준다) -->
     <div id="issuesSection" class="section-block">
@@ -1735,6 +1797,113 @@ button { font-family: inherit; }
 <script src="/coupang-feed-ad.js" defer></script>
 -->
 <script>
+/* ══ 🌙 지금 브리핑 (index.html 전용) ═══════════════════════════════
+   "밤사이 미국에서 무슨 일이 있었고 그게 오늘 국장에 뭘 의미하는가" 한 줄.
+   데이터는 /api/market-data?source=kr-estimate 하나뿐이다 — 서버가 이미 해외신호
+   (^SOX/EWY/원달러/ADR)·추정가·야간선물·장세모드를 다 계산해서 준다. 여기선 렌더만 한다.
+   (kr-market.html에 같은 소스를 쓰는 상세 화면이 있고, 이 스트립은 그 요약 + 진입점이다.) */
+(function () {
+  // 로컬 시계가 어긋난 전례가 있어 UTC에서 직접 +9h 환산한다(kr-market.html과 같은 방식).
+  function kstNow() { return new Date(Date.now() + 9 * 3600000); }
+
+  // KST 기준 장세 모드. 경계는 kr-market.html의 NOW 바와 같은 기준을 쓴다.
+  function briefMode() {
+    const k = kstNow();
+    const dow = k.getUTCDay();                       // 0=일, 6=토
+    const min = k.getUTCHours() * 60 + k.getUTCMinutes();
+    if (dow === 0 || dow === 6) return { id: 'weekend', label: '휴장' };
+    if (min >= 420  && min < 540)  return { id: 'pre',    label: '개장 전', open: 540 };
+    if (min >= 540  && min < 930)  return { id: 'intra',  label: '장중' };
+    if (min >= 930  && min < 1200) return { id: 'nxt',    label: '넥스트장' };
+    if (min >= 1200 && min < 1350) return { id: 'closed', label: '장 마감' };
+    return { id: 'us', label: '미국장' };             // 22:30~07:00
+  }
+
+  const nbPct = v => (v > 0 ? '+' : '') + v.toFixed(2) + '%';
+  const nbDir = v => (v > 0.05 ? 'up' : v < -0.05 ? 'down' : 'flat');
+  const nbEsc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function nbChip(k, v, extra) {
+    if (v == null || !isFinite(v)) return '';
+    return `<span class="nb-chip ${nbDir(v)}"><span class="k">${nbEsc(k)}</span><span class="v">${nbPct(v)}</span>${
+      extra ? `<span class="k">${nbEsc(extra)}</span>` : ''}</span>`;
+  }
+
+  async function loadNowBrief() {
+    const el = document.getElementById('nowBrief');
+    if (!el) return;
+    let d;
+    try {
+      const r = await fetch('/api/market-data?source=kr-estimate');
+      d = await r.json();
+      if (!d?.ok) return;                            // 실패하면 스트립을 숨긴 채 둔다
+    } catch { return; }
+
+    const ov  = d.sources?.overseas || {};
+    const sox = ov['^SOX']?.changePercent;
+    const ewy = ov['EWY']?.changePercent;
+    const fx  = ov['KRW=X']?.changePercent;
+    const knf = d.kisNightFuture?.changePercent;
+    const mode = briefMode();
+
+    // 헤드라인 — 밤사이 신호 중 가장 크게 움직인 것을 문장으로 세운다.
+    const cands = [
+      { n: '필라델피아 반도체', v: sox },
+      { n: 'MSCI 한국 ETF',    v: ewy },
+      { n: '코스피200 야간선물', v: knf },
+    ].filter(x => x.v != null && isFinite(x.v));
+    cands.sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
+    const top = cands[0];
+
+    let headline;
+    if (!top) {
+      headline = '밤사이 해외 신호를 불러오지 못했어요';
+    } else {
+      const move = top.v > 0 ? '올랐어요' : top.v < 0 ? '내렸어요' : '보합이에요';
+      const when = mode.id === 'us' ? '지금' : '밤사이';
+      headline = `${when} ${top.n} ${nbPct(top.v)} ${move}`;
+      if (mode.id === 'pre') {
+        const k = kstNow();
+        const left = 540 - (k.getUTCHours() * 60 + k.getUTCMinutes());
+        if (left > 0) headline = `개장까지 ${left >= 60 ? Math.floor(left / 60) + '시간 ' : ''}${left % 60}분 · ` + headline;
+      }
+    }
+
+    const chips = [
+      nbChip('필라델피아 반도체', sox),
+      nbChip('MSCI 한국', ewy),
+      nbChip('원/달러', fx),
+      nbChip('야간선물', knf),
+    ].filter(Boolean).join('');
+
+    // 추정가는 장이 열려 있지 않을 때만 의미가 있다(서버가 live 플래그로 알려준다).
+    // ⚠️ "예상 수치" 고지는 사용자 요구사항이자 유사투자자문업 리스크와 직결 — 빼지 말 것.
+    let note = '';
+    if (!d.live && Array.isArray(d.items) && d.items.length) {
+      const movers = d.items
+        .filter(x => x.estChangePct != null && isFinite(x.estChangePct))
+        .sort((a, b) => Math.abs(b.estChangePct) - Math.abs(a.estChangePct))
+        .slice(0, 3)
+        .map(x => `${nbEsc(x.name)} ${nbPct(x.estChangePct)}`);
+      if (movers.length) {
+        note = `해외 신호로 역산한 <b>예상</b> 등락 — ${movers.join(' · ')} `
+             + `<span style="opacity:.75">(실제 시세가 아니라 추정치입니다)</span>`;
+      }
+    }
+
+    document.getElementById('nbMode').textContent = mode.label;
+    document.getElementById('nbHeadline').textContent = headline;
+    document.getElementById('nbChips').innerHTML = chips;
+    const noteEl = document.getElementById('nbNote');
+    noteEl.innerHTML = note;
+    noteEl.hidden = !note;
+    el.hidden = false;
+  }
+
+  loadNowBrief();
+  setInterval(loadNowBrief, 3 * 60 * 1000);          // kr-market.html과 같은 3분 주기
+})();
+
 // 📅 일정 탭 전환 + 🧰 더 많은 도구 접기/펼치기 (2026-07 사이드바 개편, index.html 전용 —
 // app.js는 각 패널 안의 콘텐츠 div id만 그대로 참조하므로 건드리지 않음)
 function switchSchedTab(name) {

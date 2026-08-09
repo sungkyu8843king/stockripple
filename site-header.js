@@ -92,14 +92,21 @@ function showShareToast(msg) { showToast(msg, 'info'); }
 // ⚠️ nav-new(NEW 뱃지)는 항상 한 개만 유지할 것 — 한때 7개 중 5개에 붙어 있었는데,
 // 다섯 개가 동시에 NEW면 아무것도 새로워 보이지 않아 뱃지가 기능을 잃는다. 새 메뉴가
 // 생기면 기존 것에서 떼고 옮기는 방식으로 쓴다.
+//
+// 상위 노출은 4개까지만(2026-08-09). 7개를 다 펼쳤더니 761~1300px 구간에서 검색창을
+// 숨기고 폰트를 11.5px까지 줄여야 겨우 들어갔다 — 그건 메뉴가 너무 많다는 신호였다.
+// 나머지는 '더보기'로 접는다. 기능을 없애는 게 아니라 첫 화면의 선택지를 줄이는 것.
+// 새 페이지를 추가할 땐 기본적으로 more에 넣고, 정말 핵심일 때만 primary로 승격할 것.
 const SITE_NAV_ITEMS = [
   { href: '/news.html', label: '📰 뉴스' },
-  { href: '/heatmap.html', label: '🔥 히트맵' },
   { href: '/kr-market.html', label: '📊 시장 현황' },
+  { href: '/heatmap.html', label: '🔥 히트맵' },
+  { href: '/portfolio.html', label: '📝 모의투자', flag: 'nav-new' },
+];
+const SITE_NAV_MORE = [
   { href: '/etf.html', label: '🧺 ETF' },
   { href: '/earnings.html', label: '📢 실적발표' },
   { href: '/talks.html', label: '💬 말말말' },
-  { href: '/portfolio.html', label: '📝 모의투자', flag: 'nav-new' },
 ];
 
 function _siteChromeInjectStyle() {
@@ -150,7 +157,7 @@ function _siteChromeInjectStyle() {
 .hsug-tk{font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-size:12.5px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0}
 .hsug-tk.kr{background:var(--blue-dim);color:var(--blue)}
 .hsug-tk.us{background:var(--purple-dim);color:var(--purple)}
-/* 태블릿(761~1300px)에서는 숨긴다 — nav-btn 7개 + 로그인 버튼이 이 폭에서 검색창까지
+/* 태블릿(761~1300px)에서는 숨긴다 — nav 항목 + 로그인 버튼이 이 폭에서 검색창까지
    넣으면 겹친다(실측: 762px 이하 헤더 안에 nav만으로도 850px+ 필요). 760px 이하(모바일,
    header-nav도 줄바꿈되는 지점)에서는 아래 미디어쿼리가 다시 보이게 하면서 로고 옆
    자체 줄로 재배치한다. */
@@ -162,6 +169,17 @@ function _siteChromeInjectStyle() {
 .nav-btn.active{background:var(--blue);color:#fff;font-weight:600}
 .nav-new{position:relative}
 .nav-new::after{content:"";position:absolute;top:2px;right:1px;width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--bg),0 0 6px var(--red)}
+/* 더보기 드롭다운(2026-08-09) — 상위 노출 4개 외 나머지 메뉴를 접어둔다. */
+.nav-more{position:relative;display:flex}
+.nav-more-caret{font-size:10px;opacity:.7}
+.nav-more-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:1200;min-width:172px;
+  background:var(--bg2);border:1px solid var(--border-strong);border-radius:12px;padding:6px;
+  box-shadow:0 10px 30px rgba(0,0,0,.38);display:flex;flex-direction:column;gap:2px}
+.nav-more-menu[hidden]{display:none}
+.nav-more-item{padding:9px 12px;border-radius:9px;font-size:15px;font-weight:500;color:var(--text2);
+  text-decoration:none;white-space:nowrap;display:block}
+.nav-more-item:hover,.nav-more-item:focus-visible{background:var(--bg3);color:var(--text);outline:none}
+.nav-more-item.active{color:var(--blue);font-weight:650}
 .nav-btn-primary{background:var(--blue);color:#fff;padding:7px 16px;margin-left:6px;border-radius:16px;font-size:15.5px;font-weight:600;text-decoration:none;cursor:pointer;border:none;transition:all .12s;white-space:nowrap;flex-shrink:0}
 .nav-btn-primary:hover{background:#1e4ccc}
 .theme-toggle{width:30px;height:30px;flex-shrink:0;border-radius:50%;background:var(--bg3);border:1px solid var(--border);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;margin-left:6px;transition:all .12s}
@@ -181,7 +199,7 @@ function _siteChromeInjectStyle() {
      테마토글·로그인/계정은 헤더에서 빼 우측 하단 ⋯ 독으로 옮긴다(consolidateMobileFabs).
      .header-nav 하위로 스코프를 걸어 숨기므로, 독으로 reparent되는 순간 이 규칙이
      더 이상 안 걸려 자동으로 다시 보인다 — 페이지별 #loginBtn 규칙(8개 파일에 중복)
-     보다 특이도가 높아 그쪽도 같이 이긴다. nav 링크 7개는 둘째 줄부터 자체 줄바꿈. */
+     보다 특이도가 높아 그쪽도 같이 이긴다. nav 링크는 둘째 줄부터 자체 줄바꿈. */
   .header-inner{flex-wrap:wrap;height:auto;padding:8px 0;row-gap:6px;position:relative}
   .header-search{display:flex;max-width:none;flex:1 1 0;min-width:0;order:1}
   .logo{flex-shrink:0}
@@ -201,18 +219,21 @@ function _siteChromeInjectStyle() {
   .nav-btn{padding:6px 9px;font-size:14.5px}
   .header{padding:0 16px}
 }
-/* 761~1300px 구간은 검색창을 숨겨도 nav-btn 7개 + 로그인 버튼이 꽉 차서, 이 폭에서만
+/* 761~1300px 구간은 검색창을 숨겨도 nav 항목 + 로그인 버튼이 꽉 차서, 이 폭에서만
    패딩/폰트를 줄여 한 줄에 들어가게 한다(loginBtn이 white-space:normal이라 flex 압박을
    혼자 뒤집어쓰고 텍스트가 2줄로 줄바꿈되며 46x80px처럼 찌그러지던 버그의 근본 수정 —
    loginBtn 자체는 위 .nav-btn-primary에 추가한 white-space:nowrap+flex-shrink:0로 항상
    원래 크기를 유지하게 하고, 남는 공간은 nav-btn 쪽 패딩/폰트를 줄여서 만든다. 다른 헤더
    규칙보다 뒤에 둬서 동일 우선순위 캐스케이드에서 항상 이기고, min-width:761px로 범위를
    묶어서 위 ≤760px 모바일 레이아웃(로그인 버튼이 동그라미 아이콘이 되는 구간)과 겹치지
-   않게 한다 — 안 그러면 이 블록의 padding이 그 동그라미 버튼의 padding:0을 덮어써버림). */
+   않게 한다 — 안 그러면 이 블록의 padding이 그 동그라미 버튼의 padding:0을 덮어써버림).
+   2026-08-09: 상위 메뉴를 7개→4개+더보기로 줄여 여유가 생겨서, 읽기 힘들던 11.5px/4px를
+   13.5px/8px로 완화했다. 규칙 자체는 남겨둔다 — 메뉴가 다시 늘거나 로그인 상태에서
+   사용자 메뉴가 길어지는 경우의 안전장치다. */
 @media (max-width:1300px) and (min-width:761px){
   .header{padding:0 12px}
   .header-inner{gap:8px}
-  .nav-btn{padding:7px 4px;font-size:11.5px;gap:2px}
+  .nav-btn{padding:7px 8px;font-size:13.5px;gap:4px}
   .nav-btn-primary{padding:7px 10px;margin-left:2px}
   .theme-toggle{margin-left:2px}
   .header-nav{gap:0px}
@@ -283,6 +304,20 @@ function _siteHeaderHtml(activePath) {
     const cls = ['nav-btn', it.flag, it.href === activePath ? 'active' : ''].filter(Boolean).join(' ');
     return `<a href="${it.href}" class="${cls}">${it.label}</a>`;
   }).join('\n      ');
+  // 더보기 안의 페이지에 있을 때는 '더보기' 버튼 자체를 active로 칠해, 지금 어디에 있는지
+  // 모르게 되는 걸 막는다(접힌 메뉴의 흔한 문제).
+  const moreActive = SITE_NAV_MORE.some(it => it.href === activePath);
+  const moreHtml = `
+          <div class="nav-more" id="navMore">
+            <button type="button" class="nav-btn nav-more-btn${moreActive ? ' active' : ''}" id="navMoreBtn"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="navMoreMenu"
+                    onclick="srToggleNavMore(event)">더보기 <span class="nav-more-caret" aria-hidden="true">▾</span></button>
+            <div class="nav-more-menu" id="navMoreMenu" role="menu" hidden>
+              ${SITE_NAV_MORE.map(it =>
+                `<a role="menuitem" href="${it.href}" class="nav-more-item${it.href === activePath ? ' active' : ''}">${it.label}</a>`
+              ).join('\n              ')}
+            </div>
+          </div>`;
   return `
     <header class="header">
       <div class="header-inner">
@@ -301,7 +336,7 @@ function _siteHeaderHtml(activePath) {
           <div id="hSugBox"></div>
         </div>
         <nav class="header-nav" id="headerNav">
-          ${navHtml}
+          ${navHtml}${moreHtml}
           <button class="theme-toggle" id="themeToggleBtn" onclick="srToggleTheme()" aria-label="다크/라이트 모드 전환" title="다크/라이트 모드 전환">🌙</button>
           <button class="nav-btn-primary" id="loginBtn" onclick="openAuthModal()" style="display:none">
             <svg class="login-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -429,6 +464,37 @@ function srSetTheme(theme) {
 }
 function srToggleTheme() {
   srSetTheme(srGetTheme() === 'light' ? 'dark' : 'light');
+}
+
+/* ── 헤더 '더보기' 드롭다운 (2026-08-09) ──────────────────────────
+   바깥 클릭·Esc로 닫히고, 열려 있는 동안 aria-expanded를 갱신한다. 리스너는 문서에
+   한 번만 붙인다(헤더가 페이지마다 다시 그려져도 중복 등록되지 않게 플래그로 가드). */
+function srCloseNavMore() {
+  const menu = document.getElementById('navMoreMenu');
+  const btn = document.getElementById('navMoreBtn');
+  if (menu) menu.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+function srToggleNavMore(e) {
+  if (e) e.stopPropagation();                       // 바깥클릭 핸들러가 곧바로 되닫는 것 방지
+  const menu = document.getElementById('navMoreMenu');
+  const btn = document.getElementById('navMoreBtn');
+  if (!menu || !btn) return;
+  const open = menu.hidden;
+  menu.hidden = !open;
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) menu.querySelector('.nav-more-item')?.focus();
+}
+if (!window._srNavMoreBound) {
+  window._srNavMoreBound = true;
+  document.addEventListener('click', e => {
+    if (!e.target.closest?.('#navMore')) srCloseNavMore();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const menu = document.getElementById('navMoreMenu');
+    if (menu && !menu.hidden) { srCloseNavMore(); document.getElementById('navMoreBtn')?.focus(); }
+  });
 }
 
 function renderSiteFooter() {
