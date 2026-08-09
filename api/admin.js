@@ -125,6 +125,7 @@ export default async function handler(req, res) {
   if (action === 'company-summary-backfill') return handleCompanySummaryBackfill(req, res);
   if (action === 'article-digest-backfill') return handleArticleDigestBackfill(req, res);
   if (action === 'article-digest-direct-write') return handleArticleDigestDirectWrite(req, res);
+  if (action === 'morning-brief') return handleMorningBrief(req, res);
   if (action === 'ai-market-summary-direct-write') return handleAiMarketSummaryDirectWrite(req, res);
   if (action === 'daily-report-direct-write') return handleDailyReportDirectWrite(req, res);
   if (action === 'agent-jobs-status') return handleAgentJobsStatus(req, res);
@@ -4596,6 +4597,121 @@ async function notifyReportSubscribers(req, title, snippet, reportParam) {
   } catch (e) {
     console.error('notifyReportSubscribers failed:', e.message);
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// 🌅 아침 브리핑 (2026-08-09) — KST 08시대에 하루 한 번, "밤사이 해외에서 무슨 일이
+// 있었고 오늘 국장 시작이 어떨 것 같은지"를 텔레그램으로 보낸다.
+//
+// 왜 만들었나: 리텐션은 "돌아올 이유"보다 "돌아올 시각"에서 나온다. 한국 개인투자자가
+// 반드시 시장을 확인하는 순간(개장 직전)에 먼저 도착하는 게 방문에 의존하지 않는
+// 유일한 재방문 경로다. 홈의 '지금 브리핑' 스트립과 같은 데이터를 쓴다.
+//
+// ⚠️ 새 Claude 호출이 전혀 없다 — 이미 계산된 시장 데이터와 저장된 리포트만 조합한다.
+// 그래서 매시간 불려도 비용이 늘지 않는다.
+async function handleMorningBrief(req, res) {
+  const force = req.body?.force === true || req.query?.force === '1';
+
+  // KST 기준 '오늘'과 시각. 로컬 시계를 믿지 않고 UTC에서 직접 환산(이 레포 공통 방식).
+  const k = new Date(Date.now() + 9 * 3600000);
+  const kstDate = k.toISOString().slice(0, 10);
+  const kstHour = k.getUTCHours();
+  const dow = k.getUTCDay();
+
+  if (!force) {
+    if (dow === 0 || dow === 6) return res.status(200).json({ ok: true, sent: false, reason: '주말(휴장)' });
+    // 개장(09:00) 전 한 시간대. 매시 :15에 도는 크론이라 이 창에는 보통 한 번만 들어온다.
+    if (kstHour !== 8) return res.status(200).json({ ok: true, sent: false, reason: `발송 창 아님 (KST ${kstHour}시)` });
+  }
+
+  // 하루 1회 가드. 테이블이 아직 없으면(마이그레이션 전) 시간창만으로 진행한다 — 기능이
+  // 아예 안 도는 것보다는 낫고, 이 레포의 다른 신선도 가드와 같은 fail-open 원칙이다.
+  let stateTableReady = true;
+  if (!force) {
+    const { data: st, error } = await supabase
+      .from('morning_brief_state').select('last_sent_kst').eq('id', 1).maybeSingle();
+    if (error) {
+      stateTableReady = false;
+      console.warn('[morning-brief] state table unavailable, falling back to time-window guard:', error.message);
+    } else if (st?.last_sent_kst === kstDate) {
+      return res.status(200).json({ ok: true, sent: false, reason: `이미 오늘(${kstDate}) 발송함` });
+    }
+  }
+
+  // ── 재료 수집 (전부 기존 소스, 실패해도 있는 것만으로 보낸다) ──
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req?.headers?.host || 'stockripple-sungkyu.vercel.app'}`;
+
+  let est = null;
+  try {
+    const r = await fetch(`${base}/api/market-data?source=kr-estimate`, { signal: AbortSignal.timeout(12000) });
+    if (r.ok) { const j = await r.json(); if (j?.ok) est = j; }
+  } catch { /* 해외 신호 없으면 그 줄만 빠진다 */ }
+
+  const { data: ai } = await supabase.from('ai_market_summary')
+    .select('headline, created_at').order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+  const lines = [];
+  const pct = v => (v > 0 ? '+' : '') + Number(v).toFixed(2) + '%';
+
+  if (est) {
+    const ov = est.sources?.overseas || {};
+    const sig = [
+      ['필라델피아 반도체', ov['^SOX']?.changePercent],
+      ['MSCI 한국 ETF', ov['EWY']?.changePercent],
+      ['원/달러', ov['KRW=X']?.changePercent],
+      ['코스피200 야간선물', est.kisNightFuture?.changePercent],
+    ].filter(([, v]) => v != null && isFinite(v));
+    if (sig.length) {
+      lines.push('🌙 <b>밤사이 해외 신호</b>');
+      for (const [n, v] of sig) lines.push(`· ${n} ${pct(v)}`);
+    }
+    // 추정치는 "예상"임을 반드시 명시한다 — 사용자 요구사항이자 유사투자자문업 리스크 직결.
+    const movers = (est.items || [])
+      .filter(x => x.estChangePct != null && isFinite(x.estChangePct))
+      .sort((a, b) => Math.abs(b.estChangePct) - Math.abs(a.estChangePct)).slice(0, 3);
+    if (movers.length) {
+      lines.push('', '📈 <b>해외 신호로 역산한 예상 등락</b>');
+      for (const m of movers) lines.push(`· ${m.name} ${pct(m.estChangePct)}`);
+      lines.push('<i>실제 시세가 아니라 추정치입니다.</i>');
+    }
+  }
+  if (ai?.headline) lines.push('', `🤖 <b>시장 종합</b>\n${ai.headline}`);
+
+  if (!lines.length) return res.status(200).json({ ok: true, sent: false, reason: '보낼 재료가 없음' });
+
+  // ── 발송 ── (notifyReportSubscribers와 같은 수신자 집합을 쓴다)
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return res.status(200).json({ ok: true, sent: false, reason: 'TELEGRAM_BOT_TOKEN 없음' });
+
+  const [{ data: linked }, { data: botSubs }] = await Promise.all([
+    supabase.from('user_settings').select('telegram_chat_id')
+      .eq('notify_new_analysis', true).not('telegram_chat_id', 'is', null),
+    supabase.from('telegram_subscribers').select('chat_id').eq('active', true),
+  ]);
+  const chatIds = [...new Set([
+    ...(linked || []).map(s => s.telegram_chat_id),
+    ...(botSubs || []).map(s => s.chat_id),
+  ])];
+  if (!chatIds.length) return res.status(200).json({ ok: true, sent: false, reason: '구독자 없음' });
+
+  const text = `<b>🌅 ${kstDate} 개장 전 브리핑</b>\n\n${lines.join('\n')}\n\n<a href="${base}/">자세히 보기 →</a>`;
+  const results = await Promise.all(chatIds.map(id =>
+    fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: id, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+      signal: AbortSignal.timeout(8000),
+    }).then(r => r.ok).catch(() => false)
+  ));
+  const okCount = results.filter(Boolean).length;
+
+  // 한 명이라도 성공했으면 오늘은 보낸 것으로 기록한다(전멸했을 때만 다음 시도에 재발송).
+  if (stateTableReady && okCount > 0 && !force) {
+    await supabase.from('morning_brief_state')
+      .upsert({ id: 1, last_sent_kst: kstDate, last_sent_at: new Date().toISOString(), recipients: okCount, updated_at: new Date().toISOString() });
+  }
+  return res.status(200).json({ ok: true, sent: okCount > 0, recipients: okCount, total: chatIds.length, kstDate, stateTableReady });
 }
 
 // 텔레그램 알림이 실제로 오는지 수동 확인용(디버그) — 이미 저장된 최신

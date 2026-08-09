@@ -156,3 +156,15 @@ jobs:
           curl -s --max-time 60 "${{ secrets.VERCEL_URL }}/api/market-data?source=kr-estimate&action=record" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             | jq -c '{ok,date,hour,snapshot,settled,skipped}' 2>/dev/null || echo "  (non-JSON)"
+
+      # 🌅 아침 브리핑 텔레그램 — 서버가 "KST 08시대 + 평일 + 오늘 아직 안 보냄"을 직접
+      # 판정하므로 매시간 불러도 실제 발송은 하루 한 번뿐이다(창 밖이면 sent:false로 즉시 반환).
+      # 전용 크론을 따로 두지 않은 이유: Vercel Hobby는 크론이 하루 1개로 제한되고(이미
+      # cron-daily가 쓰는 중), GitHub 스케줄은 통째로 드롭되는 일이 있어서 — 이 레포의
+      # 표준인 "매시간 도는 워크플로에 멱등 catch-up으로 얹기" 패턴을 따른다.
+      - name: 아침 브리핑 텔레그램 발송
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=morning-brief" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            | jq -c '{ok,sent,reason,recipients,kstDate,stateTableReady}' 2>/dev/null || echo "  (non-JSON)"
