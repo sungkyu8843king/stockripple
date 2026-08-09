@@ -135,6 +135,7 @@ export default async function handler(req, res) {
   if (action === 'telegram-diag') return handleTelegramDiag(req, res);
   if (action === 'ai-market-summary-direct-write') return handleAiMarketSummaryDirectWrite(req, res);
   if (action === 'daily-report-direct-write') return handleDailyReportDirectWrite(req, res);
+  if (action === 'weekly-schedule-direct-write') return handleWeeklyScheduleDirectWrite(req, res);
   if (action === 'agent-jobs-status') return handleAgentJobsStatus(req, res);
   if (action === 'rank-reason-backfill') return handleRankReasonBackfill(req, res);
   if (action === 'list-investments')    return handleListInvestments(req, res);
@@ -1657,6 +1658,29 @@ async function handleArticleDigestDirectWrite(req, res) {
     }
   }
   return res.status(200).json({ ok: true, ...results });
+}
+
+// weekly_schedule용 direct-write(2026-08-09) — 같은 우회로. 이 파이프라인은 econItems/
+// earnItems/tdItems 조립까지는 결정적(비AI) 로직이라, 그 부분은 공개 소스 엔드포인트
+// (/api/market-pulse?type=economic, /api/earnings)로 직접 재현할 수 있고, AI가 쓰는 건
+// highlights(하이라이트 5개) 하나뿐이다. days/based_on까지 그대로 받아 검증 없이 upsert —
+// 호출자가 assembleWeekDays와 동일한 스키마로 이미 조립해서 보낸다는 전제.
+async function handleWeeklyScheduleDirectWrite(req, res) {
+  const b = req.body || {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.week_start || '')) return res.status(400).json({ error: 'week_start required (YYYY-MM-DD)' });
+  if (!b.week_label) return res.status(400).json({ error: 'week_label required' });
+  if (!Array.isArray(b.highlights) || !b.highlights.length) return res.status(400).json({ error: 'highlights required' });
+  const dbRow = {
+    week_start: b.week_start,
+    week_label: (b.week_label || '').toString().slice(0, 60),
+    highlights: b.highlights.slice(0, 6).map(h => (h || '').toString().slice(0, 200)),
+    days: Array.isArray(b.days) ? b.days : [],
+    based_on: b.based_on && typeof b.based_on === 'object' ? b.based_on : {},
+    created_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from('weekly_schedule').upsert(dbRow, { onConflict: 'week_start' });
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true, ...dbRow });
 }
 
 // ai_market_summary/daily_report용 direct-write(2026-08-08) — article-digest-direct-write와
