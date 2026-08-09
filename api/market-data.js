@@ -1451,10 +1451,16 @@ async function handleKrEstimate(req, res) {
     for (const r of (data || [])) {
       const e = Math.abs(Number(r.error_pct));
       if (!isFinite(e)) continue;
-      (byTicker[r.ticker] ||= { n: 0, sumAbs: 0, sumSigned: 0, last: null });
+      (byTicker[r.ticker] ||= { n: 0, sumAbs: 0, sumSigned: 0, last: null, history: [] });
       const b = byTicker[r.ticker];
       b.n++; b.sumAbs += e; b.sumSigned += Number(r.error_pct);
       if (!b.last) b.last = { date: r.session_date, est: r.est_change_pct, actual: r.actual_change_pct, err: r.error_pct };
+      // 카드 뒤집기(kr-market.html)에서 "예측 vs 실제"를 날짜별로 보여주려면 집계뿐 아니라
+      // 원본 행이 필요하다. 이미 읽어온 데이터라 추가 조회는 없다. 카드 한 장에 다 들어가야
+      // 하므로 종목당 최근 10일치만 남긴다(정렬은 상위 쿼리에서 날짜 내림차순).
+      if (b.history.length < 10) {
+        b.history.push({ date: r.session_date, est: r.est_change_pct, actual: r.actual_change_pct, err: r.error_pct });
+      }
     }
     let n = 0, sumAbs = 0;
     for (const k of Object.keys(byTicker)) {

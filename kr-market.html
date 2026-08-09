@@ -1178,6 +1178,38 @@ button { font-family: inherit; }
   display: flex; flex-direction: column;
 }
 .est-card.live { border-color: color-mix(in srgb, var(--green) 40%, transparent); }
+
+/* 🔄 카드 뒤집기 — 앞면은 지금 추정가, 뒷면은 "예측 vs 실제" 일별 기록.
+   추정 모델의 적중 이력을 공개하는 게 이 사이트의 차별점이라, 그 데이터를 요약(평균오차)만
+   보여주지 않고 카드를 눌러 원본 일별 수치까지 확인할 수 있게 한다.
+   그리드 아이템은 이제 .est-flip이고 .est-card는 그 안의 면(face)이다. 앞면이 정상 흐름에
+   높이를 만들고 뒷면은 inset:0으로 그 높이를 채운다. */
+.est-flip { perspective: 1200px; min-width: 0; cursor: pointer; }
+.est-flip-inner {
+  position: relative; height: 100%; transform-style: preserve-3d;
+  transition: transform .5s cubic-bezier(.4, .2, .2, 1);
+}
+.est-flip.flipped .est-flip-inner { transform: rotateY(180deg); }
+.est-flip .est-card { height: 100%; backface-visibility: hidden; }
+.est-flip:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: var(--r-lg, 20px); }
+.est-back { position: absolute; inset: 0; transform: rotateY(180deg); overflow-y: auto; }
+.est-back-h { font-size: 14px; font-weight: 800; margin-bottom: 3px; }
+.est-back-sub { font-size: 11.5px; color: var(--text3); margin-bottom: 10px; line-height: 1.45; }
+.est-hist { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
+.est-hist th {
+  text-align: right; font-size: 10.5px; letter-spacing: .03em; color: var(--text3);
+  font-weight: 700; padding: 0 0 5px; border-bottom: 1px solid var(--border);
+}
+.est-hist th:first-child, .est-hist td:first-child { text-align: left; }
+.est-hist td { padding: 5px 0; text-align: right; border-bottom: 1px solid var(--border-soft); }
+.est-hist tr:last-child td { border-bottom: none; }
+.est-hist .d { color: var(--text3); }
+.est-back-empty { font-size: 12.5px; color: var(--text3); line-height: 1.6; }
+.est-flip-hint {
+  position: absolute; top: 12px; right: 14px; font-size: 10.5px; color: var(--text3);
+  opacity: .75; pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .est-flip-inner { transition: none; } }
 .est-top { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
 .est-logo {
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
@@ -1939,22 +1971,70 @@ document.addEventListener('keydown', e => {
       <div class="knf-note">개별 종목 추정가에도 이 신호가 반영됩니다.</div>`;
   }
 
+  // 카드 뒤집기. 3분마다 도는 자동 새로고침이 grid.innerHTML을 통째로 갈아끼우므로,
+  // 뒤집어 둔 카드가 그때 앞면으로 되돌아가 버린다 — 어느 종목이 뒤집혀 있었는지를
+  // 기억해 두고 렌더 직후 복원한다(사용자가 기록을 읽는 중에 화면이 뒤집히지 않게).
+  const _flipped = new Set();
+  window.estFlip = function (el) {
+    const key = el.getAttribute('aria-label') || '';
+    const now = !el.classList.contains('flipped');
+    el.classList.toggle('flipped', now);
+    if (now) _flipped.add(key); else _flipped.delete(key);
+  };
+  function restoreFlips(grid) {
+    if (!_flipped.size) return;
+    grid.querySelectorAll('.est-flip').forEach(el => {
+      if (_flipped.has(el.getAttribute('aria-label') || '')) el.classList.add('flipped');
+    });
+  }
+
   function renderEstimate(grid, bar, d, acc) {
     renderKnfBanner(d);
     const krwUsd = num(d.krwUsd);
+    // 앞면(추정가)과 뒷면(예측 vs 실제 기록)을 하나의 뒤집기 카드로 감싼다.
+    const wrapFlip = (front, tk, a) => {
+      const h = a?.history || [];
+      const back = h.length
+        ? `<div class="est-card est-back">
+             <div class="est-back-h">예측 vs 실제</div>
+             <div class="est-back-sub">개장 전 추정치와 그날 실제 시가 등락률입니다.
+               오차가 양수면 실제가 더 올랐다는 뜻이에요.</div>
+             <table class="est-hist">
+               <thead><tr><th>날짜</th><th>예측</th><th>실제</th><th>오차</th></tr></thead>
+               <tbody>${h.map(r => `<tr>
+                 <td class="d">${esc(String(r.date).slice(5))}</td>
+                 <td style="color:${sgnCol(r.est)}">${pct(r.est)}</td>
+                 <td style="color:${sgnCol(r.actual)}">${pct(r.actual)}</td>
+                 <td class="d">${r.err > 0 ? '+' : ''}${Number(r.err).toFixed(1)}%p</td>
+               </tr>`).join('')}</tbody>
+             </table>
+           </div>`
+        : `<div class="est-card est-back">
+             <div class="est-back-h">예측 vs 실제</div>
+             <div class="est-back-empty">아직 채점된 기록이 없어요.<br>
+               개장 전에 추정치를 기록하고 시가가 나오면 자동으로 정산됩니다.</div>
+           </div>`;
+      return `<div class="est-flip" role="button" tabindex="0" aria-label="${esc(tk)} 예측 기록 보기"
+                   onclick="estFlip(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();estFlip(this)}">
+                <div class="est-flip-inner">${front}${back}</div>
+              </div>`;
+    };
+
     grid.innerHTML = d.items.map(it => {
       const head = estHead(it);
+      const accIt = acc?.byTicker?.[it.t];
       if (it.estChangePct == null || it.base == null) {
-        return `<div class="est-card">${head}
+        return wrapFlip(`<div class="est-card">${head}
           <div class="est-badge stale">추정 불가</div>
           <div class="est-none">참고할 해외 신호가 지금은 없습니다${it.missing?.length ? ` (${esc(it.missing.join(', '))} 미제공)` : ''}.</div>
-        </div>`;
+        </div>`, it.name || it.t, accIt);
       }
       const est = it.estChangePct, px = it.estPrice, diff = px - it.base;
       const conf = clamp(it.confidence || 1, 1, 4);
       const direct = (it.used || []).some(u => String(u.id).startsWith('adr:') || u.id === 'binance');
-      const a = acc?.byTicker?.[it.t];
-      return `<div class="est-card${direct ? ' live' : ''}">${head}
+      const a = accIt;
+      return wrapFlip(`<div class="est-card${direct ? ' live' : ''}">${head}
+        <div class="est-flip-hint">기록 보기 ↻</div>
         <div class="est-badge">해외 실시간 추정가</div>
         <div class="est-px" style="color:${sgnCol(est)}">₩${Math.round(px).toLocaleString()}<small>원</small></div>
         ${krwUsd ? `<div class="est-usd">≈ $${(px / krwUsd).toFixed(2)} USD</div>` : ''}
@@ -1975,8 +2055,9 @@ document.addEventListener('keydown', e => {
           <div class="est-mrow"><span>직전 종가</span><span style="font-family:var(--font-mono);color:var(--text2)">₩${Math.round(it.base).toLocaleString()}</span></div>
           ${a ? `<div class="est-mrow"><span>실측 평균오차</span><span style="font-family:var(--font-mono);color:var(--text2)" title="최근 ${a.n}회 |추정−실제| 평균${a.bias != null ? ` · 편향 ${a.bias > 0 ? '과소' : '과대'} ${Math.abs(a.bias).toFixed(1)}%p` : ''}">±${a.mae.toFixed(1)}%p <span style="color:var(--text3)">(${a.n}회)</span></span></div>` : ''}
         </div>
-      </div>`;
+      </div>`, it.name || it.t, a);
     }).join('');
+    restoreFlips(grid);
 
     const O = d.sources?.overseas || {}, B = d.sources?.binance || {};
     const pills = [];
