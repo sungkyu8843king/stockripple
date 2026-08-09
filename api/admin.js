@@ -4685,6 +4685,18 @@ async function handlePredictStatus(req, res) {
   const sessionDate = predKstDate();
   const out = { ok: true, sessionDate, me: null, ai: null, leaderboard: [], aiRecord: null };
 
+  // 지금 제출을 받는 상태인지는 서버가 판정해서 내려준다 — 클라이언트가 KST/주말/마감
+  // 규칙을 따로 구현하면 handlePredictSubmit의 규칙과 어긋나서, 버튼은 눌리는데 서버가
+  // 거절하는 상태가 생긴다(실제로 일요일에 그렇게 됐다).
+  {
+    const k = new Date(Date.now() + 9 * 3600000);
+    const dow = k.getUTCDay();
+    const min = k.getUTCHours() * 60 + k.getUTCMinutes();
+    if (dow === 0 || dow === 6) { out.submitOpen = false; out.closedReason = '주말에는 쉬어요. 월요일 아침에 만나요'; }
+    else if (min >= 930)        { out.submitOpen = false; out.closedReason = '오늘 장은 마감됐어요. 내일 아침에 다시 만나요'; }
+    else                        { out.submitOpen = true;  out.closedReason = null; }
+  }
+
   const jwt = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   let userId = null;
   if (jwt) {

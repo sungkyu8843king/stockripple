@@ -1877,8 +1877,12 @@ button { font-family: inherit; }
     const me = d.me;
 
     if (!me) {
-      parts.push(`<div style="font-size:13.5px;color:var(--text2);line-height:1.6">
-        오늘 코스피가 오를지 내릴지 찍어보세요. 우리 AI 추정도 같이 공개됩니다.</div>
+      // 로그인 전에도 지금 받는 중인지에 맞춰 문구를 바꾼다 — 주말에 "찍어보세요"라고 해놓고
+      // 로그인시키면 곧바로 "주말엔 안 받아요"가 뜨는 게 되므로.
+      parts.push(`<div style="font-size:13.5px;color:var(--text2);line-height:1.6">${
+        d.submitOpen === false
+          ? esc(d.closedReason || '지금은 예측을 받지 않아요')
+          : '오늘 코스피가 오를지 내릴지 찍어보세요. 우리 AI 추정도 같이 공개됩니다.'}</div>
         <button class="pred-btn pred-login" onclick="openAuthModal()">로그인하고 참여</button>`);
     } else if (me.today) {
       const t = me.today;
@@ -1889,6 +1893,9 @@ button { font-family: inherit; }
         ? `<div class="pred-result ${t.correct ? 'win' : 'lose'}">${
             t.correct ? '✅ 적중!' : '❌ 빗나감'} 코스피 ${pctTxt(t.actual_pct)}</div>`
         : `<div class="pred-wait">장 마감 후 채점됩니다</div>`);
+    } else if (d.submitOpen === false) {
+      // 주말·마감 후 판정은 서버가 한다(규칙이 두 군데로 갈라지지 않게).
+      parts.push(`<div class="pred-wait">${esc(d.closedReason || '지금은 예측을 받지 않아요')}</div>`);
     } else {
       parts.push(`<div style="font-size:13.5px;color:var(--text2);margin-bottom:8px">오늘 코스피, 어느 쪽일까요?</div>
         <div class="pred-actions">
