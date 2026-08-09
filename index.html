@@ -8,7 +8,12 @@
 <script src="/announcement-bar.js" defer></script>
 <script src="/sr-pulse.js" defer></script>
 <script src="/telegram-promo.js" defer></script>
+<!-- 광고 일시 중단(2026-08-09, 홈만) — 일 방문이 아직 두 자릿수라 애드센스·쿠팡 수익은
+     사실상 0인데, 처음 온 사람에게는 "광고부터 붙은 사이트"라는 첫인상 비용만 남는다.
+     유입이 의미 있게 늘면 이 두 줄(여기 + 파일 하단 coupang-feed-ad.js)의 주석만 풀면 복구.
+     다른 페이지(analysis/company/news 등)의 광고는 그대로 두었다.
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
+-->
 <title>StockRipple — 파급효과 주식 전망</title>
 <meta name="description" content="뉴스 이슈의 파급효과를 분석해 관련 산업과 기업에 미치는 영향을 정리합니다.">
 <!-- Open Graph / 링크 공유 미리보기 (정적 — 동적 티커 페이지는 일반 설명) -->
@@ -1498,7 +1503,10 @@ button { font-family: inherit; }
     </div>
 
     <!-- 📢 피드 광고 -->
+    <!-- 광고 슬롯도 같이 중단(2026-08-09) — 스크립트만 빼면 이 빈 div의 상하 여백 40px이
+         그대로 남아 피드 중간에 이유 없는 공백이 생긴다. 복구 시 이 줄도 같이 되살릴 것.
     <div id="feedAdSlot" style="margin:20px 0"></div>
+    -->
 
     <div class="watchlist-view" id="watchlistView"></div>
   </div>
@@ -1674,8 +1682,6 @@ button { font-family: inherit; }
   </div>
 </div>
 
-<!-- 리포트 공유 이미지 카드 렌더용(app.js). defer라 첫 페인트를 막지 않는다. -->
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 <script src="/app.js" defer></script>
 
 <!-- 📰 데일리 리포트 모바일 플로팅 버튼 + 바텀시트 -->
@@ -1725,7 +1731,9 @@ button { font-family: inherit; }
 .ichrt-btn:hover { border-color:var(--blue);color:var(--blue); }
 .ichrt-btn.active { background:var(--blue);border-color:var(--blue);color:#fff; }
 </style>
+<!-- 광고 일시 중단(2026-08-09) — 위 <head>의 애드센스와 함께 복구할 것.
 <script src="/coupang-feed-ad.js" defer></script>
+-->
 <script>
 // 📅 일정 탭 전환 + 🧰 더 많은 도구 접기/펼치기 (2026-07 사이드바 개편, index.html 전용 —
 // app.js는 각 패널 안의 콘텐츠 div id만 그대로 참조하므로 건드리지 않음)

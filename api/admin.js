@@ -4745,7 +4745,7 @@ function seoDesc(text, fallback) {
   return clean.length > 150 ? clean.slice(0, 149) + '…' : clean;
 }
 
-function buildSeoBlock({ title, desc, url, type = 'website', jsonLd = null }) {
+function buildSeoBlock({ title, desc, url, type = 'website', jsonLd = null, noindex = false }) {
   const t = seoEsc(title), d = seoEsc(desc), u = seoEsc(url);
   const img = SITE_ORIGIN + '/icon-512.png';
   const ld = jsonLd
@@ -4755,6 +4755,12 @@ function buildSeoBlock({ title, desc, url, type = 'website', jsonLd = null }) {
     '<!-- SEO:START -->',
     `<title>${t}</title>`,
     `<meta name="description" content="${d}">`,
+    // noindex는 "아직 한국어 요약이 안 붙은 이슈"에만 붙는다 — 그런 페이지는 영문 RSS 제목
+    // 한 줄이 전부라 검색엔진이 '얇은 스크랩 콘텐츠'로 분류하고, 그 평가는 도메인 전체에
+    // 적용돼 제대로 쓴 페이지의 순위까지 끌어내린다(2026-08 시점 27,705건 중 82%가 이 상태).
+    // follow는 남겨서 이 페이지를 거쳐 다른 정상 페이지로 크롤이 이어지게 한다.
+    // 나중에 요약이 채워지면 이 줄은 자동으로 사라진다(매 요청마다 DB를 보고 정하므로).
+    ...(noindex ? ['<meta name="robots" content="noindex, follow">'] : []),
     `<link rel="canonical" href="${u}">`,
     '<meta property="og:type" content="' + type + '">',
     '<meta property="og:site_name" content="StockRipple">',
@@ -4803,12 +4809,17 @@ async function handleRenderAnalysis(req, res) {
       if (issue && issue.title) {
         const desc = seoDesc(issue.ai_digest || issue.summary,
           '뉴스 이슈가 어떤 산업에 영향을 주는지 정리했습니다.');
+        // ai_digest가 아직 안 붙은 이슈 = 우리가 더한 게 없는 원문 스크랩 상태 → 색인 제외.
+        const thin = !(issue.ai_digest || '').trim();
         html = html.replace(SEO_BLOCK_RE, buildSeoBlock({
           title: `${issue.title} — StockRipple`,
           desc,
           url: `${SITE_ORIGIN}/analysis/${encodeURIComponent(issue.id)}`,
           type: 'article',
-          jsonLd: {
+          noindex: thin,
+          // 얇은 페이지엔 NewsArticle 구조화 데이터도 붙이지 않는다 — 색인은 막으면서
+          // 기사 구조화 데이터만 남기면 신호가 서로 모순된다.
+          jsonLd: thin ? null : {
             '@context': 'https://schema.org',
             '@type': 'NewsArticle',
             headline: issue.title.slice(0, 110),

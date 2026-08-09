@@ -4912,15 +4912,34 @@ function _buildReportShareCardHtml(kind, d) {
 
 let _reportShareBlob = null;
 
+// html2canvas(≈200KB)를 공유 버튼을 실제로 누른 순간에만 받아온다 — 전에는 이 파일을 쓰는
+// 4개 페이지가 전부 <script defer>로 eager 로드해서, 공유를 한 번도 안 누르는 방문자
+// 전원이 그 용량을 내려받고 있었다. 한 번 받으면 전역에 남으므로 두 번째부터는 즉시 실행.
+// analysis.html에도 같은 함수가 복제돼 있다(그 페이지는 app.js를 안 씀 — 고칠 땐 같이 볼 것).
+let _h2cPromise = null;
+function loadHtml2Canvas() {
+  if (typeof html2canvas === 'function') return Promise.resolve(true);
+  if (_h2cPromise) return _h2cPromise;
+  _h2cPromise = new Promise(resolve => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+    s.onload = () => resolve(typeof html2canvas === 'function');
+    // 실패는 캐시하지 않는다 — 일시적 네트워크 문제면 다시 눌러서 재시도할 수 있어야 한다.
+    s.onerror = () => { _h2cPromise = null; resolve(false); };
+    document.head.appendChild(s);
+  });
+  return _h2cPromise;
+}
+
 async function openReportShareImage(shareId, btn) {
   const entry = _reportShareStore.get(shareId);
   if (!entry) return;
-  if (typeof html2canvas !== 'function') {
-    if (btn) { btn.textContent = '이미지 기능을 불러오지 못했어요'; btn.disabled = true; }
-    return;
-  }
   const prevText = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = '이미지 만드는 중…'; }
+  if (!(await loadHtml2Canvas())) {
+    if (btn) { btn.disabled = false; btn.textContent = prevText || '🖼 이미지로 공유'; }
+    return;
+  }
 
   const stage = document.createElement('div');
   stage.style.cssText = 'position:fixed;left:-20000px;top:0;width:1080px;z-index:-1;pointer-events:none';

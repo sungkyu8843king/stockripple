@@ -30,8 +30,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-<!-- 공유 이미지 카드 렌더용. defer라 첫 페인트를 막지 않고, 없으면 버튼만 안 뜬다. -->
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
+<!-- 공유 이미지 카드용 html2canvas는 여기서 미리 받지 않는다 — 아래 loadHtml2Canvas()가
+     공유 버튼을 누른 순간에만 받아온다(방문자 대부분은 안 누르므로 200KB를 아낀다). -->
 <style>
 :root {
   --bg: #15171e; --bg-rgb: 21,23,30; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
@@ -1481,15 +1481,34 @@ function _buildShareCardHtml(issue) {
   </div>`;
 }
 
+// html2canvas(≈200KB)를 공유 버튼을 누른 순간에만 받아온다 — 전에는 <script defer>로
+// eager 로드해서 공유를 안 누르는 방문자 전원이 그 용량을 내려받았다. 이 페이지는 app.js를
+// 안 쓰므로 같은 함수를 복제해 뒀다(app.js 쪽 loadHtml2Canvas와 같이 고칠 것).
+let _h2cPromise = null;
+function loadHtml2Canvas() {
+  if (typeof html2canvas === 'function') return Promise.resolve(true);
+  if (_h2cPromise) return _h2cPromise;
+  _h2cPromise = new Promise(resolve => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+    s.onload = () => resolve(typeof html2canvas === 'function');
+    // 실패는 캐시하지 않는다 — 일시적 네트워크 문제면 다시 눌러 재시도할 수 있어야 한다.
+    s.onerror = () => { _h2cPromise = null; resolve(false); };
+    document.head.appendChild(s);
+  });
+  return _h2cPromise;
+}
+
 async function openShareImage() {
   const issue = window._shareIssue;
   if (!issue) return;
   const btn = document.querySelector('.share-img-btn');
-  if (typeof html2canvas !== 'function') {
-    if (btn) { btn.textContent = '이미지 기능을 불러오지 못했어요'; btn.disabled = true; }
+  const prevLabel = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = '이미지 만드는 중…'; }
+  if (!(await loadHtml2Canvas())) {
+    if (btn) { btn.disabled = false; btn.textContent = prevLabel || '🖼 이미지로 공유'; }
     return;
   }
-  if (btn) { btn.disabled = true; btn.textContent = '이미지 만드는 중…'; }
 
   const stage = document.createElement('div');
   stage.id = 'shareCardStage';

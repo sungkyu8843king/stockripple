@@ -89,13 +89,16 @@ function showShareToast(msg) { showToast(msg, 'info'); }
 // analyze_batches/company_summary 파이프라인을 유사투자자문업 리스크로 껐고 두 페이지 모두
 // 그 파이프라인 없인 빈 화면이었다. 2026-08-02, analyze 보류가 길어져 페이지 자체를 삭제했다
 // (terminal.html도 같이 삭제 — nav에 없던 고아 페이지). analyze 재활성화하면 필요시 재작성.
+// ⚠️ nav-new(NEW 뱃지)는 항상 한 개만 유지할 것 — 한때 7개 중 5개에 붙어 있었는데,
+// 다섯 개가 동시에 NEW면 아무것도 새로워 보이지 않아 뱃지가 기능을 잃는다. 새 메뉴가
+// 생기면 기존 것에서 떼고 옮기는 방식으로 쓴다.
 const SITE_NAV_ITEMS = [
-  { href: '/news.html', label: '📰 뉴스', flag: 'nav-new' },
+  { href: '/news.html', label: '📰 뉴스' },
   { href: '/heatmap.html', label: '🔥 히트맵' },
   { href: '/kr-market.html', label: '📊 시장 현황' },
-  { href: '/etf.html', label: '🧺 ETF', flag: 'nav-new' },
-  { href: '/earnings.html', label: '📢 실적발표', flag: 'nav-new' },
-  { href: '/talks.html', label: '💬 말말말', flag: 'nav-new' },
+  { href: '/etf.html', label: '🧺 ETF' },
+  { href: '/earnings.html', label: '📢 실적발표' },
+  { href: '/talks.html', label: '💬 말말말' },
   { href: '/portfolio.html', label: '📝 모의투자', flag: 'nav-new' },
 ];
 
