@@ -4875,6 +4875,18 @@ async function handleMorningBrief(req, res) {
 
   if (!lines.length) return res.status(200).json({ ok: true, sent: false, reason: '보낼 재료가 없음' });
 
+  // 🎯 예측 게임으로 루프를 닫는다 — 브리핑을 읽은 김에 한 번 찍고, 다음날 결과를 보러
+  // 다시 오게 만드는 게 이 알림의 진짜 목적이다. 게임 준비가 안 됐으면(마이그레이션 전)
+  // 이 줄만 조용히 빠진다.
+  let predictReady = false;
+  try {
+    const { error: pErr } = await supabase.from('predictions').select('id').limit(1);
+    predictReady = !pErr;
+  } catch { /* 준비 안 됨 → 링크 생략 */ }
+  if (predictReady) {
+    lines.push('', '🎯 <b>오늘 코스피, 오를까요 내릴까요?</b>', 'AI 추정과 함께 찍어보세요 — 내일 아침에 채점됩니다.');
+  }
+
   // ── 발송 ── (notifyReportSubscribers와 같은 수신자 집합을 쓴다)
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return res.status(200).json({ ok: true, sent: false, reason: 'TELEGRAM_BOT_TOKEN 없음' });
