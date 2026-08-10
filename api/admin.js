@@ -2929,57 +2929,123 @@ async function handleVerifyKrNames(req, res) {
 }
 
 // company.html의 autoRegisterCompany가 브라우저에서 Yahoo Finance를 직접 호출하다
-// CORS로 실패해(수정 완료) name_ko/name_en에 티커 코드가 그대로 저장된 KR 종목들
-// 일괄 정리. dart_corp_code가 없어도 되도록 네이버 펀더멘털(/api/stock?type=fundamentals)
-// 경유로 정확한 한글명을 다시 조회한다.
+// CORS로 실패해(수정 완료) name_ko/name_en에 티커 코드가 그대로 저장된 종목들 일괄 정리.
+//
+// ⚠️ 2026-08-05 확장: 원래 이 핸들러는 `.eq('market','KR')`이라 KR만 고쳤는데, 실측해보니
+// 이름이 티커 코드뿐인 행 156건 중 107건이 US/기타 시장이었다(예: name_ko='AXP', 'CMCSA').
+// 그 종목들은 한국어로 "아메리칸 익스프레스"를 검색해도 안 나오고 검색 드롭다운·종목
+// 상세에 코드가 그대로 노출됐다. 이제 시장 구분 없이 전부 대상으로 한다.
+//
+// 이름 소스는 네이버 자동완성(ac.stock.naver.com) 하나로 통일 — api/stock.js의
+// handleSearchKr이 이미 쓰는 엔드포인트인데 거기선 KOSPI/KOSDAQ만 남기고 버렸었다.
+// 실측 결과 미국 종목도 한글명을 준다(AXP → "아메리칸 익스프레스", typeCode=NYSE).
+// KR 종목도 같은 응답으로 커버되므로 기존 2회 fetch(fundamentals+quotes)보다 호출도 적다.
+// (네이버 해외주식 상세 API는 거래소 접미사 .O/.N을 알아야 하는데 NYSE 종목이 409를
+//  반환해 신뢰 불가 — 접미사가 필요 없는 이 자동완성 경로를 쓰는 이유.)
+//
+// 156건을 한 요청(60s)에 다 못 돌 수 있어 crawl-shares-outstanding과 같은
+// start/nextStart 재개 패턴 + 시간예산으로 처리한다.
+// body: { start?: number, dry_run?: boolean, market?: 'KR'|'US' }
 async function handleFixKrBrokenNames(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const t0 = Date.now();
+  const TIME_BUDGET_MS = 45000;
   const dryRun = !!req.body?.dry_run;
+  const start = Math.max(0, parseInt(req.body?.start) || 0);
+  const marketFilter = (req.body?.market || '').toString().trim();
 
-  const { data: companies, error } = await supabase
-    .from('companies')
-    .select('id, ticker, name_ko, name_en')
-    .eq('market', 'KR');
-  if (error) return res.status(500).json({ error: error.message });
-
-  const broken = (companies || []).filter(c => c.name_ko === c.ticker || c.name_en === c.ticker);
-
-  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : `https://${req.headers.host}`;
-
-  const results = [];
-  for (const c of broken) {
-    try {
-      const [fundRes, quoteRes] = await Promise.all([
-        fetch(`${base}/api/stock?type=fundamentals&ticker=${encodeURIComponent(c.ticker)}&nocache=1`).then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch(`${base}/api/quotes?tickers=${encodeURIComponent(c.ticker)}`).then(r => r.ok ? r.json() : null).catch(() => null),
-      ]);
-      const nameKo = fundRes?.company || null;
-      const shortName = quoteRes?.data?.[c.ticker]?.shortName || null;
-      if (!nameKo) { results.push({ ticker: c.ticker, ok: false, error: '네이버에서 회사명 조회 실패' }); continue; }
-
-      const update = {
-        name_ko: nameKo,
-        name_en: (shortName && shortName !== c.ticker) ? shortName : nameKo,
-      };
-      if (!dryRun) {
-        const { error: upErr } = await supabase.from('companies').update(update).eq('id', c.id);
-        if (upErr) { results.push({ ticker: c.ticker, ok: false, error: upErr.message }); continue; }
-      }
-      results.push({ ticker: c.ticker, ok: true, before: c.name_ko, after: update.name_ko });
-    } catch (e) {
-      results.push({ ticker: c.ticker, ok: false, error: e.message });
-    }
+  // ⚠️ PostgREST는 한 번에 최대 1000행만 준다(서버 max-rows). companies가 이미 1459행이라
+  // 시장 필터 없이 한 번에 select하면 459행이 조용히 누락돼 그 종목들은 영영 안 고쳐진다.
+  // range()로 끝까지 페이지네이션할 것 — 행 수가 늘어나도 안전하다.
+  const PAGE = 1000;
+  const companies = [];
+  for (let from = 0; ; from += PAGE) {
+    let query = supabase.from('companies').select('id, ticker, name_ko, name_en, market').range(from, from + PAGE - 1);
+    if (marketFilter) query = query.eq('market', marketFilter);
+    const { data: page, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+    companies.push(...(page || []));
+    if (!page || page.length < PAGE) break;
   }
 
+  // 이름이 "티커 그대로"인 행만 대상. 접미사 없는 형태(예: name_ko='005930')도 같이 잡는다.
+  const isBrokenName = (name, ticker) => {
+    const n = (name || '').trim();
+    if (!n) return true;
+    const t = (ticker || '').trim();
+    return n === t || n === t.split('.')[0];
+  };
+  const broken = (companies || []).filter(c => isBrokenName(c.name_ko, c.ticker));
+  const slice = broken.slice(start);
+
+  // 네이버 자동완성에서 이 티커와 정확히 일치하는 종목의 한글명을 찾는다.
+  const resolveName = async (ticker) => {
+    const bare = (ticker || '').split('.')[0];
+    if (!bare) return null;
+    const r = await fetch(
+      `https://ac.stock.naver.com/ac?q=${encodeURIComponent(bare)}&target=stock,worldstock`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) }
+    );
+    if (!r.ok) return null;
+    const data = await r.json();
+    const hit = (data.items || []).find(it =>
+      it.category === 'stock' && (it.code || '').toUpperCase() === bare.toUpperCase()
+    );
+    const name = (hit?.name || '').trim();
+    // 자동완성이 이름 대신 코드를 되돌려주면 고칠 게 없으니 실패로 본다(덮어쓰기 방지).
+    if (!name || name.toUpperCase() === bare.toUpperCase()) return null;
+    return name;
+  };
+
+  let i = 0, updated = 0, failed = 0, timedOut = false;
+  const results = [];
+  const CONC = 4;
+  const worker = async () => {
+    while (true) {
+      if (Date.now() - t0 > TIME_BUDGET_MS) { timedOut = true; return; }
+      const idx = i++;
+      if (idx >= slice.length) return;
+      const c = slice[idx];
+      try {
+        const nameKo = await resolveName(c.ticker);
+        if (!nameKo) { failed++; results.push({ ticker: c.ticker, ok: false, error: '네이버 자동완성에서 회사명 조회 실패' }); continue; }
+
+        // name_en이 이미 제대로 된 영문명이면 보존한다(예: 'Comcast Corporation').
+        const update = { name_ko: nameKo };
+        if (isBrokenName(c.name_en, c.ticker)) update.name_en = nameKo;
+
+        if (!dryRun) {
+          const { error: upErr } = await supabase.from('companies').update(update).eq('id', c.id);
+          if (upErr) { failed++; results.push({ ticker: c.ticker, ok: false, error: upErr.message }); continue; }
+        }
+        updated++;
+        results.push({ ticker: c.ticker, ok: true, before: c.name_ko, after: nameKo });
+      } catch (e) {
+        failed++;
+        results.push({ ticker: c.ticker, ok: false, error: e.message });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: CONC }, worker));
+
+  // ⚠️ start를 "소비한 건수"로 쓰면 안 된다 — 고쳐진 종목은 다음 호출의 broken 목록에서
+  // 아예 빠져 목록이 줄어들기 때문에, 소비 개수만큼 건너뛰면 미처리 종목을 통째로 넘겨버린다.
+  // 다음 호출 시점의 목록은 항상 [이번에 실패한 것들] + [아직 안 본 것들] 순서이므로,
+  // 건너뛸 만큼은 "누적 실패 건수"다. 이러면 고칠 수 없는 종목(비상장·해외 소스 없음)만
+  // 앞에 쌓이고 나머지는 정확히 한 번씩 처리된다.
+  const nextStart = start + failed;
+  const done = !timedOut && i >= slice.length;
   return res.status(200).json({
     ok: true,
     dryRun,
-    totalKr: companies?.length || 0,
+    timedOut,
+    totalScanned: companies.length,
     brokenFound: broken.length,
-    fixed: results.filter(r => r.ok).length,
-    results,
+    updated,
+    failed,
+    nextStart: done ? null : nextStart,
+    done,
+    results: results.slice(0, 200),
   });
 }
 

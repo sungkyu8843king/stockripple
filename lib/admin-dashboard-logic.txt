@@ -1003,6 +1003,42 @@ async function runCrawlEtfHoldings(start = 0) {
   }
 }
 
+// 종목명 일괄 보정 — 이름이 티커 코드 그대로인 행(name_ko='AXP' 등)을 네이버 자동완성의
+// 한글명으로 채운다. ETF 크롤과 같은 resumable(start/nextStart) 구조라 done:false면 이어서 호출.
+async function runFixBrokenNames(start = 0, acc = { updated: 0, failed: 0, rounds: 0 }) {
+  const box = document.getElementById('invStatusBox');
+  // 서버가 매번 done:false를 주는 이상 상황에서도 브라우저가 무한 재귀하지 않도록 상한을 둔다.
+  if (++acc.rounds > 40) {
+    box.textContent = `⚠️ 종목명 보정 중단(반복 상한) — 수정 ${acc.updated}건 \ 실패 ${acc.failed}건. 다시 눌러 이어서 진행할 수 있습니다.`;
+    return;
+  }
+  box.textContent = start === 0
+    ? '🔄 종목명 보정 중... (이름이 티커 코드인 종목 전체 대상)'
+    : `🔄 이어서 보정 중... (누적 ${acc.updated}건 수정)`;
+  try {
+    const r = await fetch('/api/admin?action=fix-kr-broken-names', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+      body: JSON.stringify({ start }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok) {
+      box.textContent = '❌ 종목명 보정 실패: ' + (j.error || 'unknown');
+      return;
+    }
+    acc.updated += j.updated || 0;
+    acc.failed += j.failed || 0;
+    if (j.done) {
+      box.textContent = `✅ 종목명 보정 완료 — 대상 ${j.brokenFound}건 \ 수정 ${acc.updated}건 \ 실패 ${acc.failed}건(비상장·해외 소스 없음)`;
+    } else {
+      box.textContent = `🔄 진행 중 — ${j.nextStart}/${j.brokenFound}건 처리, 이어서 호출합니다...`;
+      await runFixBrokenNames(j.nextStart, acc);
+    }
+  } catch (e) {
+    box.textContent = '❌ 종목명 보정 오류: ' + e.message;
+  }
+}
+
 async function invLoadChart() {
   const ticker = document.getElementById('invChartTicker').value;
   const hint = document.getElementById('invChartHint');
