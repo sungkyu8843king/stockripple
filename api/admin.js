@@ -40,6 +40,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAdmin, verifyUser } from '../lib/auth.js';
 import { FEATURE_FLAG_DEFS, isFeatureEnabled, isFeatureEnabledStrict } from '../lib/feature-flags.js';
+import { fetchTechnicals } from '../lib/technicals.js';
 import { submitAgentJob, extractJobText, parseJobJson, JOB_STUCK_TIMEOUT_MS } from '../lib/agent-jobs.js';
 
 // 일부 액션(dart-sync, sec-13f, extract-investments)은 무거우므로 최대 60초 허용
@@ -787,6 +788,7 @@ async function handleSummary(req, res) {
         key_risks: cached.key_risks,
         competitive_position: cached.competitive_position,
         watch_points: cached.watch_points,
+        technical_read: cached.technical_read || '',
         analyses_count: cached.analyses_count,
         cached: true,
         generated_at: cached.created_at,
@@ -882,6 +884,7 @@ async function handleSummary(req, res) {
         key_risks: cached.key_risks,
         competitive_position: cached.competitive_position,
         watch_points: cached.watch_points,
+        technical_read: cached.technical_read || '',
         analyses_count: cached.analyses_count,
         cached: true,
         stale: true,
@@ -910,6 +913,7 @@ async function handleSummary(req, res) {
         key_risks: cached.key_risks,
         competitive_position: cached.competitive_position,
         watch_points: cached.watch_points,
+        technical_read: cached.technical_read || '',
         analyses_count: cached.analyses_count,
         cached: true,
         stale: true,
@@ -924,6 +928,17 @@ async function handleSummary(req, res) {
 // 프롬프트 조립 + agent_jobs 제출까지. 호출부는 company/live/analyses/strategicCtx를
 // 미리 구해서 넘긴다(백필은 fetchLiveSnapshot 등을 여러 티커에 걸쳐 반복 호출해야 하므로
 // 여기서 다시 fetch하지 않고 얇게 유지).
+const TECH_SIGNAL_KO = {
+  strong_bullish: '강세 추세(골든크로스 — 가격이 20/50/200일선 모두 위)',
+  bullish:        '단기 상승(가격이 50일선 위)',
+  oversold_bull:  '강세 추세 중 단기 과매도(RSI 30 이하) — 조정 국면',
+  neutral:        '중립(뚜렷한 추세 없음)',
+  overbought:     '과매수(RSI 70 이상)',
+  oversold:       '과매도(RSI 30 이하)',
+  bearish:        '단기 하락(가격이 50일선 아래)',
+  strong_bearish: '약세 추세(데드크로스 — 가격이 20/50/200일선 모두 아래)',
+};
+
 async function submitCompanySummaryJob({ ticker, company, live, analyses, strategicCtx }) {
   const liveCtx = live ? `📡 실시간 시장 데이터 (Yahoo Finance, ${live.asOf || '오늘'} 기준 — 사실 판단의 최우선 근거):
 - 종목명: ${live.name || ticker} — ${live.exchange || '?'} 에서 현재 정상 거래 중인 상장 종목
@@ -932,6 +947,18 @@ async function submitCompanySummaryJob({ ticker, company, live, analyses, strate
 - 최근 1년 수익률: ${live.perf1yPct != null ? `${live.perf1yPct >= 0 ? '+' : ''}${live.perf1yPct}%` : '?'}
 - 최초 거래일: ${live.firstTradeDate || '?'}${live.firstTradeDate && live.firstTradeDate > '2020-01-01' ? ' ← 최근 신규상장/분사 재상장/재편 가능성. 당신의 학습 지식이 이 티커를 과거 폐지·인수된 종목으로 기억하더라도 현재는 별개의 정상 거래 종목임' : ''}
 ` : `📡 실시간 시장 데이터: 조회 실패 — 상장/거래 상태를 단정하지 말 것.
+`;
+
+  // company.html 지표 칩(loadTechChips)과 동일한 lib/technicals.js 계산 — 화면 칩과
+  // AI 서술이 서로 다른 수치를 말하는 자기모순을 막기 위해 반드시 같은 소스를 쓴다.
+  const [, tech] = await fetchTechnicals(ticker).catch(() => [ticker, null]);
+  const techCtx = tech ? `📊 기술적 지표 (Yahoo Finance 1년 일봉 기준 실측값 — technical_read는 이 수치만 근거로 쓸 것):
+- RSI(14일): ${tech.rsi14 ?? '?'}
+- 20일 이동평균 대비: ${tech.vsSma20 != null ? `${tech.vsSma20 >= 0 ? '+' : ''}${tech.vsSma20}%` : '?'}
+- 50일 이동평균 대비: ${tech.vsSma50 != null ? `${tech.vsSma50 >= 0 ? '+' : ''}${tech.vsSma50}%` : '?'}
+- 200일 이동평균 대비: ${tech.vsSma200 != null ? `${tech.vsSma200 >= 0 ? '+' : ''}${tech.vsSma200}%` : '?'}
+- 종합 판정: ${TECH_SIGNAL_KO[tech.signal] || tech.signal}
+` : `📊 기술적 지표: 조회 실패 — technical_read는 빈 문자열로 반환할 것.
 `;
 
   const prompt = `당신은 주식 분석 전문가입니다. 아래 회사에 대해 한국 투자자를 위한 종합 분석 보고서를 작성하세요.
@@ -943,6 +970,7 @@ async function submitCompanySummaryJob({ ticker, company, live, analyses, strate
 - 시장: ${company.market === 'KR' ? '한국' : '미국'}
 
 ${liveCtx}
+${techCtx}
 ${strategicCtx ? `🎯 전략적 투자/지분 (본업 외 미래 성장축 — 매우 중요):\n${strategicCtx}\n\n이 정보는 주가 선반영 논리의 핵심 단서입니다. 예: SK텔레콤이 Anthropic에 투자했다면 Claude(AI) 성공 → SKT 주가 선반영. 종합 근거(thesis)와 전략적 노출(strategic_exposure) 작성 시 반드시 반영.\n` : ''}
 최근 AI 분석들 (${analyses.length}건):
 ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   - 섹터: ${a.sector||'미분류'}, 예상 상승: ${a.upside??'?'}%, 신뢰도: ${a.confidence??'?'}%\n   - 근거: ${a.rationale.slice(0, 200)}`).join('\n')}
@@ -954,7 +982,8 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
   "strategic_exposure": "본업 외 보유한 전략적 지분/투자로 인한 간접 노출 (예: 'Anthropic 지분 보유 → Claude AI 성공이 주가에 선반영 중'). 해당 없으면 빈 문자열. (1-3문장, 250자 내외)",
   "key_risks": ["주요 리스크 1", "주요 리스크 2"],
   "competitive_position": "시장 내 경쟁 우위 또는 약점 — 전략적 투자가 만든 차별화 포지션 포함 (1-2문장)",
-  "watch_points": ["주시 포인트 1 — 전략적 지분 가치를 끌어올릴 만한 이벤트 1개 이상 포함", "주시 포인트 2"]
+  "watch_points": ["주시 포인트 1 — 전략적 지분 가치를 끌어올릴 만한 이벤트 1개 이상 포함", "주시 포인트 2"],
+  "technical_read": "위 '기술적 지표' 섹션의 실측 RSI/이동평균 수치를 인용한 서술형 해설 (예: 'RSI 68로 과매수 구간에 근접했고, 20일선 대비 +6% 이격되어 단기 조정 가능성이 있다'). 기술적 지표가 조회 실패면 빈 문자열. (1-2문장, 120자 내외)"
 }
 
 규칙:
@@ -963,7 +992,8 @@ ${analyses.map((a, i) => `${i+1}. [${a.date?.slice(0,10)}] ${a.issueTitle}\n   -
 - 실시간 데이터가 존재하는 종목에 '상장폐지', '거래 불가', '인수되어 비활성' 등의 서술 절대 금지
 - 확실하지 않은 과거 기업 이력(인수/합병/모회사 관계)은 단정하지 말 것
 - 위에 제공된 "전략적 투자/지분" 정보가 있다면 thesis와 strategic_exposure에 반드시 활용 (특히 ⭐ 표시된 항목)
-- 전략적 투자 정보가 없으면 strategic_exposure는 빈 문자열 ""로 반환`;
+- 전략적 투자 정보가 없으면 strategic_exposure는 빈 문자열 ""로 반환
+- technical_read는 오직 위 "기술적 지표" 섹션의 실측 수치만 근거로 서술 — 매수·매도 지시, 목표가·손절가, "지금이 매수 타이밍" 류의 투자 권유 표현 절대 금지(과매수/과매도/이격도 같은 사실 서술만)`;
 
   return submitAgentJob({
     pipeline: 'company_summary',
@@ -1074,10 +1104,17 @@ async function finalizeCompanySummary(row) {
     key_risks: parsed.key_risks,
     competitive_position: parsed.competitive_position,
     watch_points: parsed.watch_points,
+    technical_read: parsed.technical_read || '',
     analyses_count: row.payload?.analyses_count || 0,
     created_at: new Date().toISOString(),
   };
-  await supabase.from('company_ai_summary').upsert(dbRow, { onConflict: 'ticker' });
+  const { error: upErr } = await supabase.from('company_ai_summary').upsert(dbRow, { onConflict: 'ticker' });
+  // technical_read 컬럼 마이그레이션 전이면(db/company-ai-summary-technical.sql 미실행)
+  // 그 컬럼만 빼고 재시도 — 나머지 필드는 그대로 저장되게 한다.
+  if (upErr && /technical_read/.test(upErr.message || '')) {
+    const { technical_read, ...rest } = dbRow;
+    await supabase.from('company_ai_summary').upsert(rest, { onConflict: 'ticker' });
+  }
   return dbRow;
 }
 
