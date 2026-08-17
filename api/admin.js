@@ -41,6 +41,7 @@ import { createClient } from '@supabase/supabase-js';
 import { verifyAdmin, verifyUser } from '../lib/auth.js';
 import { FEATURE_FLAG_DEFS, isFeatureEnabled, isFeatureEnabledStrict } from '../lib/feature-flags.js';
 import { fetchTechnicals } from '../lib/technicals.js';
+import { tossProxyConfigured, callTossProxy } from '../lib/toss-proxy.js';
 import { submitAgentJob, extractJobText, parseJobJson, JOB_STUCK_TIMEOUT_MS } from '../lib/agent-jobs.js';
 
 // 일부 액션(dart-sync, sec-13f, extract-investments)은 무거우므로 최대 60초 허용
@@ -4822,6 +4823,29 @@ async function predAiView(req) {
   } catch { return { pick: null, pct: null, basis: null }; }
 }
 
+// 코스피 예측 게임의 "지금 제출 받는지" 판정 — 예전엔 handlePredictSubmit/handlePredictStatus가
+// 각자 따로 요일·시각 규칙을 구현해서 서로 어긋난 적이 있었다(아래 handlePredictStatus의 기존
+// 주석 참고) — 하나로 합쳐 재발을 막는다. 주말뿐 아니라 국내 공휴일도 확인해야 한다 — 2026-08
+// 실측: 평일 아침 로직만 보고 있어서 실제로는 휴장인 공휴일에도 예측을 계속 받고 있었다.
+// 토스 market-calendar/KR로 실제 개장일인지 판정(handleTossQuote와 동일 패턴).
+async function getPredictWindowStatus() {
+  const k = new Date(Date.now() + 9 * 3600000);
+  const dow = k.getUTCDay();
+  const min = k.getUTCHours() * 60 + k.getUTCMinutes();
+  if (dow === 0 || dow === 6) return { open: false, reason: '주말에는 쉬어요. 월요일 아침에 만나요' };
+  if (tossProxyConfigured()) {
+    try {
+      const cal = await callTossProxy('/market-calendar/KR');
+      if (cal && !cal.result?.today?.integrated) {
+        return { open: false, reason: '오늘은 국내 증시 휴장일이에요. 다음 개장일에 다시 만나요' };
+      }
+    } catch { /* 캘린더 조회 실패 시 fail-open — 기존 요일·시각 규칙만으로 판정 */ }
+  }
+  // 장이 이미 끝난 뒤에 찍는 건 게임이 아니다. 마감(15:30) 전까지만 받는다.
+  if (min >= 930) return { open: false, reason: '오늘 장은 이미 마감됐어요. 내일 아침에 다시 만나요' };
+  return { open: true, reason: null };
+}
+
 // 예측 제출 (로그인 필요 — 사용자 JWT로 본인 확인).
 async function handlePredictSubmit(req, res) {
   const pick = (req.body?.pick || '').toString();
@@ -4834,13 +4858,8 @@ async function handlePredictSubmit(req, res) {
   if (uErr || !userId) return res.status(401).json({ error: '로그인이 필요합니다' });
 
   const sessionDate = predKstDate();
-  const k = new Date(Date.now() + 9 * 3600000);
-  const dow = k.getUTCDay();
-  if (dow === 0 || dow === 6) return res.status(400).json({ error: '주말에는 예측을 받지 않아요' });
-  // 장이 이미 끝난 뒤에 찍는 건 게임이 아니다. 마감(15:30) 전까지만 받는다.
-  if (k.getUTCHours() * 60 + k.getUTCMinutes() >= 930) {
-    return res.status(400).json({ error: '오늘 장은 이미 마감됐어요. 내일 아침에 다시 만나요' });
-  }
+  const windowStatus = await getPredictWindowStatus();
+  if (!windowStatus.open) return res.status(400).json({ error: windowStatus.reason });
 
   const ai = await predAiView(req);
   const { error } = await supabase.from('predictions').insert({
@@ -4864,16 +4883,13 @@ async function handlePredictStatus(req, res) {
   const sessionDate = predKstDate();
   const out = { ok: true, sessionDate, me: null, ai: null, leaderboard: [], aiRecord: null };
 
-  // 지금 제출을 받는 상태인지는 서버가 판정해서 내려준다 — 클라이언트가 KST/주말/마감
-  // 규칙을 따로 구현하면 handlePredictSubmit의 규칙과 어긋나서, 버튼은 눌리는데 서버가
-  // 거절하는 상태가 생긴다(실제로 일요일에 그렇게 됐다).
+  // 지금 제출을 받는 상태인지는 서버가 판정해서 내려준다(getPredictWindowStatus,
+  // handlePredictSubmit과 공유) — 클라이언트가 KST/주말/마감 규칙을 따로 구현하면 어긋나서,
+  // 버튼은 눌리는데 서버가 거절하는 상태가 생긴다(실제로 일요일에 그렇게 됐다).
   {
-    const k = new Date(Date.now() + 9 * 3600000);
-    const dow = k.getUTCDay();
-    const min = k.getUTCHours() * 60 + k.getUTCMinutes();
-    if (dow === 0 || dow === 6) { out.submitOpen = false; out.closedReason = '주말에는 쉬어요. 월요일 아침에 만나요'; }
-    else if (min >= 930)        { out.submitOpen = false; out.closedReason = '오늘 장은 마감됐어요. 내일 아침에 다시 만나요'; }
-    else                        { out.submitOpen = true;  out.closedReason = null; }
+    const windowStatus = await getPredictWindowStatus();
+    out.submitOpen = windowStatus.open;
+    out.closedReason = windowStatus.reason;
   }
 
   const jwt = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');

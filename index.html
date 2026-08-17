@@ -1959,11 +1959,14 @@ button { font-family: inherit; }
   function kstNow() { return new Date(Date.now() + 9 * 3600000); }
 
   // KST 기준 장세 모드. 경계는 kr-market.html의 NOW 바와 같은 기준을 쓴다.
-  function briefMode() {
+  // isHoliday: 평일인데 국내 증시 휴장일인 경우 — 요일·시각만으론 알 수 없어(주말만 걸러짐)
+  // 호출부(loadNowBrief)가 서버의 live 플래그(토스 market-calendar/KR 기반)에서 역산해 넘긴다.
+  function briefMode(isHoliday) {
     const k = kstNow();
     const dow = k.getUTCDay();                       // 0=일, 6=토
     const min = k.getUTCHours() * 60 + k.getUTCMinutes();
     if (dow === 0 || dow === 6) return { id: 'weekend', label: '휴장' };
+    if (isHoliday) return { id: 'weekend', label: '휴장(공휴일)' };
     if (min >= 420  && min < 540)  return { id: 'pre',    label: '개장 전', open: 540 };
     if (min >= 540  && min < 930)  return { id: 'intra',  label: '장중' };
     if (min >= 930  && min < 1200) return { id: 'nxt',    label: '넥스트장' };
@@ -1996,7 +1999,11 @@ button { font-family: inherit; }
     const ewy = ov['EWY']?.changePercent;
     const fx  = ov['KRW=X']?.changePercent;
     const knf = d.kisNightFuture?.changePercent;
-    const mode = briefMode();
+    // 평일 국장 시간대(09~22:30)인데 서버가 live:false면 공휴일이라는 뜻(주말은 이미
+    // briefMode 안에서 별도 처리) — kr-market.html의 NOW 바와 같은 판정 방식.
+    const _k = kstNow(), _dow = _k.getUTCDay(), _min = _k.getUTCHours() * 60 + _k.getUTCMinutes();
+    const isHoliday = _dow >= 1 && _dow <= 5 && !d.live && _min >= 540 && _min < 1350;
+    const mode = briefMode(isHoliday);
 
     // 헤드라인 — 밤사이 신호 중 가장 크게 움직인 것을 문장으로 세운다.
     const cands = [

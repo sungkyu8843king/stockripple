@@ -227,6 +227,7 @@ let _side = 'buy';
 let _findMkt = 'KR', _findCat = 'popular', _findCache = {}, _findBusy = false;
 let _metaCache = {};     // KR 티커 → nxtSupported(bool), 넥스트레이드 애프터마켓(~20:00) 허용 판단용
 let _marketGate = { ok: true }; // orderHtml()이 채우고 updateOrder()/submitOrder()가 참조
+let _krHoliday = false;  // 평일이지만 국내 증시 휴장일(공휴일) — boot()에서 1회 조회, isTradableNow가 참조
 
 const isKrTicker = t => /\.K[SQ]$/i.test(t || '');
 const fmtKRW = v => v == null ? '—' : '₩' + Math.round(v).toLocaleString('ko-KR');
@@ -271,6 +272,10 @@ function isTradableNow(market, ticker) {
   const w = marketWindow();
   if (market === 'KR') {
     if (!w.krWeekday) return { ok: false, reason: '국내 증시는 주말엔 거래할 수 없습니다.' };
+    // 평일이어도 국내 공휴일(추석·설·광복절 등)엔 KRX가 휴장 — 요일만으론 못 걸러서
+    // boot()가 미리 받아온 실제 토스 개장일 판정(_krHoliday)을 추가로 확인한다
+    // (kr-market.html·index.html의 같은 문제 수정과 동일한 근거 데이터).
+    if (_krHoliday) return { ok: false, reason: '오늘은 국내 증시 휴장일입니다.' };
     const nxt = !!_metaCache[ticker];
     const closeMin = nxt ? 1200 : 930; // NXT 애프터마켓 지원 종목은 20:00, 아니면 15:30
     if (w.krMin >= 540 && w.krMin < closeMin) return { ok: true };
@@ -311,6 +316,12 @@ async function boot() {
   try {
     const fxRes = await fetch('/api/toss?action=fx').then(r => r.json()).catch(() => null);
     if (fxRes?.rate > 0) _fx = fxRes.rate;
+  } catch {}
+  try {
+    // /api/toss(액션 없는 기본 핸들러)가 토스 market-calendar/KR 기반 krMarket.isHoliday를
+    // 이미 계산해서 준다 — 여기서 새로 판정 로직을 만들지 않고 그대로 재사용.
+    const calRes = await fetch('/api/toss').then(r => r.json()).catch(() => null);
+    if (calRes?.ok) _krHoliday = !!calRes.krMarket?.isHoliday;
   } catch {}
   await ensurePortfolio();
   if (!_pf) return;
