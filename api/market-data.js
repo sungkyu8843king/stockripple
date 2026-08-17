@@ -1494,7 +1494,20 @@ async function handleKrEstimate(req, res) {
   const kp = kstParts();
   const tmin = kp.hour * 60 + kp.min;
   const weekday = kp.dow >= 1 && kp.dow <= 5;
-  const live = weekday && tmin >= 540 && tmin < 1350;      // 09:00~22:30
+  // ⚠️ 2026-08 실측: 평일이어도 국내 공휴일(추석/설/광복절 등)엔 KRX가 휴장인데, 여기는
+  // 원래 요일·시각만 봐서 "평일 09~15:30"이면 무조건 실시간 정규장으로 표시해버렸다 —
+  // 휴장일에 마치 장이 열린 것처럼 국장 시세가 도는 버그(사용자 실측 제보). handleTossQuote
+  // (개별 종목 quote)는 이미 /market-calendar/KR의 today.integrated 유무로 휴장을 판정하고
+  // 있으니 그 패턴을 그대로 재사용 — 공휴일도 주말과 동일하게 "국장 라이브 없음 → 해외
+  // 신호 기반 추정"으로 폴백시킨다.
+  let isKrHoliday = false;
+  if (weekday && tossProxyConfigured()) {
+    try {
+      const cal = await callTossProxy('/market-calendar/KR');
+      isKrHoliday = !cal?.result?.today?.integrated;
+    } catch { /* 캘린더 조회 실패 시 안전하게 "휴장 아님"으로 두고 기존 시각 기반 판정을 따른다 */ }
+  }
+  const live = weekday && !isKrHoliday && tmin >= 540 && tmin < 1350;      // 09:00~22:30
   const session = !live ? null : tmin < 930 ? 'regular' : tmin < 1200 ? 'nxt' : 'closed';
   const tickers = EST_MODEL.targets.map(t => t.t);
 

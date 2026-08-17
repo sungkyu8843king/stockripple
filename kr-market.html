@@ -1806,10 +1806,17 @@ document.addEventListener('keydown', e => {
     usOpen:   { s: '🇺🇸 미장 장중',     c: 'var(--green)',  g: '지금 미국 시장이 열려 있습니다. 여기서 나온 결과가 내일 아침 국장의 출발점이 됩니다.' },
     dawn:     { s: '🌄 미장 마감',      c: 'var(--blue)',   g: '밤사이 미국 시장이 끝났습니다. 오늘 국장 개장 전 브리지를 확인하세요.' },
     weekend:  { s: '💤 휴장',           c: 'var(--text3)',  g: '주말입니다. 지난주 수급 흐름과 산업별 뉴스 온도를 돌아보기 좋은 때입니다.' },
+    holiday:  { s: '🎌 국내 증시 휴장', c: 'var(--text3)',  g: '오늘은 국내 증시 휴장일(공휴일)입니다. 지난 거래일 수급 흐름과 산업별 뉴스 온도를 돌아보기 좋은 때입니다.' },
   };
+  // 평일 국내 공휴일 여부 — 요일·시각만으로는 알 수 없어(주말만 걸러짐) 서버가 토스
+  // market-calendar/KR로 판정한 값(loadEstimate가 매번 받아오는 live/session)에서 역산한다.
+  // 2026-08 실측: 평일 09~15:30인데 휴장일이라 "국장 장중"으로 잘못 뜨던 문제 — d.live가
+  // false인데 요일·시각상으론 열려 있어야 할 구간이면 공휴일로 간주한다.
+  let _krHoliday = false;
   function currentMode() {
     const k = kstNow(), dow = k.getUTCDay(), h = k.getUTCHours(), m = k.getUTCMinutes(), t = h * 60 + m;
     if (dow === 6 || dow === 0) return { key: 'weekend' };            // 토·일
+    if (_krHoliday && t >= 480 && t < 1350) return { key: 'holiday' }; // 평일 공휴일, 국장 관련 구간(08:00~22:30)
     if (t >= 480 && t < 540)  return { key: 'preopen', until: 540 };  // 08:00~09:00
     if (t >= 540 && t < 930)  return { key: 'krOpen',  until: 930 };  // 09:00~15:30
     if (t >= 930 && t < 1080) return { key: 'krClose', until: 1350 }; // 15:30~18:00
@@ -2088,6 +2095,16 @@ document.addEventListener('keydown', e => {
         jget('/api/market-data?source=kr-estimate' + bnQ),
         jget('/api/market-data?source=kr-estimate&action=accuracy').catch(() => null),
       ]);
+
+      // 서버(handleKrEstimate)는 요일·시각뿐 아니라 토스 market-calendar/KR로 실제 공휴일
+      // 여부까지 반영해 live를 판정한다 — 평일 국장 시간대(09~22:30)인데 live:false면
+      // 그건 공휴일이라는 뜻이므로 NOW 바도 "휴장"으로 맞춰 보여준다.
+      {
+        const k = kstNow(), dow = k.getUTCDay(), t = k.getUTCHours() * 60 + k.getUTCMinutes();
+        const wasHoliday = _krHoliday;
+        _krHoliday = dow >= 1 && dow <= 5 && !d.live && t >= 540 && t < 1350;
+        if (_krHoliday !== wasHoliday) paintNow();
+      }
 
       const sess = d.live ? (SESS[d.session] || SESS.regular) : null;
       const titleEl = document.getElementById('estSecTitle');
