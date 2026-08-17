@@ -107,6 +107,7 @@ const SITE_NAV_MORE = [
   { href: '/etf.html', label: '🧺 ETF' },
   { href: '/earnings.html', label: '📢 실적발표' },
   { href: '/talks.html', label: '💬 말말말' },
+  { href: '/my-assets.html', label: '💰 내 자산' },
 ];
 
 function _siteChromeInjectStyle() {
