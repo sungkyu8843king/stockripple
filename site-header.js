@@ -476,6 +476,13 @@ function srCloseNavMore() {
   if (menu) menu.hidden = true;
   if (btn) btn.setAttribute('aria-expanded', 'false');
 }
+// ⚠️ 모바일에서 .header-nav가 flex-wrap으로 여러 줄로 접히면 '더보기' 버튼이 줄바꿈
+// 위치에 따라 화면 왼쪽 절반에 놓일 때가 있다(실측, 2026-08-19) — 원래 CSS는
+// .nav-more-menu{right:0}으로 버튼 자기 자신 기준 오른쪽 끝에 맞췄는데, 그건 데스크톱처럼
+// header-nav 전체가 화면 우측에 한 줄로 붙어있을 때만 유효한 가정이다. 버튼이 화면
+// 왼쪽에 있으면 172px짜리 드롭다운이 왼쪽으로 펼쳐지며 화면 밖(음수 x)으로 나가버린다.
+// 그래서 열 때마다 버튼의 실제 화면 위치를 재서 뷰포트 안에 들어오게 JS로 clamp한다 —
+// header-nav의 줄바꿈 결과를 예측하는 대신 실측 좌표로 방어하는 게 더 안전하다.
 function srToggleNavMore(e) {
   if (e) e.stopPropagation();                       // 바깥클릭 핸들러가 곧바로 되닫는 것 방지
   const menu = document.getElementById('navMoreMenu');
@@ -484,7 +491,16 @@ function srToggleNavMore(e) {
   const open = menu.hidden;
   menu.hidden = !open;
   btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  if (open) menu.querySelector('.nav-more-item')?.focus();
+  if (open) {
+    const btnRect = btn.getBoundingClientRect();
+    const mw = menu.offsetWidth || 172;
+    const left = Math.min(Math.max(btnRect.right - mw, 8), window.innerWidth - mw - 8);
+    menu.style.position = 'fixed';
+    menu.style.left = left + 'px';
+    menu.style.right = 'auto';
+    menu.style.top = (btnRect.bottom + 6) + 'px';
+    menu.querySelector('.nav-more-item')?.focus();
+  }
 }
 if (!window._srNavMoreBound) {
   window._srNavMoreBound = true;
