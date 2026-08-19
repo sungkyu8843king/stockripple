@@ -1817,6 +1817,13 @@ let _dailyRows = null;
 // 양쪽 끝에서 이 함수를 다 호출해 순서 무관하게 정정되도록 한다.
 function refineVolBadge() {
   if (!_volSeries?.complete || !_dailyRows || _dailyRows.length < 2) return;
+  // ⚠️ 프리장/데이마켓/정규장 진행 중엔 오늘 정규장이 아직 안 끝나 Toss 일별표의 '오늘' 행이
+  // 거래량 0에 가깝다 — Yahoo 쪽 today 버킷이 "정규장 데이터가 아직 없어 가장 최근 완료일=
+  // 어제"로 잡히면서 _volSeries.complete가 (엉뚱하게) true가 돼 이 함수가 실행되고, 그
+  // 텅 빈 '오늘' 행을 어제 전체 거래량과 나눠 -99%대 오탐이 났다(실측, 2026-08-19, 샌디스크
+  // 프리장). 오늘 정규장이 실제로 끝난 상태(POST/CLOSED)일 때만 이 실측치를 신뢰한다.
+  const sess = _tossQuote?.session;
+  if (sess !== 'POST' && sess !== 'CLOSED') return;
   const a = _dailyRows[0], b = _dailyRows[1];
   if (a?.volume == null || b?.volume == null) return;
   const p = (a.volume / b.volume - 1) * 100;

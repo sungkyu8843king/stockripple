@@ -246,7 +246,7 @@ function _siteChromeInjectStyle() {
 .site-footer-legal{padding-top:0;border-top:1px solid var(--border);margin-top:0}
 .site-footer-legal a{color:var(--text3);text-decoration:underline}
 .site-footer-legal a:hover{color:var(--text2)}
-.toast{position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--bg4);color:var(--text);border:1px solid var(--border-strong);border-radius:16px;padding:12px 16px;font-size:15.5px;display:flex;align-items:center;gap:8px;box-shadow:0 20px 50px rgba(0,0,0,.6);transform:translateY(80px);opacity:0;transition:all .2s;pointer-events:none}
+.toast{position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--bg4);color:var(--text);border:1px solid var(--border-strong);border-radius:16px;padding:12px 16px;font-size:15.5px;display:flex;align-items:center;gap:8px;box-shadow:0 20px 50px rgba(0,0,0,.6);transform:translateY(80px);opacity:0;transition:all .2s;pointer-events:none;max-width:min(320px,calc(100vw - 48px));word-break:break-word}
 /* .show일 때 pointer-events를 auto로 되돌리지 않으면, 숨어있을 때 클릭을 막으려던
    기본값(pointer-events:none)이 완전히 보이는 동안에도 그대로 남아 checkNewReports의
    "눌러서 보기" 토스트를 눌러도 클릭이 뒤쪽 요소로 그냥 통과해버린다(피드백, 2026-07-29
