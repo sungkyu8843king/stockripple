@@ -114,6 +114,31 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .dd-tk-fill { position: absolute; top: 4px; bottom: 4px; border-radius: 3px; }
 .dd-tk-val { font-size: 14px; font-weight: 700; text-align: right; font-family: var(--font-mono); }
 
+/* ── 뉴스 시점 주가 차트 ── */
+.dd-tktabs { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; }
+.dd-tktab { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 999px;
+            border: 1px solid var(--border-strong); background: var(--bg3); color: var(--text2); cursor: pointer; }
+.dd-tktab.active { background: var(--purple); border-color: var(--purple); color: #fff; }
+.dd-chart-msg { padding: 60px 0; text-align: center; color: var(--text3); font-size: 14px; }
+.dd-marks { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.dd-mark { background: var(--bg3); border-left: 3px solid var(--yellow); border-radius: 0 8px 8px 0; padding: 10px 13px; }
+.dd-mark-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14.5px; }
+.dd-mark-pin { font-size: 13px; }
+.dd-mark-cnt { font-size: 12.5px; color: var(--text3); }
+.dd-mark-after { font-size: 13.5px; font-weight: 700; font-family: var(--font-mono); margin-left: auto; }
+.dd-mark-t { font-size: 13px; color: var(--text2); line-height: 1.55; margin-top: 5px; word-break: break-word; }
+
+/* ── 본문 사이에 끼우는 근거 기사 카드 ──
+   실사진 대신 시각적 리듬을 만드는 장치. 원문 기사 이미지는 저작권·CORS 문제로 못 쓴다. */
+.dd-quote { background: linear-gradient(135deg, var(--bg3), var(--bg2)); border: 1px solid var(--border-strong);
+            border-radius: var(--r-md); padding: 16px 18px; margin: 0 0 30px; position: relative; overflow: hidden; }
+.dd-quote::before { content: '“'; position: absolute; right: 12px; top: -14px; font-size: 76px; line-height: 1;
+                    color: var(--purple); opacity: .16; font-family: Georgia, serif; pointer-events: none; }
+.dd-quote-label { font-size: 11.5px; font-weight: 800; letter-spacing: .04em; color: var(--purple); margin-bottom: 7px; }
+.dd-quote-t { font-size: 15.5px; font-weight: 700; line-height: 1.5; word-break: keep-all; text-decoration: none; color: var(--text); display: block; position: relative; }
+.dd-quote-t:hover { color: var(--blue); }
+.dd-quote-m { font-size: 12.5px; color: var(--text3); margin-top: 8px; }
+
 /* ── 참고문헌 ── */
 .dd-refs { counter-reset: ref; }
 .dd-ref { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); }
@@ -139,6 +164,10 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .dd-note { font-size: 13px; color: var(--text3); line-height: 1.65; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px 16px; margin-top: 30px; }
 .dd-back { display: inline-flex; align-items: center; gap: 6px; color: var(--text2); text-decoration: none; font-size: 14.5px; margin-bottom: 18px; padding: 6px 11px; border-radius: var(--r-xs); background: var(--bg2); border: 1px solid var(--border); }
 .dd-back:hover { color: var(--text); background: var(--bg3); }
+.dd-more { display: block; width: 100%; margin-top: 12px; padding: 9px 0; border-radius: var(--r-xs);
+           border: 1px solid var(--border-strong); background: var(--bg3); color: var(--text2);
+           font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.dd-more:hover { color: var(--text); background: var(--bg4); }
 .dd-empty { text-align: center; padding: 70px 20px; color: var(--text3); }
 .dd-empty-icon { font-size: 46px; margin-bottom: 14px; }
 .dd-empty-title { font-size: 18px; font-weight: 700; color: var(--text2); margin-bottom: 8px; }
@@ -223,49 +252,142 @@ const TONE_LABEL = { pos: '우호적', neg: '비우호적', neu: '중립' };
 
 /* ── 차트 렌더러 (전부 인라인 SVG / CSS) ───────────────────────────── */
 
-// ① 뉴스 볼륨 추이 — 이 테마 산업이 언급된 기사 수(일별). 서버가 issues에서 집계한 값.
-function renderVolume(v) {
-  if (!v || !Array.isArray(v.values) || v.values.length < 2) return '';
-  const max = Math.max(...v.values, 1);
-  const W = Math.max(320, v.values.length * 52), H = 130, P = 22;
-  const bw = (W - P * 2) / v.values.length;
-  const bars = v.values.map((n, i) => {
-    const h = Math.max(2, (n / max) * (H - P * 2));
-    const x = P + i * bw + bw * 0.18, w = bw * 0.64, y = H - P - h;
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="var(--purple)" opacity=".85"><title>${esc(v.labels[i])} · ${n}건</title></rect>`
-      + `<text x="${(x + w / 2).toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text2)">${n}</text>`;
-  }).join('');
-  const labels = v.labels.map((l, i) => {
-    const x = P + i * bw + bw / 2;
-    return `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10.5" fill="var(--text3)">${esc(String(l).slice(5))}</text>`;
-  }).join('');
+// ① 📉 뉴스 시점 주가 차트 — 이 페이지의 핵심 시각화.
+//    "언제 어떤 얘기가 나왔고, 그래서 그 뒤에 어떻게 됐는지"를 한 화면에서 보여준다.
+//    ⚠️ 주가 데이터는 DB에 굳히지 않고 열람 시점에 실시간으로 받아온다 — 글은 계속 남는데
+//       시세를 스냅샷으로 저장하면 며칠 뒤엔 사실과 다른 숫자를 보여주게 된다.
+//    ⚠️ 과거 기록의 서술일 뿐이며, 앞으로의 방향에 대한 판단이 아니다(문구로도 명시).
+let _ddSeries = {};   // { ticker: {points, longName, currency} }
+let _ddMarks = [];
+let _ddTickers = [];
+
+function renderPriceChartShell(d) {
+  const tks = Array.isArray(d.tickers) ? d.tickers : [];
+  const marks = (d.charts && d.charts.news_marks) || [];
+  if (!tks.length || !marks.length) return '';
   return `<div class="dd-card">
-    <div class="dd-card-title">📈 이 테마의 뉴스량</div>
-    <div class="dd-card-sub">최근 7일 동안 이 산업이 언급된 기사 수입니다. 기사 건수 집계일 뿐 주가와는 무관합니다.</div>
-    <div class="dd-scroll"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${W}px;height:${H}px">${bars}${labels}</svg></div>
+    <div class="dd-card-title">📉 뉴스가 나온 시점과 그 이후</div>
+    <div class="dd-card-sub">이 글의 근거 기사가 나온 날을 주가 흐름 위에 표시했습니다. 이미 지나간 일의 기록이며, 앞으로의 방향을 뜻하지 않습니다.</div>
+    <div class="dd-tktabs" id="ddTkTabs">${tks.map((t, i) =>
+      `<button type="button" class="dd-tktab${i === 0 ? ' active' : ''}" data-tk="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+    <div class="dd-scroll" id="ddChartBox"><div class="dd-chart-msg">시세 불러오는 중…</div></div>
+    <div class="dd-marks" id="ddMarkList"></div>
   </div>`;
 }
 
-// ② 산업 톤 분포 — app.js의 "지금 산업 온도"와 같은 소스(news_analysis.sectors[].tone).
-function renderTone(t) {
-  if (!t) return '';
-  const total = (t.pos || 0) + (t.neg || 0) + (t.neu || 0);
-  if (!total) return '';
-  const pct = n => ((n || 0) / total * 100);
-  return `<div class="dd-card">
-    <div class="dd-card-title">🌡️ 이 테마에 대한 뉴스 톤</div>
-    <div class="dd-card-sub">기사들이 이 산업에 우호적인지 비우호적인지 집계한 것으로, 특정 종목의 매수·매도 의견이 아닙니다.</div>
-    <div style="display:flex;height:26px;border-radius:6px;overflow:hidden;background:var(--bg3)">
-      <div style="width:${pct(t.pos).toFixed(1)}%;background:var(--red)" title="우호적 ${t.pos || 0}건"></div>
-      <div style="width:${pct(t.neu).toFixed(1)}%;background:var(--bg4)" title="중립 ${t.neu || 0}건"></div>
-      <div style="width:${pct(t.neg).toFixed(1)}%;background:var(--blue)" title="비우호적 ${t.neg || 0}건"></div>
-    </div>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:11px;font-size:13.5px;color:var(--text3)">
-      <span><b style="color:var(--red)">■</b> 우호적 ${t.pos || 0}</span>
-      <span><b style="color:var(--text3)">■</b> 중립 ${t.neu || 0}</span>
-      <span><b style="color:var(--blue)">■</b> 비우호적 ${t.neg || 0}</span>
-    </div>
-  </div>`;
+async function loadPriceChart(ticker) {
+  const box = document.getElementById('ddChartBox');
+  const list = document.getElementById('ddMarkList');
+  if (!box) return;
+  if (!_ddSeries[ticker]) {
+    box.innerHTML = '<div class="dd-chart-msg">시세 불러오는 중…</div>';
+    try {
+      const r = await fetch(`/api/stock?type=chart&ticker=${encodeURIComponent(ticker)}&range=3mo`);
+      const j = await r.json();
+      if (!j.points || !j.points.length) throw new Error('no points');
+      _ddSeries[ticker] = j;
+    } catch {
+      box.innerHTML = '<div class="dd-chart-msg">시세를 불러오지 못했습니다.</div>';
+      if (list) list.innerHTML = '';
+      return;
+    }
+  }
+  const s = _ddSeries[ticker];
+  box.innerHTML = drawPriceSvg(s);
+  // 뉴스는 항상 최근이라 볼거리가 오른쪽 끝에 있다 — 왼쪽에서 시작하면 정작 마커가 안 보인다.
+  box.scrollLeft = box.scrollWidth;
+  if (list) list.innerHTML = markListHtml(s, ticker);
+}
+
+// 마커 날짜에 정확히 거래일이 없을 수 있다(주말·휴장). 그 날짜 이상인 첫 거래일로 붙인다.
+// ⚠️ 뉴스가 마지막 거래일보다 최근이면 오른쪽 끝으로 클램프한다 — 야후 일봉은 국내 종목의
+//    당일 종가가 하루 늦게 들어오는 경우가 잦아서(실측: 뉴스는 8/19인데 일봉은 8/18까지),
+//    -1을 반환하면 그 마커가 차트에서 조용히 사라진다.
+function markIndex(points, date) {
+  if (!points.length) return -1;
+  for (let i = 0; i < points.length; i++) if (points[i].date >= date) return i;
+  return points.length - 1;
+}
+
+function drawPriceSvg(s) {
+  const pts = s.points;
+  const W = Math.max(560, pts.length * 9), H = 210;
+  const PL = 8, PR = 8, PT = 18, PB = 26;
+  const lo = Math.min(...pts.map(p => p.close)), hi = Math.max(...pts.map(p => p.close));
+  const span = (hi - lo) || 1;
+  const x = i => PL + (i / Math.max(1, pts.length - 1)) * (W - PL - PR);
+  const y = v => PT + (1 - (v - lo) / span) * (H - PT - PB);
+
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.close).toFixed(1)}`).join('');
+  const area = `${line}L${x(pts.length - 1).toFixed(1)},${H - PB}L${x(0).toFixed(1)},${H - PB}Z`;
+
+  // 뉴스 발생일 세로선 + 상단 핀
+  const marks = _ddMarks.map(m => {
+    const i = markIndex(pts, m.date);
+    if (i < 0) return '';
+    const mx = x(i).toFixed(1);
+    return `<line x1="${mx}" y1="${PT - 6}" x2="${mx}" y2="${H - PB}" stroke="var(--yellow)" stroke-width="1.5" stroke-dasharray="3 3" opacity=".85"/>`
+      + `<circle cx="${mx}" cy="${PT - 6}" r="4.5" fill="var(--yellow)"><title>${esc(m.date)} · 기사 ${m.count}건</title></circle>`;
+  }).join('');
+
+  const first = pts[0].close, last = pts[pts.length - 1].close;
+  const up = last >= first;
+  const col = up ? 'var(--red)' : 'var(--blue)';
+  const gid = 'ddg' + Math.abs(hi | 0);
+
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${W}px;height:${H}px" role="img" aria-label="주가 흐름과 뉴스 발생 시점">
+    <defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${col}" stop-opacity=".26"/><stop offset="100%" stop-color="${col}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#${gid})"/>
+    <path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>
+    ${marks}
+    <text x="${PL}" y="${H - 8}" font-size="10.5" fill="var(--text3)">${esc(pts[0].date)}</text>
+    <text x="${W - PR}" y="${H - 8}" font-size="10.5" fill="var(--text3)" text-anchor="end">${esc(pts[pts.length - 1].date)}</text>
+  </svg>`;
+}
+
+function fmtNum(n, cur) {
+  if (n == null) return '';
+  return cur === 'KRW' ? Math.round(n).toLocaleString() + '원' : '$' + n.toFixed(2);
+}
+
+// 마커 아래 설명 — "그 날 무슨 기사가 있었고, 그 뒤 주가가 어떻게 됐는지"
+function markListHtml(s, ticker) {
+  const pts = s.points;
+  const last = pts[pts.length - 1];
+  return _ddMarks.map(m => {
+    const i = markIndex(pts, m.date);
+    let after = '';
+    if (i >= 0 && i < pts.length - 1) {
+      const pct = (last.close - pts[i].close) / pts[i].close * 100;
+      const col = pct > 0 ? 'var(--red)' : pct < 0 ? 'var(--blue)' : 'var(--text3)';
+      after = `<span class="dd-mark-after" style="color:${col}">이후 ${pct > 0 ? '+' : ''}${pct.toFixed(1)}%</span>`;
+    } else if (i >= 0) {
+      after = `<span class="dd-mark-after" style="color:var(--text3)">종가 ${fmtNum(pts[i].close, s.currency)}</span>`;
+    }
+    const d = m.date.slice(5).replace('-', '월 ') + '일';
+    return `<div class="dd-mark">
+      <div class="dd-mark-head"><span class="dd-mark-pin">📌</span><b>${esc(d)}</b>
+        <span class="dd-mark-cnt">이 테마 기사 ${m.count}건</span>${after}</div>
+      ${(m.titles || []).slice(0, 2).map(t => `<div class="dd-mark-t">· ${esc(t)}</div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+// 차트가 DOM에 들어간 뒤 탭을 연결하고 첫 티커를 그린다.
+function wirePriceChart() {
+  const tabs = document.getElementById('ddTkTabs');
+  if (!tabs) return;
+  tabs.addEventListener('click', e => {
+    const b = e.target.closest('.dd-tktab');
+    if (!b) return;
+    tabs.querySelectorAll('.dd-tktab').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    loadPriceChart(b.dataset.tk);
+  });
+  const first = tabs.querySelector('.dd-tktab');
+  if (first) loadPriceChart(first.dataset.tk);
 }
 
 // ③ 관련 종목 등락 — 서버가 /api/quotes에서 받아온 실시간 값.
@@ -329,20 +451,46 @@ function renderChain(chain) {
   </div>`;
 }
 
+// 본문 중간에 끼우는 근거 기사 카드.
+function quoteCard(s) {
+  if (!s) return '';
+  return `<div class="dd-quote">
+    <div class="dd-quote-label">근거 기사</div>
+    <a class="dd-quote-t" href="/analysis/${encodeURIComponent(s.id)}">${esc(s.title)}</a>
+    <div class="dd-quote-m">${esc(s.source_name || '출처미상')} · ${fmtDate(s.published_at)}</div>
+  </div>`;
+}
+
+function expandRefs(btn) {
+  btn.closest('.dd-card').querySelectorAll('.dd-ref[data-extra]').forEach(el => el.hidden = false);
+  btn.remove();
+}
+
 /* ── 상세 화면 ───────────────────────────────────────────────────── */
 function renderDetail(d, sources) {
   const secs = Array.isArray(d.sectors) ? d.sectors : [];
   const charts = d.charts || {};
   const nSrc = Array.isArray(d.source_issue_ids) ? d.source_issue_ids.length : 0;
 
-  const body = (Array.isArray(d.sections) ? d.sections : []).map(s => `
+  // 본문 섹션 사이사이에 근거 기사 카드를 끼워 넣어 시각적 리듬을 만든다.
+  // (원문 기사 사진은 저작권·CORS 문제로 쓸 수 없어서, 인용 카드가 그 역할을 대신한다.)
+  const quotes = (sources || []).slice(0, 3);
+  const secList = Array.isArray(d.sections) ? d.sections : [];
+  const body = secList.map((s, i) => {
+    const sec = `
     <div class="dd-section">
       <h2>${esc(s.heading)}</h2>
       ${(s.paragraphs || []).map(p => `<p>${esc(p)}</p>`).join('')}
-    </div>`).join('');
+    </div>`;
+    // 첫 섹션 뒤부터 한 칸 걸러 하나씩 — 마지막 섹션 뒤에는 넣지 않는다.
+    const qi = Math.floor(i / 2);
+    const useQuote = i > 0 && i % 2 === 1 && i < secList.length - 1 && quotes[qi];
+    return sec + (useQuote ? quoteCard(quotes[qi]) : '');
+  }).join('');
 
-  const refs = (sources || []).map((s, i) => `
-    <div class="dd-ref">
+  const REF_PREVIEW = 5;
+  const refRow = (s, i) => `
+    <div class="dd-ref"${i >= REF_PREVIEW ? ' data-extra="1" hidden' : ''}>
       <div class="dd-ref-num">${i + 1}</div>
       <div style="min-width:0">
         <a class="dd-ref-t" href="/analysis/${encodeURIComponent(s.id)}">${esc(s.title)}</a>
@@ -352,7 +500,9 @@ function renderDetail(d, sources) {
           ${s.source_url ? `<a href="${esc(s.source_url)}" target="_blank" rel="noopener noreferrer">원문 ↗</a>` : ''}
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  const refs = (sources || []).map(refRow).join('');
+  const hidden = Math.max(0, (sources || []).length - REF_PREVIEW);
 
   return `
     <a class="dd-back" href="/deep.html">← 심층분석 목록</a>
@@ -375,14 +525,14 @@ function renderDetail(d, sources) {
 
     ${body}
     ${renderChain(d.ripple_chain)}
-    ${renderVolume(charts.news_volume)}
-    ${renderTone(charts.sector_tone)}
+    ${renderPriceChartShell(d)}
     ${renderTickers(charts.ticker_moves)}
 
     ${refs ? `<div class="dd-card">
       <div class="dd-card-title">📚 참고한 기사 (${(sources || []).length}건)</div>
       <div class="dd-card-sub">이 글은 아래 기사들을 종합해 작성했습니다.</div>
       <div class="dd-refs">${refs}</div>
+      ${hidden ? `<button type="button" class="dd-more" onclick="expandRefs(this)">나머지 ${hidden}건 더 보기 ▾</button>` : ''}
     </div>` : ''}
 
     <div class="dd-note">
@@ -458,8 +608,13 @@ async function boot() {
           <p>주소가 바뀌었거나 아직 발행 전일 수 있습니다.</p></div>`;
         return;
       }
+      // 차트 렌더러가 참조하는 모듈 상태를 먼저 채운 뒤 그린다.
+      _ddMarks = (j.data.charts && j.data.charts.news_marks) || [];
+      _ddTickers = j.data.tickers || [];
+      _ddSeries = {};
       wrap.innerHTML = renderDetail(j.data, j.sources || []);
       document.title = `${j.data.title} — StockRipple`;
+      wirePriceChart();   // 시세는 innerHTML이 들어간 뒤 비동기로 채운다
     } else {
       wrap.innerHTML = renderList(j.data || []);
     }

@@ -5397,32 +5397,25 @@ function deepDiveCleanTickers(arr) {
 //  · news_volume  : 이 테마 산업이 언급된 기사 수(최근 7일, 일별) — issues 집계, 결정론적
 //  · sector_tone  : 그 기사들의 산업 톤 분포 — app.js loadSectorTemp와 동일 소스
 //  · ticker_moves : 관련 종목 등락률 — /api/quotes (KR·US 혼합 조회 가능)
-async function buildDeepDiveCharts({ sectors, tickers }, req) {
+async function buildDeepDiveCharts({ tickers, issues }, req) {
   const charts = {};
 
+  // 📌 뉴스 발생일 마커 — "언제 어떤 얘기가 나왔는지"를 주가 차트 위에 찍기 위한 재료.
+  // 근거 기사를 날짜별로 묶는다(같은 날 24건이 쏟아져도 마커는 하나). 순수 결정론적 집계이며
+  // 주가 데이터는 여기 안 담는다 — 시세는 독자가 페이지를 열 때 클라이언트가 실시간으로
+  // 받아온다(글은 남고 시세는 계속 변하므로, 스냅샷으로 굳히면 며칠 뒤엔 거짓말이 된다).
   try {
-    const since = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
-    const { data: rows } = await supabase
-      .from('issues').select('published_at, news_analysis')
-      .gte('published_at', since).not('news_analysis', 'is', null)
-      .order('published_at', { ascending: false }).limit(900);
-    const names = sectors.map(s => s.name);
     const byDay = new Map();
-    const tone = { pos: 0, neg: 0, neu: 0 };
-    for (const r of rows || []) {
-      const secs = r.news_analysis?.sectors;
-      if (!Array.isArray(secs) || !secs.length) continue;
-      // 테마 산업명과 부분일치로 매칭 — 산업명은 AI가 자유 생성하므로 정확일치는 잘 안 맞는다
-      // (kr-market.html의 SEC_MAP이 쓰는 것과 같은 이유).
-      const hit = secs.filter(s => s?.name && names.some(n => s.name.includes(n) || n.includes(s.name)));
-      if (!hit.length) continue;
-      const day = String(r.published_at).slice(0, 10);
-      byDay.set(day, (byDay.get(day) || 0) + 1);
-      for (const h of hit) tone[DIGEST_TONES.has(h.tone) ? h.tone : 'neu']++;
+    for (const i of issues || []) {
+      if (!i?.published_at) continue;
+      const day = String(i.published_at).slice(0, 10);
+      const e = byDay.get(day) || { date: day, count: 0, titles: [] };
+      e.count++;
+      if (e.titles.length < 3 && i.title) e.titles.push(String(i.title).slice(0, 90));
+      byDay.set(day, e);
     }
-    const days = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-    if (days.length >= 2) charts.news_volume = { labels: days.map(d => d[0]), values: days.map(d => d[1]) };
-    if (tone.pos + tone.neg + tone.neu > 0) charts.sector_tone = tone;
+    const marks = [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
+    if (marks.length) charts.news_marks = marks;
   } catch { /* 집계 실패는 게시물 저장을 막지 않는다 */ }
 
   if (tickers.length) {
@@ -5465,7 +5458,10 @@ async function finalizeDeepDiveWrite(row, req) {
 
       const sectors = cleanNewsSectors(parsed.sectors);
       const tickers = deepDiveCleanTickers(parsed.tickers);
-      const charts = await buildDeepDiveCharts({ sectors, tickers }, req);
+      // 뉴스 마커용으로 근거 기사의 날짜·제목을 다시 읽는다(cluster 단계에서 id만 넘어온다).
+      const { data: srcIssues } = await supabase
+        .from('issues').select('id, title, published_at').in('id', t.issueIds || []);
+      const charts = await buildDeepDiveCharts({ tickers, issues: srcIssues || [] }, req);
 
       const { error } = await supabase.from('deep_dives').upsert({
         slug: t.slug,
