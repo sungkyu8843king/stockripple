@@ -5204,12 +5204,12 @@ const DEEP_DIVE_CLUSTER_STATIC_PROMPT = `당신은 경제지 기획기사 데스
 2) title: 기사 제목 20~40자. 단정적 예측이 아니라 현상을 설명하는 제목으로.
 3) deck: 부제 1문장(40~70자). 이 글이 무엇을 다루는지.
 4) slug: URL용 영문 소문자 단어를 하이픈으로 (예: "ai-datacenter-power"). 3~5단어, 한글/공백/특수문자 금지.
-5) issueIds: 이 테마의 근거가 되는 기사 id 배열. 목록에 실제로 있는 id만. 최소 4개 이상.
+5) issueIds: 이 테마의 근거가 되는 기사 id 배열. **위 목록의 대괄호 안 id 문자열을 그대로** 복사할 것(UUID 형식). 목록에 실제로 있는 id만 쓰고, 최소 4개 이상. 없는 id를 지어내면 그 항목은 버려집니다.
 
 ⚠️ 절대 금지: 특정 종목의 매수·매도 권유, "수혜주"/"유망"/"목표가"/"투자 포인트" 같은 투자판단성 표현.
 
 다음 JSON만 반환하세요 (다른 텍스트 없이, themes 배열 원소는 1개):
-{ "themes": [ { "theme":"...", "title":"...", "deck":"...", "slug":"...", "issueIds":[1,2,3,4] } ] }`;
+{ "themes": [ { "theme":"...", "title":"...", "deck":"...", "slug":"...", "issueIds":["8737c43b-6969-4d68-aa2a-fd9af06eb8cc","..."] } ] }`;
 
 const DEEP_DIVE_WRITE_STATIC_PROMPT = `당신은 경제지 기획기사 기자입니다. 아래 테마와 근거 기사들을 바탕으로 한 편의 해설 기사를 씁니다.
 
@@ -5312,7 +5312,9 @@ async function finalizeDeepDiveCluster(row) {
   const text = extractJobText(row, 'main');
   if (!text) return { themes: 0, reason: 'no response' };
   const parsed = parseJobJson(text);
-  const poolIds = new Set((row.payload?.poolIds || []).map(Number));
+  // ⚠️ issues.id는 UUID(문자열)다 — 숫자로 변환하면 전부 NaN이 되어 아래 필터가 모든
+  // 테마를 탈락시킨다(발행이 조용히 0건이 된다). 문자열로 비교할 것.
+  const poolIds = new Set((row.payload?.poolIds || []).map(String));
 
   const themes = (Array.isArray(parsed.themes) ? parsed.themes : [])
     .map(t => ({
@@ -5321,7 +5323,7 @@ async function finalizeDeepDiveCluster(row) {
       deck: String(t?.deck || '').trim().slice(0, 160),
       slug: String(t?.slug || '').trim(),
       // 목록에 실제로 있던 id만 남긴다 — AI가 없는 id를 지어내도 참고문헌이 깨지지 않도록.
-      issueIds: (Array.isArray(t?.issueIds) ? t.issueIds : []).map(Number).filter(n => poolIds.has(n)).slice(0, 24),
+      issueIds: (Array.isArray(t?.issueIds) ? t.issueIds : []).map(String).filter(n => poolIds.has(n)).slice(0, 24),
     }))
     .filter(t => t.theme && t.title && t.issueIds.length >= DEEP_DIVE_MIN_MEMBERS)
     .slice(0, DEEP_DIVE_THEMES_PER_RUN);
@@ -5333,7 +5335,7 @@ async function finalizeDeepDiveCluster(row) {
   const { data: full } = await supabase
     .from('issues').select('id, title, summary, ai_digest, source_name, source_url, published_at, sectors')
     .in('id', allIds);
-  const byId = new Map((full || []).map(i => [Number(i.id), i]));
+  const byId = new Map((full || []).map(i => [String(i.id), i]));
 
   // ⚠️ slug는 여기서 딱 한 번만 계산해 items와 payload가 같은 값을 쓰게 한다. deepDiveSlug는
   // 내부에서 new Date()로 날짜를 붙이므로, 두 번 부르면 UTC 자정을 걸친 실행에서 서로 다른
