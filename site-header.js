@@ -98,6 +98,7 @@ function showShareToast(msg) { showToast(msg, 'info'); }
 // 나머지는 '더보기'로 접는다. 기능을 없애는 게 아니라 첫 화면의 선택지를 줄이는 것.
 // 새 페이지를 추가할 땐 기본적으로 more에 넣고, 정말 핵심일 때만 primary로 승격할 것.
 const SITE_NAV_ITEMS = [
+  { href: '/deep.html', label: '🔎 심층분석', flag: 'nav-new' },
   { href: '/news.html', label: '📰 뉴스' },
   { href: '/kr-market.html', label: '📊 시장 현황' },
   { href: '/heatmap.html', label: '🔥 히트맵' },

@@ -115,6 +115,9 @@ export default async function handler(req, res) {
   if (action === 'sitemap')         return handleSitemap(req, res);
   // company-news: 종목 상세의 "이 종목이 나온 뉴스" 타임라인 — issues의 공개 필드만 쓴다(공개)
   if (action === 'company-news')    return handleCompanyNews(req, res);
+  // deep-dives: 심층분석 목록/상세 — 홈과 deep.html이 쓴다. issues 공개 필드만 재료로 쓴 글이라 공개.
+  if (action === 'deep-dives')      return handleDeepDivesGet(req, res);
+  if (action === 'render-deep')     return handleRenderDeep(req, res);
   // 🎯 예측 게임 — ADMIN_SECRET이 아니라 "사용자 JWT"로 본인을 확인하는 경로라 이 위에 둔다
   // (verifyAdmin 아래에 두면 일반 로그인 사용자가 401로 막힌다). 제출은 본인만, 리더보드는
   // 서버가 집계한 순위·닉네임만 내려주므로 공개해도 남의 예측이 새지 않는다.
@@ -140,6 +143,7 @@ export default async function handler(req, res) {
   if (action === 'weekly-schedule-direct-write') return handleWeeklyScheduleDirectWrite(req, res);
   if (action === 'agent-jobs-status') return handleAgentJobsStatus(req, res);
   if (action === 'rank-reason-backfill') return handleRankReasonBackfill(req, res);
+  if (action === 'deep-dive-submit') return handleDeepDiveSubmit(req, res);
   if (action === 'list-investments')    return handleListInvestments(req, res);
   if (action === 'update-investment')   return handleUpdateInvestment(req, res);
   if (action === 'delete-investment')   return handleDeleteInvestment(req, res);
@@ -5159,6 +5163,373 @@ async function handleResendTelegramTest(req, res) {
 }
 
 // ════════════════════════════════════════════════════════════
+// 20-b) 심층분석(Deep Dive) — 여러 기사를 하나의 테마로 묶은 장문 게시물 (2026-08-19)
+//
+// 홈이 개별 기사 요약 카드 나열이라 네이버/토스와 구분이 안 되고 방문자에게 수십 건을
+// 각각 읽으라고 요구하는 구조였다. 이 파이프라인은 최근 뉴스를 테마로 묶어 "지금 무슨
+// 일이 벌어지고 있는지" 하나의 글로 설명한다.
+//
+// 2단계(weekly_schedule의 events→highlights와 동일 구조):
+//   cluster — 최근 이슈 목록을 보고 심층분석 가치가 있는 테마 1~2개와 소속 이슈를 고른다
+//   write   — 테마별로 본문을 쓴다 (finalizeDeepDiveCluster가 자동으로 이 단계를 큐잉)
+//
+// ⚠️ 유사투자자문업 — 재료는 issues의 공개 필드뿐이다. analyses/analysis_companies/
+//    company_ai_summary는 절대 읽지 않는다. 본문의 투자판단성 표현은 저장 직전
+//    DEEP_DIVE_FORBIDDEN_RE로 한 번 더 거른다(프롬프트 규칙만 믿지 않는다).
+// ⚠️ 차트 숫자는 AI가 만들지 않는다 — AI는 "무슨 차트를 그릴지"만 말하고, 실제 값은
+//    finalizeDeepDiveWrite가 issues 집계와 /api/quotes에서 채운다.
+// ════════════════════════════════════════════════════════════
+
+const DEEP_DIVE_MAX_PER_DAY = 2;      // 하루 발행 상한 (신선도 가드 — 매시간 불려도 낭비 없음)
+// 한 번의 cluster 실행이 만드는 글 수. 1로 두는 게 중요하다 — 2로 두면 07시 슬롯 한 번에
+// 하루치 2건이 다 나가버리고 19시 슬롯은 상한에 막혀 아무것도 못 낸다. 1이면 07시·19시가
+// 각각 한 편씩 맡아 하루 종일 새 글이 올라온다(홈 첫 화면의 신선도가 곧 이 기능의 가치다).
+const DEEP_DIVE_THEMES_PER_RUN = 1;
+const DEEP_DIVE_CLUSTER_POOL = 140;   // cluster 단계에 보여줄 최근 이슈 수
+const DEEP_DIVE_MIN_MEMBERS = 4;      // 테마 하나가 성립하려면 최소 이 만큼의 근거 기사가 필요
+
+// 프롬프트가 규칙을 어겼을 때의 최후 방어선. 한 문단이라도 걸리면 그 문단을 버린다.
+const DEEP_DIVE_FORBIDDEN_RE = /(목표\s*주?가|손절|상승\s*여력|하락\s*여력|신뢰도\s*\d|매수\s*(후보|추천|의견|기회|타이밍)|매도\s*(추천|의견|타이밍)|수혜주|유망주|투자\s*포인트|비중\s*(확대|축소)|적정\s*주가|저평가\s*매력|담아야|사야\s*할|팔아야\s*할|strong\s*buy|강력\s*매수)/i;
+
+const DEEP_DIVE_CLUSTER_STATIC_PROMPT = `당신은 경제지 기획기사 데스크입니다. 아래 최근 뉴스 목록을 훑고, 독자에게 "지금 시장에서 무슨 흐름이 벌어지고 있는지" 한 편의 해설 기사로 묶어줄 만한 테마를 **딱 하나만** 고르세요.
+
+테마 선정 기준:
+- 오늘 이 목록에서 가장 기사가 많이 몰렸고, 가장 설명할 가치가 큰 흐름 하나를 고릅니다.
+- 서로 다른 기사 여러 건이 같은 흐름을 가리킬 때만 테마가 됩니다. 기사 1~2건짜리 단발 뉴스는 테마가 아닙니다.
+- 독자가 "그래서 이게 왜 중요한데?"라고 물었을 때 답할 거리가 있어야 합니다.
+- 정말 묶을 만한 흐름이 없으면 themes를 빈 배열로 반환하세요. 억지로 만들지 마세요.
+
+각 필드 작성 규칙:
+1) theme: 테마명 10~20자 (예: "AI 데이터센터 전력난", "중국 내수 부진과 소비주")
+2) title: 기사 제목 20~40자. 단정적 예측이 아니라 현상을 설명하는 제목으로.
+3) deck: 부제 1문장(40~70자). 이 글이 무엇을 다루는지.
+4) slug: URL용 영문 소문자 단어를 하이픈으로 (예: "ai-datacenter-power"). 3~5단어, 한글/공백/특수문자 금지.
+5) issueIds: 이 테마의 근거가 되는 기사 id 배열. 목록에 실제로 있는 id만. 최소 4개 이상.
+
+⚠️ 절대 금지: 특정 종목의 매수·매도 권유, "수혜주"/"유망"/"목표가"/"투자 포인트" 같은 투자판단성 표현.
+
+다음 JSON만 반환하세요 (다른 텍스트 없이, themes 배열 원소는 1개):
+{ "themes": [ { "theme":"...", "title":"...", "deck":"...", "slug":"...", "issueIds":[1,2,3,4] } ] }`;
+
+const DEEP_DIVE_WRITE_STATIC_PROMPT = `당신은 경제지 기획기사 기자입니다. 아래 테마와 근거 기사들을 바탕으로 한 편의 해설 기사를 씁니다.
+
+독자는 주식에 관심은 있지만 시간이 없는 일반인입니다. 기사 목록을 요약해 나열하지 말고, 흐름을 꿰어서 설명하세요.
+
+각 필드 작성 규칙:
+1) title: 20~40자 제목. cluster 단계에서 정한 제목을 다듬어도 되고 그대로 써도 됩니다.
+2) deck: 부제 1문장(40~70자).
+3) sections: 본문 3~5개 섹션. 각 { "heading": "소제목(10~20자)", "paragraphs": ["문단", "문단"] }
+   - 각 섹션은 문단 1~3개, 문단당 2~4문장.
+   - 첫 섹션은 "무슨 일이 있었나"(사실 정리), 마지막 섹션은 "앞으로 볼 지점"(확인 가능한 관전 포인트)으로.
+   - 근거 기사에 있는 사실만 쓰세요. 수치를 지어내지 마세요.
+   - 주가·시세 숫자는 쓰지 마세요. 그건 시스템이 실시간 데이터로 따로 채웁니다.
+4) ripple_chain: 이 테마가 산업 사이를 타고 번지는 인과 사슬 3~5단계.
+   각 { "step":"산업/테마 단계명(짧게)", "reason":"앞 단계에서 왜 여기로 이어지는지 1문장", "confidence":"high|medium|low" }
+   - 뒤로 갈수록 근거가 느슨해지는 게 정상입니다. confidence를 솔직하게 낮추세요. 전부 high 금지.
+   - 명확한 사슬이 없으면 빈 배열.
+5) sectors: 관련 산업 테마 2~4개. 각 { "name":"산업명(회사명 금지)", "tone":"pos|neg|neu" }
+6) tickers: 이 테마와 관련된 상장 종목 3~6개의 티커만. 미국은 실제 상장 티커(AAPL), 한국은 6자리.KS 형식(005930.KS).
+   - ⚠️ 이건 "추천 종목"이 아니라 "이 테마를 볼 때 같이 보는 종목"입니다. 확실하지 않은 티커는 넣지 마세요.
+   - 시스템이 실시간 시세를 붙여 객관적 데이터로만 표시합니다.
+
+⚠️ 절대 금지 (하나라도 어기면 그 문단은 버려집니다):
+- 특정 종목의 매수·매도 권유, "수혜주"·"유망"·"목표가"·"손절"·"상승여력"·"투자 포인트"·"비중 확대"
+- 특정 종목이 오를 것이다/내릴 것이다 라는 단정
+- 신뢰도%·적정주가 같은 수치화된 투자판단
+
+다음 JSON만 반환하세요 (다른 텍스트 없이):
+{ "title":"...", "deck":"...", "sections":[{"heading":"...","paragraphs":["..."]}], "ripple_chain":[{"step":"...","reason":"...","confidence":"high"}], "sectors":[{"name":"반도체","tone":"pos"}], "tickers":["005930.KS"] }`;
+
+function deepDiveIssueLine(i) {
+  const sec = Array.isArray(i.sectors) ? i.sectors.slice(0, 3).join('/') : '';
+  const digest = (i.ai_digest || '').trim().slice(0, 180);
+  return `[${i.id}] ${String(i.title || '').slice(0, 110)}${sec ? ` (${sec})` : ''}${digest ? `\n     ${digest}` : ''}`;
+}
+
+function buildDeepDiveClusterDynamic(issues) {
+  return `최근 뉴스 목록 (${issues.length}건, 최신순):\n\n${issues.map(deepDiveIssueLine).join('\n')}\n\n위 목록에서 위 규칙에 따라 테마를 골라 JSON으로만 응답하세요.`;
+}
+
+function buildDeepDiveWriteDynamic(theme, issues) {
+  const lines = issues.map(i => {
+    const d = (i.ai_digest || i.summary || '').trim().slice(0, 320);
+    const when = i.published_at ? String(i.published_at).slice(0, 10) : '';
+    return `[${i.id}] (${when}, ${i.source_name || '출처미상'}) ${String(i.title || '').slice(0, 130)}${d ? `\n     ${d}` : ''}`;
+  });
+  return `테마: ${theme.theme}\n제안된 제목: ${theme.title}\n제안된 부제: ${theme.deck}\n\n근거 기사 ${issues.length}건:\n\n${lines.join('\n')}\n\n위 재료로 위 규칙에 따라 해설 기사를 JSON으로만 작성하세요.`;
+}
+
+// URL 안전한 slug — AI가 준 영문 slug를 정제하고, 쓸 수 없으면 날짜 기반으로 폴백한다.
+function deepDiveSlug(raw, idx) {
+  const clean = String(raw || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+  const d = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  return clean ? `${clean}-${d}` : `deep-${d}-${idx + 1}`;
+}
+
+async function handleDeepDiveSubmit(req, res) {
+  if (!(await isFeatureEnabled(supabase, 'deep_dive'))) {
+    return res.status(200).json({ ok: true, submitted: 0, disabled: true });
+  }
+
+  // 신선도 가드 — 오늘 이미 상한만큼 발행했으면 스킵한다. 매시간 catch-up으로 불려도
+  // 낭비가 없어야 하므로(analyze-backlog.yml 패턴) 서버가 스스로 판단한다.
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const { count: todayCount, error: cntErr } = await supabase
+    .from('deep_dives').select('id', { count: 'exact', head: true }).gte('published_at', since);
+  // 테이블 마이그레이션 전이면 조용히 스킵 (이 레포 표준 fail-open: 기능만 비활성, 배포는 안 깨짐)
+  if (cntErr) return res.status(200).json({ ok: true, submitted: 0, reason: 'deep_dives table not ready: ' + cntErr.message });
+  const force = req.body?.force === true || req.query?.force === 'true';
+  if (!force && (todayCount || 0) >= DEEP_DIVE_MAX_PER_DAY) {
+    return res.status(200).json({ ok: true, submitted: 0, reason: `already ${todayCount} in last 24h` });
+  }
+
+  // 재료: 최근 48시간 중 ai_digest가 채워진 이슈(= article_digest가 이미 요약을 만든 것).
+  // ⚠️ issues의 공개 필드만 — analyses 계열은 건드리지 않는다.
+  const { data: issues, error } = await supabase
+    .from('issues')
+    .select('id, title, ai_digest, sectors, published_at')
+    .gte('published_at', new Date(Date.now() - 48 * 3600 * 1000).toISOString())
+    .neq('ai_digest', '')
+    .not('ai_digest', 'is', null)
+    .order('published_at', { ascending: false })
+    .limit(DEEP_DIVE_CLUSTER_POOL);
+  if (error) return res.status(500).json({ error: error.message });
+  if (!issues?.length || issues.length < DEEP_DIVE_MIN_MEMBERS * 2) {
+    return res.status(200).json({ ok: true, submitted: 0, reason: `not enough digested issues (${issues?.length || 0})` });
+  }
+
+  const result = await submitAgentJob({
+    pipeline: 'deep_dive',
+    stage: 'cluster',
+    items: [{ itemId: 'main', static: DEEP_DIVE_CLUSTER_STATIC_PROMPT, dynamic: buildDeepDiveClusterDynamic(issues) }],
+    payload: { poolIds: issues.map(i => i.id) },
+  });
+  return res.status(200).json({ ok: true, pool: issues.length, ...result });
+}
+
+// cluster 완료 → 테마별 write 단계를 이어서 큐잉한다(finalizeWeeklyScheduleEvents와 같은 구조).
+async function finalizeDeepDiveCluster(row) {
+  const text = extractJobText(row, 'main');
+  if (!text) return { themes: 0, reason: 'no response' };
+  const parsed = parseJobJson(text);
+  const poolIds = new Set((row.payload?.poolIds || []).map(Number));
+
+  const themes = (Array.isArray(parsed.themes) ? parsed.themes : [])
+    .map(t => ({
+      theme: String(t?.theme || '').trim().slice(0, 40),
+      title: String(t?.title || '').trim().slice(0, 90),
+      deck: String(t?.deck || '').trim().slice(0, 160),
+      slug: String(t?.slug || '').trim(),
+      // 목록에 실제로 있던 id만 남긴다 — AI가 없는 id를 지어내도 참고문헌이 깨지지 않도록.
+      issueIds: (Array.isArray(t?.issueIds) ? t.issueIds : []).map(Number).filter(n => poolIds.has(n)).slice(0, 24),
+    }))
+    .filter(t => t.theme && t.title && t.issueIds.length >= DEEP_DIVE_MIN_MEMBERS)
+    .slice(0, DEEP_DIVE_THEMES_PER_RUN);
+
+  if (!themes.length) return { themes: 0, reason: 'no usable theme' };
+
+  // 각 테마의 근거 기사 전문을 다시 읽어 write 프롬프트를 만든다.
+  const allIds = [...new Set(themes.flatMap(t => t.issueIds))];
+  const { data: full } = await supabase
+    .from('issues').select('id, title, summary, ai_digest, source_name, source_url, published_at, sectors')
+    .in('id', allIds);
+  const byId = new Map((full || []).map(i => [Number(i.id), i]));
+
+  // ⚠️ slug는 여기서 딱 한 번만 계산해 items와 payload가 같은 값을 쓰게 한다. deepDiveSlug는
+  // 내부에서 new Date()로 날짜를 붙이므로, 두 번 부르면 UTC 자정을 걸친 실행에서 서로 다른
+  // slug가 나온다 — 그러면 finalizeDeepDiveWrite의 extractJobText(row, t.slug)가 응답을 못 찾아
+  // 글이 조용히 사라진다.
+  const withSlug = themes.map((t, idx) => ({ ...t, slug: deepDiveSlug(t.slug, idx) }));
+
+  const items = withSlug.map(t => {
+    const members = t.issueIds.map(id => byId.get(id)).filter(Boolean);
+    return { itemId: t.slug, static: DEEP_DIVE_WRITE_STATIC_PROMPT, dynamic: buildDeepDiveWriteDynamic(t, members) };
+  });
+  const payloadThemes = withSlug;
+
+  const sub = await submitAgentJob({ pipeline: 'deep_dive', stage: 'write', items, payload: { themes: payloadThemes } });
+  return { themes: themes.length, next: sub };
+}
+
+// 본문에서 투자판단성 표현이 섞인 문단을 버린다. 프롬프트 규칙만 믿지 않는 최후 방어선.
+function deepDiveCleanSections(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.map(s => {
+    const heading = String(s?.heading || '').trim().slice(0, 40);
+    const paragraphs = (Array.isArray(s?.paragraphs) ? s.paragraphs : [])
+      .map(p => String(p || '').trim())
+      .filter(p => p.length >= 10 && !DEEP_DIVE_FORBIDDEN_RE.test(p) && !DIGEST_META_JUNK_RE.test(p))
+      .slice(0, 4)
+      .map(p => p.slice(0, 800));
+    return { heading, paragraphs };
+  }).filter(s => s.heading && s.paragraphs.length).slice(0, 6);
+}
+
+const DEEP_DIVE_CONF = new Set(['high', 'medium', 'low']);
+function deepDiveCleanChain(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.filter(s => s && String(s.step || '').trim())
+    .slice(0, 6)
+    .map(s => ({
+      step: String(s.step).trim().slice(0, 30),
+      reason: String(s.reason || '').trim().slice(0, 160),
+      confidence: DEEP_DIVE_CONF.has(s.confidence) ? s.confidence : 'medium',
+    }));
+}
+
+// 티커 형식 검증 — 미국 대문자 티커 또는 6자리.KS/.KQ. 형식이 어긋나면 버린다(환각 방지).
+function deepDiveCleanTickers(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const raw of arr) {
+    const t = String(raw || '').trim().toUpperCase();
+    if (/^[A-Z][A-Z0-9.\-]{0,9}$/.test(t) || /^\d{6}\.K[SQ]$/.test(t)) {
+      if (!out.includes(t)) out.push(t);
+    }
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+// 차트 데이터를 실제 소스에서 채운다 — AI 응답에는 숫자가 하나도 없다.
+//  · news_volume  : 이 테마 산업이 언급된 기사 수(최근 7일, 일별) — issues 집계, 결정론적
+//  · sector_tone  : 그 기사들의 산업 톤 분포 — app.js loadSectorTemp와 동일 소스
+//  · ticker_moves : 관련 종목 등락률 — /api/quotes (KR·US 혼합 조회 가능)
+async function buildDeepDiveCharts({ sectors, tickers }, req) {
+  const charts = {};
+
+  try {
+    const since = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
+    const { data: rows } = await supabase
+      .from('issues').select('published_at, news_analysis')
+      .gte('published_at', since).not('news_analysis', 'is', null)
+      .order('published_at', { ascending: false }).limit(900);
+    const names = sectors.map(s => s.name);
+    const byDay = new Map();
+    const tone = { pos: 0, neg: 0, neu: 0 };
+    for (const r of rows || []) {
+      const secs = r.news_analysis?.sectors;
+      if (!Array.isArray(secs) || !secs.length) continue;
+      // 테마 산업명과 부분일치로 매칭 — 산업명은 AI가 자유 생성하므로 정확일치는 잘 안 맞는다
+      // (kr-market.html의 SEC_MAP이 쓰는 것과 같은 이유).
+      const hit = secs.filter(s => s?.name && names.some(n => s.name.includes(n) || n.includes(s.name)));
+      if (!hit.length) continue;
+      const day = String(r.published_at).slice(0, 10);
+      byDay.set(day, (byDay.get(day) || 0) + 1);
+      for (const h of hit) tone[DIGEST_TONES.has(h.tone) ? h.tone : 'neu']++;
+    }
+    const days = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    if (days.length >= 2) charts.news_volume = { labels: days.map(d => d[0]), values: days.map(d => d[1]) };
+    if (tone.pos + tone.neg + tone.neu > 0) charts.sector_tone = tone;
+  } catch { /* 집계 실패는 게시물 저장을 막지 않는다 */ }
+
+  if (tickers.length) {
+    try {
+      const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+        : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req?.headers?.host}`;
+      const r = await fetch(`${base}/api/quotes?tickers=${encodeURIComponent(tickers.join(','))}`, { signal: AbortSignal.timeout(12000) });
+      const j = await r.json();
+      const moves = [];
+      for (const t of tickers) {
+        const q = j?.data?.[t];
+        if (q && typeof q.changePercent === 'number') {
+          moves.push({ ticker: t, name: q.shortName || t, changePercent: q.changePercent, price: q.price ?? null, currency: q.currency || null });
+        }
+      }
+      if (moves.length) charts.ticker_moves = moves;
+    } catch { /* 시세 실패해도 본문은 그대로 발행 */ }
+  }
+
+  return charts;
+}
+
+async function finalizeDeepDiveWrite(row, req) {
+  const themes = row.payload?.themes || [];
+  const results = { saved: 0, skipped: 0, slugs: [], errors: [] };
+
+  for (const t of themes) {
+    try {
+      const text = extractJobText(row, t.slug);
+      if (!text) { results.skipped++; continue; }
+      const parsed = parseJobJson(text);
+
+      const sections = deepDiveCleanSections(parsed.sections);
+      const title = String(parsed.title || t.title || '').trim().slice(0, 90);
+      const deck = String(parsed.deck || t.deck || '').trim().slice(0, 160);
+      // 본문이 다 걸러졌거나 제목이 없으면 저장하지 않는다 — 빈 껍데기 게시물을 만들지 않는다.
+      if (!title || sections.length < 2) { results.skipped++; continue; }
+      if (DEEP_DIVE_FORBIDDEN_RE.test(title) || DEEP_DIVE_FORBIDDEN_RE.test(deck)) { results.skipped++; continue; }
+
+      const sectors = cleanNewsSectors(parsed.sectors);
+      const tickers = deepDiveCleanTickers(parsed.tickers);
+      const charts = await buildDeepDiveCharts({ sectors, tickers }, req);
+
+      const { error } = await supabase.from('deep_dives').upsert({
+        slug: t.slug,
+        theme: t.theme,
+        title,
+        deck,
+        sections,
+        ripple_chain: deepDiveCleanChain(parsed.ripple_chain),
+        sectors,
+        tickers,
+        charts,
+        source_issue_ids: t.issueIds || [],
+        published_at: new Date().toISOString(),
+      }, { onConflict: 'slug' });
+      if (error) { results.errors.push({ slug: t.slug, error: error.message?.slice(0, 200) }); continue; }
+      results.saved++;
+      results.slugs.push(t.slug);
+    } catch (e) {
+      results.errors.push({ slug: t?.slug, error: e.message?.slice(0, 200) });
+    }
+  }
+  return results;
+}
+
+// 공개 조회 — 목록(?limit=) 또는 상세(?slug=). 상세는 참고문헌용 issues 정보까지 붙여준다.
+async function handleDeepDivesGet(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const slug = (req.query.slug || '').toString().trim();
+
+  try {
+    if (slug) {
+      const { data, error } = await supabase.from('deep_dives').select('*').eq('slug', slug).maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ ok: false, error: 'not found' });
+
+      // 참고문헌 — issues의 공개 필드만.
+      let sources = [];
+      const ids = Array.isArray(data.source_issue_ids) ? data.source_issue_ids : [];
+      if (ids.length) {
+        const { data: iss } = await supabase.from('issues')
+          .select('id, title, source_name, source_url, published_at')
+          .in('id', ids).order('published_at', { ascending: false });
+        sources = iss || [];
+      }
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+      return res.status(200).json({ ok: true, data, sources });
+    }
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 6, 1), 30);
+    const { data, error } = await supabase.from('deep_dives')
+      .select('slug, theme, title, deck, sectors, tickers, source_issue_ids, published_at')
+      .order('published_at', { ascending: false }).limit(limit);
+    if (error) throw error;
+    res.setHeader('Cache-Control', 'public, s-maxage=180, stale-while-revalidate=1800');
+    return res.status(200).json({ ok: true, data: data || [] });
+  } catch (e) {
+    // 마이그레이션 전이면 우아하게 — 홈이 이 응답으로 죽지 않게 한다.
+    // ⚠️ 상세 요청에는 data를 null로 준다. []로 주면 클라이언트의 `!j.data` 체크를 통과해
+    //    (빈 배열은 truthy) "못 찾음" 화면 대신 제목·본문이 텅 빈 기사가 그려진다.
+    return res.status(200).json({
+      ok: true, data: slug ? null : [], sources: [], degraded: e.message?.slice(0, 160),
+    });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
 // 21) agent_jobs 폴링 — analyze.js의 batch-poll과 별개. extract_investments/
 //     ai_market_summary/weekly_schedule/catalysts/daily_report/company_summary
 //     6개 파이프라인 공용. 스케줄 Claude Code 에이전트가 response를 채운 job을
@@ -5172,6 +5543,8 @@ const AGENT_JOB_FINALIZERS = {
   weekly_schedule:      { events: finalizeWeeklyScheduleEvents, highlights: finalizeWeeklyScheduleHighlights },
   article_digest:      { main: finalizeArticleDigest },
   rank_reason:         { main: finalizeRankReason },
+  // cluster가 완료되면 finalizeDeepDiveCluster가 write 단계를 다시 큐잉한다(weekly_schedule과 동일).
+  deep_dive:           { cluster: finalizeDeepDiveCluster, write: finalizeDeepDiveWrite },
 };
 
 // claim(submitted→processing) 직후 finalize 도중 함수가 죽으면(Vercel 타임아웃 등) 그 row는
@@ -5311,6 +5684,7 @@ function buildSeoBlock({ title, desc, url, type = 'website', jsonLd = null, noin
 // 없어서 런타임에 터진다. vercel.json의 includeFiles도 같은 이유의 안전망.
 function readSiteFile(which) {
   if (which === 'analysis') return readFileSync(join(process.cwd(), 'analysis.html'), 'utf8');
+  if (which === 'deep') return readFileSync(join(process.cwd(), 'deep.html'), 'utf8');
   return readFileSync(join(process.cwd(), 'company.html'), 'utf8');
 }
 
@@ -5363,6 +5737,45 @@ async function handleRenderAnalysis(req, res) {
   return sendPrerendered(res, html);
 }
 
+// /deep/:slug — 심층분석 프리렌더. render-analysis와 같은 구조지만 noindex 분기가 없다:
+// 심층분석은 정의상 우리가 직접 쓴 원본 글이라 "얇은 스크랩" 상태가 존재하지 않는다.
+async function handleRenderDeep(req, res) {
+  const slug = (req.query.slug || '').toString().trim();
+  let html;
+  try {
+    html = readSiteFile('deep');
+  } catch {
+    return res.redirect(302, '/deep.html' + (slug ? `?slug=${encodeURIComponent(slug)}` : ''));
+  }
+
+  try {
+    if (slug) {
+      const { data: dd } = await supabase.from('deep_dives')
+        .select('slug, title, deck, theme, published_at')
+        .eq('slug', slug).maybeSingle();
+      if (dd && dd.title) {
+        const desc = seoDesc(dd.deck, '여러 뉴스를 종합해 지금 시장의 흐름을 정리했습니다.');
+        html = html.replace(SEO_BLOCK_RE, buildSeoBlock({
+          title: `${dd.title} — StockRipple`,
+          desc,
+          url: `${SITE_ORIGIN}/deep/${encodeURIComponent(dd.slug)}`,
+          type: 'article',
+          jsonLd: {
+            '@context': 'https://schema.org',
+            '@type': 'NewsArticle',
+            headline: dd.title.slice(0, 110),
+            description: desc,
+            datePublished: dd.published_at || undefined,
+            articleSection: dd.theme || undefined,
+            publisher: { '@type': 'Organization', name: 'StockRipple' },
+          },
+        }));
+      }
+    }
+  } catch { /* DB 실패 → 원본 그대로(fail-open) */ }
+  return sendPrerendered(res, html);
+}
+
 async function handleRenderCompany(req, res) {
   const ticker = (req.query.ticker || '').toString().toUpperCase().trim();
   let html;
@@ -5397,7 +5810,7 @@ async function handleSitemap(req, res) {
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
 
-  const STATIC_PATHS = ['/', '/news.html', '/heatmap.html', '/kr-market.html', '/sectors.html',
+  const STATIC_PATHS = ['/', '/deep.html', '/news.html', '/heatmap.html', '/kr-market.html', '/sectors.html',
     '/etf.html', '/earnings.html', '/market-detail.html', '/portfolio.html', '/talks.html'];
   const urlTag = (loc, lastmod) =>
     `<url><loc>${seoEsc(SITE_ORIGIN + loc)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>`;
@@ -5417,6 +5830,17 @@ async function handleSitemap(req, res) {
       if (c.ticker) parts.push(urlTag(`/stock/${encodeURIComponent(c.ticker)}`));
     }
   } catch { /* fail-open: 정적 경로만이라도 유효한 사이트맵으로 내려보낸다 */ }
+
+  // 심층분석은 이 사이트의 원본 콘텐츠라 색인 우선순위가 가장 높다. 테이블 마이그레이션
+  // 전이면 조용히 건너뛴다(위 블록과 별도 try — 이슈/종목 사이트맵까지 같이 죽으면 안 된다).
+  try {
+    const { data: dives } = await supabase.from('deep_dives')
+      .select('slug, published_at').order('published_at', { ascending: false }).limit(500);
+    for (const d of dives || []) {
+      const lm = d.published_at ? new Date(d.published_at).toISOString().slice(0, 10) : '';
+      parts.push(urlTag(`/deep/${encodeURIComponent(d.slug)}`, lm));
+    }
+  } catch { /* fail-open */ }
 
   return res.status(200).send(
     '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'

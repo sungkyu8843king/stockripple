@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<script>(function(){try{if(localStorage.getItem('sr_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="/announcement-bar.js" defer></script>
+<script src="/sr-pulse.js" defer></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6523218613710122" crossorigin="anonymous"></script>
+<!-- SEO:START -->
+<!-- /deep/:slug 로 들어오면 api/admin.js의 render-deep이 이 블록을 게시물별 제목·부제로
+     통째로 갈아끼운다(buildSeoBlock). 마커를 지우거나 이름을 바꾸면 치환이 조용히 실패하고
+     아래 기본 문구가 그대로 검색엔진·공유 미리보기에 노출된다. -->
+<title>심층분석 — StockRipple</title>
+<meta name="description" content="여러 뉴스를 종합해 지금 시장에서 벌어지는 흐름 하나를 깊이 있게 정리합니다.">
+<link rel="canonical" href="https://stockripple.vercel.app/deep.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="StockRipple">
+<meta property="og:title" content="심층분석 — StockRipple">
+<meta property="og:description" content="여러 뉴스를 종합해 지금 시장에서 벌어지는 흐름 하나를 깊이 있게 정리합니다.">
+<meta property="og:url" content="https://stockripple.vercel.app/deep.html">
+<meta property="og:image" content="https://stockripple.vercel.app/icon-512.png">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="심층분석 — StockRipple">
+<meta name="twitter:description" content="여러 뉴스를 종합해 지금 시장에서 벌어지는 흐름 하나를 깊이 있게 정리합니다.">
+<meta name="twitter:image" content="https://stockripple.vercel.app/icon-512.png">
+<!-- SEO:END -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<!-- 차트는 전부 손으로 그린 인라인 SVG다 — 외부 차트 라이브러리를 안 쓴다.
+     이유: ① 테마(라이트/다크) 토큰을 그대로 쓸 수 있고 ② 200KB 라이브러리를 안 받고
+     ③ kr-market.html이 이미 같은 방식(.fl-chart)이라 시각 언어가 통일된다. -->
+<style>
+:root {
+  --bg: #15171e; --bg-rgb: 21,23,30; --bg2: #1e2129; --bg3: #262a34; --bg4: #2f333f;
+  --border: rgba(255,255,255,0.075); --border-strong: rgba(255,255,255,0.16); --border-soft: rgba(255,255,255,0.05);
+  --text: #f2f4f8; --text2: #a6adbb; --text3: #6c7385;
+  --blue: #4d8dff; --blue-dim: rgba(77,141,255,0.14);
+  --green: #3ddb7f; --green-dim: rgba(61,219,127,0.14);
+  --red:   #ff6b6b; --red-dim:   rgba(255,107,107,0.14);
+  --yellow:#f0b45e; --yellow-dim: rgba(240,180,94,0.16); --purple:#9d7bff; --purple-dim: rgba(157,123,255,0.16);
+  --shadow-card: 0 10px 30px -14px rgba(0,0,0,0.55);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+  --r-lg: 20px; --r-md: 14px; --r-sm: 10px; --r-xs: 7px;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+:root[data-theme="light"] {
+  --bg: #f5f6f8; --bg-rgb: 245,246,248; --bg2: #ffffff; --bg3: #eef0f3; --bg4: #e3e6eb;
+  --border: rgba(15,17,23,0.09); --border-strong: rgba(15,17,23,0.18); --border-soft: rgba(15,17,23,0.05);
+  --text: #14161c; --text2: #4b5163; --text3: #6b7280;
+  --red: #dc2626; --green: #15803d; --blue: #1d4ed8; --yellow: #a16207; --purple: #7c3aed;
+  --shadow-sm: 0 2px 8px rgba(15,17,23,0.10);
+  --shadow-card: 0 10px 30px -14px rgba(15,17,23,0.16);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.wrap { max-width: 860px; margin: 0 auto; padding: 22px 18px 80px; }
+
+/* ── 히어로 비주얼 ──────────────────────────────────────────
+   실사진을 안 쓰는 이유: issues 테이블에 이미지 컬럼이 아예 없고(RSS 수집 단계에서
+   저장하지 않는다), 원문 이미지 핫링크는 저작권·CORS 양쪽으로 위험하다. 대신 테마
+   문자열에서 결정론적으로 색을 뽑아 게시물마다 고유한 그라데이션 배너를 만든다. */
+.dd-hero { position: relative; border-radius: var(--r-lg); padding: 30px 26px 26px; overflow: hidden; margin-bottom: 26px; border: 1px solid var(--border); }
+.dd-hero-wave { position: absolute; inset: 0; opacity: .28; pointer-events: none; }
+.dd-hero-inner { position: relative; }
+.dd-theme-chip { display: inline-block; font-size: 13px; font-weight: 800; letter-spacing: .02em; padding: 5px 12px; border-radius: 999px; background: rgba(255,255,255,.16); color: #fff; margin-bottom: 14px; backdrop-filter: blur(4px); }
+.dd-hero h1 { font-size: 31px; font-weight: 800; line-height: 1.28; letter-spacing: -.02em; color: #fff; word-break: keep-all; }
+.dd-hero .dd-deck { margin-top: 12px; font-size: 16.5px; line-height: 1.6; color: rgba(255,255,255,.86); word-break: keep-all; }
+.dd-hero .dd-meta { margin-top: 16px; font-size: 13.5px; color: rgba(255,255,255,.72); display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+
+/* ── 섹터 칩 ── */
+.dd-sectors { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; }
+.dd-sec { font-size: 14px; font-weight: 700; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--bg2); }
+.dd-sec.pos { color: var(--red); border-color: color-mix(in srgb, var(--red) 42%, transparent); background: var(--red-dim); }
+.dd-sec.neg { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 42%, transparent); background: var(--blue-dim); }
+.dd-sec.neu { color: var(--text2); }
+
+/* ── 본문 ── */
+.dd-section { margin-bottom: 32px; }
+.dd-section h2 { font-size: 21px; font-weight: 800; letter-spacing: -.015em; margin-bottom: 13px; display: flex; align-items: center; gap: 10px; word-break: keep-all; }
+.dd-section h2::before { content: ''; width: 4px; height: 19px; border-radius: 2px; background: var(--purple); flex-shrink: 0; }
+.dd-section p { font-size: 16.5px; line-height: 1.82; color: var(--text2); margin-bottom: 15px; word-break: keep-all; }
+.dd-section p:last-child { margin-bottom: 0; }
+
+/* ── 카드(차트/체인 공통) ── */
+.dd-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 20px; margin-bottom: 22px; }
+.dd-card-title { font-size: 16px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.dd-card-sub { font-size: 13.5px; color: var(--text3); margin-bottom: 16px; line-height: 1.5; }
+/* 넓은 차트는 페이지 전체가 아니라 이 래퍼 안에서만 가로 스크롤된다.
+   (이 레포에서 Grid/Flex 아이템 min-width:auto 때문에 모바일 가로넘침이 반복 재발했다) */
+.dd-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── 파급 체인 ── */
+.dd-chain { display: flex; flex-direction: column; gap: 0; }
+.dd-chain-row { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 14px; }
+.dd-chain-rail { display: flex; flex-direction: column; align-items: center; }
+.dd-chain-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.dd-chain-line { width: 2px; flex: 1; background: var(--border-strong); min-height: 18px; }
+.dd-chain-body { padding-bottom: 20px; min-width: 0; }
+.dd-chain-step { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dd-chain-conf { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .02em; }
+.dd-chain-reason { font-size: 14.5px; color: var(--text2); line-height: 1.6; margin-top: 5px; word-break: keep-all; }
+
+/* ── 종목 시세 바 (상승=빨강 / 하락=파랑, 한국 관례) ── */
+.dd-tk { display: grid; grid-template-columns: minmax(84px, 128px) minmax(0, 1fr) 74px; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.dd-tk:last-child { border-bottom: 0; }
+.dd-tk-name { font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-tk-tk { font-size: 11.5px; color: var(--text3); font-family: var(--font-mono); }
+.dd-tk-track { height: 22px; background: var(--bg3); border-radius: 5px; position: relative; overflow: hidden; min-width: 0; }
+.dd-tk-zero { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--border-strong); }
+.dd-tk-fill { position: absolute; top: 4px; bottom: 4px; border-radius: 3px; }
+.dd-tk-val { font-size: 14px; font-weight: 700; text-align: right; font-family: var(--font-mono); }
+
+/* ── 참고문헌 ── */
+.dd-refs { counter-reset: ref; }
+.dd-ref { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.dd-ref:last-child { border-bottom: 0; }
+.dd-ref-num { font-size: 13px; font-weight: 700; color: var(--text3); font-family: var(--font-mono); padding-top: 2px; }
+.dd-ref-t { font-size: 15px; font-weight: 600; line-height: 1.5; color: var(--text); text-decoration: none; display: block; word-break: break-word; }
+.dd-ref-t:hover { color: var(--blue); }
+.dd-ref-m { font-size: 12.5px; color: var(--text3); margin-top: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
+.dd-ref-m a { color: var(--text3); text-decoration: none; }
+.dd-ref-m a:hover { color: var(--blue); text-decoration: underline; }
+
+/* ── 목록 화면 ── */
+.dd-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.dd-item { display: block; text-decoration: none; color: inherit; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--bg2); transition: transform .15s, box-shadow .15s; }
+.dd-item:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
+.dd-item-band { height: 76px; position: relative; display: flex; align-items: center; padding: 0 18px; }
+.dd-item-band .dd-theme-chip { margin: 0; }
+.dd-item-body { padding: 16px 18px 18px; }
+.dd-item-title { font-size: 18.5px; font-weight: 800; line-height: 1.4; letter-spacing: -.015em; word-break: keep-all; }
+.dd-item-deck { font-size: 14.5px; color: var(--text2); line-height: 1.6; margin-top: 8px; word-break: keep-all; }
+.dd-item-meta { font-size: 12.5px; color: var(--text3); margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+.dd-note { font-size: 13px; color: var(--text3); line-height: 1.65; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px 16px; margin-top: 30px; }
+.dd-back { display: inline-flex; align-items: center; gap: 6px; color: var(--text2); text-decoration: none; font-size: 14.5px; margin-bottom: 18px; padding: 6px 11px; border-radius: var(--r-xs); background: var(--bg2); border: 1px solid var(--border); }
+.dd-back:hover { color: var(--text); background: var(--bg3); }
+.dd-empty { text-align: center; padding: 70px 20px; color: var(--text3); }
+.dd-empty-icon { font-size: 46px; margin-bottom: 14px; }
+.dd-empty-title { font-size: 18px; font-weight: 700; color: var(--text2); margin-bottom: 8px; }
+.spinner { width: 30px; height: 30px; border: 3px solid var(--border-strong); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 14px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.dd-head-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.dd-h1 { font-size: 27px; font-weight: 800; letter-spacing: -.02em; }
+.dd-h1-sub { font-size: 14.5px; color: var(--text3); }
+
+@media (max-width: 640px) {
+  .wrap { padding: 16px 14px 70px; }
+  .dd-hero { padding: 24px 19px 22px; }
+  .dd-hero h1 { font-size: 25px; }
+  .dd-hero .dd-deck { font-size: 15.5px; }
+  .dd-section h2 { font-size: 19px; }
+  .dd-section p { font-size: 16px; line-height: 1.78; }
+  .dd-tk { grid-template-columns: minmax(72px, 100px) minmax(0, 1fr) 62px; gap: 8px; }
+  .dd-h1 { font-size: 23px; }
+}
+</style>
+</head>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/site-header.js"></script>
+<div id="site-header-mount"></div>
+<script>renderSiteHeader('/deep.html');</script>
+
+<div class="wrap" id="wrap">
+  <div class="dd-empty"><div class="spinner"></div><p>불러오는 중…</p></div>
+</div>
+
+<div id="site-footer-mount"></div>
+<script>renderSiteFooter();</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   심층분석 페이지 (2026-08-19)
+
+   이 페이지 전용 로직은 전부 여기 인라인에 있다 — app.js는 5개 페이지 공유라
+   여기에 이 페이지 전용 코드를 넣지 말 것.
+
+   ⚠️ 데이터는 /api/admin?action=deep-dives 하나만 쓴다. 서버가 issues의 공개 필드만
+      재료로 쓴 글과 실데이터 차트를 이미 조립해 내려주므로, 이 페이지가 Supabase를
+      직접 조회하거나 시세 API를 따로 부를 일이 없다.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// 테마 문자열 → 결정론적 색상. 같은 글은 언제 봐도 같은 색이고, 다른 글은 서로 구분된다.
+function themeHue(s) {
+  let h = 0;
+  for (let i = 0; i < String(s).length; i++) h = (h * 31 + String(s).charCodeAt(i)) % 360;
+  return h;
+}
+function heroStyle(theme) {
+  const h = themeHue(theme || 'x');
+  return `background:linear-gradient(135deg, hsl(${h} 62% 34%), hsl(${(h + 42) % 360} 58% 22%))`;
+}
+// 히어로 배경의 물결 무늬 — 사이트 로고의 〜 모티프. 순수 SVG라 외부 이미지가 없다.
+function heroWave() {
+  return `<svg class="dd-hero-wave" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 74 Q 50 44 100 74 T 200 74 T 300 74 T 400 74" fill="none" stroke="#fff" stroke-width="2.5" opacity=".55"/>
+    <path d="M0 92 Q 50 62 100 92 T 200 92 T 300 92 T 400 92" fill="none" stroke="#fff" stroke-width="2" opacity=".33"/>
+    <path d="M0 56 Q 50 26 100 56 T 200 56 T 300 56 T 400 56" fill="none" stroke="#fff" stroke-width="1.5" opacity=".22"/>
+  </svg>`;
+}
+
+function fmtDate(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d)) return '';
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const TONE_LABEL = { pos: '우호적', neg: '비우호적', neu: '중립' };
+
+/* ── 차트 렌더러 (전부 인라인 SVG / CSS) ───────────────────────────── */
+
+// ① 뉴스 볼륨 추이 — 이 테마 산업이 언급된 기사 수(일별). 서버가 issues에서 집계한 값.
+function renderVolume(v) {
+  if (!v || !Array.isArray(v.values) || v.values.length < 2) return '';
+  const max = Math.max(...v.values, 1);
+  const W = Math.max(320, v.values.length * 52), H = 130, P = 22;
+  const bw = (W - P * 2) / v.values.length;
+  const bars = v.values.map((n, i) => {
+    const h = Math.max(2, (n / max) * (H - P * 2));
+    const x = P + i * bw + bw * 0.18, w = bw * 0.64, y = H - P - h;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="var(--purple)" opacity=".85"><title>${esc(v.labels[i])} · ${n}건</title></rect>`
+      + `<text x="${(x + w / 2).toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text2)">${n}</text>`;
+  }).join('');
+  const labels = v.labels.map((l, i) => {
+    const x = P + i * bw + bw / 2;
+    return `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10.5" fill="var(--text3)">${esc(String(l).slice(5))}</text>`;
+  }).join('');
+  return `<div class="dd-card">
+    <div class="dd-card-title">📈 이 테마의 뉴스량</div>
+    <div class="dd-card-sub">최근 7일 동안 이 산업이 언급된 기사 수입니다. 기사 건수 집계일 뿐 주가와는 무관합니다.</div>
+    <div class="dd-scroll"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${W}px;height:${H}px">${bars}${labels}</svg></div>
+  </div>`;
+}
+
+// ② 산업 톤 분포 — app.js의 "지금 산업 온도"와 같은 소스(news_analysis.sectors[].tone).
+function renderTone(t) {
+  if (!t) return '';
+  const total = (t.pos || 0) + (t.neg || 0) + (t.neu || 0);
+  if (!total) return '';
+  const pct = n => ((n || 0) / total * 100);
+  return `<div class="dd-card">
+    <div class="dd-card-title">🌡️ 이 테마에 대한 뉴스 톤</div>
+    <div class="dd-card-sub">기사들이 이 산업에 우호적인지 비우호적인지 집계한 것으로, 특정 종목의 매수·매도 의견이 아닙니다.</div>
+    <div style="display:flex;height:26px;border-radius:6px;overflow:hidden;background:var(--bg3)">
+      <div style="width:${pct(t.pos).toFixed(1)}%;background:var(--red)" title="우호적 ${t.pos || 0}건"></div>
+      <div style="width:${pct(t.neu).toFixed(1)}%;background:var(--bg4)" title="중립 ${t.neu || 0}건"></div>
+      <div style="width:${pct(t.neg).toFixed(1)}%;background:var(--blue)" title="비우호적 ${t.neg || 0}건"></div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:11px;font-size:13.5px;color:var(--text3)">
+      <span><b style="color:var(--red)">■</b> 우호적 ${t.pos || 0}</span>
+      <span><b style="color:var(--text3)">■</b> 중립 ${t.neu || 0}</span>
+      <span><b style="color:var(--blue)">■</b> 비우호적 ${t.neg || 0}</span>
+    </div>
+  </div>`;
+}
+
+// ③ 관련 종목 등락 — 서버가 /api/quotes에서 받아온 실시간 값.
+// ⚠️ 한국 관례: 상승=빨강, 하락=파랑.
+function renderTickers(moves) {
+  if (!Array.isArray(moves) || !moves.length) return '';
+  const maxAbs = Math.max(...moves.map(m => Math.abs(m.changePercent)), 1);
+  const rows = moves.map(m => {
+    const p = m.changePercent;
+    const col = p > 0 ? 'var(--red)' : p < 0 ? 'var(--blue)' : 'var(--text3)';
+    const w = Math.min(50, Math.abs(p) / maxAbs * 50);
+    const fill = p >= 0
+      ? `left:50%;width:${w.toFixed(1)}%;background:${col}`
+      : `right:50%;width:${w.toFixed(1)}%;background:${col}`;
+    const href = `/stock/${encodeURIComponent(m.ticker)}`;
+    return `<a class="dd-tk" href="${esc(href)}" style="text-decoration:none;color:inherit">
+      <div style="min-width:0">
+        <div class="dd-tk-name">${esc(m.name || m.ticker)}</div>
+        <div class="dd-tk-tk">${esc(m.ticker)}</div>
+      </div>
+      <div class="dd-tk-track"><div class="dd-tk-zero"></div><div class="dd-tk-fill" style="${fill}"></div></div>
+      <div class="dd-tk-val" style="color:${col}">${p > 0 ? '+' : ''}${p.toFixed(2)}%</div>
+    </a>`;
+  }).join('');
+  return `<div class="dd-card">
+    <div class="dd-card-title">📊 이 테마와 함께 보는 종목</div>
+    <div class="dd-card-sub">이 흐름과 관련된 종목의 <b>오늘 등락률</b>입니다. 매수·매도 의견이 아니며, 추천 종목 목록도 아닙니다.</div>
+    ${rows}
+  </div>`;
+}
+
+// ④ 파급 체인 — 뉴스가 산업 사이를 타고 번지는 경로. 뒤로 갈수록 확신도가 낮아지는 게 정상이라
+//    confidence를 색으로 그대로 드러낸다(전부 high로 보이면 오히려 신뢰가 떨어진다).
+function renderChain(chain) {
+  if (!Array.isArray(chain) || !chain.length) return '';
+  const CONF = {
+    high:   { c: 'var(--red)',    l: '연결 뚜렷' },
+    medium: { c: 'var(--yellow)', l: '연결 보통' },
+    low:    { c: 'var(--text3)',  l: '연결 약함' },
+  };
+  const rows = chain.map((s, i) => {
+    const cf = CONF[s.confidence] || CONF.medium;
+    const last = i === chain.length - 1;
+    return `<div class="dd-chain-row">
+      <div class="dd-chain-rail">
+        <div class="dd-chain-dot" style="background:${cf.c}"></div>
+        ${last ? '' : '<div class="dd-chain-line"></div>'}
+      </div>
+      <div class="dd-chain-body">
+        <div class="dd-chain-step">${esc(s.step)}
+          <span class="dd-chain-conf" style="color:${cf.c};background:color-mix(in srgb, ${cf.c} 16%, transparent)">${cf.l}</span>
+        </div>
+        ${s.reason ? `<div class="dd-chain-reason">${esc(s.reason)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="dd-card">
+    <div class="dd-card-title">🌊 파급 경로</div>
+    <div class="dd-card-sub">이 이슈가 산업 사이로 번져 나가는 순서입니다. 뒤로 갈수록 근거가 느슨해지므로 연결 강도를 함께 표시했습니다.</div>
+    <div class="dd-chain">${rows}</div>
+  </div>`;
+}
+
+/* ── 상세 화면 ───────────────────────────────────────────────────── */
+function renderDetail(d, sources) {
+  const secs = Array.isArray(d.sectors) ? d.sectors : [];
+  const charts = d.charts || {};
+  const nSrc = Array.isArray(d.source_issue_ids) ? d.source_issue_ids.length : 0;
+
+  const body = (Array.isArray(d.sections) ? d.sections : []).map(s => `
+    <div class="dd-section">
+      <h2>${esc(s.heading)}</h2>
+      ${(s.paragraphs || []).map(p => `<p>${esc(p)}</p>`).join('')}
+    </div>`).join('');
+
+  const refs = (sources || []).map((s, i) => `
+    <div class="dd-ref">
+      <div class="dd-ref-num">${i + 1}</div>
+      <div style="min-width:0">
+        <a class="dd-ref-t" href="/analysis/${encodeURIComponent(s.id)}">${esc(s.title)}</a>
+        <div class="dd-ref-m">
+          <span>${esc(s.source_name || '출처미상')}</span>
+          <span>${fmtDate(s.published_at)}</span>
+          ${s.source_url ? `<a href="${esc(s.source_url)}" target="_blank" rel="noopener noreferrer">원문 ↗</a>` : ''}
+        </div>
+      </div>
+    </div>`).join('');
+
+  return `
+    <a class="dd-back" href="/deep.html">← 심층분석 목록</a>
+
+    <div class="dd-hero" style="${heroStyle(d.theme)}">
+      ${heroWave()}
+      <div class="dd-hero-inner">
+        ${d.theme ? `<span class="dd-theme-chip">${esc(d.theme)}</span>` : ''}
+        <h1>${esc(d.title)}</h1>
+        ${d.deck ? `<p class="dd-deck">${esc(d.deck)}</p>` : ''}
+        <div class="dd-meta">
+          <span>${fmtDate(d.published_at)}</span>
+          ${nSrc ? `<span>· 기사 ${nSrc}건을 종합</span>` : ''}
+        </div>
+      </div>
+    </div>
+
+    ${secs.length ? `<div class="dd-sectors">${secs.map(s =>
+      `<span class="dd-sec ${esc(s.tone || 'neu')}">${esc(s.name)} · ${TONE_LABEL[s.tone] || '중립'}</span>`).join('')}</div>` : ''}
+
+    ${body}
+    ${renderChain(d.ripple_chain)}
+    ${renderVolume(charts.news_volume)}
+    ${renderTone(charts.sector_tone)}
+    ${renderTickers(charts.ticker_moves)}
+
+    ${refs ? `<div class="dd-card">
+      <div class="dd-card-title">📚 참고한 기사 (${(sources || []).length}건)</div>
+      <div class="dd-card-sub">이 글은 아래 기사들을 종합해 작성했습니다.</div>
+      <div class="dd-refs">${refs}</div>
+    </div>` : ''}
+
+    <div class="dd-note">
+      이 글은 공개된 뉴스 기사를 종합해 산업의 흐름을 설명하는 정보 제공 콘텐츠입니다.
+      특정 종목의 매수·매도를 권유하지 않으며, 투자 판단과 그 결과에 대한 책임은 이용자 본인에게 있습니다.
+      표시된 시세는 조회 시점의 값으로 실제와 다를 수 있습니다.
+    </div>`;
+}
+
+/* ── 목록 화면 ───────────────────────────────────────────────────── */
+function renderList(rows) {
+  if (!rows.length) {
+    return `<div class="dd-head-row"><span class="dd-h1">🔎 심층분석</span></div>
+      <div class="dd-empty">
+        <div class="dd-empty-icon">📝</div>
+        <p class="dd-empty-title">아직 발행된 심층분석이 없습니다</p>
+        <p>여러 기사가 같은 흐름을 가리킬 때 하나의 글로 묶어 발행합니다. 하루 2편까지 올라옵니다.</p>
+      </div>`;
+  }
+  const items = rows.map(r => {
+    const nSrc = Array.isArray(r.source_issue_ids) ? r.source_issue_ids.length : 0;
+    const secs = (Array.isArray(r.sectors) ? r.sectors : []).slice(0, 3);
+    return `<a class="dd-item" href="/deep/${encodeURIComponent(r.slug)}">
+      <div class="dd-item-band" style="${heroStyle(r.theme)}">
+        ${heroWave()}
+        ${r.theme ? `<span class="dd-theme-chip" style="position:relative">${esc(r.theme)}</span>` : ''}
+      </div>
+      <div class="dd-item-body">
+        <div class="dd-item-title">${esc(r.title)}</div>
+        ${r.deck ? `<div class="dd-item-deck">${esc(r.deck)}</div>` : ''}
+        <div class="dd-item-meta">
+          <span>${fmtDate(r.published_at)}</span>
+          ${nSrc ? `<span>기사 ${nSrc}건 종합</span>` : ''}
+          ${secs.length ? `<span>${secs.map(s => esc(s.name)).join(' · ')}</span>` : ''}
+        </div>
+      </div>
+    </a>`;
+  }).join('');
+  return `<div class="dd-head-row">
+      <span class="dd-h1">🔎 심층분석</span>
+      <span class="dd-h1-sub">여러 기사를 하나의 흐름으로 묶어 정리합니다</span>
+    </div>
+    <div class="dd-list" style="margin-top:20px">${items}</div>
+    <div class="dd-note">
+      개별 기사 원문이 필요하면 <a href="/news.html" style="color:var(--blue)">뉴스 페이지</a>에서 볼 수 있습니다.
+    </div>`;
+}
+
+/* ── 부트스트랩 ──────────────────────────────────────────────────── */
+// slug는 두 경로로 들어온다: /deep/:slug (rewrite → render-deep가 이 파일을 서빙) 또는
+// /deep.html?slug=... (프리렌더 실패 시 폴백 리다이렉트 경로).
+function currentSlug() {
+  const m = location.pathname.match(/^\/deep\/([^/?#]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  return new URLSearchParams(location.search).get('slug') || '';
+}
+
+async function boot() {
+  const wrap = document.getElementById('wrap');
+  const slug = currentSlug();
+  try {
+    const url = slug
+      ? `/api/admin?action=deep-dives&slug=${encodeURIComponent(slug)}`
+      : '/api/admin?action=deep-dives&limit=20';
+    const r = await fetch(url);
+    const j = await r.json();
+
+    if (slug) {
+      if (!j.ok || !j.data) {
+        wrap.innerHTML = `<a class="dd-back" href="/deep.html">← 심층분석 목록</a>
+          <div class="dd-empty"><div class="dd-empty-icon">🔍</div>
+          <p class="dd-empty-title">글을 찾을 수 없습니다</p>
+          <p>주소가 바뀌었거나 아직 발행 전일 수 있습니다.</p></div>`;
+        return;
+      }
+      wrap.innerHTML = renderDetail(j.data, j.sources || []);
+      document.title = `${j.data.title} — StockRipple`;
+    } else {
+      wrap.innerHTML = renderList(j.data || []);
+    }
+  } catch (e) {
+    wrap.innerHTML = `<div class="dd-empty"><div class="dd-empty-icon">⚠️</div>
+      <p class="dd-empty-title">불러오지 못했습니다</p>
+      <p>잠시 후 다시 시도해 주세요.</p></div>`;
+  }
+}
+
+boot();
+initAuth();
+</script>
+</body>
+</html>

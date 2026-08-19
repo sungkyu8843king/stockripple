@@ -1039,6 +1039,30 @@ async function runFixBrokenNames(start = 0, acc = { updated: 0, failed: 0, round
   }
 }
 
+// 🔎 심층분석 수동 생성 — 큐(agent_jobs)에 cluster 단계를 적재만 한다. 본문은 스케줄
+// Claude Code 에이전트가 채우고 finalizeDeepDiveWrite가 deep_dives에 저장한다.
+// 서버에 하루 2건 신선도 가드가 있어 여러 번 눌러도 낭비되지 않는다.
+async function runDeepDiveSubmit() {
+  const box = document.getElementById('invStatusBox');
+  box.textContent = '🔄 심층분석 큐 적재 중...';
+  try {
+    const r = await fetch('/api/admin?action=deep-dive-submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (await getAuthToken()) },
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok) { box.textContent = '❌ 심층분석 제출 실패: ' + (j.error || 'unknown'); return; }
+    if (j.disabled) { box.textContent = '⏸ deep_dive 파이프라인이 OFF 상태입니다 (AI 스위치에서 켜세요)'; return; }
+    if (j.submitted) {
+      box.textContent = `✅ 심층분석 큐 적재 완료 — 최근 뉴스 ${j.pool}건을 재료로 제출. 스케줄 에이전트가 처리하면 발행됩니다.`;
+    } else {
+      box.textContent = `⏭ 제출 스킵 — ${j.reason || '조건 미충족'}`;
+    }
+  } catch (e) {
+    box.textContent = '❌ 심층분석 제출 오류: ' + e.message;
+  }
+}
+
 async function invLoadChart() {
   const ticker = document.getElementById('invChartTicker').value;
   const hint = document.getElementById('invChartHint');

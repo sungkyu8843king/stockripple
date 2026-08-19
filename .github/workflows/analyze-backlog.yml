@@ -147,6 +147,18 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
             | jq -c '{ok,scanned,submitted,disabled}' 2>/dev/null || echo "  (non-JSON)"
 
+      # 🔎 심층분석(deep_dive) 제출 — 2026-08-19 추가. 홈의 주력 콘텐츠라 며칠씩 비면
+      # 사이트 첫 화면이 통째로 빈다. 서버가 "최근 24시간에 이미 2건 발행했으면 스킵"을
+      # 스스로 판정하므로(handleDeepDiveSubmit 신선도 가드) 매시간 불러도 낭비가 없다.
+      # 스케줄 Claude Code 에이전트(SKILL.md 07·19시 슬롯)가 주 경로이고 이건 백업이다 —
+      # GitHub 스케줄이 통째로 드롭되는 일이 잦아 이 레포는 catch-up 이중화를 표준으로 쓴다.
+      - name: 심층분석(deep_dive) 제출
+        if: github.event.schedule != '*/10 * * * *'
+        run: |
+          curl -s --max-time 60 -X POST "${{ secrets.VERCEL_URL }}/api/admin?action=deep-dive-submit" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" -H "Content-Type: application/json" \
+            | jq -c '{ok,submitted,pool,reason,disabled}' 2>/dev/null || echo "  (non-JSON)"
+
       # 해외 추정가 모델의 실측 정확도 기록 — 개장 전(KST 07~09시)엔 그날 추정치를
       # 스냅샷하고, 개장 후엔 실제 시가로 정산한다. 매시간 불러도 멱등이라 안전하며
       # 창 밖이면 서버가 스스로 스킵한다(어느 시간대 run이 살아남든 하루 한 번은 잡힘).

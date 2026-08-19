@@ -320,6 +320,7 @@ const SHELL_HTML = `
         <button class="btn btn-ghost"   onclick="invVerifyKrNames()" title="DART 공식 회사명과 DB 이름 대조 → 자동 보정">🇰🇷 KR 종목명 검증·보정</button>
         <button class="btn btn-ghost"   onclick="runCrawlEtfHoldings()" title="각 ETF의 상위10 구성종목을 크롤해 회사 페이지 '이 종목을 담은 ETF' 역조회 인덱스를 채웁니다">🧺 ETF 보유종목 크롤</button>
         <button class="btn btn-ghost"   onclick="runFixBrokenNames()" title="이름이 티커 코드 그대로인 종목(예: name_ko='AXP')을 네이버 자동완성의 한글명으로 일괄 보정합니다 — 국내·해외 전부 대상">🏷 종목명 일괄 보정</button>
+        <button class="btn btn-ghost"   onclick="runDeepDiveSubmit()" title="최근 뉴스를 테마로 묶어 심층분석 게시물을 생성하는 큐를 적재합니다. 실제 본문은 스케줄 에이전트가 채웁니다(하루 2건 상한)">🔎 심층분석 생성</button>
         <span style="flex:1"></span>
         <select id="invStatusFilter" onchange="invLoad()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
           <option value="active">활성</option>

@@ -1318,21 +1318,9 @@ button { font-family: inherit; }
   .card-ai-summary { line-height: 1.7; }
   .issues-grid { gap: 16px; }
 
-  /* 모바일 홈은 최신 뉴스 3개만 노출 + "뉴스 더 보기" 버튼으로 news.html 유도
-     (데스크톱은 기존과 동일하게 9개 + 페이지네이션 그대로 노출). #pagination/#newsMoreBtn은
-     인라인 style="display:..."이 있어 !important 없이는 이 규칙이 안 먹힘(인라인 스타일이
-     외부 스타일시트보다 항상 우선) — index.html의 다른 모바일 오버라이드와 동일 패턴. */
-  #issuesContainer .issues-grid > .issue-card:nth-child(n+4) { display: none; }
-  #pagination { display: none !important; }
-  #newsMoreBtn { display: inline-block !important; }
-}
-
-/* PC 홈 미리보기는 최대 6개까지만 노출(사용자 요청, 2026-08-01) — 넓은 데스크톱 화면에서는
-   .issues-grid가 auto-fill로 3열까지 늘어나는데, PAGE_SIZE(8)를 그대로 다 보여주면
-   마지막 줄이 2개만 남아 3열 그리드가 어긋나 보인다. 6은 2열(3줄)·3열(2줄) 어느 쪽이든
-   나머지 없이 꽉 찬다. news.html 등 다른 페이지는 자체 <style> 블록이 따로 있어 영향 없음. */
-@media (min-width: 601px) {
-  #issuesContainer .issues-grid > .issue-card:nth-child(n+7) { display: none; }
+  /* (2026-08-19) 홈의 이슈 피드(#issuesContainer / #pagination / #newsMoreBtn)를 심층분석
+     섹션으로 대체하면서 그 개수 제한 규칙들도 같이 제거했다. 같은 마크업을 계속 쓰는
+     news.html은 자체 스타일 블록이 따로 있어 영향 없음. */
 }
 
 /* ═══ 📊 실시간 랭킹 (토스) ═══ */
@@ -1475,76 +1463,126 @@ button { font-family: inherit; }
       <div class="nb-note" id="nbNote" hidden></div>
     </a>
 
-    <!-- 📰 오늘 핵심 뉴스 (2026-08 개편: 최상단으로 — 카드 하나하나가 이미 뉴스→파급 섹터
-         →관련 기업 흐름을 담고 있어서, 이 섹션 하나로 이 사이트가 뭘 하는 곳인지 바로 보여준다) -->
-    <div id="issuesSection" class="section-block">
+    <!-- 🔎 심층분석 (2026-08-19 개편) — 원래 이 자리는 "오늘 핵심 뉴스"(#issuesSection)로
+         개별 기사 요약 카드를 뿌리던 곳이었다. 그 구조는 네이버·토스 뉴스와 구분이 안 되고
+         방문자에게 수십 건을 각각 읽으라고 요구하는 꼴이라, 여러 기사를 하나의 흐름으로
+         묶은 심층분석 게시물로 대체했다. 원문 기사 피드는 news.html에 그대로 남아 있다.
+         ⚠️ 이 스크립트는 index.html 전용이다. app.js는 5개 페이지 공유라 여기 넣지 말 것. -->
+    <div id="deepSection" class="section-block">
       <div class="section-head">
         <div class="section-head-l">
           <span class="sh-mark" style="background:var(--purple)"></span>
-          <span class="sh-title">오늘 핵심 뉴스</span>
-          <span class="sh-desc">뉴스 하나가 어떤 업종과 회사에 영향을 주는지 따라가 봅니다</span>
-          <span id="feedLiveTag" style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:999px;display:none;align-items:center;gap:4px"></span>
+          <span class="sh-title">심층분석</span>
+          <span class="sh-desc">흩어진 뉴스 여러 건을 하나의 흐름으로 묶어 정리했습니다</span>
         </div>
-        <span style="font-size:13.5px;color:var(--text3)" id="issuesCount"></span>
+        <a href="/deep.html" style="font-size:13.5px;color:var(--blue);text-decoration:none;font-weight:700;white-space:nowrap">전체 보기 →</a>
       </div>
 
-      <!-- 카테고리 + 섹터 필터 + 관심종목 토글 (이슈 피드 전용 툴바) -->
-      <div class="feed-toolbar">
-        <div class="category-tabs" id="categoryTabs">
-          <button class="cat-tab active" data-cat="all">🔥 전체</button>
-          <button class="cat-tab" data-cat="earnings">📊 실적발표</button>
-          <button class="cat-tab" data-cat="politics">🌐 정세·외교</button>
-          <button class="cat-tab" data-cat="economy">📈 경제지표</button>
-          <button class="cat-tab" data-cat="tech">💻 AI·반도체</button>
-          <button class="cat-tab" data-cat="bio">🧬 바이오</button>
-          <button class="cat-tab" data-cat="ev">🔋 전기차·배터리</button>
-          <button class="cat-tab" data-cat="energy">⚡ 에너지</button>
-          <button class="cat-tab" data-cat="defense">🚀 방산·우주</button>
-          <button class="cat-tab" data-cat="game">🎮 게임·엔터</button>
-          <button class="cat-tab" data-cat="crypto">🪙 크립토</button>
-        </div>
-        <div class="filters">
-          <span class="filter-label">섹터</span>
-          <button class="filter-chip active" data-sector="all">전체</button>
-          <button class="filter-chip" data-sector="AI">AI</button>
-          <button class="filter-chip" data-sector="반도체">반도체</button>
-          <button class="filter-chip" data-sector="전기차">전기차</button>
-          <button class="filter-chip" data-sector="배터리">배터리</button>
-          <button class="filter-chip" data-sector="바이오">바이오</button>
-          <button class="filter-chip" data-sector="에너지">에너지</button>
-          <button class="filter-chip" data-sector="핀테크">핀테크</button>
-          <button class="filter-chip" data-sector="금융">금융</button>
-          <button class="filter-chip" data-sector="클라우드">클라우드</button>
-          <button class="filter-chip" data-sector="로봇">로봇</button>
-          <button class="filter-chip" data-sector="방산·우주">방산·우주</button>
-          <button class="filter-chip" data-sector="게임">게임</button>
-          <button class="filter-chip" data-sector="크립토">크립토</button>
-          <button class="filter-chip" data-sector="자동차">자동차</button>
-          <button class="filter-chip" data-sector="물류·운송">물류·운송</button>
-          <span class="filter-sep"></span>
-          <button type="button" id="wlNewsToggle" class="filter-chip" onclick="toggleWatchlistNews()">⭐ 관심종목만</button>
-        </div>
-      </div>
-
-      <div id="newIssueBanner" onclick="showNewIssues()" style="display:none;cursor:pointer;margin-bottom:12px;padding:9px 14px;border-radius:10px;background:var(--green-dim);border:1px solid var(--green);color:var(--green);font-size:15px;font-weight:700;text-align:center">
-        🟢 새 분석 이슈 <span id="newIssueCount">0</span>건 도착 — 탭하여 보기 ↑
-      </div>
-
-      <div id="issuesContainer">
+      <div id="deepContainer">
         <div class="loading-state">
           <div class="spinner"></div>
-          <p>이슈 불러오는 중...</p>
+          <p>심층분석 불러오는 중...</p>
         </div>
-      </div><!-- issuesContainer end -->
+      </div>
 
-      <!-- Pagination -->
-      <div id="pagination" style="display:flex;justify-content:center;gap:8px;margin-top:24px;padding-bottom:8px"></div>
-
-      <!-- 모바일 전용: 최신 3건만 보여준 뒤 전체 목록은 news.html로 유도 (desktop은 CSS로 숨김) -->
-      <div style="text-align:center;margin-top:14px">
-        <a href="/news.html" id="newsMoreBtn" style="display:none;padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15.5px;text-decoration:none">뉴스 더 보기 →</a>
+      <div style="text-align:center;margin-top:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <a href="/deep.html" style="padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--blue);font-weight:700;font-size:15px;text-decoration:none">🔎 지난 심층분석</a>
+        <a href="/news.html" style="padding:10px 20px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--text2);font-weight:700;font-size:15px;text-decoration:none">📰 원문 뉴스 보기</a>
       </div>
     </div>
+
+    <style>
+      .dh-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+      .dh-card { display: grid; grid-template-columns: 116px minmax(0, 1fr); text-decoration: none; color: inherit;
+                 border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg2);
+                 transition: transform .15s, box-shadow .15s; }
+      .dh-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px -14px rgba(0,0,0,.5); }
+      .dh-band { position: relative; display: flex; align-items: flex-end; padding: 12px 10px; min-height: 118px; }
+      .dh-band-theme { position: relative; font-size: 11.5px; font-weight: 800; color: #fff; line-height: 1.35;
+                       text-shadow: 0 1px 3px rgba(0,0,0,.4); word-break: keep-all; }
+      .dh-body { padding: 15px 17px 16px; min-width: 0; }
+      .dh-title { font-size: 17.5px; font-weight: 800; line-height: 1.42; letter-spacing: -.015em; word-break: keep-all; }
+      .dh-deck { font-size: 14px; color: var(--text2); line-height: 1.6; margin-top: 7px; word-break: keep-all; }
+      .dh-meta { font-size: 12.5px; color: var(--text3); margin-top: 11px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+      .dh-sec { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); }
+      .dh-sec.pos { color: var(--red); background: var(--red-dim); }
+      .dh-sec.neg { color: var(--blue); background: var(--blue-dim); }
+      .dh-sec.neu { color: var(--text3); }
+      @media (max-width: 560px) {
+        .dh-card { grid-template-columns: minmax(0, 1fr); }
+        .dh-band { min-height: 62px; align-items: center; }
+        .dh-title { font-size: 16.5px; }
+      }
+    </style>
+
+    <script>
+    /* 홈의 심층분석 미리보기 — 최신 3건. /api/admin?action=deep-dives 하나만 쓴다
+       (서버가 이미 조립해 내려주므로 이 페이지가 Supabase를 직접 칠 일이 없다).
+       테이블 마이그레이션 전이면 서버가 빈 목록으로 우아하게 응답하므로 섹션만 조용히 숨는다. */
+    (function () {
+      var box = document.getElementById('deepContainer');
+      if (!box) return;
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+      // deep.html과 동일한 결정론적 색상 규칙 — 같은 글은 홈에서든 상세에서든 같은 색이다.
+      function hue(s) {
+        var h = 0, t = String(s || 'x');
+        for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) % 360;
+        return h;
+      }
+      function band(theme) {
+        var h = hue(theme);
+        return 'background:linear-gradient(135deg, hsl(' + h + ' 62% 34%), hsl(' + ((h + 42) % 360) + ' 58% 22%))';
+      }
+      function wave() {
+        return '<svg viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;opacity:.3">'
+          + '<path d="M0 74 Q 50 44 100 74 T 200 74 T 300 74 T 400 74" fill="none" stroke="#fff" stroke-width="3" opacity=".55"/>'
+          + '<path d="M0 92 Q 50 62 100 92 T 200 92 T 300 92 T 400 92" fill="none" stroke="#fff" stroke-width="2.5" opacity=".33"/></svg>';
+      }
+      function fmt(s) {
+        if (!s) return '';
+        var d = new Date(s);
+        if (isNaN(d)) return '';
+        return (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
+      }
+      var TONE = { pos: '우호적', neg: '비우호적', neu: '중립' };
+
+      fetch('/api/admin?action=deep-dives&limit=3')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var rows = (j && j.data) || [];
+          if (!rows.length) {
+            // 아직 발행 전이면 섹션을 통째로 숨긴다 — 빈 껍데기를 홈 최상단에 두지 않는다.
+            var sec = document.getElementById('deepSection');
+            if (sec) sec.style.display = 'none';
+            return;
+          }
+          box.innerHTML = '<div class="dh-list">' + rows.map(function (r) {
+            var n = (r.source_issue_ids || []).length;
+            var secs = (r.sectors || []).slice(0, 2);
+            return '<a class="dh-card" href="/deep/' + encodeURIComponent(r.slug) + '">'
+              + '<div class="dh-band" style="' + band(r.theme) + '">' + wave()
+              + '<span class="dh-band-theme">' + esc(r.theme || '') + '</span></div>'
+              + '<div class="dh-body">'
+              + '<div class="dh-title">' + esc(r.title) + '</div>'
+              + (r.deck ? '<div class="dh-deck">' + esc(r.deck) + '</div>' : '')
+              + '<div class="dh-meta"><span>' + fmt(r.published_at) + '</span>'
+              + (n ? '<span>기사 ' + n + '건 종합</span>' : '')
+              + secs.map(function (s) {
+                  return '<span class="dh-sec ' + esc(s.tone || 'neu') + '">' + esc(s.name) + ' · ' + (TONE[s.tone] || '중립') + '</span>';
+                }).join('')
+              + '</div></div></a>';
+          }).join('') + '</div>';
+        })
+        .catch(function () {
+          var sec = document.getElementById('deepSection');
+          if (sec) sec.style.display = 'none';
+        });
+    })();
+    </script>
 
     <!-- 🌡️ 지금 산업 온도 (news.html의 loadSectorTemp를 그대로 재사용 — 컨테이너만 있으면
          loadIssues()가 자동으로 채운다. 종목 추천이 아니라 뉴스 톤 집계라 리스크 없음) -->

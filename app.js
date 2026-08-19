@@ -2939,6 +2939,11 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
   initAuth();
   loadStats();
   loadIssues();
+  // 🌡️ 산업 온도 보드는 원래 loadIssues() 안에서만 호출됐는데(app.js 상단), 2026-08-19에
+  // 홈에서 이슈 피드를 걷어내면서 #issuesContainer가 사라져 loadIssues가 즉시 return하게
+  // 됐다 — 그러면 이 보드까지 같이 안 뜬다. 여기서 직접 부른다. 내부 _sectorTempLoaded
+  // 플래그가 중복 로드를 막으므로 news.html처럼 둘 다 있는 페이지에서도 한 번만 돈다.
+  if (!_sectorTempLoaded && document.getElementById('sectorTempBoard')) { _sectorTempLoaded = true; loadSectorTemp(); }
   reloadInsightsForPage();
   loadIndices();
   loadBondStrip();

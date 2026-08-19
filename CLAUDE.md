@@ -23,6 +23,7 @@
 ```
 api/admin.js        — 어드민 전용 + 공개 조회 다수. action= 라우팅으로 40+ 엔드포인트 통합 (아래 참고)
                        ※ 2026-08-03 추가: render-analysis/render-company(SEO 프리렌더, HTML 반환)·sitemap(XML 반환)·company-news
+                       ※ 2026-08-19 추가: deep-dives(공개 조회)·render-deep(SEO)·deep-dive-submit(어드민) — 심층분석
 api/admin-static.js — admin/index.html의 셸(shell)/로직(logic)을 텍스트 파일로 서빙 (lib/admin-dashboard-logic.txt)
 api/analyze.js       — 뉴스→AI 분석 파이프라인 (Message Batches API, 아래 참고)
 api/cron-daily.js    — Vercel cron(01:00 UTC 1회) 오케스트레이터, fire-and-forget로 여러 작업 트리거
@@ -58,14 +59,29 @@ api/stock.js         — 종목 상세: price/chart/fundamentals(KR=네이버, U
 - **🚫 재료는 `issue`의 공개 필드(title/ai_digest/summary/news_analysis/published_at)뿐.** `analysis`·`companies` 변수는 절대 참조 금지 — 이미지로 저장돼 커뮤니티에 퍼지는 순간 회수가 불가능해 이 코드베이스에서 가장 위험한 노출 경로다.
 - 텍스트 절단은 CSS `-webkit-line-clamp`가 아니라 JS(`_clip`)로 한다 — html2canvas가 line-clamp를 제대로 렌더하지 않는다.
 
+## 심층분석 (Deep Dive) — 2026-08-19 신규, 홈의 주력 콘텐츠
+
+홈이 개별 기사 요약(`article_digest`) 카드 나열이라 네이버·토스와 구분이 안 되고, 방문자에게 수십 건을 각각 읽으라고 요구하는 구조였다. 여러 기사를 **하나의 테마로 묶은 장문 해설**로 대체했다. 개별 기사 피드는 `news.html`에 그대로 남아 있고, `article_digest` 파이프라인은 **심층분석의 입력 재료**라 계속 돌아야 한다(끄면 심층분석도 같이 죽는다).
+
+- **파이프라인은 `agent_jobs`의 `deep_dive`, 2단계**: `cluster`(최근 48h 이슈 140건 중 가장 기사가 몰린 테마 **1개**와 소속 이슈 id 선정) → `write`(그 테마의 본문 작성). `finalizeDeepDiveCluster`가 write 단계를 자동으로 다시 큐잉한다(`weekly_schedule`의 events→highlights와 동일 구조) — **cluster만 처리하고 멈추면 테마만 고르고 본문이 없는 상태로 남는다.**
+- **한 번에 1편인 이유**(`DEEP_DIVE_THEMES_PER_RUN=1`): 2로 두면 07시 슬롯이 하루치 2건을 다 소진해 19시 슬롯이 상한(`DEEP_DIVE_MAX_PER_DAY=2`)에 막힌다. 1이어야 07·19시가 한 편씩 맡아 하루 종일 새 글이 올라온다.
+- **⚠️ 차트·시세 숫자는 AI가 만들지 않는다.** AI는 본문·파급체인·산업·티커만 내놓고, `buildDeepDiveCharts()`가 실데이터로 채운다 — 뉴스량/산업톤은 `issues` 집계(`loadSectorTemp`와 같은 소스), 종목 등락률은 `/api/quotes`. **본문에 주가 숫자를 쓰게 하지 말 것**(검증 불가).
+- **⚠️ 유사투자자문업 — 이 코드베이스에서 노출면이 가장 큰 기능이다.** 재료는 `issues` 공개 필드뿐이고 `analyses`/`analysis_companies`/`company_ai_summary`는 절대 읽지 않는다. 프롬프트 규칙만 믿지 않고 저장 직전 **`DEEP_DIVE_FORBIDDEN_RE`가 위반 문단을 통째로 버린다**(목표가·손절·상승여력·신뢰도%·수혜주·유망주·투자포인트·비중확대 등). 티커는 `deepDiveCleanTickers`가 형식 검증해 환각을 거른다. 남은 문단이 2개 미만이면 아예 저장하지 않는다(빈 껍데기 게시물 방지).
+- 게이트는 전용 플래그 **`deep_dive`**(`isFeatureEnabled`, 파이프라인 on/off). `expose_ripple_effects`와 무관 — 그 플래그가 지키는 3개 테이블을 여기선 애초에 안 쓴다.
+- 테이블 `deep_dives`(`db/deep-dives.sql`, **마이그레이션 필요**). 실행 전에는 `handleDeepDiveSubmit`이 스킵하고 `handleDeepDivesGet`이 빈 목록을 주며 홈 섹션이 스스로 숨는다(fail-open).
+- 제출: `POST /api/admin?action=deep-dive-submit`. 스케줄 에이전트 SKILL.md의 **07시·19시 슬롯**이 주 경로, `analyze-backlog.yml` 매시간 catch-up이 백업(서버 신선도 가드가 있어 매시간 불려도 낭비 없음). 어드민 "전략투자 관리" 탭의 **🔎 심층분석 생성** 버튼으로 수동 실행도 가능.
+- SEO: `/deep/:slug` → `render-deep`이 `<!-- SEO:START -->…<!-- SEO:END -->` 블록을 갈아끼운다(`analysis.html`과 동일 규칙 — **마커를 지우면 조용히 실패**). `sitemap.xml`에도 포함. `render-analysis`와 달리 noindex 분기가 없다(정의상 원본 콘텐츠라 "얇은 스크랩" 상태가 없음).
+- 시각 요소는 **전부 인라인 SVG/CSS**로 손수 그린다(외부 차트 라이브러리 없음). 실사진을 안 쓰는 이유: `issues`에 이미지 컬럼 자체가 없고 RSS 원문 이미지 핫링크는 저작권·CORS 양쪽으로 위험하다. 대신 테마 문자열 해시로 게시물마다 고유한 그라데이션 히어로를 만든다(`themeHue()` — 홈 카드와 상세가 같은 규칙을 써서 색이 일치한다).
+
 ## 페이지 구조 (2026-07 전면 재구조화)
 
 `index.html`은 원래 3800+줄짜리 단일 페이지였다가, 정보 밀도 완화를 위해 전용 페이지로 분리됨. 홈은 이제 각 섹션의 **미리보기 카드**만 보여주고 "더보기"로 전용 페이지 유도.
 
 | 페이지 | 역할 |
 |--------|------|
-| `index.html` | 홈 — 피드 + 각 섹션 미리보기 |
-| `news.html` | 뉴스 전용 피드 — 2026-07-27 "🌡️ 지금 산업 온도" 보드 추가(news_analysis.sectors 톤 집계) |
+| `index.html` | 홈 — **2026-08-19부터 첫 섹션이 심층분석 미리보기**(구 "오늘 핵심 뉴스" 이슈 피드 `#issuesSection`은 제거됨, 아래 전용 섹션 참고) + 산업 온도 + 각 섹션 미리보기 |
+| `deep.html` | **심층분석**(딥링크 `/deep/:slug`) — 여러 기사를 하나의 테마로 묶은 장문 해설. 목록/상세 겸용, 아래 전용 섹션 참고 |
+| `news.html` | 뉴스 전용 피드 — 2026-07-27 "🌡️ 지금 산업 온도" 보드 추가(news_analysis.sectors 톤 집계). ⚠️ 홈에서 이슈 피드를 걷어낸 뒤로 **`app.js`의 `loadIssues`/`renderIssueCard`/`renderPagination`을 쓰는 유일한 페이지** — 이 함수들을 지우면 여기가 죽는다 |
 | `heatmap.html` | 히트맵 전용 (섹터 드릴다운 뷰 포함) |
 | `kr-market.html` | 국장·미장 현황 — 2026-07-31 전면 재설계(밤사이 브리지·시장 온도계·수급차트·뉴스vs주가·시간대 모드, 아래 전용 섹션 참고) |
 | `picks.html` | 매수 후보 — ⚠️ 2026-07-21부터 공개 노출 중단(아래 유사투자자문업 섹션), 데이터는 비공개 유지 |
