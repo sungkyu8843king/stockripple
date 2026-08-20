@@ -28,11 +28,21 @@
     try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch (e) {}
   }
 
+  // 이미 떠 있는 인스턴스가 있으면 지운다 — show()가 두 번 불려도(아래 pageshow 가드 참고)
+  // 검은 카드가 겹겹이 쌓이지 않게. querySelector로 찾는 이유: 이 IIFE의 클로저 변수가
+  // 아니라 DOM 자체를 진실의 원천으로 삼아야 "스크립트가 다시 실행됐지만 이전 실행의
+  // DOM은 그대로 남아있는" 경우(아래 참고)도 잡는다.
+  function removeExisting() {
+    var el = document.getElementById('coupangInterstitial');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
   function show() {
+    removeExisting();
     markShown();
     var overlay = document.createElement('div');
     overlay.id = 'coupangInterstitial';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7);padding:24px;box-sizing:border-box';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7);padding:24px;box-sizing:border-box';
 
     var card = document.createElement('div');
     card.style.cssText = 'position:relative;max-width:360px;width:100%;background:#0d0f14;border-radius:16px;overflow:hidden;box-shadow:0 24px 60px -12px rgba(0,0,0,.7)';
@@ -61,10 +71,19 @@
     closeBtn.addEventListener('click', function (e) { e.stopPropagation(); close(); });
     card.appendChild(closeBtn);
 
+    // ⚠️ 2026-08-20 실측 버그: 앱을 백그라운드에 오래 뒀다가 돌아오면 iframe 광고가 안 뜨고
+    // 카드가 검은 배경만 남은 채 화면에 박혀있는 게 보고됨(원인 추정: OS가 메모리 압박으로
+    // 탭을 강제 종료했다가 복원하면서 iframe 네트워크 요청이 안 이어지거나 실패). 광고가
+    // 일정 시간 안에 안 뜨면 깨진 채 화면을 막고 있지 말고 그냥 조용히 닫는다 — 못 띄운
+    // 광고 하나보다 사용자가 페이지를 못 쓰는 게 훨씬 나쁘다.
+    var loadTimer = setTimeout(close, 5000);
+    iframe.addEventListener('load', function () { clearTimeout(loadTimer); }, { once: true });
+
     overlay.appendChild(card);
     document.body.appendChild(overlay);
 
     function close() {
+      clearTimeout(loadTimer);
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     }
 
@@ -86,4 +105,12 @@
   } else {
     init();
   }
+
+  // ⚠️ 위 pagehide/visibilitychange 정리가 항상 실행된다는 보장이 없다 — iOS가 메모리
+  // 압박으로 탭 프로세스를 강제 종료하면 정리 코드가 돌 기회 없이 그대로 죽는다. 그 상태로
+  // 복원되면(bfcache) 페이지 스크립트는 다시 실행되지 않지만 DOM은 종료 직전 그대로
+  // 되살아나므로, 닫히지 못한 검은 카드가 그대로 남아있게 된다(2026-08-20 실측 버그의
+  // 유력한 원인). pageshow는 새로고침·bfcache 복원 둘 다에서 뜨므로, 복원된 경우
+  // (event.persisted)엔 무조건 지운다 — 새로고침이면 애초에 이 시점엔 아직 없으므로 안전.
+  window.addEventListener('pageshow', function (e) { if (e.persisted) removeExisting(); });
 })();
