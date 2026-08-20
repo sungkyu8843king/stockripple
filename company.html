@@ -1450,14 +1450,11 @@ function renderPage(company, records, priceData) {
     <div class="cmp-chips" id="cmpChips"></div>
     <div id="techChipsWrap"></div>
 
-    <!-- 📰 최근 뉴스 언급 — 등급/평점이 아니라 "최근 어떤 뉴스에 몇 번 언급됐는지"만
-         보여주는 순수 이력(유사투자자문업 리스크 검토 후 이 형태로 확정, 2026-08) -->
-    <section class="cmp-sec" id="newsHistorySec" style="display:none">
-      <div class="ck-sec-head"><span class="tick"></span><h3>📰 최근 뉴스 언급</h3><span class="note" id="newsHistoryNote"></span></div>
-      <div id="newsHistoryWrap"></div>
-    </section>
+    <!-- ══ 아래부터 중요도 순 정렬(2026-08-20) — 가격 시각화 → 빠른 인사이트 → 근거 뉴스 →
+         실시간 체결정보 → 수급/공매도(심리 신호) → 펀더멘털 → 과거 기록 → 부가 탐색 →
+         공시류(가장 상세·전문적) 순. 재정렬만 했을 뿐 각 섹션 내부 로직·id는 그대로다. ══ -->
 
-    <!-- 📈 차트 (lightweight-charts 캔들+거래량 + 매물대) -->
+    <!-- 📈 차트 (lightweight-charts 캔들+거래량 + 매물대) — 가장 먼저 봐야 할 가격 그 자체 -->
     <section class="cmp-sec">
       <div class="ck-sec-head"><span class="tick"></span><h3>📈 차트</h3><span class="note">토스 공식 · 일봉</span></div>
       <div class="chart-range-btns" id="advRangeBtns">
@@ -1474,39 +1471,37 @@ function renderPage(company, records, priceData) {
     <!-- 🤖 AI 종합 분석 (company_summary 파이프라인 — company_ai_summary 캐시, 파급효과/매수후보
          테이블과 무관해 유사투자자문업 리스크 대응(2026-07-22)과 별개로 계속 운영 중.
          2026-07-22 죽은 파급효과 섹션 정리(706ac8d) 때 컨테이너가 같이 삭제돼 오랫동안
-         화면에 안 나오고 있었음 — 2026-08-03 복구) -->
+         화면에 안 나오고 있었음 — 2026-08-03 복구) — 차트 다음으로 훑는 한눈 요약 -->
     <section class="cmp-sec">
       <div id="aiSummaryWrap"></div>
     </section>
 
-    <!-- 🎯 공매도 비중(롱/숏) — KR은 KIS, US는 FINRA Reg SHO(2026-08-20) -->
-    <section class="cmp-sec">
-      <div class="ck-sec-head"><span class="tick"></span><h3>🎯 공매도 비중</h3><span class="note" id="shortRatioNote"></span></div>
-      <div id="shortRatioWrap"><div class="cmp-empty">불러오는 중...</div></div>
+    <!-- 📰 최근 뉴스 언급 — 등급/평점이 아니라 "최근 어떤 뉴스에 몇 번 언급됐는지"만
+         보여주는 순수 이력(유사투자자문업 리스크 검토 후 이 형태로 확정, 2026-08) —
+         가격·AI요약 다음으로 "왜 이런지" 맥락 -->
+    <section class="cmp-sec" id="newsHistorySec" style="display:none">
+      <div class="ck-sec-head"><span class="tick"></span><h3>📰 최근 뉴스 언급</h3><span class="note" id="newsHistoryNote"></span></div>
+      <div id="newsHistoryWrap"></div>
     </section>
 
-    <!-- 📊 호가 -->
+    <!-- 📊 호가 — 지금 당장 체결 가능한 실시간 정보 -->
     <section class="cmp-sec">
       <div class="ck-sec-head"><span class="tick"></span><h3>📊 호가</h3><span class="note">토스 공식</span></div>
       <div id="orderbookWrap"><div class="cmp-empty">호가 불러오는 중...</div></div>
     </section>
+
     ${isKr ? `
     <!-- 👥 수급 -->
     <section class="cmp-sec">
       <div class="ck-sec-head"><span class="tick"></span><h3>👥 투자자 매매동향</h3></div>
       <div id="investorTrendWrap"></div>
-    </section>
-
-    <!-- 🧺 이 종목을 담은 ETF -->
-    <section class="cmp-sec">
-      <div class="ck-sec-head"><span class="tick"></span><h3>🧺 이 종목을 담은 ETF</h3><span class="note">주요 보유 기준</span></div>
-      <div id="etfHoldersWrap"><div class="cmp-empty">불러오는 중...</div></div>
     </section>` : ''}
 
-    <!-- 📅 일별 시세 -->
+    <!-- 🎯 공매도 비중(롱/숏) — KR은 KIS, US는 FINRA Reg SHO(2026-08-20) — 수급 바로 다음,
+         같은 "누가 사고파는지" 계열 신호 -->
     <section class="cmp-sec">
-      <div class="ck-sec-head"><span class="tick"></span><h3>📅 일별 시세</h3><span class="note">토스 공식</span></div>
-      <div id="dailyTableWrap"><div class="cmp-empty">불러오는 중...</div></div>
+      <div class="ck-sec-head"><span class="tick"></span><h3>🎯 공매도 비중</h3><span class="note" id="shortRatioNote"></span></div>
+      <div id="shortRatioWrap"><div class="cmp-empty">불러오는 중...</div></div>
     </section>
 
     <!-- 📈 펀더멘털·컨센서스 -->
@@ -1514,7 +1509,20 @@ function renderPage(company, records, priceData) {
       <div id="fundamentalsWrap"></div>
     </section>
 
-    <!-- 📜 공시 / 옵션 -->
+    <!-- 📅 일별 시세 — 과거 기록 조회용 참고자료 -->
+    <section class="cmp-sec">
+      <div class="ck-sec-head"><span class="tick"></span><h3>📅 일별 시세</h3><span class="note">토스 공식</span></div>
+      <div id="dailyTableWrap"><div class="cmp-empty">불러오는 중...</div></div>
+    </section>
+
+    ${isKr ? `
+    <!-- 🧺 이 종목을 담은 ETF — 부가 탐색 기능 -->
+    <section class="cmp-sec">
+      <div class="ck-sec-head"><span class="tick"></span><h3>🧺 이 종목을 담은 ETF</h3><span class="note">주요 보유 기준</span></div>
+      <div id="etfHoldersWrap"><div class="cmp-empty">불러오는 중...</div></div>
+    </section>` : ''}
+
+    <!-- 📜 공시 / 옵션 — 가장 상세·전문적인 정보라 맨 뒤 -->
     <section class="cmp-sec">
       ${isKr ? '<div id="dartDetailWrap"></div>' : '<div id="secFilingsWrap"></div><div id="optionsWrap"></div>'}
     </section>
