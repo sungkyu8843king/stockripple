@@ -5463,11 +5463,20 @@ async function buildDeepDiveCharts({ tickers, issues }, req) {
         : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req?.headers?.host}`;
       const r = await fetch(`${base}/api/quotes?tickers=${encodeURIComponent(tickers.join(','))}`, { signal: AbortSignal.timeout(12000) });
       const j = await r.json();
+      // 국장 종목은 Yahoo shortName이 "SamsungElec"처럼 영문 축약이라(실측, 2026-08-20 피드백:
+      // "국장 종목은 그냥 삼성전자 라고 하면 되는거 아냐") companies.name_ko로 덮어쓴다.
+      // 미국 종목은 companies에 한글명이 없어(name_ko가 null) 자연히 Yahoo shortName 그대로 쓰인다.
+      const krTickers = tickers.filter(t => /\.(KS|KQ)$/i.test(t));
+      let nameKoMap = {};
+      if (krTickers.length) {
+        const { data: rows } = await supabase.from('companies').select('ticker, name_ko').in('ticker', krTickers);
+        nameKoMap = Object.fromEntries((rows || []).filter(r => r.name_ko).map(r => [r.ticker, r.name_ko]));
+      }
       const moves = [];
       for (const t of tickers) {
         const q = j?.data?.[t];
         if (q && typeof q.changePercent === 'number') {
-          moves.push({ ticker: t, name: q.shortName || t, changePercent: q.changePercent, price: q.price ?? null, currency: q.currency || null });
+          moves.push({ ticker: t, name: nameKoMap[t] || q.shortName || t, changePercent: q.changePercent, price: q.price ?? null, currency: q.currency || null });
         }
       }
       if (moves.length) charts.ticker_moves = moves;
