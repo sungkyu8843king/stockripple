@@ -4738,6 +4738,44 @@ async function notifyReportSubscribers(req, title, snippet, reportParam) {
   }
 }
 
+// 심층분석 발행 알림 — notifyReportSubscribers와 같은 구독자 집합(계정 연동 + 공개 봇 구독)을
+// 쓰지만, 링크 대상이 다르다. AI 시장종합/데일리 3종은 index.html의 "?report=" 모달로 열리는
+// 반면 심층분석은 /deep/:slug 전용 페이지가 있어서 그리로 바로 보낸다 — notifyReportSubscribers의
+// URL 조립 로직을 억지로 재사용하지 않고 이 작은 함수로 분리했다. finalizeDeepDiveWrite에서
+// 글이 실제로 저장된 직후 fire-and-forget으로 호출한다(발행 자체를 절대 막지 않도록 예외를 삼킨다).
+async function notifyDeepDiveSubscribers(req, title, snippet, slug) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return;
+  try {
+    const [{ data: linked }, { data: botSubs }] = await Promise.all([
+      supabase.from('user_settings').select('telegram_chat_id')
+        .eq('notify_new_analysis', true).not('telegram_chat_id', 'is', null),
+      supabase.from('telegram_subscribers').select('chat_id').eq('active', true),
+    ]);
+    const chatIds = [...new Set([
+      ...(linked || []).map(s => s.telegram_chat_id),
+      ...(botSubs || []).map(s => s.chat_id),
+    ])];
+    if (!chatIds.length) return;
+
+    const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `https://${req?.headers?.host || 'stockripple-sungkyu.vercel.app'}`;
+    const url = `${base}/deep/${encodeURIComponent(slug)}`;
+    const text = `<b>🔎 심층분석: ${_escTg(title)}</b>\n\n${_escTg(snippet)}\n\n<a href="${url}">전체 글 보러 가기 →</a>`;
+
+    await Promise.all(chatIds.map(id =>
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: id, text, parse_mode: 'HTML' }),
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {})
+    ));
+  } catch (e) {
+    console.error('notifyDeepDiveSubscribers failed:', e.message);
+  }
+}
+
 // 텔레그램 배선 진단(2026-08-09) — "구독자가 왜 없나"를 밖에서는 확인할 수 없어서 추가.
 // telegram_subscribers/user_settings 둘 다 anon 정책이 없어(의도된 설계) 브라우저나 외부에서
 // 조회하면 RLS가 행을 숨겨 항상 빈 결과가 나온다 — 그걸 "0명"으로 오독하기 쉽다.
@@ -5479,6 +5517,7 @@ async function finalizeDeepDiveWrite(row, req) {
       if (error) { results.errors.push({ slug: t.slug, error: error.message?.slice(0, 200) }); continue; }
       results.saved++;
       results.slugs.push(t.slug);
+      notifyDeepDiveSubscribers(req, title, deck || t.theme || '', t.slug).catch(() => {});
     } catch (e) {
       results.errors.push({ slug: t?.slug, error: e.message?.slice(0, 200) });
     }

@@ -162,6 +162,30 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 .dd-item-meta { font-size: 12.5px; color: var(--text3); margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
 
 .dd-note { font-size: 13px; color: var(--text3); line-height: 1.65; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px 16px; margin-top: 30px; }
+
+/* ── 이미지로 공유(카드뉴스) — analysis.html의 같은 기능을 이 페이지용으로 복제.
+   app.js를 안 쓰는 독립 페이지라(위 주석 참고) 로직 수정 시 analysis.html 쪽도 같이 볼 것. */
+.share-img-btn {
+  margin: 4px 0 0; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text2);
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; padding: 8px 15px;
+}
+.share-img-btn:hover { color: var(--text); border-color: var(--border-strong); }
+.share-img-btn:disabled { opacity: .55; cursor: default; }
+.sharemodal { position: fixed; inset: 0; z-index: 2500; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.72); padding: 20px; }
+.sharemodal-inner { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 18px; max-width: 460px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,.6); }
+.sharemodal-inner img { width: 100%; border-radius: var(--r-md); display: block; background: #15171e; }
+.sharemodal-actions { display: flex; gap: 8px; margin-top: 14px; }
+.sharemodal-actions button {
+  flex: 1; min-width: 0; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 650;
+  padding: 11px 12px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--bg3); color: var(--text);
+}
+.sharemodal-actions button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.sharemodal-hint { font-size: 12.5px; color: var(--text3); margin-top: 10px; text-align: center; }
+/* 캡처 원본 — 화면 밖에 두되 display:none은 쓸 수 없다(html2canvas가 크기를 못 잰다). */
+#shareCardStage { position: fixed; left: -20000px; top: 0; width: 1080px; z-index: -1; pointer-events: none; }
 .dd-back { display: inline-flex; align-items: center; gap: 6px; color: var(--text2); text-decoration: none; font-size: 14.5px; margin-bottom: 18px; padding: 6px 11px; border-radius: var(--r-xs); background: var(--bg2); border: 1px solid var(--border); }
 .dd-back:hover { color: var(--text); background: var(--bg3); }
 .dd-more { display: block; width: 100%; margin-top: 12px; padding: 9px 0; border-radius: var(--r-xs);
@@ -520,6 +544,8 @@ function renderDetail(d, sources) {
       </div>
     </div>
 
+    <button class="share-img-btn" onclick="openShareImage()">🖼 카드뉴스로 공유</button>
+
     ${secs.length ? `<div class="dd-sectors">${secs.map(s =>
       `<span class="dd-sec ${esc(s.tone || 'neu')}">${esc(s.name)} · ${TONE_LABEL[s.tone] || '중립'}</span>`).join('')}</div>` : ''}
 
@@ -612,6 +638,7 @@ async function boot() {
       _ddMarks = (j.data.charts && j.data.charts.news_marks) || [];
       _ddTickers = j.data.tickers || [];
       _ddSeries = {};
+      window._shareDive = j.data;
       wrap.innerHTML = renderDetail(j.data, j.sources || []);
       document.title = `${j.data.title} — StockRipple`;
       wirePriceChart();   // 시세는 innerHTML이 들어간 뒤 비동기로 채운다
@@ -627,6 +654,171 @@ async function boot() {
 
 boot();
 initAuth();
+
+/* ═══════════════════════════════════════════════════════════════════════
+   🖼 카드뉴스로 공유 (2026-08-20)
+   analysis.html의 "이미지로 공유"와 같은 기술적 뼈대(html2canvas, 화면 밖 스테이지,
+   항상 다크로 굽기)를 재사용하되, 이 페이지 데이터(sections/ripple_chain/sectors)에
+   맞춰 인스타그램 카드뉴스 스타일(번호 매긴 섹션 박스 + 하단 요약 스트립)로 새로 짰다.
+   🚫 재료는 deep_dives의 공개 필드뿐(title/deck/theme/sections/sectors/published_at/
+   source_issue_ids) — analyses/analysis_companies류는애초에 이 테이블에 안 들어간다
+   (db/deep-dives.sql 참고, 유사투자자문업 리스크 방지가 이미 저장 시점에 걸려 있음).
+   ═══════════════════════════════════════════════════════════════════════ */
+let _shareBlob = null;
+
+function _clip(s, n) {
+  const t = String(s || '').replace(/\s+/g, ' ').trim();
+  return t.length > n ? t.slice(0, n - 1) + '…' : t;
+}
+function _norm(s) {
+  return String(s || '').replace(/\s+/g, ' ').trim();
+}
+
+// 카드는 라이트/다크와 무관하게 항상 다크로 굽는다(analysis.html과 동일 원칙) — var() 대신
+// 값을 박아 커뮤니티에 퍼진 이미지가 보는 사람 설정에 따라 달라지지 않게 한다.
+function _buildDeepShareCardHtml(d) {
+  const BADGE = ['#4d8dff', '#3ddb7f', '#f0b45e', '#9d7bff'];
+  const TONE = { pos: '#ff6b6b', neg: '#4d8dff', neu: '#a6adbb' };
+  const allSecs = Array.isArray(d.sections) ? d.sections : [];
+  const secs = allSecs.slice(0, 4);
+  const extra = Math.max(0, allSecs.length - secs.length);
+
+  const cards = secs.map((s, i) => {
+    const firstP = _norm((s.paragraphs && s.paragraphs[0]) || '');
+    return `<div style="background:#1e2129;border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:26px 24px;min-width:0">
+      <div style="display:flex;align-items:center;gap:13px;margin-bottom:12px">
+        <div style="width:38px;height:38px;border-radius:10px;background:${BADGE[i % BADGE.length]};color:#12141a;font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i + 1}</div>
+        <div style="font-size:24px;font-weight:800;line-height:1.32;color:#f2f4f8">${esc(_clip(s.heading, 24))}</div>
+      </div>
+      ${firstP ? `<div style="font-size:19px;line-height:1.55;color:#a6adbb">${esc(_clip(firstP, 74))}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  const sectors = (Array.isArray(d.sectors) ? d.sectors : []).slice(0, 4);
+  const chips = sectors.map(s =>
+    `<div style="flex:1;min-width:0;text-align:center;padding:0 6px">
+      <div style="width:9px;height:9px;border-radius:50%;background:${TONE[s.tone] || TONE.neu};margin:0 auto 8px"></div>
+      <div style="font-size:17px;font-weight:700;color:#e4e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(_clip(s.name, 9))}</div>
+    </div>`
+  ).join('');
+
+  const nSrc = Array.isArray(d.source_issue_ids) ? d.source_issue_ids.length : 0;
+  const dateStr = d.published_at
+    ? new Date(d.published_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+    : '';
+
+  return `<div style="width:1080px;box-sizing:border-box;background:#15171e;padding:58px 54px;font-family:'Inter','Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#f2f4f8">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#4d8dff,#9d7bff);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:#fff">~</div>
+        <div style="font-size:24px;font-weight:800;letter-spacing:-.02em"><span style="color:#4d8dff">Stock</span>Ripple 심층분석</div>
+      </div>
+      <div style="font-size:21px;color:#6c7385">${esc(dateStr)}</div>
+    </div>
+
+    ${d.theme ? `<div style="display:inline-block;font-size:21px;font-weight:800;padding:7px 17px;border-radius:999px;background:rgba(77,141,255,.16);color:#4d8dff;margin-bottom:16px">${esc(d.theme)}</div>` : ''}
+
+    <div style="font-size:46px;font-weight:800;line-height:1.3;letter-spacing:-.02em;margin-bottom:${d.deck ? '16px' : '30px'}">${esc(_clip(d.title, 50))}</div>
+    ${d.deck ? `<div style="font-size:24px;line-height:1.58;color:#a6adbb;margin-bottom:30px">${esc(_clip(d.deck, 84))}</div>` : ''}
+
+    ${cards ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:${extra ? '10px' : '32px'}">${cards}</div>` : ''}
+    ${extra ? `<div style="font-size:18px;color:#6c7385;text-align:right;margin-bottom:32px">+ ${extra}개 섹션 더</div>` : ''}
+
+    ${chips ? `<div style="background:#1e2129;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:20px 8px;display:flex;margin-bottom:6px">${chips}</div>` : ''}
+
+    <div style="margin-top:32px;padding-top:24px;border-top:1px solid rgba(255,255,255,.09);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:22px;color:#6c7385">${nSrc ? `기사 ${nSrc}건을 종합했어요` : '여러 뉴스를 하나의 흐름으로 정리합니다'}</div>
+      <div style="font-size:22px;font-weight:700;color:#4d8dff">stockripple.vercel.app</div>
+    </div>
+  </div>`;
+}
+
+// html2canvas(≈200KB)를 공유 버튼을 누른 순간에만 받아온다 — analysis.html의 loadHtml2Canvas와
+// 동일(이 페이지도 app.js를 안 쓰는 독립 페이지라 복제), 로직 수정 시 그쪽도 같이 볼 것.
+let _h2cPromise = null;
+function loadHtml2Canvas() {
+  if (typeof html2canvas === 'function') return Promise.resolve(true);
+  if (_h2cPromise) return _h2cPromise;
+  _h2cPromise = new Promise(resolve => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+    s.onload = () => resolve(typeof html2canvas === 'function');
+    s.onerror = () => { _h2cPromise = null; resolve(false); };
+    document.head.appendChild(s);
+  });
+  return _h2cPromise;
+}
+
+async function openShareImage() {
+  const dive = window._shareDive;
+  if (!dive) return;
+  const btn = document.querySelector('.share-img-btn');
+  const prevLabel = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = '이미지 만드는 중…'; }
+  if (!(await loadHtml2Canvas())) {
+    if (btn) { btn.disabled = false; btn.textContent = prevLabel || '🖼 카드뉴스로 공유'; }
+    return;
+  }
+
+  const stage = document.createElement('div');
+  stage.id = 'shareCardStage';
+  stage.innerHTML = _buildDeepShareCardHtml(dive);
+  document.body.appendChild(stage);
+  try {
+    const canvas = await html2canvas(stage.firstElementChild, { backgroundColor: '#15171e', scale: 1, logging: false });
+    _shareBlob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    _showShareModal(canvas.toDataURL('image/png'));
+  } catch {
+    if (btn) btn.textContent = '이미지 생성에 실패했어요';
+  } finally {
+    stage.remove();
+    if (btn && btn.textContent === '이미지 만드는 중…') { btn.disabled = false; btn.textContent = '🖼 카드뉴스로 공유'; }
+  }
+}
+
+function _showShareModal(dataUrl) {
+  closeShareImage();
+  const canCopy = !!(navigator.clipboard && window.ClipboardItem);
+  const el = document.createElement('div');
+  el.className = 'sharemodal';
+  el.id = 'shareModal';
+  el.onclick = e => { if (e.target === el) closeShareImage(); };
+  el.innerHTML = `<div class="sharemodal-inner">
+    <img src="${dataUrl}" alt="공유 이미지 미리보기">
+    <div class="sharemodal-actions">
+      <button class="primary" onclick="saveShareImage()">이미지 저장</button>
+      ${canCopy ? '<button onclick="copyShareImage()">이미지 복사</button>' : ''}
+      <button onclick="closeShareImage()">닫기</button>
+    </div>
+    <div class="sharemodal-hint" id="shareHint">오픈채팅·커뮤니티에 그대로 올릴 수 있어요</div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+function closeShareImage() {
+  document.getElementById('shareModal')?.remove();
+  const btn = document.querySelector('.share-img-btn');
+  if (btn) { btn.disabled = false; btn.textContent = '🖼 카드뉴스로 공유'; }
+}
+
+function saveShareImage() {
+  if (!_shareBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(_shareBlob);
+  a.download = `stockripple-deep-${(window._shareDive?.slug || 'post').toString().slice(0, 40)}.png`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function copyShareImage() {
+  const hint = document.getElementById('shareHint');
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': _shareBlob })]);
+    if (hint) hint.textContent = '복사했어요! 붙여넣기로 공유하세요';
+  } catch {
+    if (hint) hint.textContent = '이 브라우저는 이미지 복사를 지원하지 않아요 — 저장을 이용해 주세요';
+  }
+}
 </script>
 </body>
 </html>
