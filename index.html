@@ -2065,9 +2065,14 @@ button { font-family: inherit; }
       if (!topLive) {
         headline = '국장 시세를 불러오는 중이에요';
       } else {
+        // ⚠️ changePct는 세션과 무관하게 항상 "전일 종가 대비 오늘 전체" 변동률이다(price만
+        // 세션별로 갈릴 뿐 prev는 고정) — "넥스트장에서 X% 올랐어요"라고 쓰면 정규장에서 이미
+        // 커진 변동을 넥스트장 탓으로 돌리는 것처럼 읽혀 오해를 준다(2026-08-20 피드백 —
+        // SK하이닉스가 실제로는 정규장부터 오른 걸 "넥스트장에서 +11.67%"로 표시했던 사례).
+        // "오늘 ~ 올랐어요"로 통일하고, 세션은 "무슨 시세 기준인지"만 괄호로 덧붙인다.
         const move = topLive.changePct > 0 ? '올랐어요' : topLive.changePct < 0 ? '내렸어요' : '보합이에요';
-        const when = d.session === 'regular' ? '지금' : d.session === 'nxt' ? '넥스트장에서' : '마감 후';
-        headline = `${when} ${nbEsc(topLive.name || topLive.t)} ${nbPct(topLive.changePct)} ${move}`;
+        const basis = d.session === 'nxt' ? ' (넥스트장 시세 기준)' : d.session === 'closed' ? ' (마감 시세 기준)' : '';
+        headline = `오늘 ${nbEsc(topLive.name || topLive.t)} ${nbPct(topLive.changePct)} ${move}${basis}`;
       }
     } else {
       const cands = [
