@@ -265,9 +265,37 @@ function marketOpen(mk){
   if(mk==='fx'||mk==='commodity') return weekday || (day===0 && mins>=360);
   return false;
 }
+// ⚠️ 예전엔 open이 false면 무조건 "휴장"이었다 — 프리마켓(예: 미장 17시대)처럼 그냥
+// "아직 개장 전"인 상황까지 전부 "휴장"(마치 오늘 거래 자체가 없는 것처럼)으로 보여준
+// 버그였다(2026-08-20 실측 피드백: KST 18시에 나스닥이 "휴장"으로 표시 — 실제로는 정상
+// 거래일의 프리마켓일 뿐이었음, Yahoo marketState도 PRE로 정상 확인). 개장 전/장중/마감
+// 후/진짜 휴장(주말 등) 4단계로 나눈다.
+function marketStatus(mk){
+  const kst=new Date(Date.now()+9*3600000);
+  const day=kst.getUTCDay(), mins=kst.getUTCHours()*60+kst.getUTCMinutes(), weekday=day>=1&&day<=5;
+  if(mk==='crypto') return 'open';
+  if(mk==='kr'){
+    if(weekday && mins>=480 && mins<540) return 'pre';
+    if(weekday && mins>=540 && mins<930) return 'open';
+    if(weekday && mins>=930 && mins<1200) return 'post';       // 넥스트장(15:30~20:00)
+    return 'closed';
+  }
+  if(mk==='us'){
+    // 프리마켓 04:00~09:30 ET = 17:00~22:30 KST(평일만 — 일요일 저녁엔 프리마켓 자체가 없다), 정규장 22:30~05:00(다음날), 애프터 05:00~09:00
+    if(weekday && mins>=1020 && mins<1350) return 'pre';
+    if((weekday && mins>=1350) || (mins<300 && day>=2&&day<=6)) return 'open';
+    if(mins>=300 && mins<540 && day>=2&&day<=6) return 'post';
+    return 'closed';
+  }
+  if(mk==='fx'||mk==='commodity') return (weekday || (day===0 && mins>=360)) ? 'open' : 'closed';
+  return 'closed';
+}
 function statusLabel(mk, open){
   const m={us:'미국장',kr:'국내장',fx:'외환시장',commodity:'상품선물',crypto:'가상자산'}[mk]||'';
-  return `${m} ${mk==='crypto'?'24시간':open?'개장 중':'휴장'}`;
+  if(mk==='crypto') return `${m} 24시간`;
+  const s=marketStatus(mk);
+  const lbl={open:'개장 중',pre:'개장 전',post:'마감 후',closed:'휴장'}[s] || (open?'개장 중':'휴장');
+  return `${m} ${lbl}`;
 }
 
 async function init(){
