@@ -274,6 +274,14 @@ function fmtDate(s) {
   if (isNaN(d)) return '';
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 }
+// 심층분석 발행 시각(published_at)은 날짜만이 아니라 시:분까지 보여준다(2026-08-20 피드백).
+// 근거 기사 날짜(fmtDate)는 그대로 일자만 — 참고문헌 목록에서까지 분 단위가 필요친 않다.
+function fmtDateTime(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d)) return '';
+  return `${fmtDate(s)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 const TONE_LABEL = { pos: '우호적', neg: '비우호적', neu: '중립' };
 
@@ -547,7 +555,7 @@ function renderDetail(d, sources) {
         <h1>${esc(d.title)}</h1>
         ${d.deck ? `<p class="dd-deck">${esc(d.deck)}</p>` : ''}
         <div class="dd-meta">
-          <span>${fmtDate(d.published_at)}</span>
+          <span>${fmtDateTime(d.published_at)}</span>
           ${nSrc ? `<span>· 기사 ${nSrc}건을 종합</span>` : ''}
         </div>
       </div>
@@ -597,7 +605,7 @@ function renderList(rows) {
         <div class="dd-item-title">${esc(r.title)}</div>
         ${r.deck ? `<div class="dd-item-deck">${esc(r.deck)}</div>` : ''}
         <div class="dd-item-meta">
-          <span>${fmtDate(r.published_at)}</span>
+          <span>${fmtDateTime(r.published_at)}</span>
           ${nSrc ? `<span>기사 ${nSrc}건 종합</span>` : ''}
           ${secs.length ? `<span>${secs.map(s => esc(s.name)).join(' · ')}</span>` : ''}
         </div>

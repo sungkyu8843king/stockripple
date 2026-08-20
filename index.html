@@ -779,8 +779,11 @@ button { font-family: inherit; }
   padding: 12px 16px; font-size: 15.5px; display: flex; align-items: center; gap: 8px;
   box-shadow: var(--shadow-pop); transform: translateY(80px); opacity: 0;
   transition: all var(--t-med) var(--ease); pointer-events: none;
-  max-width: min(320px, calc(100vw - 48px)); word-break: break-word;
+  max-width: min(600px, calc(100vw - 48px)); word-break: break-word;
 }
+/* 넓은 화면에선 한 줄로 넉넉하게(2026-08-20 피드백: PC에서 줄바꿈 나던 것 수정) —
+   모바일만 좁게 눌러서 화면을 다 차지하지 않게 한다. */
+@media (max-width: 600px) { .toast { max-width: min(320px, calc(100vw - 48px)); } }
 .toast.show { transform: translateY(0); opacity: 1; }
 .toast.success { box-shadow: 0 0 0 1.5px var(--green), var(--shadow-pop); }
 .toast.error { box-shadow: 0 0 0 1.5px var(--red), var(--shadow-pop); }
