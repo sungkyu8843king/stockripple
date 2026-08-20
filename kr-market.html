@@ -1611,6 +1611,15 @@ button { font-family: inherit; }
             <div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div>
           </div>
         </div>
+
+        <!-- 📐 지수선물 롱/숏 포지션(CFTC, 2026-08-20) -->
+        <div style="min-width:0;margin-top:20px">
+          <div class="sh-title" style="font-size:15.5px;margin-bottom:8px">📐 기관 롱/숏 포지션 (지수선물)</div>
+          <div id="cftcWrap"><div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">로딩 중...</div></div>
+          <div style="margin-top:8px;font-size:13px;color:var(--text3);line-height:1.55">
+            📡 CFTC 주간 보고서 · 레버리지드 머니(헤지펀드 등 투기적 자금)의 지수선물 롱/숏 비중입니다. 화요일 스냅샷을 매주 금요일 발표하는 주간 데이터라 실시간이 아닙니다.
+          </div>
+        </div>
       </div>
 
       <!-- 🇰🇷 미국에서 거래되는 한국물 — 두 시장을 잇는 다리 -->
@@ -2481,12 +2490,45 @@ document.addEventListener('keydown', e => {
   };
 
   // app.js의 switchMarketSection을 감싸 미장 탭이 열릴 때 한국물 섹션도 채운다
+  let _cftcLoaded = false;
+  async function loadCftcCard() {
+    const wrap = document.getElementById('cftcWrap');
+    if (!wrap) return;
+    _cftcLoaded = true;
+    try {
+      const r = await fetch('/api/short?market=US');
+      const j = await r.json();
+      if (!j.ok || !Array.isArray(j.data) || !j.data.length) {
+        wrap.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">데이터가 없어요.</div>';
+        return;
+      }
+      wrap.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">${j.data.map(m => {
+        const longPct = m.longPct, shortPct = 100 - longPct;
+        return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+          <div style="font-size:14px;font-weight:700;margin-bottom:8px">${m.label}</div>
+          <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;margin-bottom:8px">
+            <div style="width:${longPct}%;background:var(--red)"></div>
+            <div style="width:${shortPct}%;background:var(--blue)"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-family:var(--font-mono)">
+            <span style="color:var(--red)">롱 ${longPct.toFixed(1)}%</span>
+            <span style="color:var(--blue)">숏 ${shortPct.toFixed(1)}%</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:6px">${m.reportDate} 기준</div>
+        </div>`;
+      }).join('')}</div>`;
+    } catch {
+      wrap.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:14.5px;padding:16px">불러오지 못했어요.</div>';
+    }
+  }
+
   function hookUsTab() {
     const orig = window.switchMarketSection;
     if (typeof orig !== 'function' || orig.__wrapped) return;
     const wrapped = function (sec) {
       const r = orig.apply(this, arguments);
       if (sec === 'us' && !_krProxyLoaded) window.loadUsKrProxy();
+      if (sec === 'us' && !_cftcLoaded) loadCftcCard();
       return r;
     };
     wrapped.__wrapped = true;

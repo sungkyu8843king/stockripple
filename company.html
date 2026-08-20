@@ -1479,6 +1479,12 @@ function renderPage(company, records, priceData) {
       <div id="aiSummaryWrap"></div>
     </section>
 
+    <!-- 🎯 공매도 비중(롱/숏) — KR은 KIS, US는 FINRA Reg SHO(2026-08-20) -->
+    <section class="cmp-sec">
+      <div class="ck-sec-head"><span class="tick"></span><h3>🎯 공매도 비중</h3><span class="note" id="shortRatioNote"></span></div>
+      <div id="shortRatioWrap"><div class="cmp-empty">불러오는 중...</div></div>
+    </section>
+
     <!-- 📊 호가 -->
     <section class="cmp-sec">
       <div class="ck-sec-head"><span class="tick"></span><h3>📊 호가</h3><span class="note">토스 공식</span></div>
@@ -1525,6 +1531,7 @@ function renderPage(company, records, priceData) {
   loadNewsHistory(ticker);
   loadAiSummary(ticker, name);
   loadVolumeCompare(ticker);
+  loadShortRatio(ticker, isKr);
 
   // Toss 공식: 종목마스터(시총·경고 뱃지) · 호가 · 일별 시세
   loadStockMeta(ticker);
@@ -2167,6 +2174,45 @@ async function loadTechChips(ticker) {
 
     wrap.innerHTML = `<div class="tech-chips">${chips.join('')}</div>`;
   } catch { wrap.innerHTML = ''; }
+}
+
+// ── 🎯 공매도 비중(2026-08-20) ────────────────────────────
+// 국장은 KIS(daily-short-sale), 미장은 FINRA Reg SHO — 둘 다 "그날 체결된 거래량 중
+// 공매도로 표시된 비중"이라 같은 의미로 나란히 비교할 수 있다(공매도 잔고/보유 포지션과는
+// 다른 개념 — 아래 안내 문구로 명시). 서버가 이미 비율(%)까지 계산해 내려주므로 여기선
+// 표시만 한다.
+async function loadShortRatio(ticker, isKrTicker) {
+  const wrap = document.getElementById('shortRatioWrap');
+  const note = document.getElementById('shortRatioNote');
+  if (!wrap) return;
+  try {
+    const market = isKrTicker ? 'KR' : 'US';
+    const bareTicker = isKrTicker ? ticker.replace(/\.(KS|KQ)$/i, '') : ticker;
+    const r = await fetch(`/api/short?market=${market}&ticker=${encodeURIComponent(bareTicker)}`);
+    const j = await r.json();
+    if (!j.ok || !j.data) { wrap.innerHTML = '<div class="cmp-empty">공매도 데이터가 없어요.</div>'; return; }
+    const d = j.data;
+    const pct = d.ratioPct;
+    const col = pct >= 10 ? 'var(--red)' : pct >= 5 ? 'var(--yellow)' : 'var(--text2)';
+    const barPct = Math.max(2, Math.min(100, (pct / 30) * 100));
+    const fmtVol = v => { if (v == null) return '—'; if (v >= 1e8) return (v / 1e8).toFixed(1) + '억'; if (v >= 1e4) return Math.round(v / 1e4).toLocaleString() + '만'; return v.toLocaleString(); };
+    if (note) note.textContent = isKrTicker ? 'KIS 공식' : 'FINRA Reg SHO';
+    wrap.innerHTML = `
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="font-size:32px;font-weight:800;font-family:var(--mono);color:${col}">${pct.toFixed(2)}%</div>
+        <div style="font-size:13.5px;color:var(--text3)">${escHtml(fmtDate(d.date))} 기준 · 당일 거래량 대비</div>
+      </div>
+      <div style="height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:12px">
+        <div style="height:100%;width:${barPct}%;background:${col};border-radius:4px"></div>
+      </div>
+      <div style="display:flex;gap:20px;font-size:13.5px;color:var(--text2);flex-wrap:wrap">
+        <span>공매도 거래량 <b>${fmtVol(d.shortVolume)}</b></span>
+        <span>전체 거래량 <b>${fmtVol(d.totalVolume)}</b></span>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-top:10px;line-height:1.5">
+        공매도 잔고(보유 포지션)가 아니라 그날 체결된 거래량 중 공매도로 표시된 비중입니다. 비중이 높다고 반드시 하락 신호는 아니며, 유동성 공급 등 다른 이유로도 발생할 수 있습니다.
+      </div>`;
+  } catch { wrap.innerHTML = '<div class="cmp-empty">공매도 데이터를 불러오지 못했어요.</div>'; }
 }
 
 // ── AI 종합 분석 ──────────────────────────────────────────
