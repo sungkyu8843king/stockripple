@@ -2020,13 +2020,13 @@ function volChartScale(points) {
   const maxE = Math.max(...points.map(p => p.e), 1);
   const maxY = Math.max(100, ...points.map(p => Math.max(p.p, p.t ?? 0))) * 1.06;
   return {
-    W, H, PL, PR, PT, PB,
+    W, H, PL, PR, PT, PB, maxY,
     X: e => PL + (e / maxE) * iw,
     Y: v => PT + ih - (v / maxY) * ih,
   };
 }
 function volChartSvg(points) {
-  const { W, H, PL, PR, PT, X, Y } = volChartScale(points);
+  const { W, H, PL, PR, PT, maxY, X, Y } = volChartScale(points);
   const path = key => {
     const seg = points.filter(p => p[key] != null);
     if (!seg.length) return '';
