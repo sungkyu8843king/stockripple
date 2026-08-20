@@ -622,6 +622,13 @@ body {
 .hist-card { display: block; background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 17px; text-decoration: none; color: var(--text); transition: border-color var(--t-fast); box-shadow: 0 1px 0 var(--inset-hairline) inset; }
 .hist-card:hover { border-color: var(--border-strong); }
 .hist-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+/* 최근 뉴스 언급 더보기(2026-08-20) — ETF 보유종목 더보기(.etfh-toggle)와 동일한 토글 방식. */
+.hist-more-wrap { display: none; flex-direction: column; gap: 10px; margin-top: 10px; }
+.hist-more-wrap.open { display: flex; }
+.hist-toggle { width: 100%; margin-top: 10px; padding: 10px; background: transparent; border: 1px solid var(--border); border-radius: 10px; color: var(--text2); font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-family: inherit; }
+.hist-toggle:hover { background: var(--bg3); color: var(--text); }
+.hist-toggle .hist-chev { transition: transform .15s; }
+.hist-toggle.open .hist-chev { transform: rotate(180deg); }
 .hist-date { font-size: 14.5px; font-family: var(--mono); color: var(--text3); font-variant-numeric: tabular-nums; }
 /* 매칭 근거 뱃지 — 상승/하락 방향성 신호가 아니므로 의도적으로 --red/--blue를 쓰지 않는다
    (이 색은 이 프로젝트에서 등락률 전용). 직접 언급만 살짝 강조. */
@@ -1973,7 +1980,8 @@ async function loadNewsHistory(ticker) {
 
     const directCount = rows.filter(x => x.matchType === 'direct').length;
     if (note) note.textContent = directCount ? `직접 언급 ${directCount}건` : `업종 관련 ${rows.length}건`;
-    wrap.innerHTML = `<div class="hist-list">${rows.map(row => {
+
+    const cardHtml = row => {
       const keypoints = Array.isArray(row.news_analysis?.keypoints) ? row.news_analysis.keypoints.slice(0, 3) : [];
       const dateStr = row.published_at ? new Date(row.published_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '';
       const isDirect = row.matchType === 'direct';
@@ -1987,9 +1995,32 @@ async function loadNewsHistory(ticker) {
         ${row.ai_digest ? `<div class="hist-reason">${escHtml(row.ai_digest)}</div>` : ''}
         ${keypoints.length ? `<div class="reasons-why" style="margin-top:10px">핵심 포인트</div><ul class="reasons-list">${keypoints.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>` : ''}
       </a>`;
-    }).join('')}</div>`;
+    };
+
+    // 최근 3건만 먼저 보여주고 나머지는 "더보기"로 접어둔다(2026-08-20 피드백) —
+    // ETF 보유종목 더보기(toggleEtfHoldersMore)와 동일한 토글 방식.
+    const NEWS_HIST_VISIBLE = 3;
+    const visible = rows.slice(0, NEWS_HIST_VISIBLE).map(cardHtml).join('');
+    const rest = rows.slice(NEWS_HIST_VISIBLE);
+    const moreLabel = `나머지 ${rest.length}건 더보기`;
+    const toggleHtml = rest.length ? `
+      <div class="hist-more-wrap" id="histMore">${rest.map(cardHtml).join('')}</div>
+      <button type="button" class="hist-toggle" id="histToggleBtn" data-more-label="${escHtml(moreLabel)}" onclick="toggleNewsHistoryMore()">
+        <span class="hist-toggle-label">${escHtml(moreLabel)}</span><span class="hist-chev">▾</span>
+      </button>` : '';
+
+    wrap.innerHTML = `<div class="hist-list">${visible}</div>${toggleHtml}`;
     sec.style.display = '';
   } catch { /* 실패해도 섹션을 안 보여줄 뿐, 페이지 나머지에 영향 없음 */ }
+}
+function toggleNewsHistoryMore() {
+  const more = document.getElementById('histMore');
+  const btn = document.getElementById('histToggleBtn');
+  if (!more || !btn) return;
+  const open = more.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  const label = btn.querySelector('.hist-toggle-label');
+  if (label) label.textContent = open ? '접기' : btn.dataset.moreLabel;
 }
 
 // ── Toss 종목 마스터: 시가총액 + 경고/상태 뱃지 ───────────────
