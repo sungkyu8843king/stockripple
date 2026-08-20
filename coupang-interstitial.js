@@ -71,13 +71,33 @@
     closeBtn.addEventListener('click', function (e) { e.stopPropagation(); close(); });
     card.appendChild(closeBtn);
 
-    // ⚠️ 2026-08-20 실측 버그: 앱을 백그라운드에 오래 뒀다가 돌아오면 iframe 광고가 안 뜨고
-    // 카드가 검은 배경만 남은 채 화면에 박혀있는 게 보고됨(원인 추정: OS가 메모리 압박으로
-    // 탭을 강제 종료했다가 복원하면서 iframe 네트워크 요청이 안 이어지거나 실패). 광고가
-    // 일정 시간 안에 안 뜨면 깨진 채 화면을 막고 있지 말고 그냥 조용히 닫는다 — 못 띄운
-    // 광고 하나보다 사용자가 페이지를 못 쓰는 게 훨씬 나쁘다.
+    // ⚠️ 2026-08-20 실측 버그(1차): 앱을 백그라운드에 오래 뒀다가 돌아오면 iframe 광고가 안
+    // 뜨고 카드가 검은 배경만 남은 채 화면에 박혀있는 게 보고됨. 광고가 일정 시간 안에 안
+    // 뜨면 깨진 채 화면을 막고 있지 말고 그냥 조용히 닫는다 — 못 띄운 광고 하나보다 사용자가
+    // 페이지를 못 쓰는 게 훨씬 나쁘다.
+    //
+    // ⚠️ 2026-08-20 실측 버그(2차): 위 1차 수정은 iframe의 'load' 이벤트로 이 안전장치를
+    // 해제했는데, 'load'는 iframe 문서 자체(그리고 그 안의 <script src=g.js>)가 다 받아진
+    // 시점에 뜰 뿐이다. g.js가 실행된 뒤 실제 광고 콘텐츠를 채워넣는 건 비동기(네트워크
+    // 요청 등)라 'load' 이후에 일어나고, 그 요청이 광고 재고 없음 등으로 실패하면 body가
+    // 영영 빈 채로 남는다 — 'load'가 이미 타이머를 꺼버렸으니 검은 카드만 화면에 그대로
+    // 박힌다(사용자 실측: 광고 없이 안내문구만 뜬 채 안 닫힘). 그래서 이제 'load' 자체가
+    // 아니라 "iframe body에 실제로 뭔가 채워졌는지"를 폴링해 확인한 뒤에만 타이머를 끈다 —
+    // 끝까지 비어있으면 실패로 간주해 원래 타이머가 그대로 닫는다. 같은 출처(same-origin)
+    // 정적 파일이라 contentDocument 접근이 막히지 않는다.
     var loadTimer = setTimeout(close, 5000);
-    iframe.addEventListener('load', function () { clearTimeout(loadTimer); }, { once: true });
+    var contentPoll = setInterval(function () {
+      try {
+        var doc = iframe.contentDocument;
+        if (doc && doc.body && doc.body.children.length > 0) {
+          clearTimeout(loadTimer);
+          clearInterval(contentPoll);
+        }
+      } catch (e) { clearInterval(contentPoll); }
+    }, 300);
+    iframe.addEventListener('load', function () {
+      // 로드 직후엔 아직 광고 콘텐츠가 안 채워졌을 수 있으니 폴링에게 판단을 맡긴다(위 참고).
+    }, { once: true });
 
     overlay.appendChild(card);
     document.body.appendChild(overlay);

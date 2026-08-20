@@ -2433,8 +2433,27 @@ function addAiGateOverlay(ticker) {
     }, 0);
   }
   window.addEventListener('blur', onWindowBlur);
+
+  // ⚠️ 2026-08-20 실측 버그: g.js가 크리에이티브를 못 채우면(광고 재고 없음·차단 등)
+  // 이 배너 자체가 빈 화면으로 남고, 게이트는 "배너를 눌러야" 풀리므로 누를 대상이 없는
+  // 사용자는 AI 종합 분석을 영영 못 본다 — 광고 하나 안 뜬 것보다 기능 전체가 막히는 게
+  // 훨씬 나쁘므로, 일정 시간 안에 광고 콘텐츠가 실제로 채워진 걸 확인 못 하면(같은 출처
+  // iframe이라 contentDocument로 직접 확인 가능) 그냥 게이트를 풀어준다.
+  const adTimeoutTimer = setTimeout(aiGateOnAdClicked, 6000);
+  const adContentPoll = setInterval(function () {
+    try {
+      const doc = iframeEl && iframeEl.contentDocument;
+      if (doc && doc.body && doc.body.children.length > 0) clearInterval(adContentPoll);
+    } catch (e) { clearInterval(adContentPoll); }
+  }, 300);
+
   const _origRemove = overlay.remove.bind(overlay);
-  overlay.remove = function () { window.removeEventListener('blur', onWindowBlur); _origRemove(); };
+  overlay.remove = function () {
+    window.removeEventListener('blur', onWindowBlur);
+    clearTimeout(adTimeoutTimer);
+    clearInterval(adContentPoll);
+    _origRemove();
+  };
 }
 
 function renderAiSummaryContent(displayName, d) {
