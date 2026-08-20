@@ -1829,7 +1829,11 @@ document.addEventListener('keydown', e => {
     if (_krHoliday && t >= 480 && t < 1350) return { key: 'holiday' }; // 평일 공휴일, 국장 관련 구간(08:00~22:30)
     if (t >= 480 && t < 540)  return { key: 'preopen', until: 540 };  // 08:00~09:00
     if (t >= 540 && t < 930)  return { key: 'krOpen',  until: 930 };  // 09:00~15:30
-    if (t >= 930 && t < 1080) return { key: 'krClose', until: 1350 }; // 15:30~18:00
+    // ⚠️ until을 1350(22:30, 미장 개장)으로 잘못 둬서 라벨은 "국장 개장까지"인데 실제로는
+    // 미장 개장까지 남은 시간을 보여주던 버그(2026-08-20 실측: 17:42에 "4시간 48분" 표시 —
+    // 22:30까지의 시간. 실제 국장 재개장까지는 15시간 18분 남았어야 함). until을 다음날
+    // 09:00(=540, 아래 wraparound로 자동으로 +1440 처리됨)으로 수정.
+    if (t >= 930 && t < 1080) return { key: 'krClose', until: 540 };  // 15:30~18:00, until=다음날 09:00
     if (t >= 1080 && t < 1350) return { key: 'usWait', until: 1350 }; // 18:00~22:30
     if (t >= 1350)             return { key: 'usOpen', until: 1440 + 300 }; // 22:30~24:00
     if (t < 300)               return { key: 'usOpen', until: 300 };  // ~05:00

@@ -2045,25 +2045,46 @@ button { font-family: inherit; }
     const mode = briefMode(isHoliday);
 
     // 헤드라인 — 밤사이 신호 중 가장 크게 움직인 것을 문장으로 세운다.
-    const cands = [
-      { n: '필라델피아 반도체', v: sox },
-      { n: 'MSCI 한국 ETF',    v: ewy },
-      { n: '코스피200 야간선물', v: knf },
-    ].filter(x => x.v != null && isFinite(x.v));
-    cands.sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
-    const top = cands[0];
-
+    // ⚠️ d.live===true(국장 09:00~22:30 — 정규장/넥스트장/마감후 시세유지)일 땐 서버가
+    // sources.overseas 자체를 안 준다(위 handleKrEstimate live 분기 — 국장 시세가 있는
+    // 동안은 17시간쯤 묵은 해외신호로 추정할 필요가 없어서 의도적으로 생략). 그런데 여기
+    // 클라이언트는 cands가 비면 무조건 "불러오지 못했어요"로 표시해서, 정상적으로 생략된
+    // 상황을 실패로 오인시켰다(2026-08-20 피드백 — "왜 맨날 못 불러오는건데, 진짜 못
+    // 불러온 거면 띄우질 말든가"). live일 땐 해외신호 대신 d.items(국장 실시간 시세) 중
+    // 가장 크게 움직인 종목으로 헤드라인을 만든다 — 진짜 실패(fetch 자체가 안 됨)일 때만
+    // "불러오지 못했어요"를 보여준다.
     let headline;
-    if (!top) {
-      headline = '밤사이 해외 신호를 불러오지 못했어요';
+    if (d.live) {
+      const liveCands = (Array.isArray(d.items) ? d.items : [])
+        .filter(x => x.changePct != null && isFinite(x.changePct));
+      liveCands.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
+      const topLive = liveCands[0];
+      if (!topLive) {
+        headline = '국장 시세를 불러오는 중이에요';
+      } else {
+        const move = topLive.changePct > 0 ? '올랐어요' : topLive.changePct < 0 ? '내렸어요' : '보합이에요';
+        const when = d.session === 'regular' ? '지금' : d.session === 'nxt' ? '넥스트장에서' : '마감 후';
+        headline = `${when} ${nbEsc(topLive.name || topLive.t)} ${nbPct(topLive.changePct)} ${move}`;
+      }
     } else {
-      const move = top.v > 0 ? '올랐어요' : top.v < 0 ? '내렸어요' : '보합이에요';
-      const when = mode.id === 'us' ? '지금' : '밤사이';
-      headline = `${when} ${top.n} ${nbPct(top.v)} ${move}`;
-      if (mode.id === 'pre') {
-        const k = kstNow();
-        const left = 540 - (k.getUTCHours() * 60 + k.getUTCMinutes());
-        if (left > 0) headline = `개장까지 ${left >= 60 ? Math.floor(left / 60) + '시간 ' : ''}${left % 60}분 · ` + headline;
+      const cands = [
+        { n: '필라델피아 반도체', v: sox },
+        { n: 'MSCI 한국 ETF',    v: ewy },
+        { n: '코스피200 야간선물', v: knf },
+      ].filter(x => x.v != null && isFinite(x.v));
+      cands.sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
+      const top = cands[0];
+      if (!top) {
+        headline = '밤사이 해외 신호를 불러오지 못했어요';
+      } else {
+        const move = top.v > 0 ? '올랐어요' : top.v < 0 ? '내렸어요' : '보합이에요';
+        const when = mode.id === 'us' ? '지금' : '밤사이';
+        headline = `${when} ${top.n} ${nbPct(top.v)} ${move}`;
+        if (mode.id === 'pre') {
+          const k = kstNow();
+          const left = 540 - (k.getUTCHours() * 60 + k.getUTCMinutes());
+          if (left > 0) headline = `개장까지 ${left >= 60 ? Math.floor(left / 60) + '시간 ' : ''}${left % 60}분 · ` + headline;
+        }
       }
     }
 
