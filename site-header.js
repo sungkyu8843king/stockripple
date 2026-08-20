@@ -979,6 +979,23 @@ async function hFindMatches(raw) {
     } catch {}
   }
 
+  if (items.length < 8) {
+    // 미국 쪽도 같은 공백이 있다(2026-08-20 피드백: 최근 상장된 레버리지 ETF "RAM"이
+    // 티커/이름 둘 다로 검색이 안 됐음 — companies에 아직 없어서). 위 KR 폴백과 대칭으로
+    // Yahoo 검색을 프록시한 /api/stock?type=search-us로 보완한다. 티커 패턴이 아니어도
+    // (영문 회사명 일부만 쳐도) Yahoo가 매칭해주므로 게이팅 없이 항상 시도한다.
+    try {
+      const r = await fetch(`/api/stock?type=search-us&q=${encodeURIComponent(raw)}`);
+      const j = await r.json();
+      for (const it of j.items || []) {
+        if (items.some(m => m.ticker === it.ticker)) continue;
+        items.push({ ticker: it.ticker, name_en: it.name, market: 'US' });
+      }
+    } catch {}
+  }
+
+  // 위 두 폴백이 다 실패해도(네트워크 문제 등) 입력값 자체가 티커 형태면 최후의 수단으로
+  // 그 티커 하나만이라도 보여준다 — 없는 것보단 낫다.
   const isUsTickerPattern = /^[A-Z][A-Z0-9.\-]{0,9}$/.test(upper) && !/^\d/.test(upper);
   if (!items.length && isUsTickerPattern) items.push({ ticker: upper, name_ko: raw, market: 'US' });
   return items.slice(0, 12);

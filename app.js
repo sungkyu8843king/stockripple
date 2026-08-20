@@ -1271,6 +1271,12 @@ const MKT_DASH_ITEMS = [
   { id: 'btc',    name: '비트코인',         fmt: '$', mk: 'crypto' },
   { id: 'gold',   name: '금',              fmt: '$', mk: 'commodity' },
   { id: 'oil',    name: 'WTI 원유',         fmt: '$', mk: 'commodity' },
+  // us10y/dxy는 /api/indices와 market-detail.html(MKT 객체) 양쪽 다 이미 완전히 지원하는
+  // 지표인데 이 대시보드 카드 목록에만 빠져 있었다(2026-08-20 피드백: "미 국채 수치 보는건
+  // 없어?" — 실제로는 있는데 이 목록에 없어서 아무 데서도 안 보였음. 다른 market-detail
+  // 페이지의 "관련 지표"로만 링크돼 있어 여기서 직접 카드로 찾을 방법이 없었다).
+  { id: 'us10y',  name: '美 10년물 국채금리', fmt: '%', mk: 'us' },
+  { id: 'dxy',    name: '달러인덱스(DXY)',   fmt: 'n', mk: 'us' },
 ];
 
 // /api/indices가 kr/us 지표엔 세션 앵커 정보(sessionStart/End/Live)를 내려준다 —

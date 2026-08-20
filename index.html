@@ -2096,12 +2096,23 @@ button { font-family: inherit; }
       }
     }
 
-    const chips = [
-      nbChip('필라델피아 반도체', sox),
-      nbChip('MSCI 한국', ewy),
-      nbChip('원/달러', fx),
-      nbChip('야간선물', knf),
-    ].filter(Boolean).join('');
+    // ⚠️ 라이브(국장 열려있는 09:00~22:30)일 땐 sox/ewy/fx/knf가 전부 null이라(위 참고)
+    // 이 칩들이 통째로 비어서 헤드라인 한 줄만 덩그러니 남아 있었다(2026-08-20 피드백:
+    // "이것만 보여주게? ... 정 중앙에 저렇게 두는 건 무슨 생각이냐"). 라이브일 땐 해외
+    // 신호 대신 오늘 국장에서 크게 움직인 종목 상위 5개를 칩으로 나란히 보여준다.
+    const chips = d.live
+      ? (Array.isArray(d.items) ? d.items : [])
+          .filter(x => x.changePct != null && isFinite(x.changePct))
+          .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
+          .slice(0, 5)
+          .map(x => nbChip(x.name || x.t, x.changePct))
+          .filter(Boolean).join('')
+      : [
+          nbChip('필라델피아 반도체', sox),
+          nbChip('MSCI 한국', ewy),
+          nbChip('원/달러', fx),
+          nbChip('야간선물', knf),
+        ].filter(Boolean).join('');
 
     // 추정가는 장이 열려 있지 않을 때만 의미가 있다(서버가 live 플래그로 알려준다).
     // ⚠️ "예상 수치" 고지는 사용자 요구사항이자 유사투자자문업 리스크와 직결 — 빼지 말 것.

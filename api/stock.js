@@ -19,6 +19,7 @@ export default async function handler(req, res) {
   if (type === 'investors')     return handleInvestors(req, res);
   if (type === 'score-factors') return handleScoreFactors(req, res);
   if (type === 'search-kr')     return handleSearchKr(req, res);
+  if (type === 'search-us')     return handleSearchUs(req, res);
   return handlePrice(req, res);
 }
 
@@ -43,6 +44,38 @@ async function handleSearchKr(req, res) {
         ticker: `${it.code}.${it.typeCode === 'KOSDAQ' ? 'KQ' : 'KS'}`,
         name: it.name,
         market: 'KR',
+      }))
+      .slice(0, 10);
+    return res.status(200).json({ ok: true, items });
+  } catch (e) {
+    return res.status(200).json({ ok: true, items: [], error: e.message });
+  }
+}
+
+// ─── 미국 종목명/티커 검색 (Yahoo Finance 검색 프록시, 2026-08-20) ─────
+// companies 테이블은 위와 같은 이유로 미국 종목도 "방문/분석된 것만" 있는 부분집합이다.
+// KR은 Naver 자동완성으로 이 공백을 메우는데 US 쪽엔 그런 폴백이 아예 없어서, 사이트가
+// 한 번도 다룬 적 없는 티커(신규 상장 ETF 등)는 검색 자체가 안 됐다(실측 피드백: 최근
+// 상장된 레버리지 ETF "RAM"을 이름/티커로 검색해도 결과 없음 — /api/quotes로 직접
+// 조회하면 Yahoo가 정상적으로 시세를 주는데도 검색으론 못 찾았음). Yahoo의 v1/finance/search는
+// 티커·회사명 둘 다 인덱싱하므로 그대로 프록시한다. EQUITY/ETF만 남기고(지수·통화·상품 등
+// 소음 제외) 상위 10개만 돌려준다.
+async function handleSearchUs(req, res) {
+  const q = (req.query?.q || '').toString().trim();
+  if (!q) return res.status(400).json({ error: 'q required' });
+  try {
+    const r = await fetch(
+      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(5000) }
+    );
+    if (!r.ok) return res.status(200).json({ ok: true, items: [] });
+    const data = await r.json();
+    const items = (data.quotes || [])
+      .filter(it => it.symbol && (it.quoteType === 'EQUITY' || it.quoteType === 'ETF') && !it.symbol.includes('.'))
+      .map(it => ({
+        ticker: it.symbol,
+        name: it.shortname || it.longname || it.symbol,
+        market: 'US',
       }))
       .slice(0, 10);
     return res.status(200).json({ ok: true, items });
