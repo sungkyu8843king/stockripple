@@ -987,9 +987,30 @@ export async function fetchKisNightFuture(raw = false, diag = {}) {
 //    있는지"를 보여주는 자리라 kr-market.html 미장 섹션에 같이 둔다.
 // ════════════════════════════════════════════════════════════════════════
 
+// 국장 개별종목 공매도 비중 — KIS daily-short-sale. 실측 확인된 필드(output2, 최신순 배열):
+// stck_bsop_date(영업일자 YYYYMMDD) · ssts_cntg_qty(당일 공매도 체결수량) ·
+// ssts_vol_rlim(당일 공매도 거래량 비중%, KIS가 이미 계산해줌) · acml_vol(당일 총거래량) ·
+// ssts_tr_pbmn_rlim(공매도 거래대금 비중%, 참고용). ⚠️ output2[0]은 "오늘" 행인데 장중에는
+// 공매도 집계가 아직 안 끝나 ssts_cntg_qty가 "0"으로 찍힌 채 온다(실측, 2026-08-20 09시대) —
+// 그 자리를 그대로 쓰면 매일 0%로 보이는 오탐이 나므로, 실제로 집계된(0이 아닌) 첫 행을 쓴다.
+// output1은 현재가 스냅샷만 주고 공매도 필드가 없다 — 시장 전체(종목코드 없는) 조회는 이
+// 엔드포인트로는 지원되지 않는 것으로 보인다(종목코드가 필수 파라미터).
+function parseKisShortSale(body) {
+  const rows = body?.output2;
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const row = rows.find(r => Number(r.ssts_cntg_qty) > 0) || null;
+  if (!row) return null;
+  const d = row.stck_bsop_date || '';
+  return {
+    date: d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : null,
+    shortVolume: Number(row.ssts_cntg_qty) || 0,
+    totalVolume: Number(row.acml_vol) || 0,
+    ratioPct: Number(row.ssts_vol_rlim) || 0,
+  };
+}
+
 // raw:true면 KIS 원본 응답을 그대로 반환(?source=short&market=KR&ticker=...&raw=1, 어드민
-// 전용) — 실전 API라 필드명을 감으로 짜지 않고 실제 응답을 먼저 확인하기 위함(위
-// fetchKisNightFuture와 동일 원칙). 필드명 확인 전까지는 raw만 지원.
+// 전용, 위 fetchKisNightFuture의 kis-test와 동일한 디버그 관례) — 필드가 바뀌면 이걸로 확인.
 async function fetchKisShortSale(ticker, diag = {}) {
   diag.stage = 'start';
   if (!kisConfigured()) { diag.stage = 'not_configured'; return { error: 'KIS_APP_KEY/KIS_APP_SECRET not set', diag }; }
@@ -1098,17 +1119,24 @@ async function handleShort(req, res) {
   const ticker = (req.query.ticker || '').toString().trim();
 
   if (market === 'KR' && ticker) {
-    // KIS 필드명 확인 전까지는 어드민 인증된 raw 조회만 지원(위 kis-test와 동일 원칙).
-    const authHeader = req.headers.authorization || (req.query.secret ? `Bearer ${req.query.secret}` : '');
-    const _a = await verifyAdmin(authHeader);
-    if (!_a.ok) return res.status(200).json({ ok: false, error: 'not_implemented_yet' });
-    res.setHeader('Cache-Control', 'no-store');
-    const diag = {};
-    const result = await Promise.race([
-      fetchKisShortSale(ticker, diag),
-      new Promise(resolve => setTimeout(() => resolve({ error: '25초 워치독', diag }), 25000)),
-    ]);
-    return res.status(200).json({ ok: true, result });
+    // raw=1이면 어드민 인증된 KIS 원본 응답 그대로(필드가 바뀌었는지 확인할 때만 씀).
+    if (req.query.raw) {
+      const authHeader = req.headers.authorization || (req.query.secret ? `Bearer ${req.query.secret}` : '');
+      const _a = await verifyAdmin(authHeader);
+      if (!_a.ok) return res.status(401).json({ error: _a.error });
+      res.setHeader('Cache-Control', 'no-store');
+      const diag = {};
+      const result = await Promise.race([
+        fetchKisShortSale(ticker, diag),
+        new Promise(resolve => setTimeout(() => resolve({ error: '25초 워치독', diag }), 25000)),
+      ]);
+      return res.status(200).json({ ok: true, result });
+    }
+    res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600');
+    const raw = await fetchKisShortSale(ticker.replace(/\.KS$|\.KQ$/i, ''));
+    if (raw?.error || !raw?.body) return res.status(200).json({ ok: false, data: null });
+    const data = parseKisShortSale(raw.body);
+    return res.status(200).json({ ok: !!data, data });
   }
 
   if (market === 'US' && ticker) {
