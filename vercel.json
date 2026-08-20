@@ -51,6 +51,7 @@
     { "source": "/api/kr-overtime",  "destination": "/api/market-data?source=kr-overtime" },
     { "source": "/api/us-market",    "destination": "/api/market-data?source=us-market" },
     { "source": "/api/toss",         "destination": "/api/market-data?source=toss" },
-    { "source": "/api/etf",          "destination": "/api/market-data?source=etf" }
+    { "source": "/api/etf",          "destination": "/api/market-data?source=etf" },
+    { "source": "/api/short",        "destination": "/api/market-data?source=short" }
   ]
 }

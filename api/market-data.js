@@ -75,6 +75,7 @@ export default async function handler(req, res) {
     }
     case 'kr-overtime':  return handleKrOvertime(req, res);
     case 'us-market':    return handleUsMarket(req, res);
+    case 'short':        return handleShort(req, res);
     case 'etf': {
       const action = (req.query.action || 'list').toString();
       if (action === 'list')      return handleEtfList(req, res);
@@ -966,6 +967,163 @@ export async function fetchKisNightFuture(raw = false, diag = {}) {
     console.error('[kis] night future fetch failed:', e.message);
     return null;
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// 롱/숏(공매도) 비율 — 2026-08-20 사용자 요청.
+//  · 국장 개별종목: KIS Open API daily-short-sale(tr_id FHPST04830000, 종목코드 필수) —
+//    이미 있는 KIS 자격증명·토큰 캐시(위 야간선물과 동일)를 재사용한다. data.krx.co.kr을
+//    직접 스크레이핑하는 경로는 이 레포에서 이미 다른 기능(투자자별 거래실적) 때 LOGOUT으로
+//    막힌 걸 확인한 바로 그 게이트라 처음부터 시도하지 않았다.
+//  · 미장 개별종목: FINRA Reg SHO 일별 공매도량(regShoDaily, 무키 공개 API). FINRA가 격주로
+//    내는 "숏 인터레스트"(consolidatedShortInterest)는 실측 결과 2020년 데이터에서 멈춰
+//    있어(더 갱신 안 되는 구 데이터셋으로 보임) 대신 매일 갱신되는 regShoDaily를 쓴다 —
+//    "당일 거래대금 대비 공매도 비중" 개념이라 국장 쪽과 같은 성격이라 나란히 비교하기도 좋다.
+//    종목당 시장센터(NQTRF/NCTRF/NYTRF) 3갈래로 나뉘어 오므로 합산해서 비율을 낸다.
+//  · 시장 전체(국장/미장 지수): KRX는 종목별과 별도로 시장 전체 공매도 비중 API를 안 주고
+//    (있어도 위와 같은 게이트), 대신 미국 CFTC가 지수선물 기관 포지션(롱/숏)을 주간 단위로
+//    무키 공개한다(Socrata Open Data, publicreporting.cftc.gov). 공매도 비중과는 완전히
+//    다른 지표(선물 포지셔닝)라 직접 비교는 안 되지만 "지금 시장이 롱/숏 어느 쪽에 쏠려
+//    있는지"를 보여주는 자리라 kr-market.html 미장 섹션에 같이 둔다.
+// ════════════════════════════════════════════════════════════════════════
+
+// raw:true면 KIS 원본 응답을 그대로 반환(?source=short&market=KR&ticker=...&raw=1, 어드민
+// 전용) — 실전 API라 필드명을 감으로 짜지 않고 실제 응답을 먼저 확인하기 위함(위
+// fetchKisNightFuture와 동일 원칙). 필드명 확인 전까지는 raw만 지원.
+async function fetchKisShortSale(ticker, diag = {}) {
+  diag.stage = 'start';
+  if (!kisConfigured()) { diag.stage = 'not_configured'; return { error: 'KIS_APP_KEY/KIS_APP_SECRET not set', diag }; }
+  try {
+    diag.stage = 'token_fetch';
+    const token = await getKisToken();
+    diag.tokenOk = true;
+    diag.stage = 'quote_fetch';
+    const r = await fetch(
+      `https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/quotations/daily-short-sale?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=${encodeURIComponent(ticker)}&FID_INPUT_DATE_1=&FID_INPUT_DATE_2=`,
+      {
+        headers: {
+          authorization: `Bearer ${token}`,
+          appkey: process.env.KIS_APP_KEY,
+          appsecret: process.env.KIS_APP_SECRET,
+          tr_id: 'FHPST04830000',
+          custtype: 'P',
+        },
+        signal: AbortSignal.timeout(8000),
+      }
+    );
+    diag.stage = 'response_received';
+    const bodyText = await r.text();
+    diag.stage = 'done';
+    let parsed; try { parsed = JSON.parse(bodyText); } catch { parsed = null; }
+    return { httpStatus: r.status, ticker, body: parsed || bodyText.slice(0, 1000), diag };
+  } catch (e) {
+    diag.stage = 'error:' + diag.stage;
+    diag.errorMessage = e.message;
+    return { error: e.message, diag };
+  }
+}
+
+// 미장 개별종목 — FINRA Reg SHO 일별 공매도량. 파티션 키(종목+날짜)를 EQUAL로 다 지정해야
+// 정렬·조회가 정상 동작한다(실측 — 안 그러면 400 에러이거나 엉뚱한 옛날 행을 줌). 오늘 날짜부터
+// 거슬러 올라가며 데이터가 있는 가장 최근 거래일을 찾는다(공휴일·주말엔 행 자체가 없음).
+async function fetchFinraShortVolume(ticker) {
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  const today = new Date();
+  for (let back = 0; back < 6; back++) {
+    const d = new Date(today.getTime() - back * 86400000);
+    const dateStr = fmt(d);
+    try {
+      const r = await fetch('https://api.finra.org/data/group/otcMarket/name/regShoDaily', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          limit: 20,
+          compareFilters: [
+            { compareType: 'EQUAL', fieldName: 'securitiesInformationProcessorSymbolIdentifier', fieldValue: ticker },
+            { compareType: 'EQUAL', fieldName: 'tradeReportDate', fieldValue: dateStr },
+          ],
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) continue;
+      const rows = await r.json();
+      if (!Array.isArray(rows) || !rows.length) continue;
+      // 시장센터(B/Q/N 등) 여러 행으로 나뉘어 온다 — 합산해서 하나의 비율로.
+      let shortSum = 0, totalSum = 0;
+      for (const row of rows) {
+        shortSum += Number(row.shortParQuantity) || 0;
+        totalSum += Number(row.totalParQuantity) || 0;
+      }
+      if (!totalSum) continue;
+      return { date: dateStr, shortVolume: shortSum, totalVolume: totalSum, ratioPct: (shortSum / totalSum) * 100 };
+    } catch { /* 다음 날짜로 재시도 */ }
+  }
+  return null;
+}
+
+// 시장 전체 — CFTC COT 리포트의 레버리지드 머니(헤지펀드류) 롱/숏 포지션. 화요일 스냅샷을
+// 매주 금요일 공개하는 주간 데이터라 "지금 이 순간"은 아니고 가장 최근 발표분이다. 여러
+// 파생상품(E-mini/Micro 등)을 합친 Consolidated 시리즈를 쓴다(개별 계약 대신 시장 전체 대표값).
+const CFTC_MARKETS = {
+  US: [
+    { key: 'sp500', label: 'S&P 500 선물', name: 'S&P 500 Consolidated - CHICAGO MERCANTILE EXCHANGE' },
+    { key: 'nasdaq100', label: '나스닥100 선물', name: 'NASDAQ-100 Consolidated - CHICAGO MERCANTILE EXCHANGE' },
+  ],
+};
+async function fetchCftcPositioning(market) {
+  const defs = CFTC_MARKETS[market];
+  if (!defs) return null;
+  const out = [];
+  await mapWithConcurrency(defs, 2, async (def) => {
+    try {
+      const url = `https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=1&$order=report_date_as_yyyy_mm_dd%20DESC&market_and_exchange_names=${encodeURIComponent(def.name)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return;
+      const rows = await r.json();
+      const row = rows?.[0];
+      if (!row) return;
+      const long = Number(row.lev_money_positions_long), short = Number(row.lev_money_positions_short);
+      if (!isFinite(long) || !isFinite(short) || (long + short) === 0) return;
+      out.push({
+        key: def.key, label: def.label, reportDate: row.report_date_as_yyyy_mm_dd?.slice(0, 10) || null,
+        long, short, longPct: (long / (long + short)) * 100,
+      });
+    } catch { /* 이 시장만 스킵 */ }
+  });
+  return out.length ? out : null;
+}
+
+async function handleShort(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const market = (req.query.market || '').toString().toUpperCase();
+  const ticker = (req.query.ticker || '').toString().trim();
+
+  if (market === 'KR' && ticker) {
+    // KIS 필드명 확인 전까지는 어드민 인증된 raw 조회만 지원(위 kis-test와 동일 원칙).
+    const authHeader = req.headers.authorization || (req.query.secret ? `Bearer ${req.query.secret}` : '');
+    const _a = await verifyAdmin(authHeader);
+    if (!_a.ok) return res.status(200).json({ ok: false, error: 'not_implemented_yet' });
+    res.setHeader('Cache-Control', 'no-store');
+    const diag = {};
+    const result = await Promise.race([
+      fetchKisShortSale(ticker, diag),
+      new Promise(resolve => setTimeout(() => resolve({ error: '25초 워치독', diag }), 25000)),
+    ]);
+    return res.status(200).json({ ok: true, result });
+  }
+
+  if (market === 'US' && ticker) {
+    res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600');
+    const data = await fetchFinraShortVolume(ticker.toUpperCase());
+    return res.status(200).json({ ok: !!data, data });
+  }
+
+  if (market === 'US' && !ticker) {
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=7200');
+    const data = await fetchCftcPositioning('US');
+    return res.status(200).json({ ok: !!data, data });
+  }
+
+  return res.status(400).json({ ok: false, error: 'unsupported market/ticker combination' });
 }
 
 // 바이낸스에 상장된 주식 perp(토큰화 주식 선물). 심볼 표기는 거래소마다 다르고
