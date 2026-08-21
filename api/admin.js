@@ -5002,9 +5002,16 @@ async function handlePredictStatus(req, res) {
 
 // 채점 (ADMIN/CRON) — 장 마감 후 실제 코스피 등락률로 미채점 건을 정산한다. 멱등.
 async function handlePredictScore(req, res) {
+  // ⚠️ 2026-08-21 실측 버그: 이 함수가 시간당(analyze-backlog.yml) 도는데, 오늘자
+  // session_date를 장중에 채점하려 하면 Yahoo ^KS11 일봉의 '오늘' 캔들이 아직 마감 전
+  // 진행 중인 스냅샷이라 그 시점 등락률로 correct/actual_pct가 영구 확정돼버린다(나중에
+  // 장이 실제로 반대 방향으로 마감해도 재채점 안 됨 — is.null 가드라 한 번 채점되면 끝).
+  // 오늘 날짜는 아예 채점 대상에서 빼고, 그 날이 지난 뒤(다음 실행)에만 채점한다 —
+  // 그때는 Yahoo 일봉이 확정 마감가이므로 안전하다.
+  const todayKst = predKstDate();
   const { data: pending, error } = await supabase.from('predictions')
     .select('id, session_date, pick, ai_pick')
-    .is('correct', null).order('session_date', { ascending: true }).limit(500);
+    .is('correct', null).lt('session_date', todayKst).order('session_date', { ascending: true }).limit(500);
   if (error) return res.status(200).json({ ok: true, scored: 0, reason: error.message });
   if (!pending?.length) return res.status(200).json({ ok: true, scored: 0, reason: '채점할 예측 없음' });
 
