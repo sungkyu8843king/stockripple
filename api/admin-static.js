@@ -49,6 +49,10 @@ const SHELL_HTML = `
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M8 8h8M8 16h5"/></svg>
       📊 실적 발표 관리
     </button>
+    <button class="nav-item" data-panel="ai-picks">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      🤖 AI 주식 추천
+    </button>
     <div class="nav-section">설정</div>
     <button class="nav-item" data-panel="accuracy">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -428,6 +432,38 @@ const SHELL_HTML = `
           <tbody id="emTable"><tr><td colspan="8" class="loading-row">불러오는 중...</td></tr></tbody>
         </table>
       </div>
+    </div>
+
+    <!-- AI 주식 추천 (admin 전용 — 공개 사이트 어디에도 안 나감) -->
+    <div class="panel-section" id="panel-ai-picks">
+      <div class="section-header">
+        <h2>🤖 AI 주식 추천</h2>
+        <p>뉴스 파급효과 분석 파이프라인이 뽑아낸 매수 후보 원본 데이터입니다. 이 패널은 어드민 로그인 뒤에만 보이고
+           공개 사이트(홈/매수후보 등)에는 절대 노출되지 않습니다 — 유사투자자문업 리스크 때문에 일반 방문자용
+           노출은 전부 막혀 있고(<code>expose_ripple_effects</code> 플래그), 이 화면은 그 플래그와 무관하게
+           오직 어드민 인증만으로 접근합니다. 참고용일 뿐 투자 조언이 아니며, 적중률 컬럼을 꼭 같이 보세요.</p>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+        <select id="picksMarket" onchange="aiPicksLoad()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          <option value="">전체 시장</option>
+          <option value="KR">한국</option>
+          <option value="US">미국</option>
+        </select>
+        <select id="picksSort" onchange="aiPicksLoad()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px">
+          <option value="entry_date">최신순</option>
+          <option value="upside_pct">상승여력순</option>
+          <option value="confidence">신뢰도순</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2)">
+          최소 신뢰도
+          <input id="picksMinConf" type="number" min="0" max="100" value="0" style="width:60px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px" onkeydown="if(event.key==='Enter')aiPicksLoad()">
+        </label>
+        <button class="btn btn-ghost" onclick="aiPicksLoad()">🔄 새로고침</button>
+        <span id="picksCount" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
+      </div>
+
+      <div id="picksList" style="display:flex;flex-direction:column;gap:10px"></div>
     </div>
 
     <!-- Accuracy -->

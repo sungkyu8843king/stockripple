@@ -138,6 +138,7 @@ export default async function handler(req, res) {
   if (action === 'morning-brief') return handleMorningBrief(req, res);
   if (action === 'predict-score') return handlePredictScore(req, res);
   if (action === 'telegram-diag') return handleTelegramDiag(req, res);
+  if (action === 'ai-picks') return handleAiPicks(req, res);
   if (action === 'ai-market-summary-direct-write') return handleAiMarketSummaryDirectWrite(req, res);
   if (action === 'daily-report-direct-write') return handleDailyReportDirectWrite(req, res);
   if (action === 'weekly-schedule-direct-write') return handleWeeklyScheduleDirectWrite(req, res);
@@ -2431,6 +2432,45 @@ async function handleInsightsRaw(req, res) {
       `)
       .order('entry_date', { ascending: false })
       .limit(500);
+    if (error) return res.status(200).json({ ok: false, error: error.message, data: [] });
+    return res.status(200).json({ ok: true, data: data || [] });
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: e.message, data: [] });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// 🤖 AI 주식 추천(admin 전용, 2026-08-21) — handleInsightsRaw와 같은 원본 데이터
+// (analysis_companies/analyses/issues/companies)를 쓰지만, 그쪽은 expose_ripple_effects가
+// 꺼져 있으면 공개 응답을 빈 배열로 막는 "공개 노출" 경로다. 여기는 반대로 항상 이 함수
+// 위쪽의 verifyAdmin 게이트를 반드시 통과해야만 도달하고(auth.js), CORS도 이 파일 전역
+// 헤더(Access-Control-Allow-Origin: *)를 그대로 두더라도 유효한 어드민 토큰 없이는 브라우저가
+// 응답을 못 받으므로 공개 노출과 무관하다 — 절대 expose_ripple_effects를 이 함수 게이트로
+// 쓰지 말 것(그 플래그는 "일반 방문자에게 보여줄지"를 판단하는 것이지, 이 함수는 애초에
+// 어드민 1인만 보는 화면이라 그 판단이 필요 없다).
+async function handleAiPicks(req, res) {
+  const market = (req.query.market || '').toString().toUpperCase(); // 'KR' | 'US' | '' (전체)
+  const minConfidence = Number(req.query.minConfidence) || 0;
+  const sort = (req.query.sort || 'entry_date').toString();         // entry_date | upside_pct | confidence
+  const limit = Math.min(Number(req.query.limit) || 200, 500);
+
+  try {
+    let q = supabase
+      .from('analysis_companies')
+      .select(`
+        id, upside_pct, confidence, rationale, ripple_sector, entry_price, entry_date,
+        is_accurate_1d, actual_return_1d, is_accurate_7d, actual_return_7d, is_accurate_30d, actual_return_30d,
+        companies!inner(ticker, name_ko, name_en, market),
+        analyses!inner(id, ai_summary, confidence_score,
+          issues!inner(id, title, published_at)
+        )
+      `)
+      .gte('confidence', minConfidence)
+      .order(sort === 'upside_pct' ? 'upside_pct' : sort === 'confidence' ? 'confidence' : 'entry_date', { ascending: false })
+      .limit(limit);
+    if (market === 'KR' || market === 'US') q = q.eq('companies.market', market);
+
+    const { data, error } = await q;
     if (error) return res.status(200).json({ ok: false, error: error.message, data: [] });
     return res.status(200).json({ ok: true, data: data || [] });
   } catch (e) {

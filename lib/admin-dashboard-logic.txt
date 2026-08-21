@@ -1,4 +1,4 @@
-const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', 'earnings-manual': '📊 실적 발표 관리', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', analytics: '📊 방문자 분석', feedback: '💬 사용자 피드백', users: '👤 회원 관리', announcement: '🚨 긴급 안내', chat: '💬 채팅 관리', settings: 'API 키 설정' };
+const panels = { dashboard: '대시보드', news: '뉴스 수집', analyze: 'AI 분석', issues: '이슈 목록', companies: '기업 데이터', investments: '🌟 전략투자', 'earnings-manual': '📊 실적 발표 관리', 'ai-picks': '🤖 AI 주식 추천', accuracy: '예측 정확도', backtest: '통계 + 백테스트', reanalyze: '재분석 (구→신)', views: '👁 조회수 통계', analytics: '📊 방문자 분석', feedback: '💬 사용자 피드백', users: '👤 회원 관리', announcement: '🚨 긴급 안내', chat: '💬 채팅 관리', settings: 'API 키 설정' };
 
 function showPanel(name) {
   document.querySelectorAll('.panel-section').forEach(p => p.classList.remove('active'));
@@ -14,6 +14,7 @@ function showPanel(name) {
   if (name === 'backtest' && !window._btLoaded) { window._btLoaded = true; loadBacktest(); }
   if (name === 'investments') invLoad();
   if (name === 'earnings-manual') { emLoad(); emLoadGaps(); }
+  if (name === 'ai-picks') aiPicksLoad();
   if (name === 'views') loadViewStats();
   if (name === 'analytics') loadAnalyticsAll();
   if (name === 'feedback') loadFeedback();
@@ -1289,6 +1290,76 @@ async function emSaveGap(i) {
   showToast(`${it.symbol} 저장 완료`, 'success');
   document.getElementById(`emGapRow-${i}`)?.remove();
   emLoad();
+}
+
+// ── 🤖 AI 주식 추천 (admin 전용, 2026-08-21) ────────────────────────────
+// analysis_companies 원본 데이터를 그대로 보여준다 — 공개 사이트에는 절대 안 나감
+// (api/admin.js handleAiPicks 참고, expose_ripple_effects와 무관하게 어드민 인증만으로 게이트).
+async function aiPicksLoad() {
+  const market = document.getElementById('picksMarket').value;
+  const sort = document.getElementById('picksSort').value;
+  const minConfidence = document.getElementById('picksMinConf').value || 0;
+  const params = new URLSearchParams({ action: 'ai-picks', sort, minConfidence });
+  if (market) params.set('market', market);
+
+  const box = document.getElementById('picksList');
+  box.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">불러오는 중...</div>';
+
+  try {
+    const r = await fetch('/api/admin?' + params.toString(), {
+      headers: { Authorization: 'Bearer ' + (await getAuthToken()) },
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'load failed');
+    document.getElementById('picksCount').textContent = `${j.data.length}건`;
+    box.innerHTML = j.data.length
+      ? j.data.map(aiPickRowHtml).join('')
+      : '<div style="color:var(--text3);font-size:13px;padding:30px;text-align:center;background:var(--bg2);border-radius:10px">조건에 맞는 항목이 없습니다.</div>';
+  } catch (e) {
+    box.innerHTML = `<div style="color:var(--red);padding:20px">로드 실패: ${e.message}</div>`;
+  }
+}
+
+function aiPickAccuracyBadge(label, isAccurate, actualReturn) {
+  if (isAccurate == null) return `<span style="font-size:10px;padding:2px 8px;border-radius:999px;background:var(--bg3);color:var(--text3)">${label} 대기중</span>`;
+  const ok = isAccurate === true;
+  const pct = actualReturn != null ? ` ${actualReturn >= 0 ? '+' : ''}${Number(actualReturn).toFixed(1)}%` : '';
+  return `<span style="font-size:10px;padding:2px 8px;border-radius:999px;background:${ok ? 'var(--green-dim,rgba(16,185,129,.15))' : 'var(--red-dim,rgba(239,68,68,.15))'};color:${ok ? 'var(--green,#10b981)' : 'var(--red,#ef4444)'}">${label} ${ok ? '적중' : '미적중'}${pct}</span>`;
+}
+
+function aiPickRowHtml(it) {
+  const co = it.companies || {};
+  const issue = it.analyses?.issues || {};
+  const name = co.name_ko || co.name_en || co.ticker || '—';
+  const confColor = it.confidence >= 80 ? 'var(--green,#10b981)' : it.confidence >= 60 ? 'var(--blue)' : 'var(--yellow,#eab308)';
+  const upColor = (it.upside_pct ?? 0) >= 0 ? 'var(--green,#10b981)' : 'var(--red,#ef4444)';
+  const entryDate = it.entry_date ? new Date(it.entry_date).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '—';
+  const pubDate = issue.published_at ? new Date(issue.published_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '';
+
+  return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+          <span style="font-weight:700;font-family:'JetBrains Mono',monospace;font-size:13px">${escHtml(co.ticker || '')}</span>
+          <span style="font-weight:600;font-size:13px">${escHtml(name)}</span>
+          <span style="font-size:10px;padding:2px 8px;border-radius:999px;background:var(--bg3);color:var(--text3)">${escHtml(co.market || '')}</span>
+          ${it.ripple_sector ? `<span style="font-size:10px;padding:2px 8px;border-radius:999px;background:var(--blue-dim);color:var(--blue)">${escHtml(it.ripple_sector)}</span>` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5">${escHtml(it.rationale || '')}</div>
+        ${issue.title ? `<div style="font-size:11px;color:var(--text3);margin-top:6px">📰 ${pubDate} · ${escHtml(issue.title)}</div>` : ''}
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:${upColor}">${it.upside_pct != null ? (it.upside_pct >= 0 ? '+' : '') + Number(it.upside_pct).toFixed(1) + '%' : '—'}</div>
+        <div style="font-size:11px;color:${confColor};font-weight:600">신뢰도 ${it.confidence ?? '—'}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">${entryDate}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${aiPickAccuracyBadge('1일', it.is_accurate_1d, it.actual_return_1d)}
+      ${aiPickAccuracyBadge('7일', it.is_accurate_7d, it.actual_return_7d)}
+      ${aiPickAccuracyBadge('30일', it.is_accurate_30d, it.actual_return_30d)}
+    </div>
+  </div>`;
 }
 
 // ── 사용자 피드백 (랜딩 페이지 챗봇 위젯 → 여기서 검토/상태 관리) ──
